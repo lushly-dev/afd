@@ -5,18 +5,12 @@
     {
       "id": "combobox.value",
       "text": "The value is the input text: after a choice, the option's label. The chosen option's value is the selectedOptionValue property, and the form receives that; raw text is submitted only when nothing is chosen.",
-      "members": [
-        "value",
-        "selectedOptionValue"
-      ]
+      "members": ["value", "selectedOptionValue"]
     },
     {
       "id": "combobox.script",
       "text": "To choose from script call selectValue(optionValue). Assigning the value property later changes only the text, not selectedOptionValue. An initial value may be an option's value or its label.",
-      "members": [
-        "value",
-        "selectedOptionValue"
-      ]
+      "members": ["value", "selectedOptionValue"]
     },
     {
       "id": "combobox.filter",
@@ -29,10 +23,7 @@
     {
       "id": "combobox.open",
       "text": "Opens on click, typing, ArrowDown, Alt+ArrowDown or ArrowUp (not focus unless open-on-focus is set); Alt+ArrowUp closes it. open reflects state; show() opens and hide(true) closes and resets text to the chosen label, or empty.",
-      "members": [
-        "open",
-        "open-on-focus"
-      ]
+      "members": ["open", "open-on-focus"]
     },
     {
       "id": "combobox.layer",
@@ -43,10 +34,7 @@
     {
       "id": "combobox.name",
       "text": "Set label: without it the input has no programmatic label and browsers fall back to the placeholder. The popup list is named by the label, else the placeholder, else \"Options\".",
-      "members": [
-        "label",
-        "placeholder"
-      ]
+      "members": ["label", "placeholder"]
     },
     {
       "id": "combobox.active",
@@ -55,9 +43,7 @@
     {
       "id": "combobox.error",
       "text": "While invalid, the rendered error message replaces the supporting text and is linked to the input as its description.",
-      "members": [
-        "error-text"
-      ]
+      "members": ["error-text"]
     }
   ],
   "roles": [

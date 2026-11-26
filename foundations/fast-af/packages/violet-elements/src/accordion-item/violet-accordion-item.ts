@@ -1,4 +1,10 @@
-import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -143,16 +149,16 @@ const styles = css`
 
 const template = html<VioletAccordionItem>`
     <div class="item" part="item">
-        <div class="heading" part="heading" role="heading" aria-level="${x => x.headingLevel}">
+        <div class="heading" part="heading" role="heading" aria-level="${(x) => x.headingLevel}">
             <button
                 class="trigger"
                 part="trigger"
-                id="${x => x.buttonId}"
+                id="${(x) => x.buttonId}"
                 type="button"
-                ?disabled="${x => x.disabled}"
-                aria-expanded="${x => String(x.expanded)}"
-                aria-controls="${x => x.panelId}"
-                @click="${x => x.handleTriggerClick()}"
+                ?disabled="${(x) => x.disabled}"
+                aria-expanded="${(x) => String(x.expanded)}"
+                aria-controls="${(x) => x.panelId}"
+                @click="${(x) => x.handleTriggerClick()}"
             >
                 <span class="heading-content" part="heading-content">
                     <slot name="heading"></slot>
@@ -163,10 +169,10 @@ const template = html<VioletAccordionItem>`
         <div
             class="panel"
             part="panel"
-            id="${x => x.panelId}"
+            id="${(x) => x.panelId}"
             role="region"
-            aria-labelledby="${x => x.buttonId}"
-            ?hidden="${x => !x.expanded}"
+            aria-labelledby="${(x) => x.buttonId}"
+            ?hidden="${(x) => !x.expanded}"
         >
             <div class="panel-content" part="panel-content">
                 <slot></slot>
@@ -191,62 +197,62 @@ const template = html<VioletAccordionItem>`
  * @csspart panel-content - Inner panel body wrapper.
  */
 export class VioletAccordionItem extends FASTElement {
-    declare public expanded: boolean;
-    declare public disabled: boolean;
-    declare public headingLevel: number;
+  declare public expanded: boolean;
+  declare public disabled: boolean;
+  declare public headingLevel: number;
 
-    public readonly panelId: string;
-    public readonly buttonId: string;
+  public readonly panelId: string;
+  public readonly buttonId: string;
 
-    public constructor() {
-        super();
-        const id = violetAccordionItemId;
-        violetAccordionItemId += 1;
+  public constructor() {
+    super();
+    const id = violetAccordionItemId;
+    violetAccordionItemId += 1;
 
-        this.expanded = false;
-        this.disabled = false;
-        this.headingLevel = 3;
+    this.expanded = false;
+    this.disabled = false;
+    this.headingLevel = 3;
 
-        this.panelId = `violet-accordion-panel-${id}`;
-        this.buttonId = `violet-accordion-button-${id}`;
+    this.panelId = `violet-accordion-panel-${id}`;
+    this.buttonId = `violet-accordion-button-${id}`;
+  }
+
+  public focusTrigger(): void {
+    this.triggerElement?.focus();
+  }
+
+  public handleTriggerClick(): void {
+    if (this.disabled) {
+      return;
     }
 
-    public focusTrigger(): void {
-        this.triggerElement?.focus();
-    }
+    this.$emit("toggle-request", { expanded: !this.expanded });
+  }
 
-    public handleTriggerClick(): void {
-        if (this.disabled) {
-            return;
-        }
-
-        this.$emit("toggle-request", { expanded: !this.expanded });
-    }
-
-    private get triggerElement(): HTMLButtonElement | null {
-        return this.shadowRoot?.querySelector(".trigger") ?? null;
-    }
+  private get triggerElement(): HTMLButtonElement | null {
+    return this.shadowRoot?.querySelector(".trigger") ?? null;
+  }
 }
 
 attr({ mode: "boolean" })(VioletAccordionItem.prototype, "expanded");
 attr({ mode: "boolean" })(VioletAccordionItem.prototype, "disabled");
 attr({
-    attribute: "heading-level",
-    converter: {
-        fromView: (value: string) => {
-            const parsed = Number.parseInt(value, 10);
-            return Number.isFinite(parsed) && parsed >= 1 && parsed <= 6 ? parsed : 3;
-        },
-        toView: (value: number) => String(value),
+  attribute: "heading-level",
+  converter: {
+    fromView: (value: string) => {
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) && parsed >= 1 && parsed <= 6 ? parsed : 3;
     },
+    toView: (value: number) => String(value),
+  },
 })(VioletAccordionItem.prototype, "headingLevel");
 
 /** The FAST definition of `<violet-accordion-item>`; `defineVioletAccordionItem` in `./violet-accordion-item.define` registers it. */
 export const violetAccordionItemDefinition = {
-    name: "violet-accordion-item",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-accordion-item",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

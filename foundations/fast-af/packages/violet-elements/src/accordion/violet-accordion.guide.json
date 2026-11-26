@@ -5,16 +5,12 @@
     {
       "id": "accordion.mode",
       "text": "The expand-mode attribute is multi (default) or single. In single mode, opening an item collapses the others, and only the first item marked expanded stays open when items are added.",
-      "members": [
-        "expand-mode"
-      ]
+      "members": ["expand-mode"]
     },
     {
       "id": "accordion.change",
       "text": "A change event fires on user toggles with detail { item, expanded }, where item is the violet-accordion-item element. Setting expanded on an item from script fires nothing and collapses no siblings.",
-      "members": [
-        "change"
-      ]
+      "members": ["change"]
     },
     {
       "id": "accordion.keys",

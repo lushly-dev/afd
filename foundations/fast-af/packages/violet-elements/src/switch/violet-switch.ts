@@ -1,7 +1,15 @@
-import { FASTElement, Updates, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  Updates,
+  when,
+} from "@lushly-dev/fast-element";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
+import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
 let violetSwitchId = 0;
 
@@ -287,42 +295,42 @@ const template = html<VioletSwitch>`
             <input
                 class="input"
                 part="input"
-                id="${x => x.controlId}"
+                id="${(x) => x.controlId}"
                 type="checkbox"
                 role="switch"
-                :checked="${x => x.checked}"
-                name="${x => x.name}"
-                value="${x => x.value}"
-                ?disabled="${x => x.effectiveDisabled}"
-                ?required="${x => x.required}"
-                aria-invalid="${x => x.invalid ? "true" : "false"}"
+                :checked="${(x) => x.checked}"
+                name="${(x) => x.name}"
+                value="${(x) => x.value}"
+                ?disabled="${(x) => x.effectiveDisabled}"
+                ?required="${(x) => x.required}"
+                aria-invalid="${(x) => (x.invalid ? "true" : "false")}"
                 @change="${(x, c) => x.handleChange(c.event)}"
             />
-            <span class="track" part="control" aria-hidden="true" @click="${x => x.handleTrackClick()}">
+            <span class="track" part="control" aria-hidden="true" @click="${(x) => x.handleTrackClick()}">
                 <span class="thumb" part="thumb" aria-hidden="true"></span>
             </span>
         </span>
-        <span class="content" ?hidden="${x => x.inline && !x.hasLabel && !x.hasSupporting && !x.displayErrorText}">
-            <label class="label" part="label" for="${x => x.controlId}" ?hidden="${x => x.inline && !x.hasLabel}">
-                <slot @slotchange="${x => x.handleDefaultSlotChange()}"></slot>
+        <span class="content" ?hidden="${(x) => x.inline && !x.hasLabel && !x.hasSupporting && !x.displayErrorText}">
+            <label class="label" part="label" for="${(x) => x.controlId}" ?hidden="${(x) => x.inline && !x.hasLabel}">
+                <slot @slotchange="${(x) => x.handleDefaultSlotChange()}"></slot>
             </label>
             <span
                 class="supporting"
-                id="${x => x.supportingTextId}"
+                id="${(x) => x.supportingTextId}"
                 part="supporting-text"
-                ?hidden="${x => !x.hasSupporting || Boolean(x.displayErrorText)}"
+                ?hidden="${(x) => !x.hasSupporting || Boolean(x.displayErrorText)}"
             >
-                <slot name="supporting" @slotchange="${x => x.handleSupportingSlotChange()}"></slot>
+                <slot name="supporting" @slotchange="${(x) => x.handleSupportingSlotChange()}"></slot>
             </span>
             ${when(
-                x => Boolean(x.displayErrorText),
-                html<VioletSwitch>`
+              (x) => Boolean(x.displayErrorText),
+              html<VioletSwitch>`
                     <span
                         class="error"
-                        id="${x => x.errorTextId}"
+                        id="${(x) => x.errorTextId}"
                         part="error-message"
                         role="alert"
-                    >${x => x.displayErrorText}</span>
+                    >${(x) => x.displayErrorText}</span>
                 `,
             )}
         </span>
@@ -345,293 +353,310 @@ const template = html<VioletSwitch>`
  * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletSwitch extends FASTElement {
-    public static readonly formAssociated = true;
+  public static readonly formAssociated = true;
 
-    readonly #internals: ElementInternals;
-    #defaultChecked: boolean;
+  readonly #internals: ElementInternals;
+  #defaultChecked: boolean;
 
-    @observable
-    declare public hasSupporting: boolean;
+  @observable
+  declare public hasSupporting: boolean;
 
-    @observable
-    declare public hasLabel: boolean;
+  @observable
+  declare public hasLabel: boolean;
 
-    /**
-     * Backing state for `displayErrorText`.
-     */
-    @observable
-    private _displayErrorText = "";
+  /**
+   * Backing state for `displayErrorText`.
+   */
+  @observable
+  private _displayErrorText = "";
 
-    /**
-     * Active error message rendered while the switch is invalid.
-     */
-    public get displayErrorText(): string {
-        return this._displayErrorText;
+  /**
+   * Active error message rendered while the switch is invalid.
+   */
+  public get displayErrorText(): string {
+    return this._displayErrorText;
+  }
+
+  declare public checked: boolean;
+  declare public disabled: boolean;
+
+  /**
+   * True while an ancestor `<fieldset disabled>` disables the control.
+   */
+  declare public fieldsetDisabled: boolean;
+
+  /**
+   * Author `disabled` or fieldset-disabled.
+   */
+  declare public readonly effectiveDisabled: boolean;
+  declare public inline: boolean;
+  declare public invalid: boolean;
+
+  /**
+   * Optional error message shown while the switch is invalid.
+   */
+  declare public errorText: string;
+  declare public name: string;
+  declare public value: string;
+  declare public required: boolean;
+
+  public readonly controlId: string;
+  public readonly supportingTextId: string;
+  public readonly errorTextId: string;
+
+  public constructor() {
+    super();
+    this.#internals = this.attachInternals();
+    const id = violetSwitchId;
+    violetSwitchId += 1;
+    this.controlId = `${this.localName || "violet-switch"}-control-${id}`;
+    this.supportingTextId = `${this.localName || "violet-switch"}-supporting-${id}`;
+    this.errorTextId = `${this.localName || "violet-switch"}-error-${id}`;
+    this.hasSupporting = false;
+    this.hasLabel = false;
+    this.checked = false;
+    this.disabled = false;
+    this.inline = false;
+    this.invalid = false;
+    this.errorText = "";
+    this.name = "";
+    this.value = "on";
+    this.required = false;
+    this.#defaultChecked = false;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.#defaultChecked = this.hasAttribute("checked")
+      ? this.getAttribute("checked") !== "false"
+      : this.checked;
+    this.#syncLabelState();
+    this.#syncSupportingState();
+    this.#syncControlState();
+    this.#syncFormState();
+  }
+
+  public handleChange(event: Event): void {
+    const control = event.currentTarget as HTMLInputElement | null;
+    this.checked = control?.checked ?? false;
+    this.$emit("change", { checked: this.checked });
+  }
+
+  public handleTrackClick(): void {
+    const control = this.shadowRoot?.querySelector(
+      'input[type="checkbox"]',
+    ) as HTMLInputElement | null;
+    control?.click();
+  }
+
+  public handleDefaultSlotChange(): void {
+    this.#syncLabelState();
+    this.#syncControlState();
+  }
+
+  public handleSupportingSlotChange(): void {
+    this.#syncSupportingState();
+    this.#syncControlState();
+  }
+
+  public formStateRestoreCallback(state: File | string | FormData | null): void {
+    if (state === "checked" || state === "unchecked") {
+      this.checked = state === "checked";
     }
+  }
 
-    declare public checked: boolean;
-    declare public disabled: boolean;
+  public formResetCallback(): void {
+    this.checked = this.#defaultChecked;
+  }
 
-    /**
-     * True while an ancestor `<fieldset disabled>` disables the control.
-     */
-    declare public fieldsetDisabled: boolean;
+  public get explicitAriaLabel(): string | null {
+    return this.getAttribute("aria-label")?.trim() || null;
+  }
 
-    /**
-     * Author `disabled` or fieldset-disabled.
-     */
-    declare public readonly effectiveDisabled: boolean;
-    declare public inline: boolean;
-    declare public invalid: boolean;
+  public get form(): HTMLFormElement | null {
+    return this.#internals.form;
+  }
 
-    /**
-     * Optional error message shown while the switch is invalid.
-     */
-    declare public errorText: string;
-    declare public name: string;
-    declare public value: string;
-    declare public required: boolean;
+  public get validity(): ValidityState {
+    return this.#internals.validity;
+  }
 
-    public readonly controlId: string;
-    public readonly supportingTextId: string;
-    public readonly errorTextId: string;
+  public get validationMessage(): string {
+    return this.#internals.validationMessage;
+  }
 
-    public constructor() {
-        super();
-        this.#internals = this.attachInternals();
-        const id = violetSwitchId;
-        violetSwitchId += 1;
-        this.controlId = `${this.localName || "violet-switch"}-control-${id}`;
-        this.supportingTextId = `${this.localName || "violet-switch"}-supporting-${id}`;
-        this.errorTextId = `${this.localName || "violet-switch"}-error-${id}`;
-        this.hasSupporting = false;
-        this.hasLabel = false;
-        this.checked = false;
-        this.disabled = false;
-        this.inline = false;
-        this.invalid = false;
-        this.errorText = "";
-        this.name = "";
-        this.value = "on";
-        this.required = false;
-        this.#defaultChecked = false;
+  public get willValidate(): boolean {
+    return this.#internals.willValidate;
+  }
+
+  public checkValidity(): boolean {
+    return this.#internals.checkValidity();
+  }
+
+  public reportValidity(): boolean {
+    return this.#internals.reportValidity();
+  }
+
+  public checkedChanged(): void {
+    this.#syncControlState();
+    this.#syncFormState();
+  }
+
+  public disabledChanged(): void {
+    this.#syncControlState();
+    this.#syncFormState();
+  }
+
+  public invalidChanged(): void {
+    this.#syncControlState();
+    this.#syncFormState();
+  }
+
+  public errorTextChanged(): void {
+    this.#syncFormState();
+  }
+
+  #setDisplayErrorText(next: string): void {
+    if (this._displayErrorText === next) {
+      return;
     }
-
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.#defaultChecked = this.hasAttribute("checked") ? this.getAttribute("checked") !== "false" : this.checked;
-        this.#syncLabelState();
-        this.#syncSupportingState();
+    this._displayErrorText = next;
+    if (!this.$fastController.isConnected) {
+      return;
+    }
+    Updates.enqueue(() => {
+      Updates.enqueue(() => {
         this.#syncControlState();
-        this.#syncFormState();
-    }
+      });
+    });
+  }
 
-    public handleChange(event: Event): void {
-        const control = event.currentTarget as HTMLInputElement | null;
-        this.checked = control?.checked ?? false;
-        this.$emit("change", { checked: this.checked });
-    }
+  public requiredChanged(): void {
+    this.#syncControlState();
+    this.#syncFormState();
+  }
 
-    public handleTrackClick(): void {
-        const control = this.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
-        control?.click();
-    }
+  public valueChanged(): void {
+    this.#syncControlState();
+    this.#syncFormState();
+  }
 
-    public handleDefaultSlotChange(): void {
-        this.#syncLabelState();
-        this.#syncControlState();
-    }
+  public nameChanged(): void {
+    this.#syncControlState();
+  }
 
-    public handleSupportingSlotChange(): void {
-        this.#syncSupportingState();
-        this.#syncControlState();
-    }
+  #syncLabelState(): void {
+    this.hasLabel = this.#defaultSlotText().length > 0;
+  }
 
-    public formStateRestoreCallback(state: File | string | FormData | null): void {
-        if (state === "checked" || state === "unchecked") {
-            this.checked = state === "checked";
-        }
-    }
+  #syncSupportingState(): void {
+    const slot = this.shadowRoot?.querySelector(
+      'slot[name="supporting"]',
+    ) as HTMLSlotElement | null;
+    this.hasSupporting = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
 
-    public formResetCallback(): void {
-        this.checked = this.#defaultChecked;
-    }
+      return true;
+    });
+  }
 
-    public get explicitAriaLabel(): string | null {
-        return this.getAttribute("aria-label")?.trim() || null;
-    }
-
-    public get form(): HTMLFormElement | null {
-        return this.#internals.form;
-    }
-
-    public get validity(): ValidityState {
-        return this.#internals.validity;
-    }
-
-    public get validationMessage(): string {
-        return this.#internals.validationMessage;
-    }
-
-    public get willValidate(): boolean {
-        return this.#internals.willValidate;
-    }
-
-    public checkValidity(): boolean {
-        return this.#internals.checkValidity();
-    }
-
-    public reportValidity(): boolean {
-        return this.#internals.reportValidity();
-    }
-
-    public checkedChanged(): void {
-        this.#syncControlState();
-        this.#syncFormState();
-    }
-
-    public disabledChanged(): void {
-        this.#syncControlState();
-        this.#syncFormState();
-    }
-
-    public invalidChanged(): void {
-        this.#syncControlState();
-        this.#syncFormState();
-    }
-
-    public errorTextChanged(): void {
-        this.#syncFormState();
-    }
-
-    #setDisplayErrorText(next: string): void {
-        if (this._displayErrorText === next) {
-            return;
-        }
-        this._displayErrorText = next;
-        if (!this.$fastController.isConnected) {
-            return;
-        }
-        Updates.enqueue(() => {
-            Updates.enqueue(() => {
-                this.#syncControlState();
-            });
-        });
-    }
-
-    public requiredChanged(): void {
-        this.#syncControlState();
-        this.#syncFormState();
-    }
-
-    public valueChanged(): void {
-        this.#syncControlState();
-        this.#syncFormState();
-    }
-
-    public nameChanged(): void {
-        this.#syncControlState();
-    }
-
-    #syncLabelState(): void {
-        this.hasLabel = this.#defaultSlotText().length > 0;
-    }
-
-    #syncSupportingState(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="supporting"]') as HTMLSlotElement | null;
-        this.hasSupporting = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-
-            return true;
-        });
-    }
-
-    #defaultSlotText(): string {
-        return Array.from(this.childNodes)
-            .filter(node => {
-                if (node.nodeType !== Node.ELEMENT_NODE) {
-                    return true;
-                }
-
-                return !(node as Element).hasAttribute("slot");
-            })
-            .map(node => node.textContent ?? "")
-            .join(" ")
-            .trim();
-    }
-
-    #syncControlState(): void {
-        if (!this.$fastController.isConnected) {
-            return;
+  #defaultSlotText(): string {
+    return Array.from(this.childNodes)
+      .filter((node) => {
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+          return true;
         }
 
-        const control = this.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
-        if (!control) {
-            return;
-        }
+        return !(node as Element).hasAttribute("slot");
+      })
+      .map((node) => node.textContent ?? "")
+      .join(" ")
+      .trim();
+  }
 
-        control.checked = this.checked;
-        control.disabled = this.effectiveDisabled;
-        control.required = this.required;
-        control.name = this.name;
-        control.value = this.value;
-        control.setAttribute("role", "switch");
-        control.setAttribute("aria-invalid", this.invalid ? "true" : "false");
-
-        const explicitAriaLabel = this.explicitAriaLabel;
-        if (explicitAriaLabel) {
-            control.setAttribute("aria-label", explicitAriaLabel);
-        } else {
-            control.removeAttribute("aria-label");
-        }
-
-        if (this.displayErrorText) {
-            control.setAttribute("aria-describedby", this.errorTextId);
-        } else if (this.hasSupporting) {
-            control.setAttribute("aria-describedby", this.supportingTextId);
-        } else {
-            control.removeAttribute("aria-describedby");
-        }
+  #syncControlState(): void {
+    if (!this.$fastController.isConnected) {
+      return;
     }
 
-    #syncFormState(): void {
-        if (!this.$fastController.isConnected) {
-            return;
-        }
-
-        const control = this.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
-
-        this.#internals.ariaInvalid = this.invalid ? "true" : "false";
-        this.#internals.setFormValue(!this.effectiveDisabled && this.checked ? this.value : null, this.checked ? "checked" : "unchecked");
-
-        if (this.effectiveDisabled) {
-            this.#setDisplayErrorText("");
-            this.#internals.setValidity({});
-            return;
-        }
-
-        if (this.invalid) {
-            const customError = (this.errorText ?? "").trim();
-            this.#setDisplayErrorText(customError || control?.validationMessage || "");
-            this.#internals.setValidity(
-                { customError: true },
-                customError || "Please correct this field.",
-                control ?? undefined,
-            );
-            return;
-        }
-
-        this.#setDisplayErrorText("");
-
-        if (this.required && !this.checked) {
-            this.#internals.setValidity({ valueMissing: true }, "Please turn this setting on.", control ?? undefined);
-            return;
-        }
-
-        this.#internals.setValidity({});
+    const control = this.shadowRoot?.querySelector(
+      'input[type="checkbox"]',
+    ) as HTMLInputElement | null;
+    if (!control) {
+      return;
     }
+
+    control.checked = this.checked;
+    control.disabled = this.effectiveDisabled;
+    control.required = this.required;
+    control.name = this.name;
+    control.value = this.value;
+    control.setAttribute("role", "switch");
+    control.setAttribute("aria-invalid", this.invalid ? "true" : "false");
+
+    const explicitAriaLabel = this.explicitAriaLabel;
+    if (explicitAriaLabel) {
+      control.setAttribute("aria-label", explicitAriaLabel);
+    } else {
+      control.removeAttribute("aria-label");
+    }
+
+    if (this.displayErrorText) {
+      control.setAttribute("aria-describedby", this.errorTextId);
+    } else if (this.hasSupporting) {
+      control.setAttribute("aria-describedby", this.supportingTextId);
+    } else {
+      control.removeAttribute("aria-describedby");
+    }
+  }
+
+  #syncFormState(): void {
+    if (!this.$fastController.isConnected) {
+      return;
+    }
+
+    const control = this.shadowRoot?.querySelector(
+      'input[type="checkbox"]',
+    ) as HTMLInputElement | null;
+
+    this.#internals.ariaInvalid = this.invalid ? "true" : "false";
+    this.#internals.setFormValue(
+      !this.effectiveDisabled && this.checked ? this.value : null,
+      this.checked ? "checked" : "unchecked",
+    );
+
+    if (this.effectiveDisabled) {
+      this.#setDisplayErrorText("");
+      this.#internals.setValidity({});
+      return;
+    }
+
+    if (this.invalid) {
+      const customError = (this.errorText ?? "").trim();
+      this.#setDisplayErrorText(customError || control?.validationMessage || "");
+      this.#internals.setValidity(
+        { customError: true },
+        customError || "Please correct this field.",
+        control ?? undefined,
+      );
+      return;
+    }
+
+    this.#setDisplayErrorText("");
+
+    if (this.required && !this.checked) {
+      this.#internals.setValidity(
+        { valueMissing: true },
+        "Please turn this setting on.",
+        control ?? undefined,
+      );
+      return;
+    }
+
+    this.#internals.setValidity({});
+  }
 }
 
 attr({ mode: "boolean" })(VioletSwitch.prototype, "checked");
@@ -646,10 +671,10 @@ attr({ mode: "boolean" })(VioletSwitch.prototype, "required");
 
 /** The FAST definition of `<violet-switch>`; `defineVioletSwitch` in `./violet-switch.define` registers it. */
 export const violetSwitchDefinition = {
-    name: "violet-switch",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-switch",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

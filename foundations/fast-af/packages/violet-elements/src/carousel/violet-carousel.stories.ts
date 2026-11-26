@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 
 import "../card/violet-card.define";
 import "../text/violet-text.define";
@@ -7,36 +7,36 @@ import "./violet-carousel.define";
 import type { VioletCarousel } from "./violet-carousel";
 
 type VioletCarouselStoryArgs = {
-    appearance: "framed" | "plain";
-    label: string;
-    activeIndex: number;
-    slidesPerView: number;
-    loop: boolean;
+  appearance: "framed" | "plain";
+  label: string;
+  activeIndex: number;
+  slidesPerView: number;
+  loop: boolean;
 };
 
 const slideData = [
-    {
-        label: "Propagation dashboard",
-        title: "Propagation dashboard",
-        body: "Track sowing method, tray count, and current greenhouse staffing in one quick review panel.",
-        tone: "rgba(222, 234, 223, 0.95)",
-    },
-    {
-        label: "Watering reminders",
-        title: "Watering reminders",
-        body: "Coordinate moisture checks, next irrigation windows, and exception alerts for the active block.",
-        tone: "rgba(226, 238, 247, 0.95)",
-    },
-    {
-        label: "Harvest prep",
-        title: "Harvest prep",
-        body: "Keep cut lists, pack-out tasks, and fulfillment notes aligned before the crew starts its pass.",
-        tone: "rgba(248, 238, 224, 0.95)",
-    },
+  {
+    label: "Propagation dashboard",
+    title: "Propagation dashboard",
+    body: "Track sowing method, tray count, and current greenhouse staffing in one quick review panel.",
+    tone: "rgba(222, 234, 223, 0.95)",
+  },
+  {
+    label: "Watering reminders",
+    title: "Watering reminders",
+    body: "Coordinate moisture checks, next irrigation windows, and exception alerts for the active block.",
+    tone: "rgba(226, 238, 247, 0.95)",
+  },
+  {
+    label: "Harvest prep",
+    title: "Harvest prep",
+    body: "Keep cut lists, pack-out tasks, and fulfillment notes aligned before the crew starts its pass.",
+    tone: "rgba(248, 238, 224, 0.95)",
+  },
 ];
 
 function renderSlide(entry: (typeof slideData)[number]): string {
-    return `
+  return `
         <violet-card
             appearance="filled"
             padding="large"
@@ -52,7 +52,7 @@ function renderSlide(entry: (typeof slideData)[number]): string {
 }
 
 function renderCarousel(args: VioletCarouselStoryArgs): string {
-    return `
+  return `
         <div style="max-inline-size: 34rem;">
             <violet-carousel
                 label="${args.label}"
@@ -68,35 +68,35 @@ function renderCarousel(args: VioletCarouselStoryArgs): string {
 }
 
 const meta = {
-    title: "Components/Carousel",
-    component: "violet-carousel",
-    tags: ["autodocs"],
-    parameters: {
-        docs: {
-            description: {
-                component:
-                    "Slot-based Violet carousel for paging arbitrary content one slide at a time with generated previous/next controls and pager dots.",
-            },
-        },
+  title: "Components/Carousel",
+  component: "violet-carousel",
+  tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "Slot-based Violet carousel for paging arbitrary content one slide at a time with generated previous/next controls and pager dots.",
+      },
     },
-    argTypes: {
-        activeIndex: {
-            control: { type: "range", min: 0, max: 2, step: 1 },
-            name: "active-index",
-        },
-        appearance: {
-            control: "inline-radio",
-            options: ["framed", "plain"],
-        },
-        slidesPerView: {
-            control: { type: "range", min: 1, max: 3, step: 1 },
-            name: "slides-per-view",
-        },
-        loop: {
-            control: "boolean",
-        },
+  },
+  argTypes: {
+    activeIndex: {
+      control: { type: "range", min: 0, max: 2, step: 1 },
+      name: "active-index",
     },
-    render: (args: VioletCarouselStoryArgs) => renderCarousel(args),
+    appearance: {
+      control: "inline-radio",
+      options: ["framed", "plain"],
+    },
+    slidesPerView: {
+      control: { type: "range", min: 1, max: 3, step: 1 },
+      name: "slides-per-view",
+    },
+    loop: {
+      control: "boolean",
+    },
+  },
+  render: (args: VioletCarouselStoryArgs) => renderCarousel(args),
 } satisfies Meta<VioletCarouselStoryArgs>;
 
 export default meta;
@@ -109,133 +109,139 @@ type Story = StoryObj<VioletCarouselStoryArgs>;
  * timing.
  */
 function scrollEnd(carousel: VioletCarousel): Promise<void> {
-    const viewport = carousel.shadowRoot?.querySelector("[part='viewport']");
-    return new Promise((resolve) => {
-        const timer = setTimeout(resolve, 5000);
-        viewport?.addEventListener(
-            "scrollend",
-            () => {
-                clearTimeout(timer);
-                resolve();
-            },
-            { once: true },
-        );
-    });
+  const viewport = carousel.shadowRoot?.querySelector("[part='viewport']");
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, 5000);
+    viewport?.addEventListener(
+      "scrollend",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
+  });
 }
 
 export const Overview: Story = {
-    args: {
-        label: "Field operations carousel",
-        appearance: "framed",
-        activeIndex: 0,
-        slidesPerView: 1,
-        loop: false,
-    },
-    play: async ({ canvasElement }) => {
-        const carousel = canvasElement.querySelector("violet-carousel") as VioletCarousel | null;
-        const nextButton = carousel?.shadowRoot?.querySelector("[part='next-button']") as HTMLElement | null;
+  args: {
+    label: "Field operations carousel",
+    appearance: "framed",
+    activeIndex: 0,
+    slidesPerView: 1,
+    loop: false,
+  },
+  play: async ({ canvasElement }) => {
+    const carousel = canvasElement.querySelector("violet-carousel") as VioletCarousel | null;
+    const nextButton = carousel?.shadowRoot?.querySelector(
+      "[part='next-button']",
+    ) as HTMLElement | null;
 
-        if (!carousel || !nextButton) {
-            throw new Error("Expected violet-carousel to render navigation controls.");
-        }
+    if (!carousel || !nextButton) {
+      throw new Error("Expected violet-carousel to render navigation controls.");
+    }
 
-        const settled = scrollEnd(carousel);
-        nextButton.click();
-        await settled;
+    const settled = scrollEnd(carousel);
+    nextButton.click();
+    await settled;
 
-        await waitFor(() => {
-            expect(carousel.activeIndex).toBe(1);
-        });
-    },
+    await waitFor(() => {
+      expect(carousel.activeIndex).toBe(1);
+    });
+  },
 };
 
 export const Looping: Story = {
-    args: {
-        label: "Looping harvest carousel",
-        appearance: "framed",
-        activeIndex: 2,
-        slidesPerView: 1,
-        loop: true,
-    },
-    play: async ({ canvasElement }) => {
-        const carousel = canvasElement.querySelector("violet-carousel") as VioletCarousel | null;
-        const nextButton = carousel?.shadowRoot?.querySelector("[part='next-button']") as HTMLElement | null;
+  args: {
+    label: "Looping harvest carousel",
+    appearance: "framed",
+    activeIndex: 2,
+    slidesPerView: 1,
+    loop: true,
+  },
+  play: async ({ canvasElement }) => {
+    const carousel = canvasElement.querySelector("violet-carousel") as VioletCarousel | null;
+    const nextButton = carousel?.shadowRoot?.querySelector(
+      "[part='next-button']",
+    ) as HTMLElement | null;
 
-        if (!carousel || !nextButton) {
-            throw new Error("Expected looping violet-carousel to render.");
-        }
+    if (!carousel || !nextButton) {
+      throw new Error("Expected looping violet-carousel to render.");
+    }
 
-        const settled = scrollEnd(carousel);
-        nextButton.click();
-        await settled;
+    const settled = scrollEnd(carousel);
+    nextButton.click();
+    await settled;
 
-        await waitFor(() => {
-            expect(carousel.activeIndex).toBe(0);
-        });
-    },
+    await waitFor(() => {
+      expect(carousel.activeIndex).toBe(0);
+    });
+  },
 };
 
 export const KeyboardNavigation: Story = {
-    args: {
-        label: "Keyboard carousel",
-        appearance: "framed",
-        activeIndex: 0,
-        slidesPerView: 1,
-        loop: false,
-    },
-    play: async ({ canvasElement }) => {
-        const carousel = canvasElement.querySelector("violet-carousel") as VioletCarousel | null;
-        const viewport = carousel?.shadowRoot?.querySelector("[part='viewport']") as HTMLElement | null;
+  args: {
+    label: "Keyboard carousel",
+    appearance: "framed",
+    activeIndex: 0,
+    slidesPerView: 1,
+    loop: false,
+  },
+  play: async ({ canvasElement }) => {
+    const carousel = canvasElement.querySelector("violet-carousel") as VioletCarousel | null;
+    const viewport = carousel?.shadowRoot?.querySelector("[part='viewport']") as HTMLElement | null;
 
-        if (!carousel || !viewport) {
-            throw new Error("Expected violet-carousel viewport to render.");
-        }
+    if (!carousel || !viewport) {
+      throw new Error("Expected violet-carousel viewport to render.");
+    }
 
-        const settled = scrollEnd(carousel);
-        viewport.focus();
-        await userEvent.keyboard("{ArrowRight}");
-        await settled;
+    const settled = scrollEnd(carousel);
+    viewport.focus();
+    await userEvent.keyboard("{ArrowRight}");
+    await settled;
 
-        await waitFor(() => {
-            expect(carousel.activeIndex).toBe(1);
-        });
-    },
+    await waitFor(() => {
+      expect(carousel.activeIndex).toBe(1);
+    });
+  },
 };
 
 export const PaginationDots: Story = {
-    args: {
-        label: "Pager carousel",
-        appearance: "framed",
-        activeIndex: 0,
-        slidesPerView: 1,
-        loop: false,
-    },
-    play: async ({ canvasElement }) => {
-        const carousel = canvasElement.querySelector("violet-carousel") as VioletCarousel | null;
-        const dots = Array.from(carousel?.shadowRoot?.querySelectorAll(".dot") ?? []) as HTMLButtonElement[];
+  args: {
+    label: "Pager carousel",
+    appearance: "framed",
+    activeIndex: 0,
+    slidesPerView: 1,
+    loop: false,
+  },
+  play: async ({ canvasElement }) => {
+    const carousel = canvasElement.querySelector("violet-carousel") as VioletCarousel | null;
+    const dots = Array.from(
+      carousel?.shadowRoot?.querySelectorAll(".dot") ?? [],
+    ) as HTMLButtonElement[];
 
-        if (!carousel || dots.length < 3) {
-            throw new Error("Expected violet-carousel pager dots to render.");
-        }
+    if (!carousel || dots.length < 3) {
+      throw new Error("Expected violet-carousel pager dots to render.");
+    }
 
-        const settled = scrollEnd(carousel);
-        dots[2]?.click();
-        await settled;
+    const settled = scrollEnd(carousel);
+    dots[2]?.click();
+    await settled;
 
-        await waitFor(() => {
-            expect(carousel.activeIndex).toBe(2);
-            const currentDots = carousel.shadowRoot?.querySelectorAll(".dot");
-            expect(currentDots?.[2]?.getAttribute("aria-pressed")).toBe("true");
-        });
-    },
+    await waitFor(() => {
+      expect(carousel.activeIndex).toBe(2);
+      const currentDots = carousel.shadowRoot?.querySelectorAll(".dot");
+      expect(currentDots?.[2]?.getAttribute("aria-pressed")).toBe("true");
+    });
+  },
 };
 
 export const CardStrip: Story = {
-    args: {
-        label: "Card strip carousel",
-        appearance: "plain",
-        activeIndex: 0,
-        slidesPerView: 2,
-        loop: false,
-    },
+  args: {
+    label: "Card strip carousel",
+    appearance: "plain",
+    activeIndex: 0,
+    slidesPerView: 2,
+    loop: false,
+  },
 };

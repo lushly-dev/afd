@@ -11,9 +11,7 @@
     {
       "id": "breadcrumb.name",
       "text": "It renders a nav landmark named by label, default \"Breadcrumb\"; set a distinct label when a page has more than one trail.",
-      "members": [
-        "label"
-      ]
+      "members": ["label"]
     }
   ]
 }

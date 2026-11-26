@@ -1,71 +1,77 @@
-import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 
 import "./violet-card.define";
-import type { VioletCard, VioletCardAppearance, VioletCardOrientation, VioletCardPadding } from "./violet-card";
+import type {
+  VioletCard,
+  VioletCardAppearance,
+  VioletCardOrientation,
+  VioletCardPadding,
+} from "./violet-card";
 
 // Inline SVG, so the stories load no remote image: Specimen's pages reach only the bench's origin.
 const svgImage = (width: number, height: number, fill: string, accent: string) =>
-    `data:image/svg+xml,${encodeURIComponent(
-        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="${fill}"/><circle cx="${width * 0.3}" cy="${height * 0.4}" r="${Math.min(width, height) * 0.18}" fill="${accent}"/><path d="M0 ${height}L${width * 0.45} ${height * 0.5}L${width * 0.7} ${height * 0.75}L${width} ${height * 0.45}V${height}z" fill="#2c5e4b"/></svg>`,
-    )}`;
+  `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="${fill}"/><circle cx="${width * 0.3}" cy="${height * 0.4}" r="${Math.min(width, height) * 0.18}" fill="${accent}"/><path d="M0 ${height}L${width * 0.45} ${height * 0.5}L${width * 0.7} ${height * 0.75}L${width} ${height * 0.45}V${height}z" fill="#2c5e4b"/></svg>`,
+  )}`;
 const BLEED_IMAGE = svgImage(400, 200, "#dfeae3", "#badecf");
 const THUMBNAIL_IMAGE = svgImage(160, 160, "#f4f0ea", "#8fbf8f");
 
 type VioletCardStoryArgs = {
-    padding: VioletCardPadding;
-    appearance: VioletCardAppearance;
-    interactive: boolean;
-    orientation: VioletCardOrientation;
+  padding: VioletCardPadding;
+  appearance: VioletCardAppearance;
+  interactive: boolean;
+  orientation: VioletCardOrientation;
 };
 
 function renderCard(args: VioletCardStoryArgs, content?: (card: HTMLElement) => void): HTMLElement {
-    const element = document.createElement("violet-card") as VioletCard;
-    element.setAttribute("padding", args.padding);
-    element.setAttribute("appearance", args.appearance);
-    element.interactive = args.interactive;
-    element.setAttribute("orientation", args.orientation);
-    element.style.maxInlineSize = "360px";
+  const element = document.createElement("violet-card") as VioletCard;
+  element.setAttribute("padding", args.padding);
+  element.setAttribute("appearance", args.appearance);
+  element.interactive = args.interactive;
+  element.setAttribute("orientation", args.orientation);
+  element.style.maxInlineSize = "360px";
 
-    if (content) {
-        content(element);
-    } else {
-        const p = document.createElement("p");
-        p.style.margin = "0";
-        p.textContent = "Card body content goes here. This is a basic Violet card surface.";
-        element.append(p);
-    }
+  if (content) {
+    content(element);
+  } else {
+    const p = document.createElement("p");
+    p.style.margin = "0";
+    p.textContent = "Card body content goes here. This is a basic Violet card surface.";
+    element.append(p);
+  }
 
-    return element;
+  return element;
 }
 
 const meta = {
-    title: "Components/Card",
-    component: "violet-card",
-    tags: ["autodocs"],
-    parameters: {
-        docs: {
-            description: {
-                component: "Reusable Violet card surface with optional padding, appearance variants, header/footer slots, and interactive mode.",
-            },
-        },
+  title: "Components/Card",
+  component: "violet-card",
+  tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "Reusable Violet card surface with optional padding, appearance variants, header/footer slots, and interactive mode.",
+      },
     },
-    argTypes: {
-        padding: {
-            control: "inline-radio",
-            options: ["none", "small", "medium", "large"],
-        },
-        appearance: {
-            control: "inline-radio",
-            options: ["filled", "outline", "subtle"],
-        },
-        interactive: { control: "boolean" },
-        orientation: {
-            control: "inline-radio",
-            options: ["vertical", "horizontal"],
-        },
+  },
+  argTypes: {
+    padding: {
+      control: "inline-radio",
+      options: ["none", "small", "medium", "large"],
     },
-    render: (args: VioletCardStoryArgs) => renderCard(args),
+    appearance: {
+      control: "inline-radio",
+      options: ["filled", "outline", "subtle"],
+    },
+    interactive: { control: "boolean" },
+    orientation: {
+      control: "inline-radio",
+      options: ["vertical", "horizontal"],
+    },
+  },
+  render: (args: VioletCardStoryArgs) => renderCard(args),
 } satisfies Meta<VioletCardStoryArgs>;
 
 export default meta;
@@ -73,246 +79,246 @@ export default meta;
 type Story = StoryObj<VioletCardStoryArgs>;
 
 export const Overview: Story = {
-    args: {
-        padding: "medium",
-        appearance: "filled",
-        interactive: false,
-        orientation: "vertical",
-    },
-    render: (args: VioletCardStoryArgs) =>
-        renderCard(args, card => {
-            const header = document.createElement("div");
-            header.slot = "header";
-            const h3 = document.createElement("h3");
-            h3.style.margin = "0";
-            h3.style.fontSize = "14px";
-            h3.style.fontWeight = "600";
-            h3.textContent = "Card Title";
-            header.append(h3);
+  args: {
+    padding: "medium",
+    appearance: "filled",
+    interactive: false,
+    orientation: "vertical",
+  },
+  render: (args: VioletCardStoryArgs) =>
+    renderCard(args, (card) => {
+      const header = document.createElement("div");
+      header.slot = "header";
+      const h3 = document.createElement("h3");
+      h3.style.margin = "0";
+      h3.style.fontSize = "14px";
+      h3.style.fontWeight = "600";
+      h3.textContent = "Card Title";
+      header.append(h3);
 
-            const body = document.createElement("p");
-            body.style.margin = "0";
-            body.textContent = "Card body content with comfortable padding on all sections.";
+      const body = document.createElement("p");
+      body.style.margin = "0";
+      body.textContent = "Card body content with comfortable padding on all sections.";
 
-            const footer = document.createElement("div");
-            footer.slot = "footer";
-            footer.style.display = "flex";
-            footer.style.gap = "8px";
-            const btn = document.createElement("button");
-            btn.textContent = "Action";
-            footer.append(btn);
+      const footer = document.createElement("div");
+      footer.slot = "footer";
+      footer.style.display = "flex";
+      footer.style.gap = "8px";
+      const btn = document.createElement("button");
+      btn.textContent = "Action";
+      footer.append(btn);
 
-            card.append(header, body, footer);
-        }),
-    play: async ({ canvasElement }) => {
-        const element = canvasElement.querySelector("violet-card") as VioletCard | null;
-        const root = element?.shadowRoot?.querySelector(".root") as HTMLElement | null;
+      card.append(header, body, footer);
+    }),
+  play: async ({ canvasElement }) => {
+    const element = canvasElement.querySelector("violet-card") as VioletCard | null;
+    const root = element?.shadowRoot?.querySelector(".root") as HTMLElement | null;
 
-        if (!element || !root) {
-            throw new Error("Expected violet-card to render.");
-        }
+    if (!element || !root) {
+      throw new Error("Expected violet-card to render.");
+    }
 
-        await expect(root.getAttribute("part")).toBe("root");
+    await expect(root.getAttribute("part")).toBe("root");
 
-        await waitFor(() => {
-            const header = element.shadowRoot?.querySelector(".header") as HTMLElement | null;
-            expect(header?.hidden).toBe(false);
-        });
-    },
+    await waitFor(() => {
+      const header = element.shadowRoot?.querySelector(".header") as HTMLElement | null;
+      expect(header?.hidden).toBe(false);
+    });
+  },
 };
 
 export const NoPadding: Story = {
-    args: {
-        padding: "none",
-        appearance: "filled",
-        interactive: false,
-        orientation: "vertical",
-    },
-    render: (args: VioletCardStoryArgs) =>
-        renderCard(args, card => {
-            const img = document.createElement("img");
-            img.src = BLEED_IMAGE;
-            img.alt = "Full-bleed image with no padding";
-            img.style.display = "block";
-            img.style.inlineSize = "100%";
-            img.style.blockSize = "180px";
-            img.style.objectFit = "cover";
-            card.append(img);
-        }),
-    play: async ({ canvasElement }) => {
-        const element = canvasElement.querySelector("violet-card") as VioletCard | null;
-        const body = element?.shadowRoot?.querySelector(".body") as HTMLElement | null;
+  args: {
+    padding: "none",
+    appearance: "filled",
+    interactive: false,
+    orientation: "vertical",
+  },
+  render: (args: VioletCardStoryArgs) =>
+    renderCard(args, (card) => {
+      const img = document.createElement("img");
+      img.src = BLEED_IMAGE;
+      img.alt = "Full-bleed image with no padding";
+      img.style.display = "block";
+      img.style.inlineSize = "100%";
+      img.style.blockSize = "180px";
+      img.style.objectFit = "cover";
+      card.append(img);
+    }),
+  play: async ({ canvasElement }) => {
+    const element = canvasElement.querySelector("violet-card") as VioletCard | null;
+    const body = element?.shadowRoot?.querySelector(".body") as HTMLElement | null;
 
-        if (!element || !body) {
-            throw new Error("Expected violet-card to render.");
-        }
+    if (!element || !body) {
+      throw new Error("Expected violet-card to render.");
+    }
 
-        await waitFor(() => {
-            const computed = getComputedStyle(body);
-            expect(computed.padding).toBe("0px");
-        });
-    },
+    await waitFor(() => {
+      const computed = getComputedStyle(body);
+      expect(computed.padding).toBe("0px");
+    });
+  },
 };
 
 export const WithHeaderFooter: Story = {
-    args: {
-        padding: "medium",
-        appearance: "filled",
-        interactive: false,
-        orientation: "vertical",
-    },
-    render: (args: VioletCardStoryArgs) =>
-        renderCard(args, card => {
-            const header = document.createElement("div");
-            header.slot = "header";
-            header.textContent = "Header Section";
+  args: {
+    padding: "medium",
+    appearance: "filled",
+    interactive: false,
+    orientation: "vertical",
+  },
+  render: (args: VioletCardStoryArgs) =>
+    renderCard(args, (card) => {
+      const header = document.createElement("div");
+      header.slot = "header";
+      header.textContent = "Header Section";
 
-            const body = document.createElement("p");
-            body.style.margin = "0";
-            body.textContent = "Body content between header and footer separators.";
+      const body = document.createElement("p");
+      body.style.margin = "0";
+      body.textContent = "Body content between header and footer separators.";
 
-            const footer = document.createElement("div");
-            footer.slot = "footer";
-            footer.textContent = "Footer Section";
+      const footer = document.createElement("div");
+      footer.slot = "footer";
+      footer.textContent = "Footer Section";
 
-            card.append(header, body, footer);
-        }),
+      card.append(header, body, footer);
+    }),
 };
 
 export const Outline: Story = {
-    args: {
-        padding: "medium",
-        appearance: "outline",
-        interactive: false,
-        orientation: "vertical",
-    },
-    render: (args: VioletCardStoryArgs) =>
-        renderCard(args, card => {
-            const p = document.createElement("p");
-            p.style.margin = "0";
-            p.textContent = "Outline variant — visible border, no shadow, transparent background.";
-            card.append(p);
-        }),
+  args: {
+    padding: "medium",
+    appearance: "outline",
+    interactive: false,
+    orientation: "vertical",
+  },
+  render: (args: VioletCardStoryArgs) =>
+    renderCard(args, (card) => {
+      const p = document.createElement("p");
+      p.style.margin = "0";
+      p.textContent = "Outline variant — visible border, no shadow, transparent background.";
+      card.append(p);
+    }),
 };
 
 export const Subtle: Story = {
-    args: {
-        padding: "medium",
-        appearance: "subtle",
-        interactive: false,
-        orientation: "vertical",
-    },
-    render: (args: VioletCardStoryArgs) =>
-        renderCard(args, card => {
-            const p = document.createElement("p");
-            p.style.margin = "0";
-            p.textContent = "Subtle variant — soft background, no border, no shadow.";
-            card.append(p);
-        }),
+  args: {
+    padding: "medium",
+    appearance: "subtle",
+    interactive: false,
+    orientation: "vertical",
+  },
+  render: (args: VioletCardStoryArgs) =>
+    renderCard(args, (card) => {
+      const p = document.createElement("p");
+      p.style.margin = "0";
+      p.textContent = "Subtle variant — soft background, no border, no shadow.";
+      card.append(p);
+    }),
 };
 
 export const Interactive: Story = {
-    args: {
-        padding: "medium",
-        appearance: "filled",
-        interactive: true,
-        orientation: "vertical",
-    },
-    render: (args: VioletCardStoryArgs) =>
-        renderCard(args, card => {
-            const p = document.createElement("p");
-            p.style.margin = "0";
-            p.textContent = "Interactive card — hover for lift effect, tab for focus ring.";
-            card.append(p);
-        }),
-    play: async ({ canvasElement }) => {
-        const element = canvasElement.querySelector("violet-card") as VioletCard | null;
+  args: {
+    padding: "medium",
+    appearance: "filled",
+    interactive: true,
+    orientation: "vertical",
+  },
+  render: (args: VioletCardStoryArgs) =>
+    renderCard(args, (card) => {
+      const p = document.createElement("p");
+      p.style.margin = "0";
+      p.textContent = "Interactive card — hover for lift effect, tab for focus ring.";
+      card.append(p);
+    }),
+  play: async ({ canvasElement }) => {
+    const element = canvasElement.querySelector("violet-card") as VioletCard | null;
 
-        if (!element) {
-            throw new Error("Expected violet-card to render.");
-        }
+    if (!element) {
+      throw new Error("Expected violet-card to render.");
+    }
 
-        await waitFor(() => {
-            expect(element.getAttribute("tabindex")).toBe("0");
-            expect(element.getAttribute("role")).toBe("group");
-        });
-    },
+    await waitFor(() => {
+      expect(element.getAttribute("tabindex")).toBe("0");
+      expect(element.getAttribute("role")).toBe("group");
+    });
+  },
 };
 
 export const Horizontal: Story = {
-    args: {
-        padding: "none",
-        appearance: "filled",
-        interactive: false,
-        orientation: "horizontal",
-    },
-    render: (args: VioletCardStoryArgs) => {
-        const element = document.createElement("violet-card") as VioletCard;
-        element.setAttribute("padding", args.padding);
-        element.setAttribute("appearance", args.appearance);
-        element.setAttribute("orientation", args.orientation);
-        element.style.maxInlineSize = "420px";
+  args: {
+    padding: "none",
+    appearance: "filled",
+    interactive: false,
+    orientation: "horizontal",
+  },
+  render: (args: VioletCardStoryArgs) => {
+    const element = document.createElement("violet-card") as VioletCard;
+    element.setAttribute("padding", args.padding);
+    element.setAttribute("appearance", args.appearance);
+    element.setAttribute("orientation", args.orientation);
+    element.style.maxInlineSize = "420px";
 
-        const img = document.createElement("img");
-        img.src = THUMBNAIL_IMAGE;
-        img.alt = "Sample thumbnail";
-        img.style.inlineSize = "160px";
-        img.style.blockSize = "160px";
-        img.style.objectFit = "cover";
-        img.style.flexShrink = "0";
-        img.style.display = "block";
+    const img = document.createElement("img");
+    img.src = THUMBNAIL_IMAGE;
+    img.alt = "Sample thumbnail";
+    img.style.inlineSize = "160px";
+    img.style.blockSize = "160px";
+    img.style.objectFit = "cover";
+    img.style.flexShrink = "0";
+    img.style.display = "block";
 
-        const content = document.createElement("div");
-        content.style.padding = "16px";
-        content.style.display = "flex";
-        content.style.flexDirection = "column";
-        content.style.justifyContent = "center";
-        content.style.gap = "4px";
-        const h3 = document.createElement("h3");
-        h3.style.margin = "0";
-        h3.style.fontSize = "14px";
-        h3.style.fontWeight = "600";
-        h3.textContent = "Article Title";
-        const p = document.createElement("p");
-        p.style.margin = "0";
-        p.style.fontSize = "13px";
-        p.style.color = "var(--violet-color-text-secondary)";
-        p.textContent = "A horizontal card with a thumbnail image beside the content area.";
-        content.append(h3, p);
+    const content = document.createElement("div");
+    content.style.padding = "16px";
+    content.style.display = "flex";
+    content.style.flexDirection = "column";
+    content.style.justifyContent = "center";
+    content.style.gap = "4px";
+    const h3 = document.createElement("h3");
+    h3.style.margin = "0";
+    h3.style.fontSize = "14px";
+    h3.style.fontWeight = "600";
+    h3.textContent = "Article Title";
+    const p = document.createElement("p");
+    p.style.margin = "0";
+    p.style.fontSize = "13px";
+    p.style.color = "var(--violet-color-text-secondary)";
+    p.textContent = "A horizontal card with a thumbnail image beside the content area.";
+    content.append(h3, p);
 
-        element.append(img, content);
-        return element;
-    },
+    element.append(img, content);
+    return element;
+  },
 };
 
 export const AllAppearances: Story = {
-    args: {
-        padding: "medium",
-        appearance: "filled",
-        interactive: false,
-        orientation: "vertical",
-    },
-    render: () => {
-        const wrapper = document.createElement("div");
-        wrapper.style.display = "flex";
-        wrapper.style.gap = "16px";
-        wrapper.style.flexWrap = "wrap";
+  args: {
+    padding: "medium",
+    appearance: "filled",
+    interactive: false,
+    orientation: "vertical",
+  },
+  render: () => {
+    const wrapper = document.createElement("div");
+    wrapper.style.display = "flex";
+    wrapper.style.gap = "16px";
+    wrapper.style.flexWrap = "wrap";
 
-        for (const appearance of ["filled", "outline", "subtle"] as const) {
-            const card = document.createElement("violet-card") as VioletCard;
-            card.setAttribute("padding", "medium");
-            card.setAttribute("appearance", appearance);
-            card.style.inlineSize = "200px";
+    for (const appearance of ["filled", "outline", "subtle"] as const) {
+      const card = document.createElement("violet-card") as VioletCard;
+      card.setAttribute("padding", "medium");
+      card.setAttribute("appearance", appearance);
+      card.style.inlineSize = "200px";
 
-            const p = document.createElement("p");
-            p.style.margin = "0";
-            p.style.fontSize = "13px";
-            p.textContent = `${appearance.charAt(0).toUpperCase()}${appearance.slice(1)} appearance`;
-            card.append(p);
+      const p = document.createElement("p");
+      p.style.margin = "0";
+      p.style.fontSize = "13px";
+      p.textContent = `${appearance.charAt(0).toUpperCase()}${appearance.slice(1)} appearance`;
+      card.append(p);
 
-            wrapper.append(card);
-        }
+      wrapper.append(card);
+    }
 
-        return wrapper;
-    },
+    return wrapper;
+  },
 };

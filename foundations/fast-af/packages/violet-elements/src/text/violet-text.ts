@@ -1,4 +1,11 @@
-import { FASTElement, attr, css, html, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+  when,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -95,20 +102,23 @@ const styles = css`
 `;
 
 const textClass = (x: VioletText) => {
-    const displayClass = x.as === "span" || x.as === "small" || x.as === "strong" || x.as === "label" ? "inline" : "block";
-    return `root ${displayClass}${x.truncate ? " truncate" : ""}`;
+  const displayClass =
+    x.as === "span" || x.as === "small" || x.as === "strong" || x.as === "label"
+      ? "inline"
+      : "block";
+  return `root ${displayClass}${x.truncate ? " truncate" : ""}`;
 };
 
 const template = html<VioletText>`
-    ${when(x => x.as === "p", html<VioletText>`<p class="${textClass}"><slot></slot></p>`)}
-    ${when(x => x.as === "small", html<VioletText>`<small class="${textClass}"><slot></slot></small>`)}
-    ${when(x => x.as === "strong", html<VioletText>`<strong class="${textClass}"><slot></slot></strong>`)}
-    ${when(x => x.as === "label", html<VioletText>`<label class="${textClass}"><slot></slot></label>`)}
-    ${when(x => x.as === "h1", html<VioletText>`<h1 class="${textClass}"><slot></slot></h1>`)}
-    ${when(x => x.as === "h2", html<VioletText>`<h2 class="${textClass}"><slot></slot></h2>`)}
-    ${when(x => x.as === "h3", html<VioletText>`<h3 class="${textClass}"><slot></slot></h3>`)}
-    ${when(x => x.as === "h4", html<VioletText>`<h4 class="${textClass}"><slot></slot></h4>`)}
-    ${when(x => x.as === "span", html<VioletText>`<span class="${textClass}"><slot></slot></span>`)}
+    ${when((x) => x.as === "p", html<VioletText>`<p class="${textClass}"><slot></slot></p>`)}
+    ${when((x) => x.as === "small", html<VioletText>`<small class="${textClass}"><slot></slot></small>`)}
+    ${when((x) => x.as === "strong", html<VioletText>`<strong class="${textClass}"><slot></slot></strong>`)}
+    ${when((x) => x.as === "label", html<VioletText>`<label class="${textClass}"><slot></slot></label>`)}
+    ${when((x) => x.as === "h1", html<VioletText>`<h1 class="${textClass}"><slot></slot></h1>`)}
+    ${when((x) => x.as === "h2", html<VioletText>`<h2 class="${textClass}"><slot></slot></h2>`)}
+    ${when((x) => x.as === "h3", html<VioletText>`<h3 class="${textClass}"><slot></slot></h3>`)}
+    ${when((x) => x.as === "h4", html<VioletText>`<h4 class="${textClass}"><slot></slot></h4>`)}
+    ${when((x) => x.as === "span", html<VioletText>`<span class="${textClass}"><slot></slot></span>`)}
 `;
 
 /**
@@ -119,18 +129,18 @@ const template = html<VioletText>`
  * @csspart root - The rendered semantic text element.
  */
 export class VioletText extends FASTElement {
-    declare public as: VioletTextAs;
-    declare public variant: VioletTextVariant;
-    declare public tone: VioletTextTone;
-    declare public truncate: boolean;
+  declare public as: VioletTextAs;
+  declare public variant: VioletTextVariant;
+  declare public tone: VioletTextTone;
+  declare public truncate: boolean;
 
-    public constructor() {
-        super();
-        this.as = "span";
-        this.variant = "body";
-        this.tone = "default";
-        this.truncate = false;
-    }
+  public constructor() {
+    super();
+    this.as = "span";
+    this.variant = "body";
+    this.tone = "default";
+    this.truncate = false;
+  }
 }
 
 attr(VioletText.prototype, "as");
@@ -140,10 +150,10 @@ attr({ mode: "boolean" })(VioletText.prototype, "truncate");
 
 /** The FAST definition of `<violet-text>`; `defineVioletText` in `./violet-text.define` registers it. */
 export const violetTextDefinition = {
-    name: "violet-text",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-text",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

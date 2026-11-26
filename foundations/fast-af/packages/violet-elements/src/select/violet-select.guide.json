@@ -5,30 +5,22 @@
     {
       "id": "select.value",
       "text": "The value attribute holds the chosen option's value and the trigger shows that option's label. With no value and no selected option nothing is chosen; the first option is not picked for you.",
-      "members": [
-        "value"
-      ]
+      "members": ["value"]
     },
     {
       "id": "select.unmatched",
       "text": "A value that matches no enabled option is kept: the trigger shows the raw value and the form receives it. Set value only to an existing option's value.",
-      "members": [
-        "value"
-      ]
+      "members": ["value"]
     },
     {
       "id": "select.events",
       "text": "Choosing an option fires input then change, each with detail.value, even when the same option is chosen again. selectValue(value) fires them too; assigning the value property does not.",
-      "members": [
-        "value"
-      ]
+      "members": ["value"]
     },
     {
       "id": "select.open",
       "text": "It opens on click, Enter, Space or the arrow keys, from the open attribute, or with show(); it closes on choice, Escape, an outside press or focus leaving. No event reports opening or closing.",
-      "members": [
-        "open"
-      ]
+      "members": ["open"]
     },
     {
       "id": "select.layer",
@@ -43,9 +35,7 @@
     {
       "id": "select.name",
       "text": "The trigger is named by the label plus the shown value. Without a label its name is only the value or placeholder text.",
-      "members": [
-        "label"
-      ]
+      "members": ["label"]
     },
     {
       "id": "select.focus",
@@ -54,9 +44,7 @@
     {
       "id": "select.error",
       "text": "While invalid, the rendered error message replaces the supporting text and is linked to the trigger as its description.",
-      "members": [
-        "error-text"
-      ]
+      "members": ["error-text"]
     }
   ],
   "roles": [

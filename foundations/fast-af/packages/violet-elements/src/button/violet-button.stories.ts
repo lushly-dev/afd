@@ -1,79 +1,83 @@
-import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent } from "@lushly-dev/specimen/test";
-
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
+import {
+  registerSystemCloseIcon,
+  registerSystemSearchIcon,
+  registerSystemSettingsIcon,
+} from "../icon/generated";
 import { clearVioletIconRegistryForTesting } from "../icon/icon-registry";
-import { registerSystemCloseIcon, registerSystemSearchIcon, registerSystemSettingsIcon } from "../icon/generated";
 import "../icon/violet-icon.define";
 import "./violet-button.define";
 import type { VioletButton } from "./violet-button";
 
 type VioletButtonStoryArgs = {
-    appearance: "primary" | "secondary" | "quiet" | "transparent" | "danger";
-    disabled: boolean;
-    label: string;
-    before: "" | "system/search" | "system/settings" | "system/close";
-    after: "" | "system/search" | "system/settings" | "system/close";
+  appearance: "primary" | "secondary" | "quiet" | "transparent" | "danger";
+  disabled: boolean;
+  label: string;
+  before: "" | "system/search" | "system/settings" | "system/close";
+  after: "" | "system/search" | "system/settings" | "system/close";
 };
 
 function renderButton(args: VioletButtonStoryArgs): HTMLElement {
-    clearVioletIconRegistryForTesting();
-    registerSystemSearchIcon();
-    registerSystemSettingsIcon();
-    registerSystemCloseIcon();
+  clearVioletIconRegistryForTesting();
+  registerSystemSearchIcon();
+  registerSystemSettingsIcon();
+  registerSystemCloseIcon();
 
-    const element = document.createElement("violet-button") as VioletButton;
-    element.appearance = args.appearance;
-    element.disabled = args.disabled;
-    element.replaceChildren();
+  const element = document.createElement("violet-button") as VioletButton;
+  element.appearance = args.appearance;
+  element.disabled = args.disabled;
+  element.replaceChildren();
 
-    if (args.before) {
-        const before = document.createElement("violet-icon");
-        before.slot = "before";
-        before.setAttribute("icon", args.before);
-        before.setAttribute("decorative", "");
-        element.append(before);
-    }
+  if (args.before) {
+    const before = document.createElement("violet-icon");
+    before.slot = "before";
+    before.setAttribute("icon", args.before);
+    before.setAttribute("decorative", "");
+    element.append(before);
+  }
 
-    element.append(document.createTextNode(args.label));
+  element.append(document.createTextNode(args.label));
 
-    if (args.after) {
-        const after = document.createElement("violet-icon");
-        after.slot = "after";
-        after.setAttribute("icon", args.after);
-        after.setAttribute("decorative", "");
-        element.append(after);
-    }
+  if (args.after) {
+    const after = document.createElement("violet-icon");
+    after.slot = "after";
+    after.setAttribute("icon", args.after);
+    after.setAttribute("decorative", "");
+    element.append(after);
+  }
 
-    return element;
+  return element;
 }
 
 const meta = {
-    title: "Components/Button",
-    component: "violet-button",
-    tags: ["autodocs"],
-    parameters: {
-        docs: {
-            description: {
-                component: "Reusable Violet action button primitive for primary, secondary, quiet, transparent, and danger action emphasis.",
-            },
-        },
+  title: "Components/Button",
+  component: "violet-button",
+  tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "Reusable Violet action button primitive for primary, secondary, quiet, transparent, and danger action emphasis.",
+      },
     },
-    argTypes: {
-        appearance: {
-            control: "inline-radio",
-            options: ["primary", "secondary", "quiet", "transparent", "danger"],
-        },
-        disabled: { control: "boolean" },
-        before: {
-            control: "inline-radio",
-            options: ["", "system/search", "system/settings", "system/close"],
-        },
-        after: {
-            control: "inline-radio",
-            options: ["", "system/search", "system/settings", "system/close"],
-        },
+  },
+  argTypes: {
+    appearance: {
+      control: "inline-radio",
+      options: ["primary", "secondary", "quiet", "transparent", "danger"],
     },
-    render: (args: VioletButtonStoryArgs) => renderButton(args),
+    disabled: { control: "boolean" },
+    before: {
+      control: "inline-radio",
+      options: ["", "system/search", "system/settings", "system/close"],
+    },
+    after: {
+      control: "inline-radio",
+      options: ["", "system/search", "system/settings", "system/close"],
+    },
+  },
+  render: (args: VioletButtonStoryArgs) => renderButton(args),
 } satisfies Meta<VioletButtonStoryArgs>;
 
 export default meta;
@@ -81,79 +85,81 @@ export default meta;
 type Story = StoryObj<VioletButtonStoryArgs>;
 
 export const Overview: Story = {
-    args: {
-        appearance: "primary",
-        disabled: false,
-        label: "Save bed plan",
-        before: "",
-        after: "",
-    },
-    play: async ({ canvasElement }) => {
-        const button = canvasElement.querySelector("violet-button") as VioletButton | null;
-        await expect(Boolean(button)).toBe(true);
+  args: {
+    appearance: "primary",
+    disabled: false,
+    label: "Save bed plan",
+    before: "",
+    after: "",
+  },
+  play: async ({ canvasElement }) => {
+    const button = canvasElement.querySelector("violet-button") as VioletButton | null;
+    await expect(Boolean(button)).toBe(true);
 
-        const control = button?.shadowRoot?.querySelector("button") as HTMLButtonElement | null;
-        await expect(button?.textContent ?? "").toContain("Save bed plan");
-        await expect(control?.dataset.appearance).toBe("primary");
+    const control = button?.shadowRoot?.querySelector("button") as HTMLButtonElement | null;
+    await expect(button?.textContent ?? "").toContain("Save bed plan");
+    await expect(control?.dataset.appearance).toBe("primary");
 
-        if (!control) {
-            throw new Error("Expected violet-button control to render.");
-        }
+    if (!control) {
+      throw new Error("Expected violet-button control to render.");
+    }
 
-        await userEvent.click(control);
-    },
+    await userEvent.click(control);
+  },
 };
 
 export const Secondary: Story = {
-    args: {
-        appearance: "secondary",
-        disabled: false,
-        label: "Secondary action",
-        before: "",
-        after: "",
-    },
+  args: {
+    appearance: "secondary",
+    disabled: false,
+    label: "Secondary action",
+    before: "",
+    after: "",
+  },
 };
 
 export const QuietDisabled: Story = {
-    args: {
-        appearance: "quiet",
-        disabled: true,
-        label: "Quiet action",
-        before: "",
-        after: "",
-    },
+  args: {
+    appearance: "quiet",
+    disabled: true,
+    label: "Quiet action",
+    before: "",
+    after: "",
+  },
 };
 
 export const Transparent: Story = {
-    args: {
-        appearance: "transparent",
-        disabled: false,
-        label: "View details",
-        before: "",
-        after: "",
-    },
+  args: {
+    appearance: "transparent",
+    disabled: false,
+    label: "View details",
+    before: "",
+    after: "",
+  },
 };
 
 export const Danger: Story = {
-    args: {
-        appearance: "danger",
-        disabled: false,
-        label: "Delete bed",
-        before: "",
-        after: "",
-    },
-    play: async ({ canvasElement }) => {
-        const control = canvasElement.querySelector("violet-button")?.shadowRoot?.querySelector("button");
-        await expect(control?.dataset.appearance).toBe("danger");
-    },
+  args: {
+    appearance: "danger",
+    disabled: false,
+    label: "Delete bed",
+    before: "",
+    after: "",
+  },
+  play: async ({ canvasElement }) => {
+    const control = canvasElement
+      .querySelector("violet-button")
+      ?.shadowRoot?.querySelector("button");
+    await expect(control?.dataset.appearance).toBe("danger");
+  },
 };
 
 export const WithSlots: Story = {
-    args: {
-        appearance: "secondary",
-        disabled: false,
-        label: "Manage filters",
-        before: "system/search",
-        after: "system/close",
-    },
+  args: {
+    appearance: "secondary",
+    disabled: false,
+    label: "Manage filters",
+    before: "system/search",
+    after: "system/close",
+  },
 };

@@ -1,11 +1,19 @@
-import { FASTElement, attr, css, html, observable, ref, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  ref,
+} from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
 let violetTreeItemId = 0;
 
 function isTreeItemElement(value: unknown): value is VioletTreeItem {
-    return value instanceof HTMLElement && value.tagName.toLowerCase() === "violet-tree-item";
+  return value instanceof HTMLElement && value.tagName.toLowerCase() === "violet-tree-item";
 }
 
 const styles = css`
@@ -172,8 +180,8 @@ const template = html<VioletTreeItem>`
             <slot name="meta"></slot>
         </span>
     </div>
-    <div class="group" part="group" role="group" ?hidden="${x => !x.expanded || x.childItems.length === 0}">
-        <slot name="item" ${ref("itemSlot")} @slotchange="${x => x.handleItemSlotChange()}"></slot>
+    <div class="group" part="group" role="group" ?hidden="${(x) => !x.expanded || x.childItems.length === 0}">
+        <slot name="item" ${ref("itemSlot")} @slotchange="${(x) => x.handleItemSlotChange()}"></slot>
     </div>
 `;
 
@@ -195,195 +203,195 @@ const template = html<VioletTreeItem>`
  * @csspart group - Child item group container.
  */
 export class VioletTreeItem extends FASTElement {
-    @observable
-    declare public childItems: VioletTreeItem[];
+  @observable
+  declare public childItems: VioletTreeItem[];
 
-    declare public expanded: boolean;
-    declare public expandable: boolean;
-    declare public selected: boolean;
-    declare public disabled: boolean;
-    declare public value: string;
+  declare public expanded: boolean;
+  declare public expandable: boolean;
+  declare public selected: boolean;
+  declare public disabled: boolean;
+  declare public value: string;
 
-    public labelSlot!: HTMLSlotElement;
-    public itemSlot!: HTMLSlotElement;
+  public labelSlot!: HTMLSlotElement;
+  public itemSlot!: HTMLSlotElement;
 
-    readonly #itemId: string;
-    readonly #structureObserver: MutationObserver;
-    #level = 1;
-    #posInSet = 1;
-    #setSize = 1;
+  readonly #itemId: string;
+  readonly #structureObserver: MutationObserver;
+  #level = 1;
+  #posInSet = 1;
+  #setSize = 1;
 
-    public constructor() {
-        super();
-        this.#itemId = `violet-tree-item-${violetTreeItemId}`;
-        violetTreeItemId += 1;
-        this.childItems = [];
-        this.expanded = false;
-        this.expandable = false;
-        this.selected = false;
-        this.disabled = false;
-        this.value = "";
-        this.#structureObserver = new MutationObserver(() => {
-            this.syncStructureFromDom();
-        });
+  public constructor() {
+    super();
+    this.#itemId = `violet-tree-item-${violetTreeItemId}`;
+    violetTreeItemId += 1;
+    this.childItems = [];
+    this.expanded = false;
+    this.expandable = false;
+    this.selected = false;
+    this.disabled = false;
+    this.value = "";
+    this.#structureObserver = new MutationObserver(() => {
+      this.syncStructureFromDom();
+    });
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    // Host attributes must not be touched during construction (custom elements spec),
+    // so the initial roving-tabindex state is applied on first connect.
+    if (!this.hasAttribute("tabindex")) {
+      this.tabIndex = -1;
+    }
+    this.refreshNestingSlot();
+    this.id ||= this.#itemId;
+    this.#structureObserver.observe(this, { childList: true });
+    queueMicrotask(() => {
+      this.syncStructureFromDom();
+    });
+    this.#syncAccessibilityState();
+  }
+
+  public disconnectedCallback(): void {
+    this.#structureObserver.disconnect();
+    super.disconnectedCallback();
+  }
+
+  public expandedChanged(): void {
+    this.#syncAccessibilityState();
+  }
+
+  public expandableChanged(): void {
+    this.#syncAccessibilityState();
+  }
+
+  public selectedChanged(): void {
+    this.#syncAccessibilityState();
+  }
+
+  public disabledChanged(): void {
+    this.#syncAccessibilityState();
+  }
+
+  public childItemsChanged(): void {
+    this.#syncAccessibilityState();
+  }
+
+  public get hasChildren(): boolean {
+    return this.expandable || this.childItems.length > 0;
+  }
+
+  public get parentItem(): VioletTreeItem | null {
+    return isTreeItemElement(this.parentElement) ? this.parentElement : null;
+  }
+
+  public get resolvedValue(): string {
+    return this.value || this.textLabel;
+  }
+
+  public get textLabel(): string {
+    const nodes = this.labelSlot?.assignedNodes({ flatten: true }) ?? [];
+    const labelText = nodes
+      .map((node) => node.textContent ?? "")
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return labelText || this.getAttribute("aria-label") || "";
+  }
+
+  public focusItem(): void {
+    this.focus();
+  }
+
+  public setActiveFromTree(active: boolean): void {
+    this.tabIndex = active ? 0 : -1;
+  }
+
+  public setTreePosition(level: number, posInSet: number, setSize: number): void {
+    this.#level = level;
+    this.#posInSet = posInSet;
+    this.#setSize = setSize;
+    this.style.setProperty("--_tree-level", String(level));
+    this.#syncAccessibilityState();
+  }
+
+  public refreshNestingSlot(): void {
+    if (isTreeItemElement(this.parentElement)) {
+      this.setAttribute("slot", "item");
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        // Host attributes must not be touched during construction (custom elements spec),
-        // so the initial roving-tabindex state is applied on first connect.
-        if (!this.hasAttribute("tabindex")) {
-            this.tabIndex = -1;
-        }
-        this.refreshNestingSlot();
-        this.id ||= this.#itemId;
-        this.#structureObserver.observe(this, { childList: true });
-        queueMicrotask(() => {
-            this.syncStructureFromDom();
-        });
-        this.#syncAccessibilityState();
+    if (this.getAttribute("slot") === "item") {
+      this.removeAttribute("slot");
+    }
+  }
+
+  public handleItemSlotChange(): void {
+    this.#syncChildItemsFromDom();
+  }
+
+  public syncStructureFromDom(): void {
+    this.#syncChildItemsFromDom();
+
+    for (const child of this.childItems) {
+      child.syncStructureFromDom();
+    }
+  }
+
+  public handleRowClick(event: MouseEvent): void {
+    if (this.disabled) {
+      return;
     }
 
-    public disconnectedCallback(): void {
-        this.#structureObserver.disconnect();
-        super.disconnectedCallback();
+    const toggleRequested = event
+      .composedPath()
+      .some(
+        (value) =>
+          value instanceof HTMLElement && value.dataset.treeToggle === "true" && this.hasChildren,
+      );
+
+    if (toggleRequested) {
+      this.$emit("toggle-request", { expanded: !this.expanded });
+      return;
     }
 
-    public expandedChanged(): void {
-        this.#syncAccessibilityState();
+    this.$emit("select-request", { value: this.resolvedValue });
+  }
+
+  #syncAccessibilityState(): void {
+    // Property defaults are assigned in the constructor and fire the *Changed callbacks;
+    // host attributes must not be written until the element is connected.
+    if (!this.isConnected) {
+      return;
     }
 
-    public expandableChanged(): void {
-        this.#syncAccessibilityState();
+    this.setAttribute("role", "treeitem");
+    this.setAttribute("aria-level", String(this.#level));
+    this.setAttribute("aria-posinset", String(this.#posInSet));
+    this.setAttribute("aria-setsize", String(this.#setSize));
+    this.setAttribute("aria-selected", String(this.selected));
+
+    if (this.disabled) {
+      this.setAttribute("aria-disabled", "true");
+    } else {
+      this.removeAttribute("aria-disabled");
     }
 
-    public selectedChanged(): void {
-        this.#syncAccessibilityState();
+    if (this.hasChildren) {
+      this.setAttribute("aria-expanded", String(this.expanded));
+    } else {
+      this.removeAttribute("aria-expanded");
     }
+  }
 
-    public disabledChanged(): void {
-        this.#syncAccessibilityState();
+  #syncChildItemsFromDom(): void {
+    this.childItems = Array.from(this.children).filter(isTreeItemElement);
+
+    for (const child of this.childItems) {
+      child.setAttribute("slot", "item");
     }
-
-    public childItemsChanged(): void {
-        this.#syncAccessibilityState();
-    }
-
-    public get hasChildren(): boolean {
-        return this.expandable || this.childItems.length > 0;
-    }
-
-    public get parentItem(): VioletTreeItem | null {
-        return isTreeItemElement(this.parentElement) ? this.parentElement : null;
-    }
-
-    public get resolvedValue(): string {
-        return this.value || this.textLabel;
-    }
-
-    public get textLabel(): string {
-        const nodes = this.labelSlot?.assignedNodes({ flatten: true }) ?? [];
-        const labelText = nodes
-            .map(node => node.textContent ?? "")
-            .join(" ")
-            .replace(/\s+/g, " ")
-            .trim();
-
-        return labelText || this.getAttribute("aria-label") || "";
-    }
-
-    public focusItem(): void {
-        this.focus();
-    }
-
-    public setActiveFromTree(active: boolean): void {
-        this.tabIndex = active ? 0 : -1;
-    }
-
-    public setTreePosition(level: number, posInSet: number, setSize: number): void {
-        this.#level = level;
-        this.#posInSet = posInSet;
-        this.#setSize = setSize;
-        this.style.setProperty("--_tree-level", String(level));
-        this.#syncAccessibilityState();
-    }
-
-    public refreshNestingSlot(): void {
-        if (isTreeItemElement(this.parentElement)) {
-            this.setAttribute("slot", "item");
-            return;
-        }
-
-        if (this.getAttribute("slot") === "item") {
-            this.removeAttribute("slot");
-        }
-    }
-
-    public handleItemSlotChange(): void {
-        this.#syncChildItemsFromDom();
-    }
-
-    public syncStructureFromDom(): void {
-        this.#syncChildItemsFromDom();
-
-        for (const child of this.childItems) {
-            child.syncStructureFromDom();
-        }
-    }
-
-    public handleRowClick(event: MouseEvent): void {
-        if (this.disabled) {
-            return;
-        }
-
-        const toggleRequested = event
-            .composedPath()
-            .some(
-                value =>
-                    value instanceof HTMLElement && value.dataset.treeToggle === "true" && this.hasChildren,
-            );
-
-        if (toggleRequested) {
-            this.$emit("toggle-request", { expanded: !this.expanded });
-            return;
-        }
-
-        this.$emit("select-request", { value: this.resolvedValue });
-    }
-
-    #syncAccessibilityState(): void {
-        // Property defaults are assigned in the constructor and fire the *Changed callbacks;
-        // host attributes must not be written until the element is connected.
-        if (!this.isConnected) {
-            return;
-        }
-
-        this.setAttribute("role", "treeitem");
-        this.setAttribute("aria-level", String(this.#level));
-        this.setAttribute("aria-posinset", String(this.#posInSet));
-        this.setAttribute("aria-setsize", String(this.#setSize));
-        this.setAttribute("aria-selected", String(this.selected));
-
-        if (this.disabled) {
-            this.setAttribute("aria-disabled", "true");
-        } else {
-            this.removeAttribute("aria-disabled");
-        }
-
-        if (this.hasChildren) {
-            this.setAttribute("aria-expanded", String(this.expanded));
-        } else {
-            this.removeAttribute("aria-expanded");
-        }
-    }
-
-    #syncChildItemsFromDom(): void {
-        this.childItems = Array.from(this.children).filter(isTreeItemElement);
-
-        for (const child of this.childItems) {
-            child.setAttribute("slot", "item");
-        }
-    }
+  }
 }
 
 attr({ mode: "boolean" })(VioletTreeItem.prototype, "expanded");
@@ -394,7 +402,7 @@ attr(VioletTreeItem.prototype, "value");
 
 /** The FAST definition of `<violet-tree-item>`; `defineVioletTreeItem` in `./violet-tree-item.define` registers it. */
 export const violetTreeItemDefinition = {
-    name: "violet-tree-item",
-    template,
-    styles,
+  name: "violet-tree-item",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

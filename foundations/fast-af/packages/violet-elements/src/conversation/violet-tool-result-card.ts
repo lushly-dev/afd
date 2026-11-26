@@ -1,9 +1,15 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 import { registerSystemCheckmarkIcon } from "../icon/generated/icons/system-checkmark";
-import { registerSystemDismissIcon } from "../icon/generated/icons/system-dismiss";
 import { registerSystemChevronRightIcon } from "../icon/generated/icons/system-chevron-right";
+import { registerSystemDismissIcon } from "../icon/generated/icons/system-dismiss";
+import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -203,30 +209,30 @@ const template = html<VioletToolResultCard>`
             class="summary"
             part="summary"
             type="button"
-            aria-expanded="${x => String(x.expanded)}"
-            @click="${x => x.toggleExpanded()}"
+            aria-expanded="${(x) => String(x.expanded)}"
+            @click="${(x) => x.toggleExpanded()}"
         >
             <span class="status-icon" part="status-icon">
-                ${x => x.state === "output-error"
+                ${(x) =>
+                  x.state === "output-error"
                     ? html`<violet-icon icon="system/dismiss" decorative></violet-icon>`
                     : x.state === "output-available"
-                        ? html`<violet-icon icon="system/checkmark" decorative></violet-icon>`
-                        : html`<span class="spinner" aria-label="In progress"></span>`
-                }
+                      ? html`<violet-icon icon="system/checkmark" decorative></violet-icon>`
+                      : html`<span class="spinner" aria-label="In progress"></span>`}
             </span>
             <span class="summary-text">
                 <slot name="summary">
-                    ${x => {
-                        if (x.state === "output-error") {
-                            return "Tool failed";
-                        }
-                        if (x.state === "output-available") {
-                            return "Tool completed";
-                        }
-                        if (x.state === "executing") {
-                            return "Tool running";
-                        }
-                        return "Waiting for output";
+                    ${(x) => {
+                      if (x.state === "output-error") {
+                        return "Tool failed";
+                      }
+                      if (x.state === "output-available") {
+                        return "Tool completed";
+                      }
+                      if (x.state === "executing") {
+                        return "Tool running";
+                      }
+                      return "Waiting for output";
                     }}
                 </slot>
             </span>
@@ -234,11 +240,11 @@ const template = html<VioletToolResultCard>`
                 <violet-icon icon="system/chevron-right" decorative></violet-icon>
             </span>
         </button>
-        <div class="body" part="body" ?hidden="${x => !x.expanded}">
+        <div class="body" part="body" ?hidden="${(x) => !x.expanded}">
             <slot></slot>
         </div>
-        <div class="footer" part="footer" ?hidden="${x => !x.expanded || !x.hasFooter}">
-            <slot name="footer" @slotchange="${x => x.handleFooterSlotChange()}"></slot>
+        <div class="footer" part="footer" ?hidden="${(x) => !x.expanded || !x.hasFooter}">
+            <slot name="footer" @slotchange="${(x) => x.handleFooterSlotChange()}"></slot>
         </div>
     </violet-card>
 `;
@@ -258,53 +264,49 @@ const template = html<VioletToolResultCard>`
  * @csspart footer - The metadata footer.
  */
 export class VioletToolResultCard extends FASTElement {
-    declare public state: string;
-    declare public expanded: boolean;
+  declare public state: string;
+  declare public expanded: boolean;
 
-    @observable
-    declare public hasFooter: boolean;
+  @observable
+  declare public hasFooter: boolean;
 
-    public constructor() {
-        super();
-        this.state = "pending";
-        this.expanded = false;
-        this.hasFooter = false;
-    }
+  public constructor() {
+    super();
+    this.state = "pending";
+    this.expanded = false;
+    this.hasFooter = false;
+  }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        registerSystemCheckmarkIcon();
-        registerSystemDismissIcon();
-        registerSystemChevronRightIcon();
-    }
+  public connectedCallback(): void {
+    super.connectedCallback();
+    registerSystemCheckmarkIcon();
+    registerSystemDismissIcon();
+    registerSystemChevronRightIcon();
+  }
 
-    public toggleExpanded(): void {
-        this.expanded = !this.expanded;
-    }
+  public toggleExpanded(): void {
+    this.expanded = !this.expanded;
+  }
 
-    public handleFooterSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="footer"]') as HTMLSlotElement | null;
-        this.hasFooter = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
+  public handleFooterSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="footer"]') as HTMLSlotElement | null;
+    this.hasFooter = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
 }
 
-export type VioletToolResultState =
-    | "pending"
-    | "executing"
-    | "output-available"
-    | "output-error";
+export type VioletToolResultState = "pending" | "executing" | "output-available" | "output-error";
 
 attr(VioletToolResultCard.prototype, "state");
 attr({ mode: "boolean" })(VioletToolResultCard.prototype, "expanded");
 
 /** The FAST definition of `<violet-tool-result-card>`; `defineVioletToolResultCard` in `./violet-tool-result-card.define` registers it. */
 export const violetToolResultCardDefinition = {
-    name: "violet-tool-result-card",
-    template,
-    styles,
+  name: "violet-tool-result-card",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

@@ -7,8 +7,10 @@ import { VioletAccordionItem, violetAccordionItemDefinition } from "./violet-acc
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletAccordionItem(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletAccordionItem, violetAccordionItemDefinition, registry);
+export async function defineVioletAccordionItem(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletAccordionItem, violetAccordionItemDefinition, registry);
 }
 
 await defineVioletAccordionItem();

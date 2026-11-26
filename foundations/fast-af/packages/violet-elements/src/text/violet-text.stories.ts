@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, within } from "@lushly-dev/specimen/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 
 import "./violet-text.define";
 import type { VioletText } from "./violet-text";
@@ -7,60 +7,60 @@ import type { VioletText } from "./violet-text";
 type Story = StoryObj<VioletText>;
 
 const meta: Meta<VioletText> = {
-    title: "Components/Text",
-    component: "violet-text",
-    tags: ["autodocs"],
-    parameters: {
-        docs: {
-            description: {
-                component:
-                    "Semantic Violet typography primitive for body copy, labels, captions, and title scales without repeating token styling by hand.",
-            },
-        },
+  title: "Components/Text",
+  component: "violet-text",
+  tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "Semantic Violet typography primitive for body copy, labels, captions, and title scales without repeating token styling by hand.",
+      },
     },
-    args: {
-        as: "span",
-        variant: "body",
-        tone: "default",
-        truncate: false,
+  },
+  args: {
+    as: "span",
+    variant: "body",
+    tone: "default",
+    truncate: false,
+  },
+  argTypes: {
+    as: {
+      control: "select",
+      options: ["span", "p", "small", "strong", "label", "h1", "h2", "h3", "h4"],
     },
-    argTypes: {
-        as: {
-            control: "select",
-            options: ["span", "p", "small", "strong", "label", "h1", "h2", "h3", "h4"],
-        },
-        variant: {
-            control: "select",
-            options: ["body", "label", "caption", "title-sm", "title-md"],
-        },
-        tone: {
-            control: "select",
-            options: ["default", "secondary", "muted", "success", "warning", "danger"],
-        },
-        truncate: {
-            control: "boolean",
-        },
+    variant: {
+      control: "select",
+      options: ["body", "label", "caption", "title-sm", "title-md"],
     },
-    render: args => {
-        const as = args.as ?? "span";
-        const variant = args.variant ?? "body";
-        const tone = args.tone ?? "default";
-        const truncate = args.truncate ? "truncate" : "";
-        return `<violet-text as="${as}" variant="${variant}" tone="${tone}" ${truncate}>Planting plans stay clearer when text hierarchy is calm and consistent.</violet-text>`;
+    tone: {
+      control: "select",
+      options: ["default", "secondary", "muted", "success", "warning", "danger"],
     },
+    truncate: {
+      control: "boolean",
+    },
+  },
+  render: (args) => {
+    const as = args.as ?? "span";
+    const variant = args.variant ?? "body";
+    const tone = args.tone ?? "default";
+    const truncate = args.truncate ? "truncate" : "";
+    return `<violet-text as="${as}" variant="${variant}" tone="${tone}" ${truncate}>Planting plans stay clearer when text hierarchy is calm and consistent.</violet-text>`;
+  },
 };
 
 export default meta;
 
 export const Overview: Story = {
-    play: async ({ canvasElement }) => {
-        const canvas = within(canvasElement);
-        await expect(await canvas.findByText(/Planting plans stay clearer/i)).toBeTruthy();
-    },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText(/Planting plans stay clearer/i)).toBeTruthy();
+  },
 };
 
 export const TypeRamp: Story = {
-    render: () => `
+  render: () => `
         <div style="display:grid;gap:12px;max-width:42rem;">
             <violet-text as="h2" variant="title-md">Spring cultivation planning</violet-text>
             <violet-text as="h3" variant="title-sm">Greenhouse rotation notes</violet-text>
@@ -72,7 +72,7 @@ export const TypeRamp: Story = {
 };
 
 export const Tones: Story = {
-    render: () => `
+  render: () => `
         <div style="display:grid;gap:8px;">
             <violet-text tone="default">Default emphasis</violet-text>
             <violet-text tone="secondary">Secondary emphasis</violet-text>
@@ -85,11 +85,11 @@ export const Tones: Story = {
 };
 
 export const Truncated: Story = {
-    args: {
-        as: "span",
-        truncate: true,
-    },
-    render: () => `
+  args: {
+    as: "span",
+    truncate: true,
+  },
+  render: () => `
         <div style="inline-size: 14rem;">
             <violet-text truncate>
                 Planting plans with extra long descriptive labels should gracefully truncate inside tighter layouts.

@@ -62,12 +62,12 @@ describe("violet-data-grid-persona-picker", () => {
     vi.restoreAllMocks();
   });
 
-
   it("names the trigger by its label, then by what it shows", async () => {
     const element = await renderPersonaPicker({ selectedValues: [] });
     const root = element.shadowRoot;
     const trigger = root?.querySelector(".trigger");
-    const text = (id: string) => root?.getElementById(id)?.textContent?.replace(/\s+/gu, " ").trim();
+    const text = (id: string) =>
+      root?.getElementById(id)?.textContent?.replace(/\s+/gu, " ").trim();
 
     // Its visible text is part of its name (WCAG 2.5.3), after the label the host gave it.
     expect(trigger?.getAttribute("aria-labelledby")).toBe("trigger-label trigger-value");

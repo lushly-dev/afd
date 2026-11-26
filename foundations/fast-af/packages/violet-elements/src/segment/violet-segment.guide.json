@@ -5,24 +5,17 @@
     {
       "id": "segment.parent",
       "text": "Use it only as a child of violet-segmented-control. On its own, a click just fires select-request with detail.value, and nothing becomes checked unless you handle that event.",
-      "members": [
-        "select-request"
-      ]
+      "members": ["select-request"]
     },
     {
       "id": "segment.checked",
       "text": "The parent control owns checked: it sets it on the segment whose value equals the control's value and clears it on the rest. Choose through the control's value, not this attribute.",
-      "members": [
-        "checked",
-        "value"
-      ]
+      "members": ["checked", "value"]
     },
     {
       "id": "segment.value",
       "text": "Give every segment a unique, non-empty value; a segment with an empty value can never be checked. Clicking the segment that is already checked does nothing.",
-      "members": [
-        "value"
-      ]
+      "members": ["value"]
     }
   ],
   "a11y": [
@@ -33,9 +26,7 @@
     {
       "id": "segment.disabled",
       "text": "A disabled segment cannot be clicked, and the group's arrow keys and Tab stop skip it.",
-      "members": [
-        "disabled"
-      ]
+      "members": ["disabled"]
     }
   ]
 }

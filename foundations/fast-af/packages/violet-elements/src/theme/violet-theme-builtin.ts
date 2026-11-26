@@ -4,7 +4,10 @@
  * set installed), through a dynamic import, so a product that installs its own set never loads it.
  */
 import { violetThemeBuiltInSet } from "./generated/violet-theme.generated";
-import { VIOLET_THEME_DEFAULT_PRESET, type VioletBuiltInThemePreset } from "./generated/violet-theme-presets.generated";
+import {
+  VIOLET_THEME_DEFAULT_PRESET,
+  type VioletBuiltInThemePreset,
+} from "./generated/violet-theme-presets.generated";
 import { createVioletThemeCss, violetTokenProperty } from "./violet-theme-css";
 
 export { violetThemeBuiltInSet };
@@ -14,10 +17,10 @@ export const violetThemeCssText = createVioletThemeCss(violetThemeBuiltInSet);
 
 /** The built-in default set's declarations, per preset, one `  --property: value;` per line. */
 export const violetThemeDeclarationsByPreset = Object.fromEntries(
-    Object.entries(violetThemeBuiltInSet.presets).map(([name, tokens]) => [
-        name,
-        tokens.map(token => `  ${violetTokenProperty(token.id)}: ${token.value};`).join("\n"),
-    ]),
+  Object.entries(violetThemeBuiltInSet.presets).map(([name, tokens]) => [
+    name,
+    tokens.map((token) => `  ${violetTokenProperty(token.id)}: ${token.value};`).join("\n"),
+  ]),
 ) as Readonly<Record<VioletBuiltInThemePreset, string>>;
 
 /** The built-in default preset's declarations. */

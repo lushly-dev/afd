@@ -8,9 +8,11 @@ import { VioletTree, violetTreeDefinition } from "./violet-tree";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletTree(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletTreeItem(registry);
-    await defineVioletElement(VioletTree, violetTreeDefinition, registry);
+export async function defineVioletTree(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletTreeItem(registry);
+  await defineVioletElement(VioletTree, violetTreeDefinition, registry);
 }
 
 await defineVioletTree();

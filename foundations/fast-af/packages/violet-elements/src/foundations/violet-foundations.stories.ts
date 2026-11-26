@@ -1,15 +1,13 @@
-import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import rawPaletteProposalText from "../../tokens/raw-palette.proposal.jsonc?raw";
 
 import "../button/violet-button.define";
 import "../checkbox/violet-checkbox.define";
-import {
-  VioletDataGridColumn,
-  VioletDataGridRow,
-} from "../data-grid/violet-data-grid";
+import { VioletDataGridColumn, VioletDataGridRow } from "../data-grid/violet-data-grid";
 import "../data-grid/violet-data-grid.define";
 import "../text-field/violet-text-field.define";
+import { referenceComponentSet } from "./reference-component-set";
 import {
   buildRegistryCssVars,
   isColorToken,
@@ -18,7 +16,6 @@ import {
   violetTokenGroups,
   violetTokenRegistry,
 } from "./token-registry";
-import { referenceComponentSet } from "./reference-component-set";
 
 type RawPaletteEntry = {
   id: string;
@@ -37,14 +34,8 @@ type RawPaletteProposal = {
 
 function parseJsoncText<T>(text: string): T {
   const withoutBlockComments = text.replace(/\/\*[\s\S]*?\*\//g, "");
-  const withoutLineComments = withoutBlockComments.replace(
-    /(^|[^:\\])\/\/.*$/gm,
-    "$1",
-  );
-  const withoutTrailingCommas = withoutLineComments.replace(
-    /,(\s*[}\]])/g,
-    "$1",
-  );
+  const withoutLineComments = withoutBlockComments.replace(/(^|[^:\\])\/\/.*$/gm, "$1");
+  const withoutTrailingCommas = withoutLineComments.replace(/,(\s*[}\]])/g, "$1");
 
   return JSON.parse(withoutTrailingCommas) as T;
 }
@@ -208,10 +199,11 @@ const textStructureOrder = new Map([
 ]);
 
 const textStructureTokens = violetTokenRegistry.tokens
-  .filter((token) =>
-    token.id.startsWith("color.text.") ||
-    token.id.startsWith("color.border.") ||
-    token.id.startsWith("color.focus."),
+  .filter(
+    (token) =>
+      token.id.startsWith("color.text.") ||
+      token.id.startsWith("color.border.") ||
+      token.id.startsWith("color.focus."),
   )
   .sort((left, right) => {
     const leftRank = textStructureOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER;
@@ -286,10 +278,7 @@ const actionStateOrder = new Map([
 ]);
 
 const actionStateTokens = violetTokenRegistry.tokens
-  .filter((token) =>
-    token.id.startsWith("color.action.") ||
-    token.id.startsWith("color.state."),
-  )
+  .filter((token) => token.id.startsWith("color.action.") || token.id.startsWith("color.state."))
   .sort((left, right) => {
     const leftRank = actionStateOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER;
     const rightRank = actionStateOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER;
@@ -1507,36 +1496,22 @@ function renderRadiusLab(): HTMLElement {
   `;
 
   const form = root.querySelector(".token-form");
-  const output = root.querySelector(
-    "[data-output]",
-  ) as HTMLTextAreaElement | null;
-  const copyStatus = root.querySelector(
-    "[data-copy-status]",
-  ) as HTMLParagraphElement | null;
-  const copyButton = root.querySelector(
-    '[data-action="copy"]',
-  ) as HTMLButtonElement | null;
-  const resetButton = root.querySelector(
-    '[data-action="reset"]',
-  ) as HTMLButtonElement | null;
+  const output = root.querySelector("[data-output]") as HTMLTextAreaElement | null;
+  const copyStatus = root.querySelector("[data-copy-status]") as HTMLParagraphElement | null;
+  const copyButton = root.querySelector('[data-action="copy"]') as HTMLButtonElement | null;
+  const resetButton = root.querySelector('[data-action="reset"]') as HTMLButtonElement | null;
 
   if (!form || !output || !copyStatus || !copyButton || !resetButton) {
     return root;
   }
 
   const currentValues = new Map<string, string>(
-    radiusTokens.map((token) => [
-      token.id,
-      initialValues[token.id] ?? String(token.value),
-    ]),
+    radiusTokens.map((token) => [token.id, initialValues[token.id] ?? String(token.value)]),
   );
 
   const writeOutput = (): string => {
     const snapshot = Object.fromEntries(
-      radiusTokens.map((token) => [
-        token.id,
-        currentValues.get(token.id) ?? String(token.value),
-      ]),
+      radiusTokens.map((token) => [token.id, currentValues.get(token.id) ?? String(token.value)]),
     );
     const text = JSON.stringify(snapshot, null, 2);
     output.value = text;
@@ -1589,8 +1564,7 @@ function renderRadiusLab(): HTMLElement {
     const text = writeOutput();
     try {
       await navigator.clipboard.writeText(text);
-      copyStatus.textContent =
-        "Copied the current radius value set to your clipboard.";
+      copyStatus.textContent = "Copied the current radius value set to your clipboard.";
     } catch {
       copyStatus.textContent =
         "Clipboard copy failed, but the current value set is available in the output box below.";
@@ -1604,15 +1578,12 @@ function renderRadiusLab(): HTMLElement {
       const value = initialValues[token.id] ?? String(token.value);
       currentValues.set(token.id, value);
       root.style.setProperty(tokenIdToCssVar(token.id), value);
-      const input = root.querySelector(
-        `[data-token-id="${token.id}"]`,
-      ) as HTMLInputElement | null;
+      const input = root.querySelector(`[data-token-id="${token.id}"]`) as HTMLInputElement | null;
       if (input) {
         input.value = value;
       }
     }
-    copyStatus.textContent =
-      "Radius values reset to the current registry defaults.";
+    copyStatus.textContent = "Radius values reset to the current registry defaults.";
     writeOutput();
   });
 
@@ -1636,7 +1607,10 @@ function renderSpacingLab(): HTMLElement {
     return tokenId;
   };
 
-  const getResolvedSpacingValue = (tokenId: string, currentRampValues: Map<string, string>): string => {
+  const getResolvedSpacingValue = (
+    tokenId: string,
+    currentRampValues: Map<string, string>,
+  ): string => {
     const rampId = getReferencedRampId(tokenId);
     return currentRampValues.get(rampId) ?? "";
   };
@@ -2023,7 +1997,10 @@ function renderSpacingLab(): HTMLElement {
 
   const writeOutput = (): string => {
     const snapshot = Object.fromEntries(
-      spacingRampTokens.map((token) => [token.id, currentRampValues.get(token.id) ?? String(token.value)]),
+      spacingRampTokens.map((token) => [
+        token.id,
+        currentRampValues.get(token.id) ?? String(token.value),
+      ]),
     );
     const text = JSON.stringify(snapshot, null, 2);
     output.value = text;
@@ -2520,7 +2497,10 @@ function renderDensityLab(): HTMLElement {
 
   const writeOutput = (): string => {
     const snapshot = Object.fromEntries(
-      targetRampTokens.map((token) => [token.id, currentValues.get(token.id) ?? String(token.value)]),
+      targetRampTokens.map((token) => [
+        token.id,
+        currentValues.get(token.id) ?? String(token.value),
+      ]),
     );
     const text = JSON.stringify(snapshot, null, 2);
     output.value = text;
@@ -2603,12 +2583,14 @@ function renderTypographyLab(): HTMLElement {
   const root = document.createElement("section");
   root.setAttribute("data-story", "violet-typography-lab");
 
-  const typographyTokens = [...fontFamilyTokens, ...fontScaleTokens, ...lineScaleTokens, ...weightTokens];
+  const typographyTokens = [
+    ...fontFamilyTokens,
+    ...fontScaleTokens,
+    ...lineScaleTokens,
+    ...weightTokens,
+  ];
   const initialValues = Object.fromEntries(
-    typographyTokens.map((token) => [
-      token.id,
-      String(token.value),
-    ]),
+    typographyTokens.map((token) => [token.id, String(token.value)]),
   );
 
   root.innerHTML = `
@@ -3027,10 +3009,7 @@ dtm: 78</p>
   }
 
   const currentValues = new Map<string, string>(
-    typographyTokens.map((token) => [
-      token.id,
-      initialValues[token.id] ?? String(token.value),
-    ]),
+    typographyTokens.map((token) => [token.id, initialValues[token.id] ?? String(token.value)]),
   );
 
   const groups = [
@@ -3106,8 +3085,7 @@ dtm: 78</p>
     const text = writeOutput();
     try {
       await navigator.clipboard.writeText(text);
-      copyStatus.textContent =
-        "Copied the current typography configuration to your clipboard.";
+      copyStatus.textContent = "Copied the current typography configuration to your clipboard.";
     } catch {
       copyStatus.textContent =
         "Clipboard copy failed, but the current value set is available in the output box below.";
@@ -3127,8 +3105,7 @@ dtm: 78</p>
       }
     }
 
-    copyStatus.textContent =
-      "Typography settings reset to the current registry defaults.";
+    copyStatus.textContent = "Typography settings reset to the current registry defaults.";
     writeOutput();
   });
 
@@ -4049,7 +4026,10 @@ function renderTextAndStructureLab(): HTMLElement {
 
   const writeOutput = (): string => {
     const snapshot = Object.fromEntries(
-      textStructureTokens.map((token) => [token.id, currentValues.get(token.id) ?? String(token.value)]),
+      textStructureTokens.map((token) => [
+        token.id,
+        currentValues.get(token.id) ?? String(token.value),
+      ]),
     );
     const text = JSON.stringify(snapshot, null, 2);
     output.value = text;
@@ -4115,8 +4095,7 @@ function renderTextAndStructureLab(): HTMLElement {
     const text = writeOutput();
     try {
       await navigator.clipboard.writeText(text);
-      copyStatus.textContent =
-        "Copied the current text and structure value set to your clipboard.";
+      copyStatus.textContent = "Copied the current text and structure value set to your clipboard.";
     } catch {
       copyStatus.textContent =
         "Clipboard copy failed, but the current value set is available in the output box below.";
@@ -4630,8 +4609,7 @@ function renderElevationLab(): HTMLElement {
     const text = writeOutput();
     try {
       await navigator.clipboard.writeText(text);
-      copyStatus.textContent =
-        "Copied the current elevation value set to your clipboard.";
+      copyStatus.textContent = "Copied the current elevation value set to your clipboard.";
     } catch {
       copyStatus.textContent =
         "Clipboard copy failed, but the current value set is available in the output box below.";
@@ -5260,11 +5238,15 @@ function renderMotionLab(): HTMLElement {
 
   const replayPreview = (): void => {
     const primaryButton = root.querySelector('[data-demo="button-primary"]') as HTMLElement | null;
-    const secondaryButton = root.querySelector('[data-demo="button-secondary"]') as HTMLElement | null;
+    const secondaryButton = root.querySelector(
+      '[data-demo="button-secondary"]',
+    ) as HTMLElement | null;
     const focusField = root.querySelector('[data-demo="focus-field"]') as HTMLElement | null;
     const activeTab = root.querySelector('[data-demo="tab-active"]') as HTMLElement | null;
     const menuShell = root.querySelector('[data-demo="menu-shell"]') as HTMLElement | null;
-    const scrollDemoShell = root.querySelector('[data-demo="scroll-shell"]') as HTMLDivElement | null;
+    const scrollDemoShell = root.querySelector(
+      '[data-demo="scroll-shell"]',
+    ) as HTMLDivElement | null;
 
     primaryButton?.classList.remove("is-active");
     secondaryButton?.classList.remove("is-active");
@@ -5312,8 +5294,7 @@ function renderMotionLab(): HTMLElement {
     const text = writeOutput();
     try {
       await navigator.clipboard.writeText(text);
-      copyStatus.textContent =
-        "Copied the current motion value set to your clipboard.";
+      copyStatus.textContent = "Copied the current motion value set to your clipboard.";
     } catch {
       copyStatus.textContent =
         "Clipboard copy failed, but the current value set is available in the output box below.";
@@ -5735,7 +5716,10 @@ function renderActionAndStateLab(): HTMLElement {
 
   const writeOutput = (): string => {
     const snapshot = Object.fromEntries(
-      actionStateTokens.map((token) => [token.id, currentValues.get(token.id) ?? String(token.value)]),
+      actionStateTokens.map((token) => [
+        token.id,
+        currentValues.get(token.id) ?? String(token.value),
+      ]),
     );
     const text = JSON.stringify(snapshot, null, 2);
     output.value = text;
@@ -5836,7 +5820,10 @@ function renderFormInputLab(): HTMLElement {
   root.setAttribute("data-story", "violet-form-input-lab");
 
   const initialValues = Object.fromEntries(
-    fieldTokens.map((token) => [token.id, typeof token.value === "string" ? token.value : tokenValueToCssValue(token.value)]),
+    fieldTokens.map((token) => [
+      token.id,
+      typeof token.value === "string" ? token.value : tokenValueToCssValue(token.value),
+    ]),
   );
 
   root.innerHTML = `
@@ -6172,7 +6159,10 @@ function renderFormInputLab(): HTMLElement {
   }
 
   const currentValues = new Map<string, string>(
-    fieldTokens.map((token) => [token.id, typeof token.value === "string" ? token.value : tokenValueToCssValue(token.value)]),
+    fieldTokens.map((token) => [
+      token.id,
+      typeof token.value === "string" ? token.value : tokenValueToCssValue(token.value),
+    ]),
   );
 
   const groups = [
@@ -6182,7 +6172,9 @@ function renderFormInputLab(): HTMLElement {
     },
     {
       title: "Field text",
-      tokens: fieldTokens.filter((token) => token.id === "color.field.text" || token.id === "color.field.placeholder"),
+      tokens: fieldTokens.filter(
+        (token) => token.id === "color.field.text" || token.id === "color.field.placeholder",
+      ),
     },
     {
       title: "Field border",
@@ -6192,7 +6184,11 @@ function renderFormInputLab(): HTMLElement {
 
   const writeOutput = (): string => {
     const snapshot = Object.fromEntries(
-      fieldTokens.map((token) => [token.id, currentValues.get(token.id) ?? (typeof token.value === "string" ? token.value : tokenValueToCssValue(token.value))]),
+      fieldTokens.map((token) => [
+        token.id,
+        currentValues.get(token.id) ??
+          (typeof token.value === "string" ? token.value : tokenValueToCssValue(token.value)),
+      ]),
     );
     const text = JSON.stringify(snapshot, null, 2);
     output.value = text;
@@ -6269,7 +6265,8 @@ function renderFormInputLab(): HTMLElement {
 
   resetButton.addEventListener("click", () => {
     for (const token of fieldTokens) {
-      const defaultValue = typeof token.value === "string" ? token.value : tokenValueToCssValue(token.value);
+      const defaultValue =
+        typeof token.value === "string" ? token.value : tokenValueToCssValue(token.value);
       const value = initialValues[token.id] ?? defaultValue;
       currentValues.set(token.id, value);
       root.style.setProperty(tokenIdToCssVar(token.id), value);
@@ -6593,7 +6590,9 @@ function renderPaletteLab(): HTMLElement {
             <div class="preview-stage">
               <div class="preview-eyebrow">Raw swatches</div>
               <div class="swatch-grid">
-                ${rawPaletteEntries.map((entry) => `
+                ${rawPaletteEntries
+                  .map(
+                    (entry) => `
                   <article class="swatch-card">
                     <div class="swatch-tone" data-raw-tone="${entry.id}" style="background: var(--raw-${entry.id});"></div>
                     <div class="swatch-meta">
@@ -6602,7 +6601,9 @@ function renderPaletteLab(): HTMLElement {
                       <div class="swatch-value">${entry.roleHint}</div>
                     </div>
                   </article>
-                `).join("")}
+                `,
+                  )
+                  .join("")}
               </div>
             </div>
           </section>
@@ -6660,10 +6661,14 @@ function renderPaletteLab(): HTMLElement {
     return root;
   }
 
-  const currentValues = new Map<string, string>(rawPaletteEntries.map((entry) => [entry.id, entry.hex]));
+  const currentValues = new Map<string, string>(
+    rawPaletteEntries.map((entry) => [entry.id, entry.hex]),
+  );
 
   const writeOutput = (): string => {
-    const snapshot = Object.fromEntries(rawPaletteEntries.map((entry) => [entry.id, currentValues.get(entry.id) ?? entry.hex]));
+    const snapshot = Object.fromEntries(
+      rawPaletteEntries.map((entry) => [entry.id, currentValues.get(entry.id) ?? entry.hex]),
+    );
     const text = JSON.stringify(snapshot, null, 2);
     output.value = text;
     return text;
@@ -7144,7 +7149,9 @@ function renderReferenceKitLab(): HTMLElement {
         <h2 class="kit-title">The smallest set that shapes the whole system</h2>
         <p class="kit-note">These references should cover the major interaction and composition shapes before we expand the component library.</p>
         <div class="kit-list">
-          ${referenceComponentSet.map((component) => `
+          ${referenceComponentSet
+            .map(
+              (component) => `
             <article class="kit-item">
               <div class="kit-item-header">
                 <h3 class="kit-item-title">${component.title}</h3>
@@ -7154,7 +7161,9 @@ function renderReferenceKitLab(): HTMLElement {
               <p class="kit-validates"><strong>Validates:</strong> ${component.validates.join(", ")}</p>
               <p class="kit-why">${component.whyItMatters}</p>
             </article>
-          `).join("")}
+          `,
+            )
+            .join("")}
         </div>
       </section>
 
@@ -7282,9 +7291,7 @@ type Story = StoryObj<typeof meta>;
 export const Overview: Story = {
   play: async ({ canvasElement }) => {
     const heading = canvasElement.querySelector("h1");
-    await expect(heading?.textContent).toContain(
-      "Token review needs a real catalog",
-    );
+    await expect(heading?.textContent).toContain("Token review needs a real catalog");
 
     const tokenCards = canvasElement.querySelectorAll(".token-card");
     await expect(tokenCards.length).toBeGreaterThan(0);
@@ -7314,9 +7321,7 @@ export const PaletteLab: Story = {
     const inputs = canvasElement.querySelectorAll(".tool-input");
     await expect(inputs.length).toBeGreaterThan(0);
 
-    const output = canvasElement.querySelector(
-      "[data-output]",
-    ) as HTMLTextAreaElement | null;
+    const output = canvasElement.querySelector("[data-output]") as HTMLTextAreaElement | null;
     const parsed = JSON.parse(output?.value ?? "{}") as Record<string, string>;
     await expect(parsed.paper).toBe("#f4f0ea");
     await expect(parsed["cerulean-500"]).toBe("#28769e");
@@ -7334,9 +7339,7 @@ export const RadiusLab: Story = {
     const inputs = canvasElement.querySelectorAll(".tool-input");
     await expect(inputs.length).toBeGreaterThan(0);
 
-    const output = canvasElement.querySelector(
-      "[data-output]",
-    ) as HTMLTextAreaElement | null;
+    const output = canvasElement.querySelector("[data-output]") as HTMLTextAreaElement | null;
     await expect(output?.value).toContain("radius.control");
 
     const copyButton = canvasElement.querySelector('[data-action="copy"]');
@@ -7350,9 +7353,7 @@ export const DensityLab: Story = {
     const inputs = canvasElement.querySelectorAll(".tool-input");
     await expect(inputs.length).toBeGreaterThan(0);
 
-    const output = canvasElement.querySelector(
-      "[data-output]",
-    ) as HTMLTextAreaElement | null;
+    const output = canvasElement.querySelector("[data-output]") as HTMLTextAreaElement | null;
     await expect(output?.value).toContain("size.target.compact");
     await expect(output?.value).toContain("size.target.comfortable");
 
@@ -7370,9 +7371,7 @@ export const SpacingLab: Story = {
     const inputs = canvasElement.querySelectorAll(".tool-input");
     await expect(inputs.length).toBeGreaterThan(0);
 
-    const output = canvasElement.querySelector(
-      "[data-output]",
-    ) as HTMLTextAreaElement | null;
+    const output = canvasElement.querySelector("[data-output]") as HTMLTextAreaElement | null;
     await expect(output?.value).toContain("space.inline.hairline");
 
     const previewTitle = canvasElement.querySelector(".section-title h3");
@@ -7386,9 +7385,7 @@ export const TypographyLab: Story = {
     const inputs = canvasElement.querySelectorAll(".tool-input");
     await expect(inputs.length).toBeGreaterThan(0);
 
-    const output = canvasElement.querySelector(
-      "[data-output]",
-    ) as HTMLTextAreaElement | null;
+    const output = canvasElement.querySelector("[data-output]") as HTMLTextAreaElement | null;
     await expect(output?.value).toContain("font.family.body");
     await expect(output?.value).toContain("type.body.size");
     await expect(output?.value).toContain("weight.semibold");
@@ -7404,9 +7401,7 @@ export const MotionLab: Story = {
     const inputs = canvasElement.querySelectorAll(".tool-input");
     await expect(inputs.length).toBeGreaterThan(0);
 
-    const output = canvasElement.querySelector(
-      "[data-output]",
-    ) as HTMLTextAreaElement | null;
+    const output = canvasElement.querySelector("[data-output]") as HTMLTextAreaElement | null;
     await expect(output?.value).toContain("duration.fast");
     await expect(output?.value).toContain("easing.standard");
 
@@ -7424,9 +7419,7 @@ export const TextAndStructureLab: Story = {
     const inputs = canvasElement.querySelectorAll(".tool-input");
     await expect(inputs.length).toBeGreaterThan(0);
 
-    const output = canvasElement.querySelector(
-      "[data-output]",
-    ) as HTMLTextAreaElement | null;
+    const output = canvasElement.querySelector("[data-output]") as HTMLTextAreaElement | null;
     await expect(output?.value).toContain("color.text.primary");
     await expect(output?.value).toContain("color.focus.ring");
 
@@ -7441,9 +7434,7 @@ export const ActionAndStateLab: Story = {
     const inputs = canvasElement.querySelectorAll(".tool-input");
     await expect(inputs.length).toBeGreaterThan(0);
 
-    const output = canvasElement.querySelector(
-      "[data-output]",
-    ) as HTMLTextAreaElement | null;
+    const output = canvasElement.querySelector("[data-output]") as HTMLTextAreaElement | null;
     await expect(output?.value).toContain("color.action.primary.background");
     await expect(output?.value).toContain("color.state.danger.border");
 
@@ -7458,9 +7449,7 @@ export const FormInputLab: Story = {
     const inputs = canvasElement.querySelectorAll(".tool-input");
     await expect(inputs.length).toBeGreaterThan(0);
 
-    const output = canvasElement.querySelector(
-      "[data-output]",
-    ) as HTMLTextAreaElement | null;
+    const output = canvasElement.querySelector("[data-output]") as HTMLTextAreaElement | null;
     await expect(output?.value).toContain("color.field.background");
     await expect(output?.value).toContain("color.field.border.invalid");
 
@@ -7475,9 +7464,7 @@ export const ElevationLab: Story = {
     const inputs = canvasElement.querySelectorAll(".tool-input");
     await expect(inputs.length).toBeGreaterThan(0);
 
-    const output = canvasElement.querySelector(
-      "[data-output]",
-    ) as HTMLTextAreaElement | null;
+    const output = canvasElement.querySelector("[data-output]") as HTMLTextAreaElement | null;
     await expect(output?.value).toContain("shadow.control");
     await expect(output?.value).toContain("shadow.card");
     await expect(output?.value).toContain("shadow.floating");
@@ -7493,9 +7480,7 @@ export const SurfaceLab: Story = {
     const inputs = canvasElement.querySelectorAll(".tool-input");
     await expect(inputs.length).toBeGreaterThan(0);
 
-    const output = canvasElement.querySelector(
-      "[data-output]",
-    ) as HTMLTextAreaElement | null;
+    const output = canvasElement.querySelector("[data-output]") as HTMLTextAreaElement | null;
     await expect(output?.value).toContain("color.surface.page");
 
     const previewTitle = canvasElement.querySelector(".section-title h3");

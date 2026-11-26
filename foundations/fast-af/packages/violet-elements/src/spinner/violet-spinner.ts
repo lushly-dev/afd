@@ -1,4 +1,11 @@
-import { FASTElement, Observable, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  Observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -80,9 +87,9 @@ const template = html<VioletSpinner>`
     <span
         class="spinner"
         part="spinner"
-        role="${x => (x.decorative ? "presentation" : "img")}"
-        aria-hidden="${x => (x.decorative ? "true" : "false")}"
-        aria-label="${x => (x.decorative ? null : x.accessibleLabel)}"
+        role="${(x) => (x.decorative ? "presentation" : "img")}"
+        aria-hidden="${(x) => (x.decorative ? "true" : "false")}"
+        aria-label="${(x) => (x.decorative ? null : x.accessibleLabel)}"
     >
         <svg class="mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <rect class="rest" x="3" y="3" width="18" height="18" rx="3"></rect>
@@ -98,21 +105,21 @@ const template = html<VioletSpinner>`
  * @csspart spinner - The animated indicator: a run that travels the edge of a rounded square.
  */
 export class VioletSpinner extends FASTElement {
-    declare public label: string;
-    declare public decorative: boolean;
-    declare public size: "sm" | "md" | "lg";
+  declare public label: string;
+  declare public decorative: boolean;
+  declare public size: "sm" | "md" | "lg";
 
-    public constructor() {
-        super();
-        this.label = "";
-        this.decorative = false;
-        this.size = "md";
-    }
+  public constructor() {
+    super();
+    this.label = "";
+    this.decorative = false;
+    this.size = "md";
+  }
 
-    public get accessibleLabel(): string {
-        Observable.trackVolatile();
-        return this.label || "Loading";
-    }
+  public get accessibleLabel(): string {
+    Observable.trackVolatile();
+    return this.label || "Loading";
+  }
 }
 
 attr(VioletSpinner.prototype, "label");
@@ -121,7 +128,7 @@ attr(VioletSpinner.prototype, "size");
 
 /** The FAST definition of `<violet-spinner>`; `defineVioletSpinner` in `./violet-spinner.define` registers it. */
 export const violetSpinnerDefinition = {
-    name: "violet-spinner",
-    template,
-    styles,
+  name: "violet-spinner",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

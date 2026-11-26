@@ -7,8 +7,10 @@ import { VioletImage, violetImageDefinition } from "./violet-image";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletImage(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletImage, violetImageDefinition, registry);
+export async function defineVioletImage(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletImage, violetImageDefinition, registry);
 }
 
 await defineVioletImage();

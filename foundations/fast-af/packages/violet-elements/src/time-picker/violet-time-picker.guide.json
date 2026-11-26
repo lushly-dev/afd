@@ -5,43 +5,29 @@
     {
       "id": "time-picker.value",
       "text": "value is a 24-hour \"HH:MM\" or \"HH:MM:SS\" string whatever the display format, and the form receives it under name. Any other string fails validation, and its message shows while invalid is set.",
-      "members": [
-        "value",
-        "name"
-      ]
+      "members": ["value", "name"]
     },
     {
       "id": "time-picker.step",
       "text": "step is in seconds, default 60, so only hours and minutes are edited. Use step=\"1\" to edit seconds, or e.g. 900 for 15-minute arrow-key steps.",
-      "members": [
-        "step"
-      ]
+      "members": ["step"]
     },
     {
       "id": "time-picker.range",
       "text": "min and max are times within one day; a value outside them fails validation, and its message shows while invalid is set. A range that crosses midnight is not supported.",
-      "members": [
-        "min",
-        "max"
-      ]
+      "members": ["min", "max"]
     },
     {
       "id": "time-picker.events",
       "text": "input and change carry detail.value.",
-      "members": [
-        "input",
-        "change"
-      ]
+      "members": ["input", "change"]
     }
   ],
   "a11y": [
     {
       "id": "time-picker.errors",
       "text": "While invalid, the shown error (error-text or the native validation message) replaces supporting-text and is linked to the native input as its description.",
-      "members": [
-        "error-text",
-        "supporting-text"
-      ]
+      "members": ["error-text", "supporting-text"]
     }
   ]
 }

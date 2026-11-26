@@ -5,26 +5,19 @@
     {
       "id": "checkbox.indeterminate",
       "text": "The indeterminate attribute is a display and ARIA state only. A user toggle clears it, it does not change what the form receives, and form reset restores it.",
-      "members": [
-        "indeterminate"
-      ]
+      "members": ["indeterminate"]
     },
     {
       "id": "checkbox.required",
       "text": "The required attribute is satisfied only while checked.",
-      "members": [
-        "required",
-        "checked"
-      ]
+      "members": ["required", "checked"]
     }
   ],
   "a11y": [
     {
       "id": "checkbox.name",
       "text": "The slotted label names the input through a native label association; an aria-label on the host overrides it. Text in the supporting slot describes the input.",
-      "members": [
-        "supporting"
-      ]
+      "members": ["supporting"]
     },
     {
       "id": "checkbox.describedby",

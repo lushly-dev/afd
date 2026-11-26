@@ -1,10 +1,18 @@
-import { FASTElement, Updates, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import type { VioletRadio } from "../radio/violet-radio";
-import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
-import { installFormDisabled } from "../foundations/violet-form-disabled";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  Updates,
+  when,
+} from "@lushly-dev/fast-element";
 import { logicalArrowKey } from "../foundations/violet-direction";
+import { installFormDisabled } from "../foundations/violet-form-disabled";
+import type { VioletRadio } from "../radio/violet-radio";
 import { resolveFieldErrorText } from "../shared/field-error";
+import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
 export type VioletRadioGroupOrientation = "horizontal" | "vertical";
 
@@ -63,24 +71,24 @@ const styles = css`
 const template = html<VioletRadioGroup>`
     <div class="field" part="field">
         ${when(
-            x => Boolean(x.label),
-            html<VioletRadioGroup>`
-                <div class="label" part="label">${x => x.label}</div>
+          (x) => Boolean(x.label),
+          html<VioletRadioGroup>`
+                <div class="label" part="label">${(x) => x.label}</div>
             `,
         )}
         <div class="group" part="group">
-            <slot @slotchange="${x => x.handleSlotChange()}"></slot>
+            <slot @slotchange="${(x) => x.handleSlotChange()}"></slot>
         </div>
         ${when(
-            x => Boolean(x.supportingText) && !x.displayErrorText,
-            html<VioletRadioGroup>`
-                <p class="supporting" part="supporting-text">${x => x.supportingText}</p>
+          (x) => Boolean(x.supportingText) && !x.displayErrorText,
+          html<VioletRadioGroup>`
+                <p class="supporting" part="supporting-text">${(x) => x.supportingText}</p>
             `,
         )}
         ${when(
-            x => Boolean(x.displayErrorText),
-            html<VioletRadioGroup>`
-                <p class="error" part="error-message" role="alert">${x => x.displayErrorText}</p>
+          (x) => Boolean(x.displayErrorText),
+          html<VioletRadioGroup>`
+                <p class="error" part="error-message" role="alert">${(x) => x.displayErrorText}</p>
             `,
         )}
     </div>
@@ -99,420 +107,434 @@ const template = html<VioletRadioGroup>`
  * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletRadioGroup extends FASTElement {
-    public static readonly formAssociated = true;
+  public static readonly formAssociated = true;
 
-    readonly #internals: ElementInternals;
-    #defaultValue: string;
-    #synchronizing: boolean;
+  readonly #internals: ElementInternals;
+  #defaultValue: string;
+  #synchronizing: boolean;
 
-    @observable
-    declare public radios: VioletRadio[];
+  @observable
+  declare public radios: VioletRadio[];
 
-    @observable
-    declare public validationMessageText: string;
+  @observable
+  declare public validationMessageText: string;
 
-    /**
-     * Optional field label.
-     */
-    declare public label: string;
+  /**
+   * Optional field label.
+   */
+  declare public label: string;
 
-    /**
-     * Optional supporting text shown below the group.
-     */
-    declare public supportingText: string;
+  /**
+   * Optional supporting text shown below the group.
+   */
+  declare public supportingText: string;
 
-    /**
-     * Optional visible error copy used when the group is invalid.
-     */
-    declare public errorText: string;
+  /**
+   * Optional visible error copy used when the group is invalid.
+   */
+  declare public errorText: string;
 
-    /**
-     * Selected radio value.
-     */
-    declare public value: string;
+  /**
+   * Selected radio value.
+   */
+  declare public value: string;
 
-    /**
-     * Native group name forwarded to child radios and form submission.
-     */
-    declare public name: string;
+  /**
+   * Native group name forwarded to child radios and form submission.
+   */
+  declare public name: string;
 
-    /**
-     * Disables the radio group and child radios.
-     */
-    declare public disabled: boolean;
+  /**
+   * Disables the radio group and child radios.
+   */
+  declare public disabled: boolean;
 
-    /**
-     * True while an ancestor `<fieldset disabled>` disables the control.
-     */
-    declare public fieldsetDisabled: boolean;
+  /**
+   * True while an ancestor `<fieldset disabled>` disables the control.
+   */
+  declare public fieldsetDisabled: boolean;
 
-    /**
-     * Author `disabled` or fieldset-disabled.
-     */
-    declare public readonly effectiveDisabled: boolean;
+  /**
+   * Author `disabled` or fieldset-disabled.
+   */
+  declare public readonly effectiveDisabled: boolean;
 
-    /**
-     * Marks the group invalid.
-     */
-    declare public invalid: boolean;
+  /**
+   * Marks the group invalid.
+   */
+  declare public invalid: boolean;
 
-    /**
-     * Marks the group required.
-     */
-    declare public required: boolean;
+  /**
+   * Marks the group required.
+   */
+  declare public required: boolean;
 
-    /**
-     * Layout orientation for the group.
-     */
-    declare public orientation: VioletRadioGroupOrientation;
+  /**
+   * Layout orientation for the group.
+   */
+  declare public orientation: VioletRadioGroupOrientation;
 
-    public constructor() {
-        super();
-        this.#internals = this.attachInternals();
-        this.#internals.role = "radiogroup";
-        this.#defaultValue = "";
-        this.#synchronizing = false;
-        this.radios = [];
-        this.validationMessageText = "";
-        this.label = "";
-        this.supportingText = "";
-        this.errorText = "";
-        this.value = "";
-        this.name = "";
-        this.disabled = false;
-        this.invalid = false;
-        this.required = false;
-        this.orientation = "vertical";
+  public constructor() {
+    super();
+    this.#internals = this.attachInternals();
+    this.#internals.role = "radiogroup";
+    this.#defaultValue = "";
+    this.#synchronizing = false;
+    this.radios = [];
+    this.validationMessageText = "";
+    this.label = "";
+    this.supportingText = "";
+    this.errorText = "";
+    this.value = "";
+    this.name = "";
+    this.disabled = false;
+    this.invalid = false;
+    this.required = false;
+    this.orientation = "vertical";
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.addEventListener("change", this.handleRadioChange as EventListener);
+    this.addEventListener("keydown", this.handleKeydown as EventListener);
+    this.handleSlotChange();
+    this.#defaultValue = this.value;
+    this.#syncAccessibilityState();
+    this.#syncFormState();
+  }
+
+  public disconnectedCallback(): void {
+    this.removeEventListener("change", this.handleRadioChange as EventListener);
+    this.removeEventListener("keydown", this.handleKeydown as EventListener);
+    super.disconnectedCallback();
+  }
+
+  public get form(): HTMLFormElement | null {
+    return this.#internals.form;
+  }
+
+  public get validity(): ValidityState {
+    return this.#internals.validity;
+  }
+
+  public get validationMessage(): string {
+    return this.#internals.validationMessage;
+  }
+
+  public get willValidate(): boolean {
+    return this.#internals.willValidate;
+  }
+
+  public checkValidity(): boolean {
+    return this.#internals.checkValidity();
+  }
+
+  public reportValidity(): boolean {
+    return this.#internals.reportValidity();
+  }
+
+  public formStateRestoreCallback(state: File | string | FormData | null): void {
+    if (typeof state === "string") {
+      this.value = state;
+    }
+  }
+
+  public formResetCallback(): void {
+    this.value = this.#defaultValue;
+    this.#synchronizeRadios();
+  }
+
+  public handleSlotChange(): void {
+    this.radios = this.#ownedRadios();
+    this.#synchronizeRadios();
+  }
+
+  public radiosChanged(): void {
+    this.#synchronizeRadios();
+  }
+
+  public labelChanged(): void {
+    this.#scheduleAccessibilitySync();
+  }
+
+  public supportingTextChanged(): void {
+    this.#scheduleAccessibilitySync();
+  }
+
+  public errorTextChanged(): void {
+    this.#syncFormState();
+  }
+
+  public valueChanged(): void {
+    if (this.#synchronizing) {
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.addEventListener("change", this.handleRadioChange as EventListener);
-        this.addEventListener("keydown", this.handleKeydown as EventListener);
-        this.handleSlotChange();
-        this.#defaultValue = this.value;
-        this.#syncAccessibilityState();
-        this.#syncFormState();
+    this.#synchronizeRadios();
+  }
+
+  public nameChanged(): void {
+    this.#synchronizeRadios();
+  }
+
+  public disabledChanged(): void {
+    this.#synchronizeRadios();
+  }
+
+  public invalidChanged(): void {
+    this.#syncAccessibilityState();
+    this.#syncFormState();
+  }
+
+  public requiredChanged(): void {
+    this.#syncAccessibilityState();
+    this.#syncFormState();
+  }
+
+  public orientationChanged(): void {
+    this.#syncAccessibilityState();
+  }
+
+  #ownedRadios(): VioletRadio[] {
+    return Array.from(this.querySelectorAll("violet-radio")).filter(
+      (radio): radio is VioletRadio => radio.closest("violet-radio-group") === this,
+    );
+  }
+
+  #selectedRadio(): VioletRadio | null {
+    if (this.value) {
+      const matchingValue = this.radios.find((radio) => radio.value === this.value);
+      if (matchingValue) {
+        return matchingValue;
+      }
     }
 
-    public disconnectedCallback(): void {
-        this.removeEventListener("change", this.handleRadioChange as EventListener);
-        this.removeEventListener("keydown", this.handleKeydown as EventListener);
-        super.disconnectedCallback();
+    return this.radios.find((radio) => radio.checked) ?? null;
+  }
+
+  #enabledRadios(): VioletRadio[] {
+    return this.radios.filter((radio) => !radio.effectiveDisabled);
+  }
+
+  #synchronizeRadios(options: { focusTarget?: VioletRadio | null } = {}): void {
+    if (!this.$fastController.isConnected) {
+      return;
     }
 
-    public get form(): HTMLFormElement | null {
-        return this.#internals.form;
+    const selectedRadio = this.#selectedRadio();
+    const nextValue = selectedRadio?.value ?? "";
+    const enabledRadios = this.#enabledRadios();
+    const focusTarget =
+      (!options.focusTarget || options.focusTarget.effectiveDisabled
+        ? null
+        : options.focusTarget) ??
+      (selectedRadio && !selectedRadio.effectiveDisabled ? selectedRadio : null) ??
+      enabledRadios[0] ??
+      null;
+
+    this.#synchronizing = true;
+
+    this.radios.forEach((radio) => {
+      // Radios may not be upgraded yet when the group connects; upgrade them now, and skip any that still
+      // lack the API (a later slotchange pass re-synchronizes once they are ready).
+      customElements.upgrade(radio);
+      if (typeof radio.setGroupDisabled !== "function") {
+        return;
+      }
+      radio.setGroupDisabled(this.effectiveDisabled);
+      if (this.name) {
+        radio.name = this.name;
+      }
+      radio.setCheckedFromGroup(Boolean(selectedRadio) && radio === selectedRadio);
+      radio.setManagedTabIndex(focusTarget && radio === focusTarget ? 0 : -1);
+    });
+
+    this.value = nextValue;
+    this.#synchronizing = false;
+
+    this.#syncAccessibilityState();
+    this.#syncFormState();
+  }
+
+  #selectRadio(radio: VioletRadio, options: { emitChange?: boolean; focus?: boolean } = {}): void {
+    if (!this.radios.includes(radio) || radio.effectiveDisabled) {
+      return;
     }
 
-    public get validity(): ValidityState {
-        return this.#internals.validity;
+    const previousValue = this.value;
+    this.value = radio.value;
+    this.#synchronizeRadios({ focusTarget: radio });
+
+    if (options.focus) {
+      radio.focus();
     }
 
-    public get validationMessage(): string {
-        return this.#internals.validationMessage;
+    if (options.emitChange && this.value !== previousValue) {
+      this.$emit("change", { value: this.value });
+    }
+  }
+
+  #radioFromEvent(event: Event): VioletRadio | null {
+    const composedPath = event.composedPath();
+    for (const item of composedPath) {
+      if (item instanceof HTMLElement && item.tagName.toLowerCase() === "violet-radio") {
+        return item as VioletRadio;
+      }
     }
 
-    public get willValidate(): boolean {
-        return this.#internals.willValidate;
+    return null;
+  }
+
+  public get displayErrorText(): string {
+    return resolveFieldErrorText({
+      invalid: this.invalid,
+      disabled: this.effectiveDisabled,
+      errorText: this.errorText,
+      fallbackValidationMessage: this.required && !this.value ? "Please select an option." : "",
+    });
+  }
+
+  #syncAccessibilityState(): void {
+    this.#internals.ariaDisabled = this.effectiveDisabled ? "true" : "false";
+    this.#internals.ariaOrientation = this.orientation;
+    this.#internals.ariaRequired = this.required ? "true" : "false";
+
+    const labelElement = this.shadowRoot?.querySelector(".label");
+    const supportingElement = this.shadowRoot?.querySelector(".supporting");
+    const errorElement = this.shadowRoot?.querySelector(".error");
+
+    if (labelElement instanceof Element && !this.getAttribute("aria-label")) {
+      this.#internals.ariaLabelledByElements = [labelElement];
+      this.#internals.ariaLabel = null;
+    } else {
+      this.#internals.ariaLabelledByElements = null;
+      this.#internals.ariaLabel = this.getAttribute("aria-label") || this.label || null;
     }
 
-    public checkValidity(): boolean {
-        return this.#internals.checkValidity();
+    const captionElement =
+      errorElement instanceof Element
+        ? errorElement
+        : supportingElement instanceof Element
+          ? supportingElement
+          : null;
+    this.#internals.ariaDescribedByElements = captionElement ? [captionElement] : null;
+    this.#internals.ariaErrorMessageElements =
+      errorElement instanceof Element ? [errorElement] : null;
+  }
+
+  #scheduleAccessibilitySync(): void {
+    // Attribute change callbacks run before FAST queues template binding updates, so a
+    // nested enqueue guarantees the caption swap has patched the shadow DOM first.
+    Updates.enqueue(() => Updates.enqueue(() => this.#syncAccessibilityState()));
+  }
+
+  #syncFormState(): void {
+    this.#internals.setFormValue(this.effectiveDisabled || !this.value ? null : this.value);
+
+    if (this.effectiveDisabled) {
+      this.validationMessageText = "";
+      this.#internals.setValidity({});
+      this.#internals.ariaInvalid = "false";
+      this.#scheduleAccessibilitySync();
+      return;
     }
 
-    public reportValidity(): boolean {
-        return this.#internals.reportValidity();
+    if (this.invalid) {
+      this.validationMessageText = this.displayErrorText;
+      this.#internals.setValidity(
+        { customError: true },
+        this.displayErrorText || "Please select a valid option.",
+      );
+      this.#internals.ariaInvalid = "true";
+      this.#scheduleAccessibilitySync();
+      return;
     }
 
-    public formStateRestoreCallback(state: File | string | FormData | null): void {
-        if (typeof state === "string") {
-            this.value = state;
-        }
+    this.validationMessageText = "";
+
+    if (this.required && !this.value) {
+      this.#internals.setValidity(
+        { valueMissing: true },
+        (this.errorText ?? "").trim() || "Please select an option.",
+      );
+      this.#internals.ariaInvalid = "false";
+      this.#scheduleAccessibilitySync();
+      return;
     }
 
-    public formResetCallback(): void {
-        this.value = this.#defaultValue;
-        this.#synchronizeRadios();
+    this.validationMessageText = "";
+    this.#internals.setValidity({});
+    this.#internals.ariaInvalid = "false";
+    this.#scheduleAccessibilitySync();
+  }
+
+  handleRadioChange = (event: Event): void => {
+    const radio = this.#radioFromEvent(event);
+    if (!radio) {
+      return;
     }
 
-    public handleSlotChange(): void {
-        this.radios = this.#ownedRadios();
-        this.#synchronizeRadios();
+    if (this.#synchronizing) {
+      return;
     }
 
-    public radiosChanged(): void {
-        this.#synchronizeRadios();
+    this.#selectRadio(radio, { emitChange: true, focus: false });
+  };
+
+  handleKeydown = (event: KeyboardEvent): void => {
+    const currentRadio = this.#radioFromEvent(event);
+    if (!currentRadio || this.effectiveDisabled) {
+      return;
     }
 
-    public labelChanged(): void {
-        this.#scheduleAccessibilitySync();
+    const enabledRadios = this.#enabledRadios();
+    if (!enabledRadios.length) {
+      return;
     }
 
-    public supportingTextChanged(): void {
-        this.#scheduleAccessibilitySync();
-    }
+    const currentIndex = enabledRadios.indexOf(currentRadio);
 
-    public errorTextChanged(): void {
-        this.#syncFormState();
-    }
-
-    public valueChanged(): void {
-        if (this.#synchronizing) {
-            return;
-        }
-
-        this.#synchronizeRadios();
-    }
-
-    public nameChanged(): void {
-        this.#synchronizeRadios();
-    }
-
-    public disabledChanged(): void {
-        this.#synchronizeRadios();
-    }
-
-    public invalidChanged(): void {
-        this.#syncAccessibilityState();
-        this.#syncFormState();
-    }
-
-    public requiredChanged(): void {
-        this.#syncAccessibilityState();
-        this.#syncFormState();
-    }
-
-    public orientationChanged(): void {
-        this.#syncAccessibilityState();
-    }
-
-    #ownedRadios(): VioletRadio[] {
-        return Array.from(this.querySelectorAll("violet-radio")).filter(
-            (radio): radio is VioletRadio => radio.closest("violet-radio-group") === this
-        );
-    }
-
-    #selectedRadio(): VioletRadio | null {
-        if (this.value) {
-            const matchingValue = this.radios.find(radio => radio.value === this.value);
-            if (matchingValue) {
-                return matchingValue;
-            }
-        }
-
-        return this.radios.find(radio => radio.checked) ?? null;
-    }
-
-    #enabledRadios(): VioletRadio[] {
-        return this.radios.filter(radio => !radio.effectiveDisabled);
-    }
-
-    #synchronizeRadios(options: { focusTarget?: VioletRadio | null } = {}): void {
-        if (!this.$fastController.isConnected) {
-            return;
-        }
-
-        const selectedRadio = this.#selectedRadio();
-        const nextValue = selectedRadio?.value ?? "";
-        const enabledRadios = this.#enabledRadios();
-        const focusTarget =
-            (!options.focusTarget || options.focusTarget.effectiveDisabled ? null : options.focusTarget) ??
-            (selectedRadio && !selectedRadio.effectiveDisabled ? selectedRadio : null) ??
-            enabledRadios[0] ??
-            null;
-
-        this.#synchronizing = true;
-
-        this.radios.forEach(radio => {
-            // Radios may not be upgraded yet when the group connects; upgrade them now, and skip any that still
-            // lack the API (a later slotchange pass re-synchronizes once they are ready).
-            customElements.upgrade(radio);
-            if (typeof radio.setGroupDisabled !== "function") {
-                return;
-            }
-            radio.setGroupDisabled(this.effectiveDisabled);
-            if (this.name) {
-                radio.name = this.name;
-            }
-            radio.setCheckedFromGroup(Boolean(selectedRadio) && radio === selectedRadio);
-            radio.setManagedTabIndex(focusTarget && radio === focusTarget ? 0 : -1);
+    switch (logicalArrowKey(event.key, this)) {
+      case "ArrowDown":
+      case "ArrowRight": {
+        event.preventDefault();
+        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % enabledRadios.length : 0;
+        this.#selectRadio(enabledRadios[nextIndex]!, { emitChange: true, focus: true });
+        break;
+      }
+      case "ArrowUp":
+      case "ArrowLeft": {
+        event.preventDefault();
+        const nextIndex =
+          currentIndex >= 0
+            ? (currentIndex - 1 + enabledRadios.length) % enabledRadios.length
+            : enabledRadios.length - 1;
+        this.#selectRadio(enabledRadios[nextIndex]!, { emitChange: true, focus: true });
+        break;
+      }
+      case "Home": {
+        event.preventDefault();
+        this.#selectRadio(enabledRadios[0]!, { emitChange: true, focus: true });
+        break;
+      }
+      case "End": {
+        event.preventDefault();
+        this.#selectRadio(enabledRadios[enabledRadios.length - 1]!, {
+          emitChange: true,
+          focus: true,
         });
-
-        this.value = nextValue;
-        this.#synchronizing = false;
-
-        this.#syncAccessibilityState();
-        this.#syncFormState();
+        break;
+      }
+      case " ":
+      case "Enter": {
+        event.preventDefault();
+        this.#selectRadio(currentRadio, { emitChange: true, focus: true });
+        break;
+      }
+      default:
+        break;
     }
-
-    #selectRadio(radio: VioletRadio, options: { emitChange?: boolean; focus?: boolean } = {}): void {
-        if (!this.radios.includes(radio) || radio.effectiveDisabled) {
-            return;
-        }
-
-        const previousValue = this.value;
-        this.value = radio.value;
-        this.#synchronizeRadios({ focusTarget: radio });
-
-        if (options.focus) {
-            radio.focus();
-        }
-
-        if (options.emitChange && this.value !== previousValue) {
-            this.$emit("change", { value: this.value });
-        }
-    }
-
-    #radioFromEvent(event: Event): VioletRadio | null {
-        const composedPath = event.composedPath();
-        for (const item of composedPath) {
-            if (item instanceof HTMLElement && item.tagName.toLowerCase() === "violet-radio") {
-                return item as VioletRadio;
-            }
-        }
-
-        return null;
-    }
-
-    public get displayErrorText(): string {
-        return resolveFieldErrorText({
-            invalid: this.invalid,
-            disabled: this.effectiveDisabled,
-            errorText: this.errorText,
-            fallbackValidationMessage: this.required && !this.value ? "Please select an option." : "",
-        });
-    }
-
-    #syncAccessibilityState(): void {
-        this.#internals.ariaDisabled = this.effectiveDisabled ? "true" : "false";
-        this.#internals.ariaOrientation = this.orientation;
-        this.#internals.ariaRequired = this.required ? "true" : "false";
-
-        const labelElement = this.shadowRoot?.querySelector(".label");
-        const supportingElement = this.shadowRoot?.querySelector(".supporting");
-        const errorElement = this.shadowRoot?.querySelector(".error");
-
-        if (labelElement instanceof Element && !this.getAttribute("aria-label")) {
-            this.#internals.ariaLabelledByElements = [labelElement];
-            this.#internals.ariaLabel = null;
-        } else {
-            this.#internals.ariaLabelledByElements = null;
-            this.#internals.ariaLabel = this.getAttribute("aria-label") || this.label || null;
-        }
-
-        const captionElement =
-            errorElement instanceof Element
-                ? errorElement
-                : supportingElement instanceof Element
-                  ? supportingElement
-                  : null;
-        this.#internals.ariaDescribedByElements = captionElement ? [captionElement] : null;
-        this.#internals.ariaErrorMessageElements = errorElement instanceof Element ? [errorElement] : null;
-    }
-
-    #scheduleAccessibilitySync(): void {
-        // Attribute change callbacks run before FAST queues template binding updates, so a
-        // nested enqueue guarantees the caption swap has patched the shadow DOM first.
-        Updates.enqueue(() => Updates.enqueue(() => this.#syncAccessibilityState()));
-    }
-
-    #syncFormState(): void {
-        this.#internals.setFormValue(this.effectiveDisabled || !this.value ? null : this.value);
-
-        if (this.effectiveDisabled) {
-            this.validationMessageText = "";
-            this.#internals.setValidity({});
-            this.#internals.ariaInvalid = "false";
-            this.#scheduleAccessibilitySync();
-            return;
-        }
-
-        if (this.invalid) {
-            this.validationMessageText = this.displayErrorText;
-            this.#internals.setValidity({ customError: true }, this.displayErrorText || "Please select a valid option.");
-            this.#internals.ariaInvalid = "true";
-            this.#scheduleAccessibilitySync();
-            return;
-        }
-
-        this.validationMessageText = "";
-
-        if (this.required && !this.value) {
-            this.#internals.setValidity({ valueMissing: true }, (this.errorText ?? "").trim() || "Please select an option.");
-            this.#internals.ariaInvalid = "false";
-            this.#scheduleAccessibilitySync();
-            return;
-        }
-
-        this.validationMessageText = "";
-        this.#internals.setValidity({});
-        this.#internals.ariaInvalid = "false";
-        this.#scheduleAccessibilitySync();
-    }
-
-    handleRadioChange = (event: Event): void => {
-        const radio = this.#radioFromEvent(event);
-        if (!radio) {
-            return;
-        }
-
-        if (this.#synchronizing) {
-            return;
-        }
-
-        this.#selectRadio(radio, { emitChange: true, focus: false });
-    };
-
-    handleKeydown = (event: KeyboardEvent): void => {
-        const currentRadio = this.#radioFromEvent(event);
-        if (!currentRadio || this.effectiveDisabled) {
-            return;
-        }
-
-        const enabledRadios = this.#enabledRadios();
-        if (!enabledRadios.length) {
-            return;
-        }
-
-        const currentIndex = enabledRadios.indexOf(currentRadio);
-
-        switch (logicalArrowKey(event.key, this)) {
-            case "ArrowDown":
-            case "ArrowRight": {
-                event.preventDefault();
-                const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % enabledRadios.length : 0;
-                this.#selectRadio(enabledRadios[nextIndex]!, { emitChange: true, focus: true });
-                break;
-            }
-            case "ArrowUp":
-            case "ArrowLeft": {
-                event.preventDefault();
-                const nextIndex =
-                    currentIndex >= 0 ? (currentIndex - 1 + enabledRadios.length) % enabledRadios.length : enabledRadios.length - 1;
-                this.#selectRadio(enabledRadios[nextIndex]!, { emitChange: true, focus: true });
-                break;
-            }
-            case "Home": {
-                event.preventDefault();
-                this.#selectRadio(enabledRadios[0]!, { emitChange: true, focus: true });
-                break;
-            }
-            case "End": {
-                event.preventDefault();
-                this.#selectRadio(enabledRadios[enabledRadios.length - 1]!, { emitChange: true, focus: true });
-                break;
-            }
-            case " ":
-            case "Enter": {
-                event.preventDefault();
-                this.#selectRadio(currentRadio, { emitChange: true, focus: true });
-                break;
-            }
-            default:
-                break;
-        }
-    };
+  };
 }
 
 attr(VioletRadioGroup.prototype, "label");
@@ -528,10 +550,10 @@ attr(VioletRadioGroup.prototype, "orientation");
 
 /** The FAST definition of `<violet-radio-group>`; `defineVioletRadioGroup` in `./violet-radio-group.define` registers it. */
 export const violetRadioGroupDefinition = {
-    name: "violet-radio-group",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-radio-group",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

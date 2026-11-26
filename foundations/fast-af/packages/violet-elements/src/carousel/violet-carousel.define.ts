@@ -1,7 +1,7 @@
-import { defineVioletElement } from "../shared/define-element";
+import { registerSystemChevronRightIcon } from "../icon/generated/icons/system-chevron-right";
 import { defineVioletIcon } from "../icon/violet-icon.define";
 import { defineVioletIconButton } from "../icon-button/violet-icon-button.define";
-import { registerSystemChevronRightIcon } from "../icon/generated/icons/system-chevron-right";
+import { defineVioletElement } from "../shared/define-element";
 import { VioletCarousel, violetCarouselDefinition } from "./violet-carousel";
 
 /**
@@ -10,11 +10,13 @@ import { VioletCarousel, violetCarouselDefinition } from "./violet-carousel";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletCarousel(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletIcon(registry);
-    await defineVioletIconButton(registry);
-    registerSystemChevronRightIcon();
-    await defineVioletElement(VioletCarousel, violetCarouselDefinition, registry);
+export async function defineVioletCarousel(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletIcon(registry);
+  await defineVioletIconButton(registry);
+  registerSystemChevronRightIcon();
+  await defineVioletElement(VioletCarousel, violetCarouselDefinition, registry);
 }
 
 await defineVioletCarousel();

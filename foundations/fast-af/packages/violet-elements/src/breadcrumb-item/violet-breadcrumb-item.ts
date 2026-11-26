@@ -1,4 +1,10 @@
-import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { isSafeLinkHref } from "../foundations/violet-safe-url";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
@@ -60,20 +66,20 @@ const styles = css`
 `;
 
 const template = html<VioletBreadcrumbItem>`
-    ${x =>
-        x.current
-            ? html<VioletBreadcrumbItem>`
+    ${(x) =>
+      x.current
+        ? html<VioletBreadcrumbItem>`
                   <span class="current" part="current" aria-current="page">
                       <slot></slot>
                   </span>
               `
-            : isSafeLinkHref(x.href)
-              ? html<VioletBreadcrumbItem>`
-                    <a class="link" part="link" href="${x => x.href}">
+        : isSafeLinkHref(x.href)
+          ? html<VioletBreadcrumbItem>`
+                    <a class="link" part="link" href="${(x) => x.href}">
                         <slot></slot>
                     </a>
                 `
-            : html<VioletBreadcrumbItem>`
+          : html<VioletBreadcrumbItem>`
                   <span class="label" part="label">
                       <slot></slot>
                   </span>
@@ -95,40 +101,40 @@ const template = html<VioletBreadcrumbItem>`
  * @csspart separator - Separator glyph wrapper.
  */
 export class VioletBreadcrumbItem extends FASTElement {
-    readonly #internals: ElementInternals;
+  readonly #internals: ElementInternals;
 
-    declare public href: string;
-    declare public current: boolean;
+  declare public href: string;
+  declare public current: boolean;
 
-    public constructor() {
-        super();
-        this.#internals = this.attachInternals();
-        this.href = "";
-        this.current = false;
+  public constructor() {
+    super();
+    this.#internals = this.attachInternals();
+    this.href = "";
+    this.current = false;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.#syncAccessibility();
+  }
+
+  public currentChanged(): void {
+    this.#syncAccessibility();
+  }
+
+  #syncAccessibility(): void {
+    this.#internals.role = "listitem";
+    this.#internals.ariaCurrent = this.current ? "page" : null;
+    if (this.$fastController.isConnected) {
+      this.setAttribute("role", "listitem");
+
+      if (this.current) {
+        this.setAttribute("aria-current", "page");
+      } else {
+        this.removeAttribute("aria-current");
+      }
     }
-
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.#syncAccessibility();
-    }
-
-    public currentChanged(): void {
-        this.#syncAccessibility();
-    }
-
-    #syncAccessibility(): void {
-        this.#internals.role = "listitem";
-        this.#internals.ariaCurrent = this.current ? "page" : null;
-        if (this.$fastController.isConnected) {
-            this.setAttribute("role", "listitem");
-
-            if (this.current) {
-                this.setAttribute("aria-current", "page");
-            } else {
-                this.removeAttribute("aria-current");
-            }
-        }
-    }
+  }
 }
 
 attr(VioletBreadcrumbItem.prototype, "href");
@@ -136,7 +142,7 @@ attr({ mode: "boolean" })(VioletBreadcrumbItem.prototype, "current");
 
 /** The FAST definition of `<violet-breadcrumb-item>`; `defineVioletBreadcrumbItem` in `./violet-breadcrumb-item.define` registers it. */
 export const violetBreadcrumbItemDefinition = {
-    name: "violet-breadcrumb-item",
-    template,
-    styles,
+  name: "violet-breadcrumb-item",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

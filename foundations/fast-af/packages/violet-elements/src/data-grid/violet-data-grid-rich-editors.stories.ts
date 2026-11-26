@@ -1,6 +1,6 @@
 import { html } from "@lushly-dev/fast-element";
-import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 
 import "./violet-data-grid.define";
 import "./violet-data-grid-multi-picker.define";
@@ -16,18 +16,18 @@ import type {
   VioletDataGridEditorOption,
   VioletDataGridRow,
 } from "./violet-data-grid";
-import { displayOptionForValue } from "./violet-data-grid-editor-option-helpers";
-import {
-  parseMultiPickerValue,
-  serializeMultiPickerValue,
-} from "./violet-data-grid-multi-picker-values";
+import type { VioletDataGridAttachmentItem } from "./violet-data-grid-attachment-cell-values";
 import {
   parseAttachmentCellValue,
   serializeAttachmentCellValue,
 } from "./violet-data-grid-attachment-cell-values";
-import type { VioletDataGridAttachmentItem } from "./violet-data-grid-attachment-cell-values";
-import { parseRatingValue, serializeRatingValue } from "./violet-data-grid-rating-values";
+import { displayOptionForValue } from "./violet-data-grid-editor-option-helpers";
 import type { VioletDataGridMultiPicker } from "./violet-data-grid-multi-picker";
+import {
+  parseMultiPickerValue,
+  serializeMultiPickerValue,
+} from "./violet-data-grid-multi-picker-values";
+import { parseRatingValue, serializeRatingValue } from "./violet-data-grid-rating-values";
 
 type ProjectRow = {
   name: string;

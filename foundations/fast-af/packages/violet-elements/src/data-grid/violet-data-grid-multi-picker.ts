@@ -1,4 +1,14 @@
-import { attr, css, FASTElement, html, observable, repeat, Updates, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  repeat,
+  Updates,
+  when,
+} from "@lushly-dev/fast-element";
 
 import type { VioletListbox } from "../listbox/violet-listbox";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
@@ -396,17 +406,17 @@ const template = html<VioletDataGridMultiPicker>`
  * @csspart empty-state - Empty message shown when the current filter has no matches.
  */
 export class VioletDataGridMultiPicker extends FASTElement {
-  public declare placeholder: string;
+  declare public placeholder: string;
 
-  public declare disabled: boolean;
+  declare public disabled: boolean;
 
-  public declare selectedValues: string[];
+  declare public selectedValues: string[];
 
-  public declare options: VioletDataGridEditorOption[];
+  declare public options: VioletDataGridEditorOption[];
 
-  public declare open: boolean;
+  declare public open: boolean;
 
-  public declare filterQuery: string;
+  declare public filterQuery: string;
 
   readonly #instanceId = ++violetDataGridMultiPickerInstanceCount;
   #openSelectionSnapshot = "[]";
@@ -535,7 +545,8 @@ export class VioletDataGridMultiPicker extends FASTElement {
    * of its name (WCAG 2.5.3). An empty trigger that shows its label is named once.
    */
   public get triggerLabelledBy(): string {
-    const showsLabel = this.selectedValues.length === 0 && this.triggerLabel === (this.placeholder || "Add options");
+    const showsLabel =
+      this.selectedValues.length === 0 && this.triggerLabel === (this.placeholder || "Add options");
     return showsLabel ? "trigger-value" : "trigger-label trigger-value";
   }
 

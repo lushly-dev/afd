@@ -7,8 +7,10 @@ import { VioletChatSuggestions, violetChatSuggestionsDefinition } from "./violet
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletChatSuggestions(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletChatSuggestions, violetChatSuggestionsDefinition, registry);
+export async function defineVioletChatSuggestions(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletChatSuggestions, violetChatSuggestionsDefinition, registry);
 }
 
 await defineVioletChatSuggestions();

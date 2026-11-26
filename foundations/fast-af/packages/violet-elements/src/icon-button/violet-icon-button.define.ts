@@ -7,8 +7,10 @@ import { VioletIconButton, violetIconButtonDefinition } from "./violet-icon-butt
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletIconButton(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletIconButton, violetIconButtonDefinition, registry);
+export async function defineVioletIconButton(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletIconButton, violetIconButtonDefinition, registry);
 }
 
 await defineVioletIconButton();

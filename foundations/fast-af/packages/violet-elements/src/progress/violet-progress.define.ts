@@ -7,8 +7,10 @@ import { VioletProgress, violetProgressDefinition } from "./violet-progress";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletProgress(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletProgress, violetProgressDefinition, registry);
+export async function defineVioletProgress(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletProgress, violetProgressDefinition, registry);
 }
 
 await defineVioletProgress();

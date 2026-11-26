@@ -1,6 +1,16 @@
-import { FASTElement, Observable, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  Observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
-import { violetActionTokenDefaults, violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  violetActionTokenDefaults,
+  violetSurfaceTokenDefaults,
+} from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetActionTokenDefaults}
@@ -89,10 +99,10 @@ const template = html<VioletSegment>`
         part="button"
         type="button"
         role="radio"
-        tabindex="${x => String(x.buttonTabIndex)}"
-        ?disabled="${x => x.effectiveDisabled}"
-        aria-checked="${x => String(x.checked)}"
-        @click="${x => x.handleClick()}"
+        tabindex="${(x) => String(x.buttonTabIndex)}"
+        ?disabled="${(x) => x.effectiveDisabled}"
+        aria-checked="${(x) => String(x.checked)}"
+        @click="${(x) => x.handleClick()}"
     >
         <slot></slot>
     </button>
@@ -108,70 +118,70 @@ const template = html<VioletSegment>`
  * @csspart button - Interactive segment button surface.
  */
 export class VioletSegment extends FASTElement {
-    #disabledFromGroup: boolean;
-    #managedTabIndex: number | null;
+  #disabledFromGroup: boolean;
+  #managedTabIndex: number | null;
 
-    declare public checked: boolean;
-    declare public disabled: boolean;
-    declare public value: string;
+  declare public checked: boolean;
+  declare public disabled: boolean;
+  declare public value: string;
 
-    public constructor() {
-        super();
-        this.#disabledFromGroup = false;
-        this.#managedTabIndex = null;
-        this.checked = false;
-        this.disabled = false;
-        this.value = "";
+  public constructor() {
+    super();
+    this.#disabledFromGroup = false;
+    this.#managedTabIndex = null;
+    this.checked = false;
+    this.disabled = false;
+    this.value = "";
+  }
+
+  public disabledChanged(): void {
+    // `$emit` only dispatches while connected, so the constructor's default does not emit.
+    this.$emit("disabled-change");
+  }
+
+  public get effectiveDisabled(): boolean {
+    Observable.track(this, "effectiveDisabled");
+    return this.disabled || this.#disabledFromGroup;
+  }
+
+  /**
+   * Tab index of the inner button. A group sets it so that only one segment is a Tab stop.
+   */
+  public get buttonTabIndex(): number {
+    Observable.track(this, "buttonTabIndex");
+    return this.#managedTabIndex ?? 0;
+  }
+
+  public setManagedTabIndex(tabIndex: number | null): void {
+    this.#managedTabIndex = tabIndex;
+    Observable.notify(this, "buttonTabIndex");
+  }
+
+  public setCheckedFromGroup(checked: boolean): void {
+    this.checked = checked;
+  }
+
+  public setGroupDisabled(disabled: boolean): void {
+    this.#disabledFromGroup = disabled;
+    Observable.notify(this, "effectiveDisabled");
+    this.ariaDisabled = disabled ? "true" : null;
+  }
+
+  public focusButton(options?: FocusOptions): void {
+    this.buttonElement?.focus(options);
+  }
+
+  public handleClick(): void {
+    if (this.effectiveDisabled || this.checked) {
+      return;
     }
 
-    public disabledChanged(): void {
-        // `$emit` only dispatches while connected, so the constructor's default does not emit.
-        this.$emit("disabled-change");
-    }
+    this.$emit("select-request", { value: this.value });
+  }
 
-    public get effectiveDisabled(): boolean {
-        Observable.track(this, "effectiveDisabled");
-        return this.disabled || this.#disabledFromGroup;
-    }
-
-    /**
-     * Tab index of the inner button. A group sets it so that only one segment is a Tab stop.
-     */
-    public get buttonTabIndex(): number {
-        Observable.track(this, "buttonTabIndex");
-        return this.#managedTabIndex ?? 0;
-    }
-
-    public setManagedTabIndex(tabIndex: number | null): void {
-        this.#managedTabIndex = tabIndex;
-        Observable.notify(this, "buttonTabIndex");
-    }
-
-    public setCheckedFromGroup(checked: boolean): void {
-        this.checked = checked;
-    }
-
-    public setGroupDisabled(disabled: boolean): void {
-        this.#disabledFromGroup = disabled;
-        Observable.notify(this, "effectiveDisabled");
-        this.ariaDisabled = disabled ? "true" : null;
-    }
-
-    public focusButton(options?: FocusOptions): void {
-        this.buttonElement?.focus(options);
-    }
-
-    public handleClick(): void {
-        if (this.effectiveDisabled || this.checked) {
-            return;
-        }
-
-        this.$emit("select-request", { value: this.value });
-    }
-
-    private get buttonElement(): HTMLButtonElement | null {
-        return this.shadowRoot?.querySelector(".button") ?? null;
-    }
+  private get buttonElement(): HTMLButtonElement | null {
+    return this.shadowRoot?.querySelector(".button") ?? null;
+  }
 }
 
 attr({ mode: "boolean" })(VioletSegment.prototype, "checked");
@@ -180,10 +190,10 @@ attr(VioletSegment.prototype, "value");
 
 /** The FAST definition of `<violet-segment>`; `defineVioletSegment` in `./violet-segment.define` registers it. */
 export const violetSegmentDefinition = {
-    name: "violet-segment",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-segment",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

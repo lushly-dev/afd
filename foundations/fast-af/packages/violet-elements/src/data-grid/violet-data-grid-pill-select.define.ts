@@ -1,5 +1,8 @@
 import { defineVioletElement } from "../shared/define-element";
-import { VioletDataGridPillSelect, violetDataGridPillSelectDefinition } from "./violet-data-grid-pill-select";
+import {
+  VioletDataGridPillSelect,
+  violetDataGridPillSelectDefinition,
+} from "./violet-data-grid-pill-select";
 
 /**
  * Defines `<violet-data-grid-pill-select>` in `registry`.
@@ -7,8 +10,10 @@ import { VioletDataGridPillSelect, violetDataGridPillSelectDefinition } from "./
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletDataGridPillSelect(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletDataGridPillSelect, violetDataGridPillSelectDefinition, registry);
+export async function defineVioletDataGridPillSelect(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletDataGridPillSelect, violetDataGridPillSelectDefinition, registry);
 }
 
 await defineVioletDataGridPillSelect();

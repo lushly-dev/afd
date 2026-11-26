@@ -1,9 +1,9 @@
 import { observable } from "@lushly-dev/fast-element";
 
 interface FormDisabledHost extends HTMLElement {
-    disabled: boolean;
-    fieldsetDisabled: boolean;
-    disabledChanged?: () => void;
+  disabled: boolean;
+  fieldsetDisabled: boolean;
+  disabledChanged?: () => void;
 }
 
 /**
@@ -13,26 +13,28 @@ interface FormDisabledHost extends HTMLElement {
  * controls inside a disabled fieldset's first `<legend>` are exempt.
  */
 export function isDisabledByFieldset(element: Element): boolean {
-    for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
-        if (!(ancestor instanceof HTMLFieldSetElement) || !ancestor.hasAttribute("disabled")) {
-            continue;
-        }
-
-        const legend = Array.from(ancestor.children).find(child => child instanceof HTMLLegendElement);
-
-        if (!legend?.contains(element)) {
-            return true;
-        }
+  for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    if (!(ancestor instanceof HTMLFieldSetElement) || !ancestor.hasAttribute("disabled")) {
+      continue;
     }
 
-    return false;
+    const legend = Array.from(ancestor.children).find(
+      (child) => child instanceof HTMLLegendElement,
+    );
+
+    if (!legend?.contains(element)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 type Callback = (this: FormDisabledHost) => void;
 
 interface FormDisabledPrototype {
-    connectedCallback?: Callback;
-    disabledChanged?: Callback;
+  connectedCallback?: Callback;
+  disabledChanged?: Callback;
 }
 
 /**
@@ -53,50 +55,50 @@ interface FormDisabledPrototype {
  * `fieldsetDisabled` and `effectiveDisabled` for typing.
  */
 export function installFormDisabled(prototype: object): void {
-    const target = prototype as FormDisabledPrototype;
-    const connectedCallback = target.connectedCallback;
-    const disabledChanged = target.disabledChanged;
+  const target = prototype as FormDisabledPrototype;
+  const connectedCallback = target.connectedCallback;
+  const disabledChanged = target.disabledChanged;
 
-    observable(prototype, "fieldsetDisabled");
+  observable(prototype, "fieldsetDisabled");
 
-    Object.defineProperty(prototype, "effectiveDisabled", {
-        configurable: true,
-        get(this: FormDisabledHost): boolean {
-            return Boolean(this.disabled) || Boolean(this.fieldsetDisabled);
-        },
-    });
+  Object.defineProperty(prototype, "effectiveDisabled", {
+    configurable: true,
+    get(this: FormDisabledHost): boolean {
+      return Boolean(this.disabled) || Boolean(this.fieldsetDisabled);
+    },
+  });
 
-    Object.defineProperty(prototype, "formDisabledCallback", {
-        configurable: true,
-        writable: true,
-        value(this: FormDisabledHost): void {
-            this.fieldsetDisabled = isDisabledByFieldset(this);
-        },
-    });
+  Object.defineProperty(prototype, "formDisabledCallback", {
+    configurable: true,
+    writable: true,
+    value(this: FormDisabledHost): void {
+      this.fieldsetDisabled = isDisabledByFieldset(this);
+    },
+  });
 
-    Object.defineProperty(prototype, "fieldsetDisabledChanged", {
-        configurable: true,
-        writable: true,
-        value(this: FormDisabledHost): void {
-            disabledChanged?.call(this);
-        },
-    });
+  Object.defineProperty(prototype, "fieldsetDisabledChanged", {
+    configurable: true,
+    writable: true,
+    value(this: FormDisabledHost): void {
+      disabledChanged?.call(this);
+    },
+  });
 
-    Object.defineProperty(prototype, "disabledChanged", {
-        configurable: true,
-        writable: true,
-        value(this: FormDisabledHost): void {
-            this.fieldsetDisabled = isDisabledByFieldset(this);
-            disabledChanged?.call(this);
-        },
-    });
+  Object.defineProperty(prototype, "disabledChanged", {
+    configurable: true,
+    writable: true,
+    value(this: FormDisabledHost): void {
+      this.fieldsetDisabled = isDisabledByFieldset(this);
+      disabledChanged?.call(this);
+    },
+  });
 
-    Object.defineProperty(prototype, "connectedCallback", {
-        configurable: true,
-        writable: true,
-        value(this: FormDisabledHost): void {
-            this.fieldsetDisabled = isDisabledByFieldset(this);
-            connectedCallback?.call(this);
-        },
-    });
+  Object.defineProperty(prototype, "connectedCallback", {
+    configurable: true,
+    writable: true,
+    value(this: FormDisabledHost): void {
+      this.fieldsetDisabled = isDisabledByFieldset(this);
+      connectedCallback?.call(this);
+    },
+  });
 }

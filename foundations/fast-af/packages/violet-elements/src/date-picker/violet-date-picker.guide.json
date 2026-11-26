@@ -5,35 +5,22 @@
     {
       "id": "date-picker.value",
       "text": "value is an ISO date, YYYY-MM-DD, or empty, and the form receives it under name. min and max use the same format; a date outside them fails validation, and its message shows while invalid is set.",
-      "members": [
-        "value",
-        "min",
-        "max",
-        "name"
-      ]
+      "members": ["value", "min", "max", "name"]
     },
     {
       "id": "date-picker.events",
       "text": "input and change carry detail.value. Picking a day fires both, closes the calendar and returns focus to the input.",
-      "members": [
-        "input",
-        "change"
-      ]
+      "members": ["input", "change"]
     },
     {
       "id": "date-picker.open",
       "text": "Open the calendar with show(), toggleOpen() or the open attribute; close it with hide(). open-change fires with detail.open on each change, and not when the element connects.",
-      "members": [
-        "open",
-        "open-change"
-      ]
+      "members": ["open", "open-change"]
     },
     {
       "id": "date-picker.locale",
       "text": "locale (a BCP 47 tag; default the page lang) sets the calendar's month and weekday names only. The native input shows the date in the browser's own format.",
-      "members": [
-        "locale"
-      ]
+      "members": ["locale"]
     }
   ],
   "a11y": [

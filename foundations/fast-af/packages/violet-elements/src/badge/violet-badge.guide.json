@@ -5,32 +5,24 @@
     {
       "id": "badge.content",
       "text": "Short text goes in the default slot. The icon attribute is a registry name (see violet-icon) rendered before the text and always decorative.",
-      "members": [
-        "icon"
-      ]
+      "members": ["icon"]
     },
     {
       "id": "badge.color",
       "text": "color is visual only, so the text must state the status itself. A badge has no events; do not put buttons or links in it.",
-      "members": [
-        "color"
-      ]
+      "members": ["color"]
     }
   ],
   "a11y": [
     {
       "id": "badge.label",
       "text": "The label attribute gives the host role img named by it, replacing the slotted text for assistive technology. Use it when the text alone, such as a bare count, is not meaningful.",
-      "members": [
-        "label"
-      ]
+      "members": ["label"]
     },
     {
       "id": "badge.decorative",
       "text": "decorative sets aria-hidden on the host and drops any role and label; use it only when nearby text already says the same thing.",
-      "members": [
-        "decorative"
-      ]
+      "members": ["decorative"]
     }
   ]
 }

@@ -1,21 +1,28 @@
-import { FASTElement, attr, css, html, observable, repeat, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
-import { logicalArrowKey } from "../foundations/violet-direction";
 import {
-    addDays,
-    addMonths,
-    addYears,
-    buildMonthGrid,
-    clampDate,
-    compareIsoDates,
-    formatIsoDate,
-    getMonthLabel,
-    getWeekdayLabels,
-    parseIsoDate,
-    resolveWeekStart,
-    type VioletCalendarCell,
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  repeat,
+} from "@lushly-dev/fast-element";
+import {
+  addDays,
+  addMonths,
+  addYears,
+  buildMonthGrid,
+  clampDate,
+  compareIsoDates,
+  formatIsoDate,
+  getMonthLabel,
+  getWeekdayLabels,
+  parseIsoDate,
+  resolveWeekStart,
+  type VioletCalendarCell,
 } from "../date-time/violet-date-utils";
+import { logicalArrowKey } from "../foundations/violet-direction";
+import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 export type VioletCalendarSelectionMode = "single" | "range";
 
@@ -192,19 +199,19 @@ const styles = css`
 const template = html<VioletCalendar>`
     <div class="root" part="root">
         <div class="header" part="header">
-            <button class="nav" part="previous-month" type="button" ?disabled="${x => x.disabled}" aria-label="Previous month" @click="${x => x.showPreviousMonth()}">
+            <button class="nav" part="previous-month" type="button" ?disabled="${(x) => x.disabled}" aria-label="Previous month" @click="${(x) => x.showPreviousMonth()}">
                 &lsaquo;
             </button>
-            <div class="heading" part="heading" aria-live="polite">${x => x.monthLabel}</div>
-            <button class="nav" part="next-month" type="button" ?disabled="${x => x.disabled}" aria-label="Next month" @click="${x => x.showNextMonth()}">
+            <div class="heading" part="heading" aria-live="polite">${(x) => x.monthLabel}</div>
+            <button class="nav" part="next-month" type="button" ?disabled="${(x) => x.disabled}" aria-label="Next month" @click="${(x) => x.showNextMonth()}">
                 &rsaquo;
             </button>
         </div>
         <div class="weekday-row" part="weekday-row">
             ${repeat(
-                x => x.weekdayLabels,
-                html<{ short: string; long: string }>`
-                    <div class="weekday" part="weekday" abbr="${x => x.long}" aria-label="${x => x.long}">${x => x.short}</div>
+              (x) => x.weekdayLabels,
+              html<{ short: string; long: string }>`
+                    <div class="weekday" part="weekday" abbr="${(x) => x.long}" aria-label="${(x) => x.long}">${(x) => x.short}</div>
                 `,
             )}
         </div>
@@ -212,39 +219,39 @@ const template = html<VioletCalendar>`
             class="grid"
             part="grid"
             role="grid"
-            aria-label="${x => x.monthLabel}"
+            aria-label="${(x) => x.monthLabel}"
             @focusin="${(x, c) => x.handleGridFocusIn(c.event)}"
             @click="${(x, c) => x.handleGridClick(c.event)}"
             @keydown="${(x, c) => x.handleGridKeydown(c.event as KeyboardEvent)}"
         >
             ${repeat(
-                x => x.weeks,
-                html<VioletCalendarCell[]>`
+              (x) => x.weeks,
+              html<VioletCalendarCell[]>`
                     <div class="week" part="week" role="row">
                         ${repeat(
-                            x => x,
-                            html<VioletCalendarCell>`
-                                <div class="${x => `day-cell${x.inRange ? " range" : ""}`}" part="day-cell" role="gridcell" aria-selected="${x => String(x.selected)}">
+                          (x) => x,
+                          html<VioletCalendarCell>`
+                                <div class="${(x) => `day-cell${x.inRange ? " range" : ""}`}" part="day-cell" role="gridcell" aria-selected="${(x) => String(x.selected)}">
                                     <button
-                                        class="${x =>
-                                            [
-                                                "day-button",
-                                                x.currentMonth ? "current-month" : "other-month",
-                                                x.selected ? "selected" : "",
-                                                x.rangeStart ? "range-start" : "",
-                                                x.rangeEnd ? "range-end" : "",
-                                                x.today ? "today" : "",
-                                            ]
-                                                .filter(Boolean)
-                                                .join(" ")}"
+                                        class="${(x) =>
+                                          [
+                                            "day-button",
+                                            x.currentMonth ? "current-month" : "other-month",
+                                            x.selected ? "selected" : "",
+                                            x.rangeStart ? "range-start" : "",
+                                            x.rangeEnd ? "range-end" : "",
+                                            x.today ? "today" : "",
+                                          ]
+                                            .filter(Boolean)
+                                            .join(" ")}"
                                         part="day-button"
                                         type="button"
-                                        data-date="${x => x.iso}"
-                                        tabindex="${x => String(x.tabIndex)}"
-                                        ?disabled="${x => x.disabled}"
-                                        aria-label="${x => x.label}"
+                                        data-date="${(x) => x.iso}"
+                                        tabindex="${(x) => String(x.tabIndex)}"
+                                        ?disabled="${(x) => x.disabled}"
+                                        aria-label="${(x) => x.label}"
                                     >
-                                        ${x => x.day}
+                                        ${(x) => x.day}
                                     </button>
                                 </div>
                             `,
@@ -275,267 +282,287 @@ const template = html<VioletCalendar>`
  * @csspart day-button - Interactive day button.
  */
 export class VioletCalendar extends FASTElement {
-    @observable
-    declare public monthDate: Date;
+  @observable
+  declare public monthDate: Date;
 
-    @observable
-    declare public focusedDate: string;
+  @observable
+  declare public focusedDate: string;
 
-    @observable
-    declare public weekStartDay: number;
+  @observable
+  declare public weekStartDay: number;
 
-    declare public selectionMode: VioletCalendarSelectionMode;
-    declare public locale: string;
-    declare public value: string;
-    declare public start: string;
-    declare public end: string;
-    declare public min: string;
-    declare public max: string;
-    declare public disabled: boolean;
+  declare public selectionMode: VioletCalendarSelectionMode;
+  declare public locale: string;
+  declare public value: string;
+  declare public start: string;
+  declare public end: string;
+  declare public min: string;
+  declare public max: string;
+  declare public disabled: boolean;
 
-    public disabledDates: ((iso: string) => boolean) | null = null;
+  public disabledDates: ((iso: string) => boolean) | null = null;
 
-    public constructor() {
-        super();
-        this.locale = "";
-        this.selectionMode = "single";
-        this.value = "";
-        this.start = "";
+  public constructor() {
+    super();
+    this.locale = "";
+    this.selectionMode = "single";
+    this.value = "";
+    this.start = "";
+    this.end = "";
+    this.min = "";
+    this.max = "";
+    this.disabled = false;
+    this.weekStartDay = -1;
+    const today = new Date();
+    this.monthDate = new Date(today.getFullYear(), today.getMonth(), 1, 12, 0, 0, 0);
+    this.focusedDate = formatIsoDate(
+      new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0, 0),
+    );
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.#syncMonthFromValue();
+    this.#syncFocusedDate();
+  }
+
+  public get resolvedLocale(): string {
+    return this.locale || document.documentElement.lang || navigator.language || "en-US";
+  }
+
+  public get resolvedWeekStartDay(): number {
+    return resolveWeekStart(
+      this.resolvedLocale,
+      this.weekStartDay >= 0 ? this.weekStartDay : undefined,
+    );
+  }
+
+  public get weekdayLabels(): Array<{ short: string; long: string }> {
+    return getWeekdayLabels(this.resolvedLocale, this.resolvedWeekStartDay);
+  }
+
+  public get monthLabel(): string {
+    return getMonthLabel(this.resolvedLocale, this.monthDate);
+  }
+
+  public get weeks(): VioletCalendarCell[][] {
+    return buildMonthGrid({
+      locale: this.resolvedLocale,
+      monthDate: this.monthDate,
+      weekStartDay: this.resolvedWeekStartDay,
+      value: this.selectionMode === "single" ? this.value : "",
+      start: this.selectionMode === "range" ? this.start : "",
+      end: this.selectionMode === "range" ? this.end : "",
+      focused: this.focusedDate,
+      min: this.min,
+      max: this.max,
+      disabledDate: this.disabled ? () => true : this.disabledDates,
+    });
+  }
+
+  public valueChanged(): void {
+    if (this.selectionMode === "single") {
+      this.#syncMonthFromValue();
+      this.#syncFocusedDate();
+    }
+  }
+
+  public startChanged(): void {
+    if (this.selectionMode === "range") {
+      this.#syncMonthFromValue();
+      this.#syncFocusedDate();
+    }
+  }
+
+  public endChanged(): void {
+    if (this.selectionMode === "range") {
+      this.#syncFocusedDate();
+    }
+  }
+
+  public localeChanged(): void {
+    this.$emit("locale-change", { locale: this.resolvedLocale });
+  }
+
+  public showPreviousMonth(): void {
+    this.monthDate = addMonths(this.monthDate, -1);
+    this.#ensureFocusedDateVisible();
+  }
+
+  public showNextMonth(): void {
+    this.monthDate = addMonths(this.monthDate, 1);
+    this.#ensureFocusedDateVisible();
+  }
+
+  public handleDayFocus(iso: string): void {
+    this.focusedDate = iso;
+  }
+
+  public handleDayFocusEvent(event: Event): void {
+    const target = event.currentTarget as HTMLElement | null;
+    const iso = target?.getAttribute("data-date") ?? "";
+    if (iso) {
+      this.handleDayFocus(iso);
+    }
+  }
+
+  public handleGridFocusIn(event: Event): void {
+    const target = event.target as HTMLElement | null;
+    const iso = target?.closest("[data-date]")?.getAttribute("data-date") ?? "";
+    if (iso) {
+      this.handleDayFocus(iso);
+    }
+  }
+
+  public handleDaySelect(iso: string): void {
+    if (this.disabled || this.#isDisabledDate(iso)) {
+      return;
+    }
+
+    if (this.selectionMode === "range") {
+      if (!this.start || (this.start && this.end)) {
+        this.start = iso;
         this.end = "";
-        this.min = "";
-        this.max = "";
-        this.disabled = false;
-        this.weekStartDay = -1;
-        const today = new Date();
-        this.monthDate = new Date(today.getFullYear(), today.getMonth(), 1, 12, 0, 0, 0);
-        this.focusedDate = formatIsoDate(new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0, 0));
+      } else if (compareIsoDates(iso, this.start) < 0) {
+        this.start = iso;
+        this.end = "";
+      } else {
+        this.end = iso;
+      }
+
+      this.focusedDate = iso;
+      this.$emit("input", { start: this.start || null, end: this.end || null });
+      this.$emit("change", { start: this.start || null, end: this.end || null });
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.#syncMonthFromValue();
-        this.#syncFocusedDate();
+    this.value = iso;
+    this.focusedDate = iso;
+    this.$emit("input", { value: this.value });
+    this.$emit("change", { value: this.value });
+  }
+
+  public handleDaySelectEvent(event: Event): void {
+    const target = event.currentTarget as HTMLElement | null;
+    const iso = target?.getAttribute("data-date") ?? "";
+    if (iso) {
+      this.handleDaySelect(iso);
+    }
+  }
+
+  public handleGridClick(event: Event): void {
+    const target = event.target as HTMLElement | null;
+    const iso = target?.closest("[data-date]")?.getAttribute("data-date") ?? "";
+    if (iso) {
+      this.handleDaySelect(iso);
+    }
+  }
+
+  public handleGridKeydown(event: KeyboardEvent): boolean {
+    if (this.disabled) {
+      return true;
     }
 
-    public get resolvedLocale(): string {
-        return this.locale || document.documentElement.lang || navigator.language || "en-US";
-    }
+    const current =
+      parseIsoDate(this.focusedDate) ??
+      parseIsoDate(this.value) ??
+      parseIsoDate(this.start) ??
+      new Date();
+    let next: Date | null = null;
 
-    public get resolvedWeekStartDay(): number {
-        return resolveWeekStart(this.resolvedLocale, this.weekStartDay >= 0 ? this.weekStartDay : undefined);
-    }
-
-    public get weekdayLabels(): Array<{ short: string; long: string }> {
-        return getWeekdayLabels(this.resolvedLocale, this.resolvedWeekStartDay);
-    }
-
-    public get monthLabel(): string {
-        return getMonthLabel(this.resolvedLocale, this.monthDate);
-    }
-
-    public get weeks(): VioletCalendarCell[][] {
-        return buildMonthGrid({
-            locale: this.resolvedLocale,
-            monthDate: this.monthDate,
-            weekStartDay: this.resolvedWeekStartDay,
-            value: this.selectionMode === "single" ? this.value : "",
-            start: this.selectionMode === "range" ? this.start : "",
-            end: this.selectionMode === "range" ? this.end : "",
-            focused: this.focusedDate,
-            min: this.min,
-            max: this.max,
-            disabledDate: this.disabled ? () => true : this.disabledDates,
-        });
-    }
-
-    public valueChanged(): void {
-        if (this.selectionMode === "single") {
-            this.#syncMonthFromValue();
-            this.#syncFocusedDate();
-        }
-    }
-
-    public startChanged(): void {
-        if (this.selectionMode === "range") {
-            this.#syncMonthFromValue();
-            this.#syncFocusedDate();
-        }
-    }
-
-    public endChanged(): void {
-        if (this.selectionMode === "range") {
-            this.#syncFocusedDate();
-        }
-    }
-
-    public localeChanged(): void {
-        this.$emit("locale-change", { locale: this.resolvedLocale });
-    }
-
-    public showPreviousMonth(): void {
-        this.monthDate = addMonths(this.monthDate, -1);
-        this.#ensureFocusedDateVisible();
-    }
-
-    public showNextMonth(): void {
-        this.monthDate = addMonths(this.monthDate, 1);
-        this.#ensureFocusedDateVisible();
-    }
-
-    public handleDayFocus(iso: string): void {
-        this.focusedDate = iso;
-    }
-
-    public handleDayFocusEvent(event: Event): void {
-        const target = event.currentTarget as HTMLElement | null;
-        const iso = target?.getAttribute("data-date") ?? "";
-        if (iso) {
-            this.handleDayFocus(iso);
-        }
-    }
-
-    public handleGridFocusIn(event: Event): void {
-        const target = event.target as HTMLElement | null;
-        const iso = target?.closest("[data-date]")?.getAttribute("data-date") ?? "";
-        if (iso) {
-            this.handleDayFocus(iso);
-        }
-    }
-
-    public handleDaySelect(iso: string): void {
-        if (this.disabled || this.#isDisabledDate(iso)) {
-            return;
-        }
-
-        if (this.selectionMode === "range") {
-            if (!this.start || (this.start && this.end)) {
-                this.start = iso;
-                this.end = "";
-            } else if (compareIsoDates(iso, this.start) < 0) {
-                this.start = iso;
-                this.end = "";
-            } else {
-                this.end = iso;
-            }
-
-            this.focusedDate = iso;
-            this.$emit("input", { start: this.start || null, end: this.end || null });
-            this.$emit("change", { start: this.start || null, end: this.end || null });
-            return;
-        }
-
-        this.value = iso;
-        this.focusedDate = iso;
-        this.$emit("input", { value: this.value });
-        this.$emit("change", { value: this.value });
-    }
-
-    public handleDaySelectEvent(event: Event): void {
-        const target = event.currentTarget as HTMLElement | null;
-        const iso = target?.getAttribute("data-date") ?? "";
-        if (iso) {
-            this.handleDaySelect(iso);
-        }
-    }
-
-    public handleGridClick(event: Event): void {
-        const target = event.target as HTMLElement | null;
-        const iso = target?.closest("[data-date]")?.getAttribute("data-date") ?? "";
-        if (iso) {
-            this.handleDaySelect(iso);
-        }
-    }
-
-    public handleGridKeydown(event: KeyboardEvent): boolean {
-        if (this.disabled) {
-            return true;
-        }
-
-        const current = parseIsoDate(this.focusedDate) ?? parseIsoDate(this.value) ?? parseIsoDate(this.start) ?? new Date();
-        let next: Date | null = null;
-
-        switch (logicalArrowKey(event.key, this)) {
-            case "ArrowLeft":
-                next = addDays(current, -1);
-                break;
-            case "ArrowRight":
-                next = addDays(current, 1);
-                break;
-            case "ArrowUp":
-                next = addDays(current, -7);
-                break;
-            case "ArrowDown":
-                next = addDays(current, 7);
-                break;
-            case "Home":
-                next = addDays(current, -((current.getDay() - this.resolvedWeekStartDay + 7) % 7));
-                break;
-            case "End":
-                next = addDays(current, 6 - ((current.getDay() - this.resolvedWeekStartDay + 7) % 7));
-                break;
-            case "PageUp":
-                next = event.shiftKey ? addYears(current, -1) : addMonths(current, -1);
-                break;
-            case "PageDown":
-                next = event.shiftKey ? addYears(current, 1) : addMonths(current, 1);
-                break;
-            case "Enter":
-            case " ":
-                event.preventDefault();
-                this.handleDaySelect(this.focusedDate);
-                return false;
-            default:
-                return true;
-        }
-
+    switch (logicalArrowKey(event.key, this)) {
+      case "ArrowLeft":
+        next = addDays(current, -1);
+        break;
+      case "ArrowRight":
+        next = addDays(current, 1);
+        break;
+      case "ArrowUp":
+        next = addDays(current, -7);
+        break;
+      case "ArrowDown":
+        next = addDays(current, 7);
+        break;
+      case "Home":
+        next = addDays(current, -((current.getDay() - this.resolvedWeekStartDay + 7) % 7));
+        break;
+      case "End":
+        next = addDays(current, 6 - ((current.getDay() - this.resolvedWeekStartDay + 7) % 7));
+        break;
+      case "PageUp":
+        next = event.shiftKey ? addYears(current, -1) : addMonths(current, -1);
+        break;
+      case "PageDown":
+        next = event.shiftKey ? addYears(current, 1) : addMonths(current, 1);
+        break;
+      case "Enter":
+      case " ":
         event.preventDefault();
-        const clamped = clampDate(next ?? current, this.min, this.max);
-        this.focusedDate = formatIsoDate(clamped);
-        this.monthDate = new Date(clamped.getFullYear(), clamped.getMonth(), 1, 12, 0, 0, 0);
-        requestAnimationFrame(() => this.#focusActiveDay());
+        this.handleDaySelect(this.focusedDate);
         return false;
+      default:
+        return true;
     }
 
-    #syncMonthFromValue(): void {
-        const selected = parseIsoDate(this.selectionMode === "range" ? this.start : this.value);
-        if (selected) {
-            this.monthDate = new Date(selected.getFullYear(), selected.getMonth(), 1, 12, 0, 0, 0);
-        }
+    event.preventDefault();
+    const clamped = clampDate(next ?? current, this.min, this.max);
+    this.focusedDate = formatIsoDate(clamped);
+    this.monthDate = new Date(clamped.getFullYear(), clamped.getMonth(), 1, 12, 0, 0, 0);
+    requestAnimationFrame(() => this.#focusActiveDay());
+    return false;
+  }
+
+  #syncMonthFromValue(): void {
+    const selected = parseIsoDate(this.selectionMode === "range" ? this.start : this.value);
+    if (selected) {
+      this.monthDate = new Date(selected.getFullYear(), selected.getMonth(), 1, 12, 0, 0, 0);
+    }
+  }
+
+  #syncFocusedDate(): void {
+    const selected = this.selectionMode === "range" ? this.end || this.start : this.value;
+    if (selected) {
+      this.focusedDate = selected;
+      return;
     }
 
-    #syncFocusedDate(): void {
-        const selected = this.selectionMode === "range" ? this.end || this.start : this.value;
-        if (selected) {
-            this.focusedDate = selected;
-            return;
-        }
+    if (!parseIsoDate(this.focusedDate)) {
+      const today = new Date();
+      this.focusedDate = formatIsoDate(
+        new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0, 0),
+      );
+    }
+  }
 
-        if (!parseIsoDate(this.focusedDate)) {
-            const today = new Date();
-            this.focusedDate = formatIsoDate(new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0, 0));
-        }
+  #ensureFocusedDateVisible(): void {
+    const current = parseIsoDate(this.focusedDate);
+    if (!current) {
+      return;
     }
 
-    #ensureFocusedDateVisible(): void {
-        const current = parseIsoDate(this.focusedDate);
-        if (!current) {
-            return;
-        }
-
-        if (current.getMonth() !== this.monthDate.getMonth() || current.getFullYear() !== this.monthDate.getFullYear()) {
-            this.focusedDate = formatIsoDate(new Date(this.monthDate.getFullYear(), this.monthDate.getMonth(), 1, 12, 0, 0, 0));
-        }
-        requestAnimationFrame(() => this.#focusActiveDay());
+    if (
+      current.getMonth() !== this.monthDate.getMonth() ||
+      current.getFullYear() !== this.monthDate.getFullYear()
+    ) {
+      this.focusedDate = formatIsoDate(
+        new Date(this.monthDate.getFullYear(), this.monthDate.getMonth(), 1, 12, 0, 0, 0),
+      );
     }
+    requestAnimationFrame(() => this.#focusActiveDay());
+  }
 
-    #focusActiveDay(): void {
-        const button = this.shadowRoot?.querySelector(`[data-date="${this.focusedDate}"]`) as HTMLButtonElement | null;
-        button?.focus();
-    }
+  #focusActiveDay(): void {
+    const button = this.shadowRoot?.querySelector(
+      `[data-date="${this.focusedDate}"]`,
+    ) as HTMLButtonElement | null;
+    button?.focus();
+  }
 
-    #isDisabledDate(iso: string): boolean {
-        return Boolean((this.min && iso < this.min) || (this.max && iso > this.max) || this.disabledDates?.(iso));
-    }
+  #isDisabledDate(iso: string): boolean {
+    return Boolean(
+      (this.min && iso < this.min) || (this.max && iso > this.max) || this.disabledDates?.(iso),
+    );
+  }
 }
 
 attr({ attribute: "selection-mode" })(VioletCalendar.prototype, "selectionMode");
@@ -549,7 +576,7 @@ attr({ mode: "boolean" })(VioletCalendar.prototype, "disabled");
 
 /** The FAST definition of `<violet-calendar>`; `defineVioletCalendar` in `./violet-calendar.define` registers it. */
 export const violetCalendarDefinition = {
-    name: "violet-calendar",
-    template,
-    styles,
+  name: "violet-calendar",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

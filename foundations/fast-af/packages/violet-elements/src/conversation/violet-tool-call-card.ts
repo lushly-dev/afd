@@ -1,7 +1,13 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 import { registerSystemSettingsIcon } from "../icon/generated/icons/system-settings";
+import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -237,7 +243,8 @@ const styles = css`
 `;
 
 const template = html<VioletToolCallCard>`
-    ${x => x.state === "approval-requested"
+    ${(x) =>
+      x.state === "approval-requested"
         ? html<VioletToolCallCard>`
             <violet-approval-card
                 class="approval-frame"
@@ -247,48 +254,53 @@ const template = html<VioletToolCallCard>`
                 @deny="${(x, c) => x.handleDeny(c.event)}"
             >
                 <div slot="summary" class="approval-summary">
-                    <span class="approval-tool-name">${x => x.toolName}</span>
-                    <slot name="summary" @slotchange="${x => x.updateHasBody()}"></slot>
+                    <span class="approval-tool-name">${(x) => x.toolName}</span>
+                    <slot name="summary" @slotchange="${(x) => x.updateHasBody()}"></slot>
                 </div>
-                <div slot="detail" class="approval-detail" ?hidden="${x => !x.hasDetailContent}">
-                    <slot name="input" @slotchange="${x => x.updateHasBody()}"></slot>
-                    <slot name="output" @slotchange="${x => x.updateHasBody()}"></slot>
-                    <slot @slotchange="${x => x.updateHasBody()}"></slot>
+                <div slot="detail" class="approval-detail" ?hidden="${(x) => !x.hasDetailContent}">
+                    <slot name="input" @slotchange="${(x) => x.updateHasBody()}"></slot>
+                    <slot name="output" @slotchange="${(x) => x.updateHasBody()}"></slot>
+                    <slot @slotchange="${(x) => x.updateHasBody()}"></slot>
                 </div>
             </violet-approval-card>
         `
         : html<VioletToolCallCard>`
-            <violet-card class="frame" part="root" appearance="outline" role="region" aria-label="${x => `Tool: ${x.toolName}`}">
+            <violet-card class="frame" part="root" appearance="outline" role="region" aria-label="${(x) => `Tool: ${x.toolName}`}">
                 <div class="header" part="header">
                     <span class="icon" part="icon">
                         <slot name="icon"><violet-icon icon="system/settings" decorative></violet-icon></slot>
                     </span>
-                    <span class="name" part="name">${x => x.toolName}</span>
-                    <span class="badge" part="badge">${x => x.badgeText()}</span>
+                    <span class="name" part="name">${(x) => x.toolName}</span>
+                    <span class="badge" part="badge">${(x) => x.badgeText()}</span>
                 </div>
-                <div class="body" part="body" ?hidden="${x => x.state === "pending" || !x.hasBody}">
-                    ${x => x.state === "executing" ? html`<span class="spinner" role="status" aria-label="Running"></span>` : ""}
-                    <slot name="summary" @slotchange="${x => x.updateHasBody()}"></slot>
-                    <slot name="input" @slotchange="${x => x.updateHasBody()}"></slot>
-                    <slot name="output" @slotchange="${x => x.updateHasBody()}"></slot>
-                    <slot @slotchange="${x => x.updateHasBody()}"></slot>
+                <div class="body" part="body" ?hidden="${(x) => x.state === "pending" || !x.hasBody}">
+                    ${(x) => (x.state === "executing" ? html`<span class="spinner" role="status" aria-label="Running"></span>` : "")}
+                    <slot name="summary" @slotchange="${(x) => x.updateHasBody()}"></slot>
+                    <slot name="input" @slotchange="${(x) => x.updateHasBody()}"></slot>
+                    <slot name="output" @slotchange="${(x) => x.updateHasBody()}"></slot>
+                    <slot @slotchange="${(x) => x.updateHasBody()}"></slot>
                 </div>
-                ${x => x.state === "pending" ? html`
+                ${(x) =>
+                  x.state === "pending"
+                    ? html`
                     <div class="body">
                         <div class="shimmer" role="status" aria-label="Loading">
                             <div class="shimmer-line"></div>
                             <div class="shimmer-line"></div>
                         </div>
                     </div>
-                ` : ""}
-                ${x => x.state === "executing" && !x.hasBody ? html`
+                `
+                    : ""}
+                ${(x) =>
+                  x.state === "executing" && !x.hasBody
+                    ? html`
                     <div class="body">
                         <span class="spinner" role="status" aria-label="Running"></span>
                     </div>
-                ` : ""}
+                `
+                    : ""}
             </violet-card>
-        `
-    }
+        `}
 `;
 
 /**
@@ -311,92 +323,99 @@ const template = html<VioletToolCallCard>`
  * @fires deny - Emitted when the delegated approval card is denied. Detail: { toolCallId }.
  */
 export class VioletToolCallCard extends FASTElement {
-    declare public toolName: string;
-    declare public toolCallId: string;
-    declare public state: string;
+  declare public toolName: string;
+  declare public toolCallId: string;
+  declare public state: string;
 
-    @observable
-    declare public hasBody: boolean;
+  @observable
+  declare public hasBody: boolean;
 
-    @observable
-    declare public hasDetailContent: boolean;
+  @observable
+  declare public hasDetailContent: boolean;
 
-    public constructor() {
-        super();
-        this.toolName = "";
-        this.toolCallId = "";
-        this.state = "pending";
-        this.hasBody = false;
-        this.hasDetailContent = false;
+  public constructor() {
+    super();
+    this.toolName = "";
+    this.toolCallId = "";
+    this.state = "pending";
+    this.hasBody = false;
+    this.hasDetailContent = false;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    registerSystemSettingsIcon();
+    this.updateHasBody();
+  }
+
+  public updateHasBody(): void {
+    const summarySlot = this.shadowRoot?.querySelector(
+      'slot[name="summary"]',
+    ) as HTMLSlotElement | null;
+    const detailSlots =
+      this.shadowRoot?.querySelectorAll(
+        'slot[name="input"], slot[name="output"], .body > slot:not([name]), .approval-detail > slot:not([name])',
+      ) ?? [];
+
+    const hasSummary = (summarySlot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+
+    let hasDetailContent = false;
+    for (const slot of detailSlots) {
+      const nodes = (slot as HTMLSlotElement).assignedNodes({ flatten: true });
+      if (
+        nodes.some((node) => node.nodeType !== Node.TEXT_NODE || Boolean(node.textContent?.trim()))
+      ) {
+        hasDetailContent = true;
+        break;
+      }
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        registerSystemSettingsIcon();
-        this.updateHasBody();
+    this.hasBody = hasSummary || hasDetailContent;
+    this.hasDetailContent = hasDetailContent;
+  }
+
+  public badgeText(): string {
+    switch (this.state) {
+      case "pending":
+        return "Preparing\u2026";
+      case "executing":
+        return "Running\u2026";
+      case "approval-requested":
+        return "Needs approval";
+      case "output-available":
+        return "Complete";
+      case "output-error":
+        return "Error";
+      case "cancelled":
+        return "Cancelled";
+      default:
+        return "";
     }
+  }
 
-    public updateHasBody(): void {
-        const summarySlot = this.shadowRoot?.querySelector('slot[name="summary"]') as HTMLSlotElement | null;
-        const detailSlots = this.shadowRoot?.querySelectorAll('slot[name="input"], slot[name="output"], .body > slot:not([name]), .approval-detail > slot:not([name])') ?? [];
+  public handleApprove(innerEvent?: Event): void {
+    innerEvent?.stopPropagation();
+    this.$emit("approve", { toolCallId: this.toolCallId });
+  }
 
-        const hasSummary = (summarySlot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-
-        let hasDetailContent = false;
-        for (const slot of detailSlots) {
-            const nodes = (slot as HTMLSlotElement).assignedNodes({ flatten: true });
-            if (nodes.some(node => node.nodeType !== Node.TEXT_NODE || Boolean(node.textContent?.trim()))) {
-                hasDetailContent = true;
-                break;
-            }
-        }
-
-        this.hasBody = hasSummary || hasDetailContent;
-        this.hasDetailContent = hasDetailContent;
-    }
-
-    public badgeText(): string {
-        switch (this.state) {
-            case "pending":
-                return "Preparing\u2026";
-            case "executing":
-                return "Running\u2026";
-            case "approval-requested":
-                return "Needs approval";
-            case "output-available":
-                return "Complete";
-            case "output-error":
-                return "Error";
-            case "cancelled":
-                return "Cancelled";
-            default:
-                return "";
-        }
-    }
-
-    public handleApprove(innerEvent?: Event): void {
-        innerEvent?.stopPropagation();
-        this.$emit("approve", { toolCallId: this.toolCallId });
-    }
-
-    public handleDeny(innerEvent?: Event): void {
-        innerEvent?.stopPropagation();
-        this.$emit("deny", { toolCallId: this.toolCallId });
-    }
+  public handleDeny(innerEvent?: Event): void {
+    innerEvent?.stopPropagation();
+    this.$emit("deny", { toolCallId: this.toolCallId });
+  }
 }
 
 export type VioletToolCallState =
-    | "pending"
-    | "approval-requested"
-    | "executing"
-    | "output-available"
-    | "output-error"
-    | "cancelled";
+  | "pending"
+  | "approval-requested"
+  | "executing"
+  | "output-available"
+  | "output-error"
+  | "cancelled";
 
 attr({ attribute: "tool-name" })(VioletToolCallCard.prototype, "toolName");
 attr({ attribute: "tool-call-id" })(VioletToolCallCard.prototype, "toolCallId");
@@ -404,7 +423,7 @@ attr(VioletToolCallCard.prototype, "state");
 
 /** The FAST definition of `<violet-tool-call-card>`; `defineVioletToolCallCard` in `./violet-tool-call-card.define` registers it. */
 export const violetToolCallCardDefinition = {
-    name: "violet-tool-call-card",
-    template,
-    styles,
+  name: "violet-tool-call-card",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

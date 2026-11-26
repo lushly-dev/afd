@@ -1,4 +1,12 @@
-import { FASTElement, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  when,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -36,10 +44,10 @@ const styles = css`
 
 const template = html<VioletOptionGroup>`
     ${when(
-        x => Boolean(x.label),
-        html<VioletOptionGroup>`
-            <div class="label" part="label" id="${x => x.labelId}">${x => x.label}</div>
-        `
+      (x) => Boolean(x.label),
+      html<VioletOptionGroup>`
+            <div class="label" part="label" id="${(x) => x.labelId}">${(x) => x.label}</div>
+        `,
     )}
     <div class="options" part="options">
         <slot></slot>
@@ -56,46 +64,46 @@ const template = html<VioletOptionGroup>`
  * @csspart options - Wrapper around the slotted options.
  */
 export class VioletOptionGroup extends FASTElement {
-    readonly #internals: ElementInternals;
+  readonly #internals: ElementInternals;
 
-    declare public label: string;
-    declare public disabled: boolean;
+  declare public label: string;
+  declare public disabled: boolean;
 
-    @observable
-    declare public labelId: string;
+  @observable
+  declare public labelId: string;
 
-    public constructor() {
-        super();
-        this.#internals = this.attachInternals();
-        this.label = "";
-        this.disabled = false;
-        violetOptionGroupId += 1;
-        this.labelId = `violet-option-group-label-${violetOptionGroupId}`;
+  public constructor() {
+    super();
+    this.#internals = this.attachInternals();
+    this.label = "";
+    this.disabled = false;
+    violetOptionGroupId += 1;
+    this.labelId = `violet-option-group-label-${violetOptionGroupId}`;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.#syncAccessibility();
+  }
+
+  public labelChanged(): void {
+    this.#syncAccessibility();
+  }
+
+  public disabledChanged(): void {
+    // Reach the options now: the list around them resyncs only on its next selection change.
+    for (const option of this.querySelectorAll("violet-option")) {
+      if (option.closest("violet-option-group") === this) {
+        (option as { groupDisabled?: boolean }).groupDisabled = this.disabled;
+      }
     }
+    this.$emit("group-state-change", { disabled: this.disabled });
+  }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.#syncAccessibility();
-    }
-
-    public labelChanged(): void {
-        this.#syncAccessibility();
-    }
-
-    public disabledChanged(): void {
-        // Reach the options now: the list around them resyncs only on its next selection change.
-        for (const option of this.querySelectorAll("violet-option")) {
-            if (option.closest("violet-option-group") === this) {
-                (option as { groupDisabled?: boolean }).groupDisabled = this.disabled;
-            }
-        }
-        this.$emit("group-state-change", { disabled: this.disabled });
-    }
-
-    #syncAccessibility(): void {
-        this.#internals.role = "group";
-        this.#internals.ariaLabel = this.label || "";
-    }
+  #syncAccessibility(): void {
+    this.#internals.role = "group";
+    this.#internals.ariaLabel = this.label || "";
+  }
 }
 
 attr(VioletOptionGroup.prototype, "label");
@@ -103,7 +111,7 @@ attr({ mode: "boolean" })(VioletOptionGroup.prototype, "disabled");
 
 /** The FAST definition of `<violet-option-group>`; `defineVioletOptionGroup` in `./violet-option-group.define` registers it. */
 export const violetOptionGroupDefinition = {
-    name: "violet-option-group",
-    template,
-    styles,
+  name: "violet-option-group",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

@@ -1,4 +1,10 @@
-import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { violetActionTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -92,7 +98,7 @@ const template = html<VioletMenuItem>`
         part="control"
         role="menuitem"
         tabindex="-1"
-        aria-disabled="${x => (x.disabled ? "true" : "false")}"
+        aria-disabled="${(x) => (x.disabled ? "true" : "false")}"
         @click="${(x, c) => x.handleClick(c.event)}"
     >
         <slot name="before" part="before"></slot>
@@ -115,46 +121,46 @@ const template = html<VioletMenuItem>`
  * @csspart after - Trailing slot wrapper.
  */
 export class VioletMenuItem extends FASTElement {
-    /**
-     * Disables the menu item. Disabled items remain focusable per WAI-ARIA APG
-     * but cannot be activated.
-     */
-    declare public disabled: boolean;
+  /**
+   * Disables the menu item. Disabled items remain focusable per WAI-ARIA APG
+   * but cannot be activated.
+   */
+  declare public disabled: boolean;
 
-    public constructor() {
-        super();
-        this.disabled = false;
+  public constructor() {
+    super();
+    this.disabled = false;
+  }
+
+  /**
+   * Handles click on the item. Emits `invoke` unless disabled.
+   */
+  public handleClick(event: Event): void {
+    if (this.disabled) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
     }
 
-    /**
-     * Handles click on the item. Emits `invoke` unless disabled.
-     */
-    public handleClick(event: Event): void {
-        if (this.disabled) {
-            event.preventDefault();
-            event.stopPropagation();
-            return;
-        }
+    this.$emit("invoke");
+  }
 
-        this.$emit("invoke");
-    }
-
-    /**
-     * Returns the trimmed text content of this item for type-ahead matching.
-     */
-    public get labelText(): string {
-        return this.textContent?.trim() ?? "";
-    }
+  /**
+   * Returns the trimmed text content of this item for type-ahead matching.
+   */
+  public get labelText(): string {
+    return this.textContent?.trim() ?? "";
+  }
 }
 
 attr({ mode: "boolean" })(VioletMenuItem.prototype, "disabled");
 
 /** The FAST definition of `<violet-menu-item>`; `defineVioletMenuItem` in `./violet-menu-item.define` registers it. */
 export const violetMenuItemDefinition = {
-    name: "violet-menu-item",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-menu-item",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

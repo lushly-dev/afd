@@ -5,16 +5,12 @@
     {
       "id": "option-group.label",
       "text": "The label attribute renders a visible heading above the group's options.",
-      "members": [
-        "label"
-      ]
+      "members": ["label"]
     },
     {
       "id": "option-group.disabled",
       "text": "The disabled attribute on the group makes every option inside it unselectable, whatever the options' own disabled state.",
-      "members": [
-        "disabled"
-      ]
+      "members": ["disabled"]
     },
     {
       "id": "option-group.import",
@@ -25,9 +21,7 @@
     {
       "id": "option-group.name",
       "text": "The group is exposed with role group and named by its label attribute; without a label it is an unnamed group.",
-      "members": [
-        "label"
-      ]
+      "members": ["label"]
     }
   ]
 }

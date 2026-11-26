@@ -15,16 +15,12 @@
     {
       "id": "spinner.name",
       "text": "Unless decorative, it is role img named by the label attribute, default \"Loading\". It is not a live region, so it announces nothing when it appears.",
-      "members": [
-        "label"
-      ]
+      "members": ["label"]
     },
     {
       "id": "spinner.decorative",
       "text": "Set decorative when visible text nearby, such as \"Saving...\", already says it is loading; it is then hidden from assistive technology.",
-      "members": [
-        "decorative"
-      ]
+      "members": ["decorative"]
     }
   ]
 }

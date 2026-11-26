@@ -1,14 +1,22 @@
-import { attr, css, FASTElement, html, observable, repeat, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  repeat,
+  when,
+} from "@lushly-dev/fast-element";
 import { resolveFieldErrorText } from "../shared/field-error";
+import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import type { VioletDataGridEditorOption } from "./violet-data-grid";
 import { safeCssValue } from "./violet-data-grid-css";
 
 let violetDataGridPillSelectInstanceCount = 0;
 
 function isComposingKeyboardEvent(event: KeyboardEvent): boolean {
-    return event.isComposing || event.keyCode === 229;
+  return event.isComposing || event.keyCode === 229;
 }
 
 const styles = css`
@@ -232,59 +240,59 @@ const template = html<VioletDataGridPillSelect>`
             class="trigger"
             type="button"
             part="trigger"
-            aria-label="${x => x.triggerLabel}"
+            aria-label="${(x) => x.triggerLabel}"
             aria-haspopup="listbox"
-            aria-controls="${x => x.panelId}"
-            aria-expanded="${x => String(x.open)}"
-            aria-invalid="${x => x.invalid ? "true" : null}"
-            aria-describedby="${x => x.displayErrorText ? x.errorTextId : null}"
-            aria-errormessage="${x => x.displayErrorText ? x.errorTextId : null}"
-            @click="${x => x.handleTriggerClick()}"
+            aria-controls="${(x) => x.panelId}"
+            aria-expanded="${(x) => String(x.open)}"
+            aria-invalid="${(x) => (x.invalid ? "true" : null)}"
+            aria-describedby="${(x) => (x.displayErrorText ? x.errorTextId : null)}"
+            aria-errormessage="${(x) => (x.displayErrorText ? x.errorTextId : null)}"
+            @click="${(x) => x.handleTriggerClick()}"
             @keydown="${(x, c) => x.handleTriggerKeydown(c.event as KeyboardEvent)}"
         >
             <span
                 class="pill"
                 part="pill"
-                data-empty="${x => String(!x.selectedOption)}"
-                style="${x => x.selectedOptionStyle}"
+                data-empty="${(x) => String(!x.selectedOption)}"
+                style="${(x) => x.selectedOptionStyle}"
             >
-                <span class="pill-label">${x => x.selectedLabel}</span>
+                <span class="pill-label">${(x) => x.selectedLabel}</span>
                 <span class="caret" part="caret" aria-hidden="true"></span>
             </span>
         </button>
 
         ${when(
-            x => Boolean(x.displayErrorText),
-            html<VioletDataGridPillSelect>`
+          (x) => Boolean(x.displayErrorText),
+          html<VioletDataGridPillSelect>`
                 <span
                     class="error-text"
                     part="error-message"
-                    role="${x => x.errorAnnouncement === "self" ? "alert" : null}"
-                    id="${x => x.errorTextId}"
+                    role="${(x) => (x.errorAnnouncement === "self" ? "alert" : null)}"
+                    id="${(x) => x.errorTextId}"
                 >
-                    ${x => x.displayErrorText}
+                    ${(x) => x.displayErrorText}
                 </span>
-            `
+            `,
         )}
 
         ${when(
-            x => x.open,
-            html<VioletDataGridPillSelect>`
-                <div class="panel" id="${x => x.panelId}" part="panel">
+          (x) => x.open,
+          html<VioletDataGridPillSelect>`
+                <div class="panel" id="${(x) => x.panelId}" part="panel">
                     <input
                         class="search"
                         part="search"
                         type="search"
                         placeholder="Find an option"
                         aria-label="Find an option"
-                        :value="${x => x.filterQuery}"
+                        :value="${(x) => x.filterQuery}"
                         @input="${(x, c) => x.handleSearchInput(c.event)}"
                         @keydown="${(x, c) => x.handleSearchKeydown(c.event as KeyboardEvent)}"
                     />
-                    <div class="options" part="options" role="listbox" aria-label="${x => x.controlLabel || x.placeholder || "Options"}">
+                    <div class="options" part="options" role="listbox" aria-label="${(x) => x.controlLabel || x.placeholder || "Options"}">
                         ${repeat(
-                            x => x.filteredOptions,
-                            html<VioletDataGridEditorOption, VioletDataGridPillSelect>`
+                          (x) => x.filteredOptions,
+                          html<VioletDataGridEditorOption, VioletDataGridPillSelect>`
                                 <button
                                     class="option"
                                     type="button"
@@ -292,25 +300,25 @@ const template = html<VioletDataGridPillSelect>`
                                     tabindex="-1"
                                     role="option"
                                     aria-selected="${(x, c) => String(c.parent.value === x.value)}"
-                                    data-option-value="${x => x.value}"
+                                    data-option-value="${(x) => x.value}"
                                     @click="${(x, c) => c.parent.selectOption(x.value)}"
                                     @keydown="${(x, c) => c.parent.handleOptionKeydown(c.event as KeyboardEvent, x.value)}"
                                 >
                                     <span class="option-pill" part="option-pill" style="${(x, c) => c.parent.optionStyle(x)}">
-                                        ${x => x.label}
+                                        ${(x) => x.label}
                                     </span>
                                 </button>
-                            `
+                            `,
                         )}
                         ${when(
-                            x => x.filteredOptions.length === 0,
-                            html<VioletDataGridPillSelect>`
+                          (x) => x.filteredOptions.length === 0,
+                          html<VioletDataGridPillSelect>`
                                 <div class="empty">No matching options</div>
-                            `
+                            `,
                         )}
                     </div>
                 </div>
-            `
+            `,
         )}
     </div>
 `;
@@ -334,407 +342,405 @@ const template = html<VioletDataGridPillSelect>`
  * @csspart option-pill - Styled pill surface for each option.
  */
 export class VioletDataGridPillSelect extends FASTElement {
-    declare public value: string;
+  declare public value: string;
 
-    declare public controlLabel: string;
+  declare public controlLabel: string;
 
-    declare public placeholder: string;
+  declare public placeholder: string;
 
-    /** Marks the focused trigger as invalid. */
-    declare public invalid: boolean;
+  /** Marks the focused trigger as invalid. */
+  declare public invalid: boolean;
 
-    /** Validation explanation exposed from the focused trigger. */
-    declare public errorText: string;
+  /** Validation explanation exposed from the focused trigger. */
+  declare public errorText: string;
 
-    /** Owns live announcement unless an integrating surface provides the alert. */
-    declare public errorAnnouncement: "self" | "external";
+  /** Owns live announcement unless an integrating surface provides the alert. */
+  declare public errorAnnouncement: "self" | "external";
 
-    declare public options: VioletDataGridEditorOption[];
+  declare public options: VioletDataGridEditorOption[];
 
-    declare public open: boolean;
+  declare public open: boolean;
 
-    declare public filterQuery: string;
+  declare public filterQuery: string;
 
-    private readonly instanceId = ++violetDataGridPillSelectInstanceCount;
+  private readonly instanceId = ++violetDataGridPillSelectInstanceCount;
 
-    readonly #handleDocumentPointerDown = (event: PointerEvent) => {
-        if (!this.open) {
-            return;
+  readonly #handleDocumentPointerDown = (event: PointerEvent) => {
+    if (!this.open) {
+      return;
+    }
+
+    const path = event.composedPath();
+    if (path.includes(this)) {
+      return;
+    }
+
+    this.close();
+  };
+
+  readonly #handleFocusOut = (event: FocusEvent) => {
+    this.handleFocusOut(event);
+  };
+
+  public constructor() {
+    super();
+    this.options = [];
+    this.invalid = false;
+    this.errorText = "";
+    this.errorAnnouncement = "self";
+    this.open = false;
+    this.filterQuery = "";
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.addEventListener("focusout", this.#handleFocusOut);
+    this.ownerDocument.addEventListener("pointerdown", this.#handleDocumentPointerDown, true);
+    this.openChanged();
+  }
+
+  public disconnectedCallback(): void {
+    this.ownerDocument.removeEventListener("pointerdown", this.#handleDocumentPointerDown, true);
+    this.removeEventListener("focusout", this.#handleFocusOut);
+    super.disconnectedCallback();
+  }
+
+  public get selectedOption(): VioletDataGridEditorOption | null {
+    return this.options.find((option) => option.value === this.value) ?? null;
+  }
+
+  public get selectedLabel(): string {
+    return this.selectedOption?.label || this.value || this.placeholder || "Select an option";
+  }
+
+  public get triggerLabel(): string {
+    return this.controlLabel ? `${this.controlLabel}: ${this.selectedLabel}` : this.selectedLabel;
+  }
+
+  public get selectedOptionStyle(): string {
+    return this.selectedOption ? this.optionStyle(this.selectedOption) : "";
+  }
+
+  public get filteredOptions(): VioletDataGridEditorOption[] {
+    const query = this.filterQuery.trim().toLowerCase();
+    if (!query) {
+      return this.options;
+    }
+
+    return this.options.filter((option) => {
+      const haystack = [option.label, option.value, ...(option.keywords ?? [])]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }
+
+  public get panelId(): string {
+    return `${this.localName}-panel-${this.instanceId}`;
+  }
+
+  public get displayErrorText(): string {
+    return resolveFieldErrorText({
+      invalid: this.invalid,
+      errorText: this.errorText,
+    });
+  }
+
+  public get errorTextId(): string {
+    return `${this.localName}-error-${this.instanceId}`;
+  }
+
+  public handleTriggerClick(): void {
+    if (this.open) {
+      this.close();
+      return;
+    }
+
+    this.openPanel("search");
+  }
+
+  public handleTriggerKeydown(event: KeyboardEvent): boolean {
+    if (isComposingKeyboardEvent(event)) {
+      return true;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.openPanel(this.value ? "selected" : "first");
+      return false;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.openPanel(this.value ? "selected" : "last");
+      return false;
+    }
+
+    if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.open ? this.close() : this.openPanel("search");
+      return false;
+    }
+
+    return true;
+  }
+
+  public handleSearchInput(event: Event): boolean {
+    const target = event.target as HTMLInputElement | null;
+    this.filterQuery = target?.value ?? "";
+    return true;
+  }
+
+  public handleSearchKeydown(event: KeyboardEvent): boolean {
+    if (isComposingKeyboardEvent(event)) {
+      return true;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.close();
+      this.focusTrigger();
+      return false;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.focusOptionByIndex(0);
+      return false;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.focusOptionByIndex(this.filteredOptions.length - 1);
+      return false;
+    }
+
+    return true;
+  }
+
+  public handleOptionKeydown(event: KeyboardEvent, value: string): boolean {
+    if (isComposingKeyboardEvent(event)) {
+      return true;
+    }
+
+    const currentIndex = this.filteredOptions.findIndex((option) => option.value === value);
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.focusOptionByIndex(Math.min(currentIndex + 1, this.filteredOptions.length - 1));
+      return false;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (currentIndex <= 0) {
+        this.focusSearch();
+        return false;
+      }
+
+      this.focusOptionByIndex(currentIndex - 1);
+      return false;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.focusOptionByIndex(0);
+      return false;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.focusOptionByIndex(this.filteredOptions.length - 1);
+      return false;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.close();
+      this.focusTrigger();
+      return false;
+    }
+
+    if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.selectOption(value);
+      return false;
+    }
+
+    return true;
+  }
+
+  public handleFocusOut(event: FocusEvent): boolean {
+    const relatedTarget = event.relatedTarget as Node | null;
+    if (relatedTarget && (relatedTarget === this || this.shadowRoot?.contains(relatedTarget))) {
+      return true;
+    }
+
+    this.close();
+    return true;
+  }
+
+  public openChanged(): void {
+    this.triggerElement()?.setAttribute("tabindex", this.open ? "-1" : "0");
+  }
+
+  public selectOption(value: string): void {
+    if (this.value === value) {
+      this.close();
+      this.focusTrigger();
+      return;
+    }
+
+    this.value = value;
+    this.close();
+    this.$emit("input");
+    this.$emit("change");
+    this.focusTrigger();
+  }
+
+  public optionStyle(option: VioletDataGridEditorOption): string {
+    const style = this.resolveOptionVisuals(option);
+    return `background:${style.background};color:${style.foreground};border-color:${style.borderColor};`;
+  }
+
+  private close(): void {
+    this.open = false;
+    this.filterQuery = "";
+  }
+
+  private focusTrigger(): void {
+    requestAnimationFrame(() => {
+      this.triggerElement()?.focus();
+    });
+  }
+
+  private openPanel(focusTarget: "search" | "first" | "last" | "selected"): void {
+    this.open = true;
+
+    requestAnimationFrame(() => {
+      switch (focusTarget) {
+        case "search":
+          this.focusSearch(true);
+          break;
+        case "first":
+          this.focusOptionByIndex(0);
+          break;
+        case "last":
+          this.focusOptionByIndex(this.filteredOptions.length - 1);
+          break;
+        case "selected": {
+          this.focusOptionByIndex(this.selectedOptionIndex());
+          break;
         }
+      }
+    });
+  }
 
-        const path = event.composedPath();
-        if (path.includes(this)) {
-            return;
-        }
+  private focusSearch(selectText = false): void {
+    const search = this.searchElement();
+    search?.focus();
+    if (selectText) {
+      search?.select();
+    }
+  }
 
-        this.close();
-    };
-
-    readonly #handleFocusOut = (event: FocusEvent) => {
-        this.handleFocusOut(event);
-    };
-
-    public constructor() {
-        super();
-        this.options = [];
-        this.invalid = false;
-        this.errorText = "";
-        this.errorAnnouncement = "self";
-        this.open = false;
-        this.filterQuery = "";
+  private focusOptionByIndex(index: number): void {
+    const options = this.optionElements();
+    if (!options.length) {
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.addEventListener("focusout", this.#handleFocusOut);
-        this.ownerDocument.addEventListener("pointerdown", this.#handleDocumentPointerDown, true);
-        this.openChanged();
+    const clampedIndex = Math.max(0, Math.min(index, options.length - 1));
+    options[clampedIndex]?.focus();
+  }
+
+  private triggerElement(): HTMLButtonElement | null {
+    return this.shadowRoot?.querySelector(".trigger") as HTMLButtonElement | null;
+  }
+
+  private searchElement(): HTMLInputElement | null {
+    return this.shadowRoot?.querySelector(".search") as HTMLInputElement | null;
+  }
+
+  private optionElements(): HTMLButtonElement[] {
+    return Array.from(this.shadowRoot?.querySelectorAll<HTMLButtonElement>(".option") ?? []);
+  }
+
+  private selectedOptionIndex(): number {
+    const selectedIndex = this.filteredOptions.findIndex((option) => option.value === this.value);
+    return selectedIndex >= 0 ? selectedIndex : 0;
+  }
+
+  private resolveOptionVisuals(option: VioletDataGridEditorOption): {
+    background: string;
+    foreground: string;
+    borderColor: string;
+  } {
+    if (option.background || option.foreground || option.borderColor) {
+      return {
+        background: safeCssValue("background", option.background) ?? "var(--_surface-subtle)",
+        foreground: safeCssValue("color", option.foreground) ?? "var(--_text-primary)",
+        borderColor: safeCssValue("border-color", option.borderColor) ?? "transparent",
+      };
     }
 
-    public disconnectedCallback(): void {
-        this.ownerDocument.removeEventListener("pointerdown", this.#handleDocumentPointerDown, true);
-        this.removeEventListener("focusout", this.#handleFocusOut);
-        super.disconnectedCallback();
+    switch (option.tone) {
+      case "teal":
+        return {
+          background: "#0b7280",
+          foreground: "#ffffff",
+          borderColor: "transparent",
+        };
+      case "green":
+        return {
+          background: "#176c27",
+          foreground: "#ffffff",
+          borderColor: "transparent",
+        };
+      case "olive":
+        return {
+          background: "#547d46",
+          foreground: "#f5fbf2",
+          borderColor: "transparent",
+        };
+      case "gold":
+        return {
+          background: "#8b6b24",
+          foreground: "#fff7de",
+          borderColor: "transparent",
+        };
+      case "blue":
+        return {
+          background: "#416b89",
+          foreground: "#ffffff",
+          borderColor: "transparent",
+        };
+      case "gray":
+        return {
+          background: "#606672",
+          foreground: "#f6f7fa",
+          borderColor: "transparent",
+        };
+      default:
+        return {
+          background: "color-mix(in srgb, var(--_surface-subtle) 90%, white)",
+          foreground: "var(--_text-primary)",
+          borderColor: "color-mix(in srgb, var(--_border-subtle) 80%, transparent)",
+        };
     }
-
-    public get selectedOption(): VioletDataGridEditorOption | null {
-        return this.options.find(option => option.value === this.value) ?? null;
-    }
-
-    public get selectedLabel(): string {
-        return this.selectedOption?.label || this.value || this.placeholder || "Select an option";
-    }
-
-    public get triggerLabel(): string {
-        return this.controlLabel ? `${this.controlLabel}: ${this.selectedLabel}` : this.selectedLabel;
-    }
-
-    public get selectedOptionStyle(): string {
-        return this.selectedOption ? this.optionStyle(this.selectedOption) : "";
-    }
-
-    public get filteredOptions(): VioletDataGridEditorOption[] {
-        const query = this.filterQuery.trim().toLowerCase();
-        if (!query) {
-            return this.options;
-        }
-
-        return this.options.filter(option => {
-            const haystack = [option.label, option.value, ...(option.keywords ?? [])]
-                .join(" ")
-                .toLowerCase();
-            return haystack.includes(query);
-        });
-    }
-
-    public get panelId(): string {
-        return `${this.localName}-panel-${this.instanceId}`;
-    }
-
-    public get displayErrorText(): string {
-        return resolveFieldErrorText({
-            invalid: this.invalid,
-            errorText: this.errorText,
-        });
-    }
-
-    public get errorTextId(): string {
-        return `${this.localName}-error-${this.instanceId}`;
-    }
-
-    public handleTriggerClick(): void {
-        if (this.open) {
-            this.close();
-            return;
-        }
-
-        this.openPanel("search");
-    }
-
-    public handleTriggerKeydown(event: KeyboardEvent): boolean {
-        if (isComposingKeyboardEvent(event)) {
-            return true;
-        }
-
-        if (event.key === "ArrowDown") {
-            event.preventDefault();
-            event.stopPropagation();
-            this.openPanel(this.value ? "selected" : "first");
-            return false;
-        }
-
-        if (event.key === "ArrowUp") {
-            event.preventDefault();
-            event.stopPropagation();
-            this.openPanel(this.value ? "selected" : "last");
-            return false;
-        }
-
-        if (event.key === " " || event.key === "Enter") {
-            event.preventDefault();
-            event.stopPropagation();
-            this.open ? this.close() : this.openPanel("search");
-            return false;
-        }
-
-        return true;
-    }
-
-    public handleSearchInput(event: Event): boolean {
-        const target = event.target as HTMLInputElement | null;
-        this.filterQuery = target?.value ?? "";
-        return true;
-    }
-
-    public handleSearchKeydown(event: KeyboardEvent): boolean {
-        if (isComposingKeyboardEvent(event)) {
-            return true;
-        }
-
-        if (event.key === "Escape") {
-            event.preventDefault();
-            event.stopPropagation();
-            this.close();
-            this.focusTrigger();
-            return false;
-        }
-
-        if (event.key === "ArrowDown") {
-            event.preventDefault();
-            event.stopPropagation();
-            this.focusOptionByIndex(0);
-            return false;
-        }
-
-        if (event.key === "ArrowUp") {
-            event.preventDefault();
-            event.stopPropagation();
-            this.focusOptionByIndex(this.filteredOptions.length - 1);
-            return false;
-        }
-
-        return true;
-    }
-
-    public handleOptionKeydown(event: KeyboardEvent, value: string): boolean {
-        if (isComposingKeyboardEvent(event)) {
-            return true;
-        }
-
-        const currentIndex = this.filteredOptions.findIndex(option => option.value === value);
-
-        if (event.key === "ArrowDown") {
-            event.preventDefault();
-            event.stopPropagation();
-            this.focusOptionByIndex(Math.min(currentIndex + 1, this.filteredOptions.length - 1));
-            return false;
-        }
-
-        if (event.key === "ArrowUp") {
-            event.preventDefault();
-            event.stopPropagation();
-            if (currentIndex <= 0) {
-                this.focusSearch();
-                return false;
-            }
-
-            this.focusOptionByIndex(currentIndex - 1);
-            return false;
-        }
-
-        if (event.key === "Home") {
-            event.preventDefault();
-            event.stopPropagation();
-            this.focusOptionByIndex(0);
-            return false;
-        }
-
-        if (event.key === "End") {
-            event.preventDefault();
-            event.stopPropagation();
-            this.focusOptionByIndex(this.filteredOptions.length - 1);
-            return false;
-        }
-
-        if (event.key === "Escape") {
-            event.preventDefault();
-            event.stopPropagation();
-            this.close();
-            this.focusTrigger();
-            return false;
-        }
-
-        if (event.key === " " || event.key === "Enter") {
-            event.preventDefault();
-            event.stopPropagation();
-            this.selectOption(value);
-            return false;
-        }
-
-        return true;
-    }
-
-    public handleFocusOut(event: FocusEvent): boolean {
-        const relatedTarget = event.relatedTarget as Node | null;
-        if (relatedTarget && (relatedTarget === this || this.shadowRoot?.contains(relatedTarget))) {
-            return true;
-        }
-
-        this.close();
-        return true;
-    }
-
-    public openChanged(): void {
-        this.triggerElement()?.setAttribute("tabindex", this.open ? "-1" : "0");
-    }
-
-    public selectOption(value: string): void {
-        if (this.value === value) {
-            this.close();
-            this.focusTrigger();
-            return;
-        }
-
-        this.value = value;
-        this.close();
-        this.$emit("input");
-        this.$emit("change");
-        this.focusTrigger();
-    }
-
-    public optionStyle(option: VioletDataGridEditorOption): string {
-        const style = this.resolveOptionVisuals(option);
-        return `background:${style.background};color:${style.foreground};border-color:${style.borderColor};`;
-    }
-
-    private close(): void {
-        this.open = false;
-        this.filterQuery = "";
-    }
-
-    private focusTrigger(): void {
-        requestAnimationFrame(() => {
-            this.triggerElement()?.focus();
-        });
-    }
-
-    private openPanel(focusTarget: "search" | "first" | "last" | "selected"): void {
-        this.open = true;
-
-        requestAnimationFrame(() => {
-            switch (focusTarget) {
-                case "search":
-                    this.focusSearch(true);
-                    break;
-                case "first":
-                    this.focusOptionByIndex(0);
-                    break;
-                case "last":
-                    this.focusOptionByIndex(this.filteredOptions.length - 1);
-                    break;
-                case "selected": {
-                    this.focusOptionByIndex(this.selectedOptionIndex());
-                    break;
-                }
-            }
-        });
-    }
-
-    private focusSearch(selectText = false): void {
-        const search = this.searchElement();
-        search?.focus();
-        if (selectText) {
-            search?.select();
-        }
-    }
-
-    private focusOptionByIndex(index: number): void {
-        const options = this.optionElements();
-        if (!options.length) {
-            return;
-        }
-
-        const clampedIndex = Math.max(0, Math.min(index, options.length - 1));
-        options[clampedIndex]?.focus();
-    }
-
-    private triggerElement(): HTMLButtonElement | null {
-        return this.shadowRoot?.querySelector(".trigger") as HTMLButtonElement | null;
-    }
-
-    private searchElement(): HTMLInputElement | null {
-        return this.shadowRoot?.querySelector(".search") as HTMLInputElement | null;
-    }
-
-    private optionElements(): HTMLButtonElement[] {
-        return Array.from(
-            this.shadowRoot?.querySelectorAll<HTMLButtonElement>(".option") ?? []
-        );
-    }
-
-    private selectedOptionIndex(): number {
-        const selectedIndex = this.filteredOptions.findIndex(option => option.value === this.value);
-        return selectedIndex >= 0 ? selectedIndex : 0;
-    }
-
-    private resolveOptionVisuals(option: VioletDataGridEditorOption): {
-        background: string;
-        foreground: string;
-        borderColor: string;
-    } {
-        if (option.background || option.foreground || option.borderColor) {
-            return {
-                background: safeCssValue("background", option.background) ?? "var(--_surface-subtle)",
-                foreground: safeCssValue("color", option.foreground) ?? "var(--_text-primary)",
-                borderColor: safeCssValue("border-color", option.borderColor) ?? "transparent",
-            };
-        }
-
-        switch (option.tone) {
-            case "teal":
-                return {
-                    background: "#0b7280",
-                    foreground: "#ffffff",
-                    borderColor: "transparent",
-                };
-            case "green":
-                return {
-                    background: "#176c27",
-                    foreground: "#ffffff",
-                    borderColor: "transparent",
-                };
-            case "olive":
-                return {
-                    background: "#547d46",
-                    foreground: "#f5fbf2",
-                    borderColor: "transparent",
-                };
-            case "gold":
-                return {
-                    background: "#8b6b24",
-                    foreground: "#fff7de",
-                    borderColor: "transparent",
-                };
-            case "blue":
-                return {
-                    background: "#416b89",
-                    foreground: "#ffffff",
-                    borderColor: "transparent",
-                };
-            case "gray":
-                return {
-                    background: "#606672",
-                    foreground: "#f6f7fa",
-                    borderColor: "transparent",
-                };
-            default:
-                return {
-                    background: "color-mix(in srgb, var(--_surface-subtle) 90%, white)",
-                    foreground: "var(--_text-primary)",
-                    borderColor: "color-mix(in srgb, var(--_border-subtle) 80%, transparent)",
-                };
-        }
-    }
+  }
 }
 
 attr(VioletDataGridPillSelect.prototype, "value");
@@ -749,10 +755,10 @@ observable(VioletDataGridPillSelect.prototype, "filterQuery");
 
 /** The FAST definition of `<violet-data-grid-pill-select>`; `defineVioletDataGridPillSelect` in `./violet-data-grid-pill-select.define` registers it. */
 export const violetDataGridPillSelectDefinition = {
-    name: "violet-data-grid-pill-select",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-data-grid-pill-select",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

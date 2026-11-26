@@ -1,7 +1,7 @@
-import { defineVioletElement } from "../shared/define-element";
 import { defineVioletCalendar } from "../calendar/violet-calendar.define";
-import { defineVioletIcon } from "../icon/violet-icon.define";
 import { registerSystemCalendarIcon } from "../icon/generated/icons/system-calendar";
+import { defineVioletIcon } from "../icon/violet-icon.define";
+import { defineVioletElement } from "../shared/define-element";
 import { VioletDatePicker, violetDatePickerDefinition } from "./violet-date-picker";
 
 /**
@@ -10,11 +10,13 @@ import { VioletDatePicker, violetDatePickerDefinition } from "./violet-date-pick
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletDatePicker(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletCalendar(registry);
-    await defineVioletIcon(registry);
-    registerSystemCalendarIcon();
-    await defineVioletElement(VioletDatePicker, violetDatePickerDefinition, registry);
+export async function defineVioletDatePicker(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletCalendar(registry);
+  await defineVioletIcon(registry);
+  registerSystemCalendarIcon();
+  await defineVioletElement(VioletDatePicker, violetDatePickerDefinition, registry);
 }
 
 await defineVioletDatePicker();

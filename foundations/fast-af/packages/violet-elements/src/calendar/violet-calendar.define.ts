@@ -7,8 +7,10 @@ import { VioletCalendar, violetCalendarDefinition } from "./violet-calendar";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletCalendar(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletCalendar, violetCalendarDefinition, registry);
+export async function defineVioletCalendar(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletCalendar, violetCalendarDefinition, registry);
 }
 
 await defineVioletCalendar();

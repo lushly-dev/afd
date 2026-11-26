@@ -1,5 +1,5 @@
-import { defineVioletElement } from "../shared/define-element";
 import { defineVioletIcon } from "../icon/violet-icon.define";
+import { defineVioletElement } from "../shared/define-element";
 import { VioletReasoningBlock, violetReasoningBlockDefinition } from "./violet-reasoning-block";
 
 /**
@@ -8,9 +8,11 @@ import { VioletReasoningBlock, violetReasoningBlockDefinition } from "./violet-r
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletReasoningBlock(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletIcon(registry);
-    await defineVioletElement(VioletReasoningBlock, violetReasoningBlockDefinition, registry);
+export async function defineVioletReasoningBlock(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletIcon(registry);
+  await defineVioletElement(VioletReasoningBlock, violetReasoningBlockDefinition, registry);
 }
 
 await defineVioletReasoningBlock();

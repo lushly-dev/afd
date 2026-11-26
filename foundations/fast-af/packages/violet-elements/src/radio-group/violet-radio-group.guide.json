@@ -5,17 +5,12 @@
     {
       "id": "radio-group.value",
       "text": "Set the group's value to a radio's value to select it; with no group value, a radio marked checked is used. The group overwrites each radio's checked state, tabindex and, when it has a name, its name.",
-      "members": [
-        "value",
-        "name"
-      ]
+      "members": ["value", "name"]
     },
     {
       "id": "radio-group.change",
       "text": "A click delivers two change events to a group listener: the group's own (detail.value) and the clicked radio's bubbling one (detail.checked). Keyboard selection delivers only the group's. Check event.target.",
-      "members": [
-        "change"
-      ]
+      "members": ["change"]
     },
     {
       "id": "radio-group.keyboard",
@@ -26,17 +21,12 @@
     {
       "id": "radio-group.name",
       "text": "An aria-label on the host takes precedence over the label attribute as the group's name; the label stays visible.",
-      "members": [
-        "label"
-      ]
+      "members": ["label"]
     },
     {
       "id": "radio-group.error",
       "text": "While invalid, the rendered error message replaces the supporting text and is linked to the group as both its description and its error message.",
-      "members": [
-        "error-text",
-        "supporting-text"
-      ]
+      "members": ["error-text", "supporting-text"]
     }
   ]
 }

@@ -1,4 +1,10 @@
-import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -111,19 +117,19 @@ const styles = css`
 const template = html<VioletMessageStatus>`
     <div class="root" part="root" role="status" aria-live="polite">
         <span class="indicator" part="indicator">
-            ${x => {
-                if (x.status === "streaming" || x.status === "retrying") {
-                    return html`
+            ${(x) => {
+              if (x.status === "streaming" || x.status === "retrying") {
+                return html`
                         <span class="streaming-dot" aria-hidden="true"></span>
                         <span class="streaming-dot" aria-hidden="true"></span>
                         <span class="streaming-dot" aria-hidden="true"></span>
                     `;
-                }
-                return html`<span class="dot" aria-hidden="true"></span>`;
+              }
+              return html`<span class="dot" aria-hidden="true"></span>`;
             }}
         </span>
         <span class="text" part="text">
-            <slot>${x => x.defaultText()}</slot>
+            <slot>${(x) => x.defaultText()}</slot>
         </span>
     </div>
 `;
@@ -139,38 +145,43 @@ const template = html<VioletMessageStatus>`
  * @csspart text - The status text.
  */
 export class VioletMessageStatus extends FASTElement {
-    declare public status: string;
+  declare public status: string;
 
-    public constructor() {
-        super();
-        this.status = "streaming";
-    }
+  public constructor() {
+    super();
+    this.status = "streaming";
+  }
 
-    public defaultText(): string {
-        switch (this.status) {
-            case "submitted":
-                return "Thinking\u2026";
-            case "streaming":
-                return "Responding\u2026";
-            case "error":
-                return "Something went wrong";
-            case "cancelled":
-                return "Stopped";
-            case "retrying":
-                return "Retrying\u2026";
-            default:
-                return "";
-        }
+  public defaultText(): string {
+    switch (this.status) {
+      case "submitted":
+        return "Thinking\u2026";
+      case "streaming":
+        return "Responding\u2026";
+      case "error":
+        return "Something went wrong";
+      case "cancelled":
+        return "Stopped";
+      case "retrying":
+        return "Retrying\u2026";
+      default:
+        return "";
     }
+  }
 }
 
-export type VioletMessageStatusType = "submitted" | "streaming" | "error" | "cancelled" | "retrying";
+export type VioletMessageStatusType =
+  | "submitted"
+  | "streaming"
+  | "error"
+  | "cancelled"
+  | "retrying";
 
 attr(VioletMessageStatus.prototype, "status");
 
 /** The FAST definition of `<violet-message-status>`; `defineVioletMessageStatus` in `./violet-message-status.define` registers it. */
 export const violetMessageStatusDefinition = {
-    name: "violet-message-status",
-    template,
-    styles,
+  name: "violet-message-status",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

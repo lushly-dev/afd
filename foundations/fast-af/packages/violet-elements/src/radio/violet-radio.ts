@@ -1,7 +1,15 @@
-import { FASTElement, Updates, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  Updates,
+  when,
+} from "@lushly-dev/fast-element";
 import { isDisabledByFieldset } from "../foundations/violet-form-disabled";
+import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetFieldTokenDefaults}
@@ -219,21 +227,21 @@ const template = html<VioletRadio>`
                 <span class="dot" part="mark"></span>
             </span>
         </span>
-        <span class="content" ?hidden="${x => x.inline && !x.hasLabel && !x.hasSupporting && !x.displayErrorText}">
-            <span class="label" part="label" ?hidden="${x => x.inline && !x.hasLabel}">
-                <slot @slotchange="${x => x.handleDefaultSlotChange()}"></slot>
+        <span class="content" ?hidden="${(x) => x.inline && !x.hasLabel && !x.hasSupporting && !x.displayErrorText}">
+            <span class="label" part="label" ?hidden="${(x) => x.inline && !x.hasLabel}">
+                <slot @slotchange="${(x) => x.handleDefaultSlotChange()}"></slot>
             </span>
             <span
                 class="supporting"
                 part="supporting-text"
-                ?hidden="${x => !x.hasSupporting || Boolean(x.displayErrorText)}"
+                ?hidden="${(x) => !x.hasSupporting || Boolean(x.displayErrorText)}"
             >
-                <slot name="supporting" @slotchange="${x => x.handleSupportingSlotChange()}"></slot>
+                <slot name="supporting" @slotchange="${(x) => x.handleSupportingSlotChange()}"></slot>
             </span>
             ${when(
-                x => Boolean(x.displayErrorText),
-                html<VioletRadio>`
-                    <span class="error" part="error-message" role="alert">${x => x.displayErrorText}</span>
+              (x) => Boolean(x.displayErrorText),
+              html<VioletRadio>`
+                    <span class="error" part="error-message" role="alert">${(x) => x.displayErrorText}</span>
                 `,
             )}
         </span>
@@ -255,345 +263,354 @@ const template = html<VioletRadio>`
  * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletRadio extends FASTElement {
-    readonly #internals: ElementInternals;
-    readonly #fieldsetObserver = new MutationObserver(() => this.#syncFieldsetDisabled());
-    readonly #describedByObserver = new MutationObserver(() => this.#syncAccessibilityState());
-    #managedTabIndex: number | null;
-    #disabledFromGroup: boolean;
-    #disabledByFieldset: boolean;
+  readonly #internals: ElementInternals;
+  readonly #fieldsetObserver = new MutationObserver(() => this.#syncFieldsetDisabled());
+  readonly #describedByObserver = new MutationObserver(() => this.#syncAccessibilityState());
+  #managedTabIndex: number | null;
+  #disabledFromGroup: boolean;
+  #disabledByFieldset: boolean;
 
-    @observable
-    declare public hasSupporting: boolean;
+  @observable
+  declare public hasSupporting: boolean;
 
-    @observable
-    declare public hasLabel: boolean;
+  @observable
+  declare public hasLabel: boolean;
 
-    /**
-     * Backing state for `displayErrorText`.
-     */
-    @observable
-    private _displayErrorText = "";
+  /**
+   * Backing state for `displayErrorText`.
+   */
+  @observable
+  private _displayErrorText = "";
 
-    /**
-     * Active error message rendered while the radio is invalid.
-     */
-    public get displayErrorText(): string {
-        return this._displayErrorText;
-    }
+  /**
+   * Active error message rendered while the radio is invalid.
+   */
+  public get displayErrorText(): string {
+    return this._displayErrorText;
+  }
 
-    /**
-     * Checked state for the radio.
-     */
-    declare public checked: boolean;
+  /**
+   * Checked state for the radio.
+   */
+  declare public checked: boolean;
 
-    /**
-     * Disables the radio.
-     */
-    declare public disabled: boolean;
+  /**
+   * Disables the radio.
+   */
+  declare public disabled: boolean;
 
-    /**
-     * Presents a compact inline layout that can collapse to the control only.
-     */
-    declare public inline: boolean;
+  /**
+   * Presents a compact inline layout that can collapse to the control only.
+   */
+  declare public inline: boolean;
 
-    /**
-     * Marks the radio as invalid.
-     */
-    declare public invalid: boolean;
+  /**
+   * Marks the radio as invalid.
+   */
+  declare public invalid: boolean;
 
-    /**
-     * Optional error message shown while the radio is invalid.
-     */
-    declare public errorText: string;
+  /**
+   * Optional error message shown while the radio is invalid.
+   */
+  declare public errorText: string;
 
-    /**
-     * Native group name forwarded from a parent radio group when available.
-     */
-    declare public name: string;
+  /**
+   * Native group name forwarded from a parent radio group when available.
+   */
+  declare public name: string;
 
-    /**
-     * Submitted value associated with this radio.
-     */
-    declare public value: string;
+  /**
+   * Submitted value associated with this radio.
+   */
+  declare public value: string;
 
-    public constructor() {
-        super();
-        this.#internals = this.attachInternals();
-        this.#internals.role = "radio";
-        this.#managedTabIndex = null;
-        this.#disabledFromGroup = false;
-        this.#disabledByFieldset = false;
-        this.hasSupporting = false;
-        this.hasLabel = false;
-        this.checked = false;
-        this.disabled = false;
-        this.inline = false;
-        this.invalid = false;
-        this.errorText = "";
-        this.name = "";
-        this.value = "on";
-    }
+  public constructor() {
+    super();
+    this.#internals = this.attachInternals();
+    this.#internals.role = "radio";
+    this.#managedTabIndex = null;
+    this.#disabledFromGroup = false;
+    this.#disabledByFieldset = false;
+    this.hasSupporting = false;
+    this.hasLabel = false;
+    this.checked = false;
+    this.disabled = false;
+    this.inline = false;
+    this.invalid = false;
+    this.errorText = "";
+    this.name = "";
+    this.value = "on";
+  }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.setAttribute("role", "radio");
-        this.addEventListener("keydown", this.handleKeydown as EventListener);
-        this.#observeAncestorFieldsets();
-        this.#disabledByFieldset = isDisabledByFieldset(this);
-        this.#describedByObserver.observe(this, { attributes: true, attributeFilter: ["aria-describedby"] });
-        this.#syncLabelState();
-        this.#syncSupportingState();
-        this.#syncErrorState();
-        this.#syncAccessibilityState();
-        this.#syncTabIndex();
-    }
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.setAttribute("role", "radio");
+    this.addEventListener("keydown", this.handleKeydown as EventListener);
+    this.#observeAncestorFieldsets();
+    this.#disabledByFieldset = isDisabledByFieldset(this);
+    this.#describedByObserver.observe(this, {
+      attributes: true,
+      attributeFilter: ["aria-describedby"],
+    });
+    this.#syncLabelState();
+    this.#syncSupportingState();
+    this.#syncErrorState();
+    this.#syncAccessibilityState();
+    this.#syncTabIndex();
+  }
 
-    public disconnectedCallback(): void {
-        this.removeEventListener("keydown", this.handleKeydown as EventListener);
-        this.#fieldsetObserver.disconnect();
-        this.#describedByObserver.disconnect();
-        this.#disabledByFieldset = false;
-        super.disconnectedCallback();
-    }
+  public disconnectedCallback(): void {
+    this.removeEventListener("keydown", this.handleKeydown as EventListener);
+    this.#fieldsetObserver.disconnect();
+    this.#describedByObserver.disconnect();
+    this.#disabledByFieldset = false;
+    super.disconnectedCallback();
+  }
 
-    public get effectiveDisabled(): boolean {
-        return this.disabled || this.#disabledFromGroup || this.#disabledByFieldset;
-    }
+  public get effectiveDisabled(): boolean {
+    return this.disabled || this.#disabledFromGroup || this.#disabledByFieldset;
+  }
 
-    public setCheckedFromGroup(checked: boolean): void {
-        this.checked = checked;
-    }
+  public setCheckedFromGroup(checked: boolean): void {
+    this.checked = checked;
+  }
 
-    public setGroupDisabled(disabled: boolean): void {
-        this.#disabledFromGroup = disabled;
-        this.#syncErrorState();
-        this.#syncAccessibilityState();
-        this.#syncTabIndex();
-    }
+  public setGroupDisabled(disabled: boolean): void {
+    this.#disabledFromGroup = disabled;
+    this.#syncErrorState();
+    this.#syncAccessibilityState();
+    this.#syncTabIndex();
+  }
 
-    public get managedTabIndex(): number | null {
-        return this.#managedTabIndex;
-    }
+  public get managedTabIndex(): number | null {
+    return this.#managedTabIndex;
+  }
 
-    public set managedTabIndex(tabIndex: number | null) {
-        this.setManagedTabIndex(tabIndex);
-    }
+  public set managedTabIndex(tabIndex: number | null) {
+    this.setManagedTabIndex(tabIndex);
+  }
 
-    public setManagedTabIndex(tabIndex: number | null): void {
-        this.#managedTabIndex = tabIndex;
-        this.#syncTabIndex();
-    }
+  public setManagedTabIndex(tabIndex: number | null): void {
+    this.#managedTabIndex = tabIndex;
+    this.#syncTabIndex();
+  }
 
-    public handleClick(event: Event): void {
-        event.preventDefault();
-        this.#activateFromUser();
-    }
+  public handleClick(event: Event): void {
+    event.preventDefault();
+    this.#activateFromUser();
+  }
 
-    public handleDefaultSlotChange(): void {
-        this.#syncLabelState();
-        this.#syncAccessibilityState();
-    }
+  public handleDefaultSlotChange(): void {
+    this.#syncLabelState();
+    this.#syncAccessibilityState();
+  }
 
-    public handleSupportingSlotChange(): void {
-        this.#syncSupportingState();
-        if (this.$fastController.isConnected) {
-            Updates.enqueue(() => {
-                Updates.enqueue(() => {
-                    this.#syncAccessibilityState();
-                });
-            });
-        }
-    }
-
-    public checkedChanged(): void {
-        this.#syncAccessibilityState();
-        this.#syncTabIndex();
-    }
-
-    public disabledChanged(): void {
-        this.#syncErrorState();
-        this.#syncAccessibilityState();
-        this.#syncTabIndex();
-    }
-
-    public invalidChanged(): void {
-        this.#syncErrorState();
-        this.#syncAccessibilityState();
-    }
-
-    public errorTextChanged(): void {
-        this.#syncErrorState();
-    }
-
-    #setDisplayErrorText(next: string): void {
-        if (this._displayErrorText === next) {
-            return;
-        }
-        this._displayErrorText = next;
-        if (!this.$fastController.isConnected) {
-            return;
-        }
+  public handleSupportingSlotChange(): void {
+    this.#syncSupportingState();
+    if (this.$fastController.isConnected) {
+      Updates.enqueue(() => {
         Updates.enqueue(() => {
-            Updates.enqueue(() => {
-                this.#syncAccessibilityState();
-            });
+          this.#syncAccessibilityState();
         });
+      });
     }
+  }
 
-    #observeAncestorFieldsets(): void {
-        this.#fieldsetObserver.disconnect();
-        let node: Node | null = this.parentNode;
-        while (node) {
-            if (node instanceof HTMLFieldSetElement) {
-                this.#fieldsetObserver.observe(node, { attributes: true, attributeFilter: ["disabled"] });
-            }
-            node = node.parentNode;
-        }
+  public checkedChanged(): void {
+    this.#syncAccessibilityState();
+    this.#syncTabIndex();
+  }
+
+  public disabledChanged(): void {
+    this.#syncErrorState();
+    this.#syncAccessibilityState();
+    this.#syncTabIndex();
+  }
+
+  public invalidChanged(): void {
+    this.#syncErrorState();
+    this.#syncAccessibilityState();
+  }
+
+  public errorTextChanged(): void {
+    this.#syncErrorState();
+  }
+
+  #setDisplayErrorText(next: string): void {
+    if (this._displayErrorText === next) {
+      return;
     }
-
-    #syncFieldsetDisabled(): void {
-        const next = isDisabledByFieldset(this);
-        if (this.#disabledByFieldset === next) {
-            return;
-        }
-        this.#disabledByFieldset = next;
-        this.#syncErrorState();
+    this._displayErrorText = next;
+    if (!this.$fastController.isConnected) {
+      return;
+    }
+    Updates.enqueue(() => {
+      Updates.enqueue(() => {
         this.#syncAccessibilityState();
-        this.#syncTabIndex();
+      });
+    });
+  }
+
+  #observeAncestorFieldsets(): void {
+    this.#fieldsetObserver.disconnect();
+    let node: Node | null = this.parentNode;
+    while (node) {
+      if (node instanceof HTMLFieldSetElement) {
+        this.#fieldsetObserver.observe(node, { attributes: true, attributeFilter: ["disabled"] });
+      }
+      node = node.parentNode;
+    }
+  }
+
+  #syncFieldsetDisabled(): void {
+    const next = isDisabledByFieldset(this);
+    if (this.#disabledByFieldset === next) {
+      return;
+    }
+    this.#disabledByFieldset = next;
+    this.#syncErrorState();
+    this.#syncAccessibilityState();
+    this.#syncTabIndex();
+  }
+
+  public valueChanged(): void {
+    this.#syncAccessibilityState();
+  }
+
+  public get controlAriaLabel(): string | null {
+    const explicitLabel = this.getAttribute("aria-label");
+    if (explicitLabel) {
+      return explicitLabel;
     }
 
-    public valueChanged(): void {
-        this.#syncAccessibilityState();
+    const visibleLabel = this.#defaultSlotText();
+    return visibleLabel || null;
+  }
+
+  #activateFromUser(): void {
+    if (this.effectiveDisabled) {
+      return;
     }
 
-    public get controlAriaLabel(): string | null {
-        const explicitLabel = this.getAttribute("aria-label");
-        if (explicitLabel) {
-            return explicitLabel;
-        }
+    this.focus();
 
-        const visibleLabel = this.#defaultSlotText();
-        return visibleLabel || null;
+    if (this.checked) {
+      return;
     }
 
-    #activateFromUser(): void {
-        if (this.effectiveDisabled) {
-            return;
+    this.checked = true;
+    this.$emit("change", { checked: true, value: this.value });
+  }
+
+  #syncLabelState(): void {
+    this.hasLabel = this.#defaultSlotText().length > 0;
+  }
+
+  #syncSupportingState(): void {
+    const slot = this.shadowRoot?.querySelector(
+      'slot[name="supporting"]',
+    ) as HTMLSlotElement | null;
+    this.hasSupporting = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+
+      return true;
+    });
+  }
+
+  #syncErrorState(): void {
+    this.#setDisplayErrorText(
+      this.invalid && !this.effectiveDisabled ? (this.errorText ?? "").trim() : "",
+    );
+  }
+
+  #defaultSlotText(): string {
+    return Array.from(this.childNodes)
+      .filter((node) => {
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+          return true;
         }
 
-        this.focus();
+        return !(node as Element).hasAttribute("slot");
+      })
+      .map((node) => node.textContent ?? "")
+      .join(" ")
+      .trim();
+  }
 
-        if (this.checked) {
-            return;
-        }
+  #syncAccessibilityState(): void {
+    this.#internals.ariaChecked = this.checked ? "true" : "false";
+    this.#internals.ariaDisabled = this.effectiveDisabled ? "true" : "false";
+    this.#internals.ariaInvalid = this.invalid ? "true" : "false";
 
-        this.checked = true;
-        this.$emit("change", { checked: true, value: this.value });
+    const labelElement = this.shadowRoot?.querySelector(".label:not([hidden])");
+    const errorElement = this.shadowRoot?.querySelector(".error");
+    const supportingElement = this.shadowRoot?.querySelector(".supporting:not([hidden])");
+
+    if (labelElement instanceof Element) {
+      this.#internals.ariaLabelledByElements = [labelElement];
+      this.#internals.ariaLabel = null;
+    } else {
+      this.#internals.ariaLabelledByElements = null;
+      this.#internals.ariaLabel = this.controlAriaLabel ?? null;
     }
 
-    #syncLabelState(): void {
-        this.hasLabel = this.#defaultSlotText().length > 0;
+    if (this.hasAttribute("aria-describedby")) {
+      this.#internals.ariaDescribedByElements = null;
+      if ("ariaErrorMessageElements" in this.#internals) {
+        this.#internals.ariaErrorMessageElements =
+          errorElement instanceof Element ? [errorElement] : null;
+      }
+    } else {
+      const descriptionElement = errorElement ?? supportingElement;
+      this.#internals.ariaDescribedByElements =
+        descriptionElement instanceof Element ? [descriptionElement] : null;
+      if ("ariaErrorMessageElements" in this.#internals) {
+        this.#internals.ariaErrorMessageElements = null;
+      }
     }
 
-    #syncSupportingState(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="supporting"]') as HTMLSlotElement | null;
-        this.hasSupporting = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-
-            return true;
-        });
+    if (this.$fastController.isConnected) {
+      this.setAttribute("aria-checked", this.checked ? "true" : "false");
     }
 
-    #syncErrorState(): void {
-        this.#setDisplayErrorText(this.invalid && !this.effectiveDisabled ? (this.errorText ?? "").trim() : "");
+    if (this.effectiveDisabled) {
+      this.setAttribute("aria-disabled", "true");
+    } else {
+      this.removeAttribute("aria-disabled");
+    }
+  }
+
+  #syncTabIndex(): void {
+    if (!this.$fastController.isConnected) {
+      return;
     }
 
-    #defaultSlotText(): string {
-        return Array.from(this.childNodes)
-            .filter(node => {
-                if (node.nodeType !== Node.ELEMENT_NODE) {
-                    return true;
-                }
-
-                return !(node as Element).hasAttribute("slot");
-            })
-            .map(node => node.textContent ?? "")
-            .join(" ")
-            .trim();
+    if (this.effectiveDisabled) {
+      this.tabIndex = -1;
+      return;
     }
 
-    #syncAccessibilityState(): void {
-        this.#internals.ariaChecked = this.checked ? "true" : "false";
-        this.#internals.ariaDisabled = this.effectiveDisabled ? "true" : "false";
-        this.#internals.ariaInvalid = this.invalid ? "true" : "false";
+    this.tabIndex = this.#managedTabIndex ?? 0;
+  }
 
-        const labelElement = this.shadowRoot?.querySelector(".label:not([hidden])");
-        const errorElement = this.shadowRoot?.querySelector(".error");
-        const supportingElement = this.shadowRoot?.querySelector(".supporting:not([hidden])");
-
-        if (labelElement instanceof Element) {
-            this.#internals.ariaLabelledByElements = [labelElement];
-            this.#internals.ariaLabel = null;
-        } else {
-            this.#internals.ariaLabelledByElements = null;
-            this.#internals.ariaLabel = this.controlAriaLabel ?? null;
-        }
-
-        if (this.hasAttribute("aria-describedby")) {
-            this.#internals.ariaDescribedByElements = null;
-            if ("ariaErrorMessageElements" in this.#internals) {
-                this.#internals.ariaErrorMessageElements = errorElement instanceof Element ? [errorElement] : null;
-            }
-        } else {
-            const descriptionElement = errorElement ?? supportingElement;
-            this.#internals.ariaDescribedByElements = descriptionElement instanceof Element ? [descriptionElement] : null;
-            if ("ariaErrorMessageElements" in this.#internals) {
-                this.#internals.ariaErrorMessageElements = null;
-            }
-        }
-
-        if (this.$fastController.isConnected) {
-            this.setAttribute("aria-checked", this.checked ? "true" : "false");
-        }
-
-        if (this.effectiveDisabled) {
-            this.setAttribute("aria-disabled", "true");
-        } else {
-            this.removeAttribute("aria-disabled");
-        }
+  handleKeydown = (event: KeyboardEvent): void => {
+    if (event.defaultPrevented) {
+      return;
     }
 
-    #syncTabIndex(): void {
-        if (!this.$fastController.isConnected) {
-            return;
-        }
-
-        if (this.effectiveDisabled) {
-            this.tabIndex = -1;
-            return;
-        }
-
-        this.tabIndex = this.#managedTabIndex ?? 0;
+    if (event.key !== " " && event.key !== "Enter") {
+      return;
     }
 
-    handleKeydown = (event: KeyboardEvent): void => {
-        if (event.defaultPrevented) {
-            return;
-        }
+    if (this.closest("violet-radio-group")) {
+      return;
+    }
 
-        if (event.key !== " " && event.key !== "Enter") {
-            return;
-        }
-
-        if (this.closest("violet-radio-group")) {
-            return;
-        }
-
-        event.preventDefault();
-        this.#activateFromUser();
-    };
+    event.preventDefault();
+    this.#activateFromUser();
+  };
 }
 
 attr({ mode: "boolean" })(VioletRadio.prototype, "checked");
@@ -606,7 +623,7 @@ attr(VioletRadio.prototype, "value");
 
 /** The FAST definition of `<violet-radio>`; `defineVioletRadio` in `./violet-radio.define` registers it. */
 export const violetRadioDefinition = {
-    name: "violet-radio",
-    template,
-    styles,
+  name: "violet-radio",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

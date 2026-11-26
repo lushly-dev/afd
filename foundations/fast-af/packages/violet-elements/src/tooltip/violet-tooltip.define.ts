@@ -7,8 +7,10 @@ import { VioletTooltip, violetTooltipDefinition } from "./violet-tooltip";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletTooltip(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletTooltip, violetTooltipDefinition, registry);
+export async function defineVioletTooltip(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletTooltip, violetTooltipDefinition, registry);
 }
 
 await defineVioletTooltip();

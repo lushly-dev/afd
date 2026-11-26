@@ -1,4 +1,11 @@
-import { FASTElement, attr, css, html, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+  when,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -112,12 +119,12 @@ const styles = css`
 `;
 
 const template = html<VioletBadge>`
-    <span class="badge" part="badge" aria-hidden="${x => (x.decorative ? "true" : "false")}">
+    <span class="badge" part="badge" aria-hidden="${(x) => (x.decorative ? "true" : "false")}">
         ${when(
-            x => Boolean(x.icon),
-            html<VioletBadge>`
-                <violet-icon icon="${x => x.icon}" decorative="true" part="icon"></violet-icon>
-            `
+          (x) => Boolean(x.icon),
+          html<VioletBadge>`
+                <violet-icon icon="${(x) => x.icon}" decorative="true" part="icon"></violet-icon>
+            `,
         )}
         <span class="content" part="content">
             <slot></slot>
@@ -135,57 +142,57 @@ const template = html<VioletBadge>`
  * @csspart content - Wrapper around slotted badge content.
  */
 export class VioletBadge extends FASTElement {
-    declare public appearance: VioletBadgeAppearance;
-    declare public color: VioletBadgeColor;
-    declare public size: VioletBadgeSize;
-    declare public decorative: boolean;
-    declare public icon: string;
-    declare public label: string;
+  declare public appearance: VioletBadgeAppearance;
+  declare public color: VioletBadgeColor;
+  declare public size: VioletBadgeSize;
+  declare public decorative: boolean;
+  declare public icon: string;
+  declare public label: string;
 
-    public constructor() {
-        super();
-        this.label = "";
-        this.appearance = "filled";
-        this.color = "neutral";
-        this.size = "md";
-        this.decorative = false;
-        this.icon = "";
+  public constructor() {
+    super();
+    this.label = "";
+    this.appearance = "filled";
+    this.color = "neutral";
+    this.size = "md";
+    this.decorative = false;
+    this.icon = "";
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.syncAccessibilityState();
+  }
+
+  public decorativeChanged(): void {
+    this.syncAccessibilityState();
+  }
+
+  public labelChanged(): void {
+    this.syncAccessibilityState();
+  }
+
+  private syncAccessibilityState(): void {
+    if (this.decorative) {
+      this.setAttribute("aria-hidden", "true");
+      this.removeAttribute("aria-label");
+      this.removeAttribute("role");
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.syncAccessibilityState();
+    this.removeAttribute("aria-hidden");
+
+    const label = (this.label ?? "").trim();
+
+    if (label) {
+      this.setAttribute("role", "img");
+      this.setAttribute("aria-label", label);
+      return;
     }
 
-    public decorativeChanged(): void {
-        this.syncAccessibilityState();
-    }
-
-    public labelChanged(): void {
-        this.syncAccessibilityState();
-    }
-
-    private syncAccessibilityState(): void {
-        if (this.decorative) {
-            this.setAttribute("aria-hidden", "true");
-            this.removeAttribute("aria-label");
-            this.removeAttribute("role");
-            return;
-        }
-
-        this.removeAttribute("aria-hidden");
-
-        const label = (this.label ?? "").trim();
-
-        if (label) {
-            this.setAttribute("role", "img");
-            this.setAttribute("aria-label", label);
-            return;
-        }
-
-        this.removeAttribute("role");
-        this.removeAttribute("aria-label");
-    }
+    this.removeAttribute("role");
+    this.removeAttribute("aria-label");
+  }
 }
 
 attr(VioletBadge.prototype, "appearance");
@@ -197,7 +204,7 @@ attr(VioletBadge.prototype, "label");
 
 /** The FAST definition of `<violet-badge>`; `defineVioletBadge` in `./violet-badge.define` registers it. */
 export const violetBadgeDefinition = {
-    name: "violet-badge",
-    template,
-    styles,
+  name: "violet-badge",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

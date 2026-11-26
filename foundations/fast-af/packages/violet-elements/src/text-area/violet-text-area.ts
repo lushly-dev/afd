@@ -1,29 +1,37 @@
-import { FASTElement, Updates, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  Updates,
+  when,
+} from "@lushly-dev/fast-element";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
+import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
 const rowConverter = {
-    fromView(value: string | null): number {
-        const parsed = Number(value);
-        return Number.isFinite(parsed) && parsed > 0 ? parsed : 4;
-    },
-    toView(value: number): string {
-        return String(value);
-    },
+  fromView(value: string | null): number {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 4;
+  },
+  toView(value: number): string {
+    return String(value);
+  },
 };
 
 const maxlengthConverter = {
-    fromView(value: unknown): number | null {
-        if (value === null || value === undefined || value === "") {
-            return null;
-        }
-        const parsed = Number(value);
-        return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
-    },
-    toView(value: number | null): string | null {
-        return value === null || value === undefined ? null : String(value);
-    },
+  fromView(value: unknown): number | null {
+    if (value === null || value === undefined || value === "") {
+      return null;
+    }
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+  },
+  toView(value: number | null): string | null {
+    return value === null || value === undefined ? null : String(value);
+  },
 };
 
 const styles = css`
@@ -181,41 +189,41 @@ const styles = css`
 const template = html<VioletTextArea>`
     <div class="field" part="field">
         ${when(
-            x => Boolean(x.label),
-            html<VioletTextArea>`
-                <label class="label" part="label" for="${x => x.inputId}">${x => x.label}</label>
+          (x) => Boolean(x.label),
+          html<VioletTextArea>`
+                <label class="label" part="label" for="${(x) => x.inputId}">${(x) => x.label}</label>
             `,
         )}
         <div class="control-frame" part="control-frame">
             <slot name="before" part="before"></slot>
             <textarea
-                id="${x => x.inputId}"
+                id="${(x) => x.inputId}"
                 class="control"
                 part="control"
-                name="${x => x.name}"
-                rows="${x => x.rows}"
-                placeholder="${x => x.placeholder}"
-                maxlength="${x => x.maxLength ?? void 0}"
-                aria-describedby="${x => (x.displayErrorText ? x.errorId : x.supportingText ? x.supportingId : void 0)}"
-                :value="${x => x.value ?? ""}"
-                ?disabled="${x => x.effectiveDisabled}"
-                ?readonly="${x => x.readonly}"
-                ?required="${x => x.required}"
-                aria-invalid="${x => x.invalid ? "true" : "false"}"
+                name="${(x) => x.name}"
+                rows="${(x) => x.rows}"
+                placeholder="${(x) => x.placeholder}"
+                maxlength="${(x) => x.maxLength ?? void 0}"
+                aria-describedby="${(x) => (x.displayErrorText ? x.errorId : x.supportingText ? x.supportingId : void 0)}"
+                :value="${(x) => x.value ?? ""}"
+                ?disabled="${(x) => x.effectiveDisabled}"
+                ?readonly="${(x) => x.readonly}"
+                ?required="${(x) => x.required}"
+                aria-invalid="${(x) => (x.invalid ? "true" : "false")}"
                 @input="${(x, c) => x.handleInput(c.event)}"
                 @change="${(x, c) => x.handleCommit(c.event)}"
             ></textarea>
         </div>
         ${when(
-            x => !x.displayErrorText && Boolean(x.supportingText),
-            html<VioletTextArea>`
-                <p id="${x => x.supportingId}" class="supporting" part="supporting-text">${x => x.supportingText}</p>
+          (x) => !x.displayErrorText && Boolean(x.supportingText),
+          html<VioletTextArea>`
+                <p id="${(x) => x.supportingId}" class="supporting" part="supporting-text">${(x) => x.supportingText}</p>
             `,
         )}
         ${when(
-            x => Boolean(x.displayErrorText),
-            html<VioletTextArea>`
-                <p id="${x => x.errorId}" class="error" part="error-message" role="alert">${x => x.displayErrorText}</p>
+          (x) => Boolean(x.displayErrorText),
+          html<VioletTextArea>`
+                <p id="${(x) => x.errorId}" class="error" part="error-message" role="alert">${(x) => x.displayErrorText}</p>
             `,
         )}
     </div>
@@ -239,274 +247,278 @@ let violetTextAreaCount = 0;
  * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletTextArea extends FASTElement {
-    public static readonly formAssociated = true;
+  public static readonly formAssociated = true;
 
-    readonly #internals: ElementInternals;
-    #syncScheduled = false;
-    #defaultValue: string;
+  readonly #internals: ElementInternals;
+  #syncScheduled = false;
+  #defaultValue: string;
 
-    public readonly inputId: string;
+  public readonly inputId: string;
 
-    /**
-     * Id of the supporting text, which describes the textarea.
-     */
-    public readonly supportingId: string;
+  /**
+   * Id of the supporting text, which describes the textarea.
+   */
+  public readonly supportingId: string;
 
-    /**
-     * Id of the error message, which describes the textarea while invalid.
-     */
-    public readonly errorId: string;
+  /**
+   * Id of the error message, which describes the textarea while invalid.
+   */
+  public readonly errorId: string;
 
-    /**
-     * Backing state for `displayErrorText`.
-     */
-    @observable
-    private _displayErrorText = "";
+  /**
+   * Backing state for `displayErrorText`.
+   */
+  @observable
+  private _displayErrorText = "";
 
-    /**
-     * Active error message rendered while the field is invalid.
-     */
-    public get displayErrorText(): string {
-        return this._displayErrorText;
+  /**
+   * Active error message rendered while the field is invalid.
+   */
+  public get displayErrorText(): string {
+    return this._displayErrorText;
+  }
+
+  /**
+   * Optional field label.
+   */
+  declare public label: string;
+
+  /**
+   * Optional placeholder text.
+   */
+  declare public placeholder: string;
+
+  /**
+   * Current textarea value.
+   */
+  declare public value: string;
+
+  /**
+   * Optional supporting text shown below the field.
+   */
+  declare public supportingText: string;
+
+  /**
+   * Optional error message shown while the field is invalid.
+   */
+  declare public errorText: string;
+
+  /**
+   * Maximum number of characters, forwarded to the native textarea.
+   */
+  declare public maxLength: number | null;
+
+  /**
+   * Number of visible rows.
+   */
+  declare public rows: number;
+
+  /**
+   * Disables the field.
+   */
+  declare public disabled: boolean;
+
+  /**
+   * True while an ancestor `<fieldset disabled>` disables the control.
+   */
+  declare public fieldsetDisabled: boolean;
+
+  /**
+   * Author `disabled` or fieldset-disabled.
+   */
+  declare public readonly effectiveDisabled: boolean;
+
+  /**
+   * Marks the field readonly.
+   */
+  declare public readonly: boolean;
+
+  /**
+   * Marks the field invalid.
+   */
+  declare public invalid: boolean;
+
+  /**
+   * Native form name used during submission.
+   */
+  declare public name: string;
+
+  /**
+   * Marks the field as required.
+   */
+  declare public required: boolean;
+
+  public constructor() {
+    super();
+    this.#internals = this.attachInternals();
+    violetTextAreaCount += 1;
+    this.inputId = `violet-text-area-${violetTextAreaCount}`;
+    this.supportingId = `${this.inputId}-supporting`;
+    this.errorId = `${this.inputId}-error`;
+    this.label = "";
+    this.placeholder = "";
+    this.value = "";
+    this.supportingText = "";
+    this.errorText = "";
+    this.maxLength = null;
+    this.rows = 4;
+    this.disabled = false;
+    this.readonly = false;
+    this.invalid = false;
+    this.name = "";
+    this.required = false;
+    this.#defaultValue = "";
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.#defaultValue = this.getAttribute("value") ?? this.value ?? "";
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  public handleInput(event: Event): void {
+    // The native `input` is composed and would reach the host as a second event; this element emits its own.
+    event.stopPropagation();
+    const control = event.currentTarget as HTMLTextAreaElement | null;
+    this.value = control?.value ?? "";
+    this.$emit("input", { value: this.value });
+  }
+
+  public handleCommit(event: Event): void {
+    const control = event.currentTarget as HTMLTextAreaElement | null;
+    this.value = control?.value ?? "";
+    this.$emit("change", { value: this.value });
+  }
+
+  public formStateRestoreCallback(state: File | string | FormData | null): void {
+    if (typeof state === "string") {
+      this.value = state;
+    }
+  }
+
+  public formResetCallback(): void {
+    this.value = this.#defaultValue;
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  public get form(): HTMLFormElement | null {
+    return this.#internals.form;
+  }
+
+  public get validity(): ValidityState {
+    return this.#internals.validity;
+  }
+
+  public get validationMessage(): string {
+    return this.#internals.validationMessage;
+  }
+
+  public get willValidate(): boolean {
+    return this.#internals.willValidate;
+  }
+
+  public checkValidity(): boolean {
+    return this.#internals.checkValidity();
+  }
+
+  public reportValidity(): boolean {
+    return this.#internals.reportValidity();
+  }
+
+  public valueChanged(): void {
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  public disabledChanged(): void {
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  public invalidChanged(): void {
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  public errorTextChanged(): void {
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  public readonlyChanged(): void {
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  public requiredChanged(): void {
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  #scheduleSync(): void {
+    if (this.#syncScheduled || !this.$fastController.isConnected) {
+      return;
     }
 
-    /**
-     * Optional field label.
-     */
-    declare public label: string;
-
-    /**
-     * Optional placeholder text.
-     */
-    declare public placeholder: string;
-
-    /**
-     * Current textarea value.
-     */
-    declare public value: string;
-
-    /**
-     * Optional supporting text shown below the field.
-     */
-    declare public supportingText: string;
-
-    /**
-     * Optional error message shown while the field is invalid.
-     */
-    declare public errorText: string;
-
-    /**
-     * Maximum number of characters, forwarded to the native textarea.
-     */
-    declare public maxLength: number | null;
-
-    /**
-     * Number of visible rows.
-     */
-    declare public rows: number;
-
-    /**
-     * Disables the field.
-     */
-    declare public disabled: boolean;
-
-    /**
-     * True while an ancestor `<fieldset disabled>` disables the control.
-     */
-    declare public fieldsetDisabled: boolean;
-
-    /**
-     * Author `disabled` or fieldset-disabled.
-     */
-    declare public readonly effectiveDisabled: boolean;
-
-    /**
-     * Marks the field readonly.
-     */
-    declare public readonly: boolean;
-
-    /**
-     * Marks the field invalid.
-     */
-    declare public invalid: boolean;
-
-    /**
-     * Native form name used during submission.
-     */
-    declare public name: string;
-
-    /**
-     * Marks the field as required.
-     */
-    declare public required: boolean;
-
-    public constructor() {
-        super();
-        this.#internals = this.attachInternals();
-        violetTextAreaCount += 1;
-        this.inputId = `violet-text-area-${violetTextAreaCount}`;
-        this.supportingId = `${this.inputId}-supporting`;
-        this.errorId = `${this.inputId}-error`;
-        this.label = "";
-        this.placeholder = "";
-        this.value = "";
-        this.supportingText = "";
-        this.errorText = "";
-        this.maxLength = null;
-        this.rows = 4;
-        this.disabled = false;
-        this.readonly = false;
-        this.invalid = false;
-        this.name = "";
-        this.required = false;
-        this.#defaultValue = "";
-    }
-
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.#defaultValue = this.getAttribute("value") ?? this.value ?? "";
+    this.#syncScheduled = true;
+    Updates.enqueue(() => {
+      Updates.enqueue(() => {
+        this.#syncScheduled = false;
         this.#syncFormState();
-        this.#scheduleSync();
+      });
+    });
+  }
+
+  #setDisplayErrorText(next: string): void {
+    if (this._displayErrorText === next) {
+      return;
+    }
+    this._displayErrorText = next;
+  }
+
+  #syncFormState(): void {
+    if (!this.$fastController.isConnected) {
+      return;
     }
 
-    public handleInput(event: Event): void {
-        // The native `input` is composed and would reach the host as a second event; this element emits its own.
-        event.stopPropagation();
-        const control = event.currentTarget as HTMLTextAreaElement | null;
-        this.value = control?.value ?? "";
-        this.$emit("input", { value: this.value });
+    const control = this.shadowRoot?.querySelector("textarea") as HTMLTextAreaElement | null;
+    const value = this.value ?? "";
+
+    this.#internals.ariaInvalid = this.invalid ? "true" : "false";
+    this.#internals.setFormValue(this.effectiveDisabled ? null : value);
+
+    if (this.effectiveDisabled || this.readonly) {
+      this.#setDisplayErrorText("");
+      this.#internals.setValidity({});
+      return;
     }
 
-    public handleCommit(event: Event): void {
-        const control = event.currentTarget as HTMLTextAreaElement | null;
-        this.value = control?.value ?? "";
-        this.$emit("change", { value: this.value });
+    if (this.invalid) {
+      const customError = (this.errorText ?? "").trim();
+      this.#setDisplayErrorText(customError || control?.validationMessage || "");
+      this.#internals.setValidity(
+        { customError: true },
+        customError || "Please correct this field.",
+        control ?? undefined,
+      );
+      return;
     }
 
-    public formStateRestoreCallback(state: File | string | FormData | null): void {
-        if (typeof state === "string") {
-            this.value = state;
-        }
+    this.#setDisplayErrorText("");
+
+    if (this.required && !value.trim()) {
+      this.#internals.setValidity(
+        { valueMissing: true },
+        "Please fill out this field.",
+        control ?? undefined,
+      );
+      return;
     }
 
-    public formResetCallback(): void {
-        this.value = this.#defaultValue;
-        this.#syncFormState();
-        this.#scheduleSync();
-    }
-
-    public get form(): HTMLFormElement | null {
-        return this.#internals.form;
-    }
-
-    public get validity(): ValidityState {
-        return this.#internals.validity;
-    }
-
-    public get validationMessage(): string {
-        return this.#internals.validationMessage;
-    }
-
-    public get willValidate(): boolean {
-        return this.#internals.willValidate;
-    }
-
-    public checkValidity(): boolean {
-        return this.#internals.checkValidity();
-    }
-
-    public reportValidity(): boolean {
-        return this.#internals.reportValidity();
-    }
-
-    public valueChanged(): void {
-        this.#syncFormState();
-        this.#scheduleSync();
-    }
-
-    public disabledChanged(): void {
-        this.#syncFormState();
-        this.#scheduleSync();
-    }
-
-    public invalidChanged(): void {
-        this.#syncFormState();
-        this.#scheduleSync();
-    }
-
-    public errorTextChanged(): void {
-        this.#syncFormState();
-        this.#scheduleSync();
-    }
-
-    public readonlyChanged(): void {
-        this.#syncFormState();
-        this.#scheduleSync();
-    }
-
-    public requiredChanged(): void {
-        this.#syncFormState();
-        this.#scheduleSync();
-    }
-
-    #scheduleSync(): void {
-        if (this.#syncScheduled || !this.$fastController.isConnected) {
-            return;
-        }
-
-        this.#syncScheduled = true;
-        Updates.enqueue(() => {
-            Updates.enqueue(() => {
-                this.#syncScheduled = false;
-                this.#syncFormState();
-            });
-        });
-    }
-
-    #setDisplayErrorText(next: string): void {
-        if (this._displayErrorText === next) {
-            return;
-        }
-        this._displayErrorText = next;
-    }
-
-    #syncFormState(): void {
-        if (!this.$fastController.isConnected) {
-            return;
-        }
-
-        const control = this.shadowRoot?.querySelector("textarea") as HTMLTextAreaElement | null;
-        const value = this.value ?? "";
-
-        this.#internals.ariaInvalid = this.invalid ? "true" : "false";
-        this.#internals.setFormValue(this.effectiveDisabled ? null : value);
-
-        if (this.effectiveDisabled || this.readonly) {
-            this.#setDisplayErrorText("");
-            this.#internals.setValidity({});
-            return;
-        }
-
-        if (this.invalid) {
-            const customError = (this.errorText ?? "").trim();
-            this.#setDisplayErrorText(customError || control?.validationMessage || "");
-            this.#internals.setValidity(
-                { customError: true },
-                customError || "Please correct this field.",
-                control ?? undefined,
-            );
-            return;
-        }
-
-        this.#setDisplayErrorText("");
-
-        if (this.required && !value.trim()) {
-            this.#internals.setValidity({ valueMissing: true }, "Please fill out this field.", control ?? undefined);
-            return;
-        }
-
-        this.#internals.setValidity({});
-    }
+    this.#internals.setValidity({});
+  }
 }
 
 attr(VioletTextArea.prototype, "label");
@@ -515,7 +527,10 @@ attr(VioletTextArea.prototype, "placeholder");
 attr({ mode: "fromView" })(VioletTextArea.prototype, "value");
 attr({ attribute: "supporting-text" })(VioletTextArea.prototype, "supportingText");
 attr({ attribute: "error-text" })(VioletTextArea.prototype, "errorText");
-attr({ attribute: "maxlength", converter: maxlengthConverter })(VioletTextArea.prototype, "maxLength");
+attr({ attribute: "maxlength", converter: maxlengthConverter })(
+  VioletTextArea.prototype,
+  "maxLength",
+);
 attr({ converter: rowConverter })(VioletTextArea.prototype, "rows");
 attr({ mode: "boolean" })(VioletTextArea.prototype, "disabled");
 installFormDisabled(VioletTextArea.prototype);
@@ -526,10 +541,10 @@ attr({ mode: "boolean" })(VioletTextArea.prototype, "required");
 
 /** The FAST definition of `<violet-text-area>`; `defineVioletTextArea` in `./violet-text-area.define` registers it. */
 export const violetTextAreaDefinition = {
-    name: "violet-text-area",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-text-area",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

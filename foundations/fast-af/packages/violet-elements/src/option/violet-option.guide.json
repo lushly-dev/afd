@@ -5,16 +5,12 @@
     {
       "id": "option.value",
       "text": "The value attribute defaults to the option's text when omitted. Selection is matched by value, so every option under one parent needs a distinct value.",
-      "members": [
-        "value"
-      ]
+      "members": ["value"]
     },
     {
       "id": "option.label",
       "text": "The label attribute replaces the option's text for the select trigger, the combobox input, filtering and type-ahead; the slotted content still renders. Text in named slots never counts as the label.",
-      "members": [
-        "label"
-      ]
+      "members": ["label"]
     },
     {
       "id": "option.slots",
@@ -31,25 +27,19 @@
     {
       "id": "option.active",
       "text": "The parent sets active on the keyboard-active row. Style it with [active], --violet-option-active-background and --violet-option-active-ring.",
-      "members": [
-        "active"
-      ]
+      "members": ["active"]
     }
   ],
   "a11y": [
     {
       "id": "option.name",
       "text": "The label attribute is not applied as an accessible name; assistive technology reads the option's content. Keep label matching the visible text.",
-      "members": [
-        "label"
-      ]
+      "members": ["label"]
     },
     {
       "id": "option.disabled",
       "text": "A disabled option, or any option in a disabled violet-option-group, gets aria-disabled and is skipped by arrow keys and type-ahead and cannot be chosen.",
-      "members": [
-        "disabled"
-      ]
+      "members": ["disabled"]
     }
   ]
 }

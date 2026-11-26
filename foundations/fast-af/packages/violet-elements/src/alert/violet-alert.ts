@@ -1,10 +1,16 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 import { registerSystemCheckmarkIcon } from "../icon/generated/icons/system-checkmark";
 import { registerSystemCloseIcon } from "../icon/generated/icons/system-close";
 import { registerSystemDismissIcon } from "../icon/generated/icons/system-dismiss";
 import { registerSystemWarningIcon } from "../icon/generated/icons/system-warning";
+import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -204,20 +210,20 @@ const styles = css`
 const template = html<VioletAlert>`
     <violet-card class="frame" part="root" appearance="outline" padding="medium">
         <div class="layout" part="layout">
-            <span class="leading" part="icon" ?hidden="${x => !x.showLeading}">
-                <slot class="icon-slot" name="icon" @slotchange="${x => x.handleIconSlotChange()}"></slot>
-                ${x => (x.hasIcon ? html`` : x.defaultIconTemplate)}
+            <span class="leading" part="icon" ?hidden="${(x) => !x.showLeading}">
+                <slot class="icon-slot" name="icon" @slotchange="${(x) => x.handleIconSlotChange()}"></slot>
+                ${(x) => (x.hasIcon ? html`` : x.defaultIconTemplate)}
             </span>
 
             <div class="body" part="body">
                 <div
                     class="copy"
                     part="copy"
-                    role="${x => x.liveRegionRole || null}"
-                    aria-live="${x => x.liveRegionPoliteness || null}"
+                    role="${(x) => x.liveRegionRole || null}"
+                    aria-live="${(x) => x.liveRegionPoliteness || null}"
                 >
-                    <p class="title" part="title" ?hidden="${x => !x.hasTitle}">
-                        <slot name="title" @slotchange="${x => x.handleTitleSlotChange()}"></slot>
+                    <p class="title" part="title" ?hidden="${(x) => !x.hasTitle}">
+                        <slot name="title" @slotchange="${(x) => x.handleTitleSlotChange()}"></slot>
                     </p>
                     <div class="content" part="content">
                         <slot></slot>
@@ -226,10 +232,10 @@ const template = html<VioletAlert>`
                 <div
                     class="actions"
                     part="actions"
-                    ?hidden="${x => !x.hasActions}"
-                    ?data-single-action="${x => x.hasSingleAction}"
+                    ?hidden="${(x) => !x.hasActions}"
+                    ?data-single-action="${(x) => x.hasSingleAction}"
                 >
-                    <slot name="actions" @slotchange="${x => x.handleActionsSlotChange()}"></slot>
+                    <slot name="actions" @slotchange="${(x) => x.handleActionsSlotChange()}"></slot>
                 </div>
             </div>
 
@@ -238,8 +244,8 @@ const template = html<VioletAlert>`
                 part="dismiss-button"
                 appearance="transparent"
                 label="Dismiss alert"
-                ?hidden="${x => !x.dismissible}"
-                @click="${x => x.handleDismiss()}"
+                ?hidden="${(x) => !x.dismissible}"
+                @click="${(x) => x.handleDismiss()}"
             >
                 <violet-icon icon="system/close" decorative></violet-icon>
             </violet-icon-button>
@@ -266,122 +272,125 @@ const template = html<VioletAlert>`
  * @csspart dismiss-button - Optional dismiss button.
  */
 export class VioletAlert extends FASTElement {
-    @observable
-    declare public hasTitle: boolean;
+  @observable
+  declare public hasTitle: boolean;
 
-    @observable
-    declare public hasActions: boolean;
+  @observable
+  declare public hasActions: boolean;
 
-    @observable
-    declare public hasSingleAction: boolean;
+  @observable
+  declare public hasSingleAction: boolean;
 
-    @observable
-    declare public hasIcon: boolean;
+  @observable
+  declare public hasIcon: boolean;
 
-    declare public tone: string;
-    declare public announcement: string;
-    declare public dismissible: boolean;
+  declare public tone: string;
+  declare public announcement: string;
+  declare public dismissible: boolean;
 
-    public constructor() {
-        super();
-        this.hasTitle = false;
-        this.hasActions = false;
-        this.hasSingleAction = false;
-        this.hasIcon = false;
-        this.tone = "default";
-        this.announcement = "off";
-        this.dismissible = false;
+  public constructor() {
+    super();
+    this.hasTitle = false;
+    this.hasActions = false;
+    this.hasSingleAction = false;
+    this.hasIcon = false;
+    this.tone = "default";
+    this.announcement = "off";
+    this.dismissible = false;
+  }
+
+  public connectedCallback(): void {
+    // Before the first render, so the first alert of a tone draws its own icon, not the fallback.
+    registerSystemCheckmarkIcon();
+    registerSystemCloseIcon();
+    registerSystemDismissIcon();
+    registerSystemWarningIcon();
+    super.connectedCallback();
+    this.handleTitleSlotChange();
+    this.handleActionsSlotChange();
+    this.handleIconSlotChange();
+  }
+
+  public get showLeading(): boolean {
+    return (
+      this.hasIcon || this.tone === "success" || this.tone === "warning" || this.tone === "danger"
+    );
+  }
+
+  public get liveRegionRole(): "alert" | "status" | null {
+    if (this.announcement === "assertive") {
+      return "alert";
     }
 
-    public connectedCallback(): void {
-        // Before the first render, so the first alert of a tone draws its own icon, not the fallback.
-        registerSystemCheckmarkIcon();
-        registerSystemCloseIcon();
-        registerSystemDismissIcon();
-        registerSystemWarningIcon();
-        super.connectedCallback();
-        this.handleTitleSlotChange();
-        this.handleActionsSlotChange();
-        this.handleIconSlotChange();
+    if (this.announcement === "polite") {
+      return "status";
     }
 
-    public get showLeading(): boolean {
-        return this.hasIcon || this.tone === "success" || this.tone === "warning" || this.tone === "danger";
+    return null;
+  }
+
+  public get liveRegionPoliteness(): "assertive" | "polite" | null {
+    if (this.announcement === "assertive") {
+      return "assertive";
     }
 
-    public get liveRegionRole(): "alert" | "status" | null {
-        if (this.announcement === "assertive") {
-            return "alert";
-        }
-
-        if (this.announcement === "polite") {
-            return "status";
-        }
-
-        return null;
+    if (this.announcement === "polite") {
+      return "polite";
     }
 
-    public get liveRegionPoliteness(): "assertive" | "polite" | null {
-        if (this.announcement === "assertive") {
-            return "assertive";
-        }
+    return null;
+  }
 
-        if (this.announcement === "polite") {
-            return "polite";
-        }
-
-        return null;
+  public get defaultIconTemplate() {
+    if (this.tone === "success") {
+      return html`<violet-icon icon="system/checkmark" decorative></violet-icon>`;
     }
 
-    public get defaultIconTemplate() {
-        if (this.tone === "success") {
-            return html`<violet-icon icon="system/checkmark" decorative></violet-icon>`;
-        }
-
-        if (this.tone === "danger") {
-            return html`<violet-icon icon="system/dismiss" decorative></violet-icon>`;
-        }
-
-        if (this.tone === "warning") {
-            return html`<violet-icon icon="system/warning" decorative></violet-icon>`;
-        }
-
-        return html``;
+    if (this.tone === "danger") {
+      return html`<violet-icon icon="system/dismiss" decorative></violet-icon>`;
     }
 
-    public handleTitleSlotChange(): void {
-        this.hasTitle = this.#slotHasContent('slot[name="title"]');
+    if (this.tone === "warning") {
+      return html`<violet-icon icon="system/warning" decorative></violet-icon>`;
     }
 
-    public handleActionsSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="actions"]') as HTMLSlotElement | null;
-        const meaningfulNodes = (slot?.assignedNodes({ flatten: true }) ?? []).filter(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return node.nodeType === Node.ELEMENT_NODE;
-        });
-        this.hasActions = meaningfulNodes.length > 0;
-        this.hasSingleAction = meaningfulNodes.length === 1 && meaningfulNodes[0]?.nodeType === Node.ELEMENT_NODE;
-    }
+    return html``;
+  }
 
-    public handleIconSlotChange(): void {
-        this.hasIcon = this.#slotHasContent('slot[name="icon"]');
-    }
+  public handleTitleSlotChange(): void {
+    this.hasTitle = this.#slotHasContent('slot[name="title"]');
+  }
 
-    public handleDismiss(): void {
-        this.$emit("dismiss");
-    }
+  public handleActionsSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="actions"]') as HTMLSlotElement | null;
+    const meaningfulNodes = (slot?.assignedNodes({ flatten: true }) ?? []).filter((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return node.nodeType === Node.ELEMENT_NODE;
+    });
+    this.hasActions = meaningfulNodes.length > 0;
+    this.hasSingleAction =
+      meaningfulNodes.length === 1 && meaningfulNodes[0]?.nodeType === Node.ELEMENT_NODE;
+  }
 
-    #slotHasContent(selector: string): boolean {
-        const slot = this.shadowRoot?.querySelector(selector) as HTMLSlotElement | null;
-        return (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
+  public handleIconSlotChange(): void {
+    this.hasIcon = this.#slotHasContent('slot[name="icon"]');
+  }
+
+  public handleDismiss(): void {
+    this.$emit("dismiss");
+  }
+
+  #slotHasContent(selector: string): boolean {
+    const slot = this.shadowRoot?.querySelector(selector) as HTMLSlotElement | null;
+    return (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
 }
 
 export type VioletAlertTone = "default" | "info" | "success" | "warning" | "danger";
@@ -393,10 +402,10 @@ attr({ mode: "boolean" })(VioletAlert.prototype, "dismissible");
 
 /** The FAST definition of `<violet-alert>`; `defineVioletAlert` in `./violet-alert.define` registers it. */
 export const violetAlertDefinition = {
-    name: "violet-alert",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-alert",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

@@ -1,16 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import "./violet-gantt.define";
-import type {
-  VioletGantt,
-  VioletGanttItem,
-  VioletGanttRow,
-} from "./violet-gantt";
+import type { VioletGantt, VioletGanttItem, VioletGanttRow } from "./violet-gantt";
 
 const settle = () =>
   new Promise<void>((resolve) =>
     requestAnimationFrame(() =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-    )
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    ),
   );
 
 const rows: VioletGanttRow[] = [
@@ -47,7 +43,7 @@ const items: VioletGanttItem[] = [
 
 async function mount(
   overrides: Partial<VioletGantt> = {},
-  attributes: Record<string, string> = {}
+  attributes: Record<string, string> = {},
 ): Promise<VioletGantt> {
   const element = document.createElement("violet-gantt") as VioletGantt;
   element.style.cssText = "display:block;width:760px;height:320px";
@@ -59,21 +55,17 @@ async function mount(
     endExclusive: "2028-03-10",
     scale: "day",
   };
-  for (const [name, value] of Object.entries(attributes))
-    element.setAttribute(name, value);
+  for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value);
   Object.assign(element, overrides);
   document.body.append(element);
   await settle();
   return element;
 }
 
-const normalise = (text: string | null | undefined) =>
-  (text ?? "").replace(/\s/g, " ");
+const normalise = (text: string | null | undefined) => (text ?? "").replace(/\s/g, " ");
 
 function pressOnRow(element: VioletGantt, rowId: string, init: KeyboardEventInit) {
-  const row = element.shadowRoot!.querySelector<HTMLElement>(
-    `.row[data-row-id="${rowId}"]`
-  )!;
+  const row = element.shadowRoot!.querySelector<HTMLElement>(`.row[data-row-id="${rowId}"]`)!;
   const event = new KeyboardEvent("keydown", {
     bubbles: true,
     cancelable: true,
@@ -99,12 +91,8 @@ describe("violet-gantt accessibility details", () => {
     expect(label).toContain("Build. work.");
     expect(label).toContain("Feb 28 – Mar 3, 2028 (5 days)");
     expect(label).not.toMatch(/exclusive|2028-0/);
-    expect(normalise(mark("single").getAttribute("aria-label"))).toContain(
-      "Mar 1, 2028 (1 day)"
-    );
-    expect(normalise(mark("point").getAttribute("aria-label"))).toContain(
-      "Mar 5, 2028"
-    );
+    expect(normalise(mark("single").getAttribute("aria-label"))).toContain("Mar 1, 2028 (1 day)");
+    expect(normalise(mark("point").getAttribute("aria-label"))).toContain("Mar 5, 2028");
   });
 
   it("only adds a row-label tooltip when a description supplies extra information", async () => {
@@ -116,9 +104,7 @@ describe("violet-gantt accessibility details", () => {
       items: [],
     });
     const label = (id: string) =>
-      element.shadowRoot!.querySelector<HTMLElement>(
-        `.row[data-row-id="${id}"] .row-label`
-      )!;
+      element.shadowRoot!.querySelector<HTMLElement>(`.row[data-row-id="${id}"] .row-label`)!;
 
     expect(label("plain").hasAttribute("title")).toBe(false);
     expect(label("described").getAttribute("title")).toBe("More detail");
@@ -127,30 +113,24 @@ describe("violet-gantt accessibility details", () => {
   it("does not reflect a default aria-label onto the generic host", async () => {
     const element = await mount();
     expect(element.hasAttribute("aria-label")).toBe(false);
-    expect(
-      element.shadowRoot!.querySelector('[role="treegrid"]')!.getAttribute(
-        "aria-label"
-      )
-    ).toBe("Timeline");
+    expect(element.shadowRoot!.querySelector('[role="treegrid"]')!.getAttribute("aria-label")).toBe(
+      "Timeline",
+    );
 
     element.ariaLabel = "Release plan";
     await settle();
     expect(element.hasAttribute("aria-label")).toBe(false);
-    expect(
-      element.shadowRoot!.querySelector('[role="treegrid"]')!.getAttribute(
-        "aria-label"
-      )
-    ).toBe("Release plan");
+    expect(element.shadowRoot!.querySelector('[role="treegrid"]')!.getAttribute("aria-label")).toBe(
+      "Release plan",
+    );
   });
 
   it("still accepts an aria-label attribute as the treegrid name", async () => {
     const element = await mount({}, { "aria-label": "Harvest schedule" });
     expect(element.ariaLabel).toBe("Harvest schedule");
-    expect(
-      element.shadowRoot!.querySelector('[role="treegrid"]')!.getAttribute(
-        "aria-label"
-      )
-    ).toBe("Harvest schedule");
+    expect(element.shadowRoot!.querySelector('[role="treegrid"]')!.getAttribute("aria-label")).toBe(
+      "Harvest schedule",
+    );
   });
 
   it("claims Alt+Arrow only when the row has items to move between", async () => {
@@ -181,17 +161,15 @@ describe("violet-gantt accessibility details", () => {
       await settle();
       const requests: string[][] = [];
       element.addEventListener("expanded-change", (event) => {
-        requests.push(
-          [...(event as CustomEvent<{ expandedRowIds: string[] }>).detail.expandedRowIds]
-        );
+        requests.push([
+          ...(event as CustomEvent<{ expandedRowIds: string[] }>).detail.expandedRowIds,
+        ]);
       });
 
       pressOnRow(element, "group", { key: collapseKey });
       expect(requests, `${dir} ${collapseKey} on a collapsed group`).toEqual([]);
       pressOnRow(element, "group", { key: expandKey });
-      expect(requests, `${dir} ${expandKey} on a collapsed group`).toEqual([
-        ["group"],
-      ]);
+      expect(requests, `${dir} ${expandKey} on a collapsed group`).toEqual([["group"]]);
     }
   });
 });

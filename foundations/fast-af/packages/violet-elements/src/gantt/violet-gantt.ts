@@ -1,4 +1,13 @@
-import { attr, FASTElement, html, observable, repeat, Updates, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  repeat,
+  Updates,
+  when,
+} from "@lushly-dev/fast-element";
 import { violetGanttStyles } from "./violet-gantt.styles";
 import {
   ganttClippedGeometry,
@@ -23,11 +32,7 @@ export type VioletGanttTime =
   | { kind: "day-point"; at: VioletGanttDate };
 
 export type VioletGanttPresentation = "work" | "window" | "milestone";
-export type VioletGanttProvenance =
-  | "planned"
-  | "derived"
-  | "actual"
-  | "advisory";
+export type VioletGanttProvenance = "planned" | "derived" | "actual" | "advisory";
 export type VioletGanttScale = "day" | "week" | "month";
 export type VioletGanttDensity = "compact" | "natural" | "comfortable";
 
@@ -176,7 +181,7 @@ const dateTimeFormatCache = new Map<string, Intl.DateTimeFormat>();
 /** Reuses `Intl.DateTimeFormat` instances; constructing one per label per scroll frame is costly. */
 function cachedDateTimeFormat(
   locale: string,
-  options: Intl.DateTimeFormatOptions
+  options: Intl.DateTimeFormatOptions,
 ): Intl.DateTimeFormat {
   const key = `${locale}|${JSON.stringify(options)}`;
   let formatter = dateTimeFormatCache.get(key);
@@ -191,9 +196,9 @@ function elementFromPath(event: Event, attribute: string): HTMLElement | null {
   return (
     (event
       .composedPath()
-      .find(
-        (node) => node instanceof HTMLElement && node.hasAttribute(attribute)
-      ) as HTMLElement | undefined) ?? null
+      .find((node) => node instanceof HTMLElement && node.hasAttribute(attribute)) as
+      | HTMLElement
+      | undefined) ?? null
   );
 }
 
@@ -247,14 +252,13 @@ const rowTemplate = html<RenderedRow>`
             tabindex="-1"
             data-action="toggle"
             data-row-id="${(x) => x.row.id}"
-            aria-label="${(x) =>
-              `${x.expanded ? "Collapse" : "Expand"} ${x.row.label}`}"
+            aria-label="${(x) => `${x.expanded ? "Collapse" : "Expand"} ${x.row.label}`}"
             aria-expanded="${(x) => String(x.expanded)}"
           >
             ${(x) => (x.expanded ? "▾" : "▸")}
           </button>
         `,
-        html`<span class="expander-placeholder" aria-hidden="true"></span>`
+        html`<span class="expander-placeholder" aria-hidden="true"></span>`,
       )}
       <button
         class="row-label"
@@ -281,7 +285,7 @@ const rowTemplate = html<RenderedRow>`
           >
             ›
           </button>
-        `
+        `,
       )}
       ${when(
         (x) => x.overflowCount > 0 && !x.singleItemOverflow,
@@ -318,7 +322,7 @@ const rowTemplate = html<RenderedRow>`
               ›
             </button>
           </div>
-        `
+        `,
       )}
     </div>
     <div class="chart" part="chart" role="gridcell">
@@ -357,8 +361,7 @@ const template = html<VioletGantt>`
     >
       <slot
         name="toolbar"
-        @slotchange="${(x, context) =>
-          x.handleToolbarSlotChange(context.event)}"
+        @slotchange="${(x, context) => x.handleToolbarSlotChange(context.event)}"
       ></slot>
     </div>
     <div
@@ -433,13 +436,12 @@ const template = html<VioletGantt>`
             class="status"
             part="status"
             data-kind="${(x) => x.effectiveStatusKind}"
-            role="${(x) =>
-              x.effectiveStatusKind === "error" ? "alert" : "status"}"
+            role="${(x) => (x.effectiveStatusKind === "error" ? "alert" : "status")}"
             aria-live="polite"
           >
             ${(x) => x.statusText}
           </div>
-        `
+        `,
       )}
     </div>
   </section>
@@ -495,58 +497,58 @@ const template = html<VioletGantt>`
  */
 export class VioletGantt extends FASTElement {
   /** Controlled logical rows. */
-  public declare rows: readonly VioletGanttRow[];
+  declare public rows: readonly VioletGanttRow[];
 
   /** Controlled read-only items. */
-  public declare items: readonly VioletGanttItem[];
+  declare public items: readonly VioletGanttItem[];
 
   /** Controlled expanded group row identities. */
-  public declare expandedRowIds: readonly string[];
+  declare public expandedRowIds: readonly string[];
 
   /** Controlled selected item identity. Selection does not move keyboard focus. */
-  public declare selectedItemId: string | null;
+  declare public selectedItemId: string | null;
 
   /** Controlled half-open viewport and scale. */
-  public declare viewport: VioletGanttViewport;
+  declare public viewport: VioletGanttViewport;
 
   /** Consumer-owned surface status. */
-  public declare status: VioletGanttStatus;
+  declare public status: VioletGanttStatus;
 
   /** Explicit consumer-supplied calendar day for `showToday`; null disables the action. */
-  public declare today: VioletGanttDate | null;
+  declare public today: VioletGanttDate | null;
 
   /** Count of presented logical rows; observable so `aria-rowcount` tracks row and expansion changes. */
-  public declare presentedRowCount: number;
+  declare public presentedRowCount: number;
 
   /** Mounted rows for the current measured viewport plus overscan. */
-  public declare renderedRows: RenderedRow[];
+  declare public renderedRows: RenderedRow[];
 
   /** Mounted day headers for the horizontal viewport plus overscan. */
-  public declare renderedDays: RenderedDay[];
+  declare public renderedDays: RenderedDay[];
 
   /** Visible calendar context for the leading day in the horizontal window. */
-  public declare axisContextLabel: string;
+  declare public axisContextLabel: string;
 
-  public declare axisContextStyle: string;
+  declare public axisContextStyle: string;
 
-  public declare validationMessage: string;
-  public declare viewportError: string;
-  public declare activeRowId: string | null;
-  public declare activeItemId: string | null;
-  public declare viewportWidth: number;
-  public declare viewportHeight: number;
-  public declare scrollTop: number;
-  public declare scrollLeft: number;
-  public declare hasToolbarContent: boolean;
+  declare public validationMessage: string;
+  declare public viewportError: string;
+  declare public activeRowId: string | null;
+  declare public activeItemId: string | null;
+  declare public viewportWidth: number;
+  declare public viewportHeight: number;
+  declare public scrollTop: number;
+  declare public scrollLeft: number;
+  declare public hasToolbarContent: boolean;
 
   /** Density controls the minimum logical row height; rows grow to fit visible item lanes. */
-  public declare density: VioletGanttDensity;
+  declare public density: VioletGanttDensity;
 
   /** BCP 47 locale used only for visible calendar labels. */
-  public declare locale: string;
+  declare public locale: string;
 
   /** Accessible name for the treegrid. */
-  public declare ariaLabel: string;
+  declare public ariaLabel: string;
 
   readonly #instanceId = ++ganttInstanceId;
   #presentedRows: PresentedRow[] = [];
@@ -703,8 +705,7 @@ export class VioletGantt extends FASTElement {
     const kind = this.#resolvedStatusKind;
     if (kind !== "ready") {
       if (!this.#isValidStatus) return "Invalid timeline status.";
-      const message =
-        typeof this.status.message === "string" ? this.status.message : "";
+      const message = typeof this.status.message === "string" ? this.status.message : "";
       return (
         message ||
         (
@@ -720,9 +721,7 @@ export class VioletGantt extends FASTElement {
   }
   public get shouldShowStatus(): boolean {
     return Boolean(
-      this.viewportError ||
-        this.#resolvedStatusKind !== "ready" ||
-        this.validationMessage
+      this.viewportError || this.#resolvedStatusKind !== "ready" || this.validationMessage,
     );
   }
 
@@ -738,14 +737,9 @@ export class VioletGantt extends FASTElement {
     const slot =
       event?.currentTarget instanceof HTMLSlotElement
         ? event.currentTarget
-        : (this.shadowRoot?.querySelector(
-            'slot[name="toolbar"]'
-          ) as HTMLSlotElement | null);
-    this.hasToolbarContent = (
-      slot?.assignedNodes({ flatten: true }) ?? []
-    ).some((node) => {
-      if (node.nodeType === Node.TEXT_NODE)
-        return Boolean(node.textContent?.trim());
+        : (this.shadowRoot?.querySelector('slot[name="toolbar"]') as HTMLSlotElement | null);
+    this.hasToolbarContent = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) return Boolean(node.textContent?.trim());
       return true;
     });
   }
@@ -777,8 +771,7 @@ export class VioletGantt extends FASTElement {
     if (action?.dataset.action === "cycle-overflow" && rowId) {
       this.activeRowId = rowId;
       this.#cycleItem(rowId, action.dataset.direction === "previous" ? -1 : 1);
-      if (action.classList.contains("single-item-overflow"))
-        this.#scheduleFocus(rowId);
+      if (action.classList.contains("single-item-overflow")) this.#scheduleFocus(rowId);
       return;
     }
 
@@ -786,14 +779,12 @@ export class VioletGantt extends FASTElement {
     const itemId = itemElement?.dataset.itemId;
     if (!itemId) return;
     const renderedRow = this.renderedRows.find((row) =>
-      row.items.some((item) => item.item.id === itemId)
+      row.items.some((item) => item.item.id === itemId),
     );
     this.activeRowId = renderedRow?.row.id ?? this.activeRowId;
     this.activeItemId = itemId;
     const item = renderedRow
-      ? this.#itemsByRowId
-          .get(renderedRow.row.id)
-          ?.find((candidate) => candidate.id === itemId)
+      ? this.#itemsByRowId.get(renderedRow.row.id)?.find((candidate) => candidate.id === itemId)
       : undefined;
     if (item) this.#revealItem(item);
     this.$emit("item-selection-change", {
@@ -806,20 +797,14 @@ export class VioletGantt extends FASTElement {
   }
 
   public handleKeydown(event: KeyboardEvent): void {
-    if (event.composedPath().some((node) => node instanceof HTMLButtonElement))
-      return;
+    if (event.composedPath().some((node) => node instanceof HTMLButtonElement)) return;
     const rowElement = elementFromPath(event, "data-row-id");
     const rowId = rowElement?.dataset.rowId ?? this.activeRowId;
-    const index = rowId
-      ? this.#presentedRows.findIndex((row) => row.row.id === rowId)
-      : -1;
+    const index = rowId ? this.#presentedRows.findIndex((row) => row.row.id === rowId) : -1;
     if (index < 0) return;
     const current = this.#presentedRows[index];
 
-    if (
-      event.altKey &&
-      (event.key === "ArrowRight" || event.key === "ArrowLeft")
-    ) {
+    if (event.altKey && (event.key === "ArrowRight" || event.key === "ArrowLeft")) {
       // Only claim Alt+Arrow when there is an item to move to, so rows without
       // items leave the browser's Alt+Left/Right history shortcuts alone.
       if (this.#cycleItem(current.row.id, event.key === "ArrowRight" ? 1 : -1))
@@ -827,10 +812,7 @@ export class VioletGantt extends FASTElement {
       return;
     }
 
-    const pageDistance = Math.max(
-      this.rowHeight,
-      this.viewportHeight - HEADER_HEIGHT
-    );
+    const pageDistance = Math.max(this.rowHeight, this.viewportHeight - HEADER_HEIGHT);
     // Tree expand/collapse follows reading direction: in RTL, Left expands.
     const rtl = getComputedStyle(this).direction === "rtl";
     const key =
@@ -861,10 +843,8 @@ export class VioletGantt extends FASTElement {
         this.#focusRow(
           Math.max(
             index + 1,
-            this.#rowIndexAtOffset(
-              (this.#rowLayouts[index]?.top ?? 0) + pageDistance
-            )
-          )
+            this.#rowIndexAtOffset((this.#rowLayouts[index]?.top ?? 0) + pageDistance),
+          ),
         );
         break;
       case "PageUp":
@@ -872,29 +852,20 @@ export class VioletGantt extends FASTElement {
         this.#focusRow(
           Math.min(
             index - 1,
-            this.#rowIndexAtOffset(
-              (this.#rowLayouts[index]?.top ?? 0) - pageDistance
-            )
-          )
+            this.#rowIndexAtOffset((this.#rowLayouts[index]?.top ?? 0) - pageDistance),
+          ),
         );
         break;
       case "Expand":
         event.preventDefault();
-        if (current.hasChildren && !current.expanded)
-          this.#requestExpanded(current.row.id);
-        else if (current.hasChildren && current.expanded)
-          this.#focusRow(index + 1);
+        if (current.hasChildren && !current.expanded) this.#requestExpanded(current.row.id);
+        else if (current.hasChildren && current.expanded) this.#focusRow(index + 1);
         break;
       case "Collapse":
         event.preventDefault();
-        if (current.hasChildren && current.expanded)
-          this.#requestExpanded(current.row.id);
+        if (current.hasChildren && current.expanded) this.#requestExpanded(current.row.id);
         else if (current.parentId)
-          this.#focusRow(
-            this.#presentedRows.findIndex(
-              (row) => row.row.id === current.parentId
-            )
-          );
+          this.#focusRow(this.#presentedRows.findIndex((row) => row.row.id === current.parentId));
         break;
       case "Enter": {
         event.preventDefault();
@@ -906,8 +877,7 @@ export class VioletGantt extends FASTElement {
         }
         const keyboardItems = this.#keyboardItemsForRow(current);
         const activeItem =
-          keyboardItems.find((item) => item.id === this.activeItemId) ??
-          keyboardItems[0];
+          keyboardItems.find((item) => item.id === this.activeItemId) ?? keyboardItems[0];
         if (activeItem) {
           this.activeItemId = activeItem.id;
           this.$emit("item-selection-change", {
@@ -936,20 +906,17 @@ export class VioletGantt extends FASTElement {
   /** Focuses and reveals an item when its logical row and date are in the current viewport. */
   public focusItem(itemId: string): boolean {
     const rowIndex = this.#presentedRows.findIndex((row) =>
-      this.#itemsByRowId.get(row.row.id)?.some((item) => item.id === itemId)
+      this.#itemsByRowId.get(row.row.id)?.some((item) => item.id === itemId),
     );
     if (rowIndex < 0) return false;
     const row = this.#presentedRows[rowIndex];
     if (!row) return false;
-    const item = this.#itemsByRowId
-      .get(row.row.id)
-      ?.find((candidate) => candidate.id === itemId);
+    const item = this.#itemsByRowId.get(row.row.id)?.find((candidate) => candidate.id === itemId);
     const range = this.#viewportDays;
     if (
       !item ||
       !range ||
-      (item.time &&
-        !ganttTimeIntersects(item.time, range.start, range.endExclusive))
+      (item.time && !ganttTimeIntersects(item.time, range.start, range.endExclusive))
     )
       return false;
     this.activeItemId = itemId;
@@ -967,10 +934,7 @@ export class VioletGantt extends FASTElement {
       const centered = this.#centeredViewport(day, range.count);
       if (!centered) return false;
       this.#pendingRevealDay = day;
-      this.#emitViewport(
-        { ...centered, scale: this.viewport.scale },
-        "programmatic"
-      );
+      this.#emitViewport({ ...centered, scale: this.viewport.scale }, "programmatic");
       this.#applyPendingDateReveal();
       return true;
     }
@@ -978,7 +942,7 @@ export class VioletGantt extends FASTElement {
     if (viewport)
       viewport.scrollLeft = Math.max(
         0,
-        (day - range.start) * this.dayWidth - this.#nameColumnWidth
+        (day - range.start) * this.dayWidth - this.#nameColumnWidth,
       );
     return true;
   }
@@ -990,10 +954,7 @@ export class VioletGantt extends FASTElement {
     const start = ganttDayToDate(range.start + days);
     const endExclusive = ganttDayToDate(range.endExclusive + days);
     if (!this.#isSupportedViewport(start, endExclusive)) return false;
-    this.#emitViewport(
-      { start, endExclusive, scale: this.viewport.scale },
-      "pan"
-    );
+    this.#emitViewport({ start, endExclusive, scale: this.viewport.scale }, "pan");
     return true;
   }
 
@@ -1021,34 +982,25 @@ export class VioletGantt extends FASTElement {
         const bounds = ganttTimeBounds(item.time);
         if (!bounds) continue;
         first = Math.min(first, bounds.start);
-        last = Math.max(
-          last,
-          bounds.point ? bounds.start + 1 : bounds.endExclusive
-        );
+        last = Math.max(last, bounds.point ? bounds.start + 1 : bounds.endExclusive);
       }
     }
     if (!Number.isFinite(first) || !Number.isFinite(last)) return false;
-    const paddedStart = Math.max(
-      ganttDateToDay(VIOLET_GANTT_DATE_LIMITS.min) ?? first,
-      first - 1
-    );
+    const paddedStart = Math.max(ganttDateToDay(VIOLET_GANTT_DATE_LIMITS.min) ?? first, first - 1);
     const paddedEnd = Math.min(
       ganttDateToDay(VIOLET_GANTT_DATE_LIMITS.endExclusive) ?? last,
-      last + 1
+      last + 1,
     );
     const start = ganttDayToDate(paddedStart);
     const endExclusive = ganttDayToDate(paddedEnd);
     if (!this.#isSupportedViewport(start, endExclusive)) return false;
-    this.#emitViewport(
-      { start, endExclusive, scale: this.viewport.scale },
-      "fit"
-    );
+    this.#emitViewport({ start, endExclusive, scale: this.viewport.scale }, "fit");
     return true;
   }
 
   #emitViewport(
     viewport: VioletGanttViewport,
-    reason: VioletGanttViewportChangeDetail["reason"]
+    reason: VioletGanttViewportChangeDetail["reason"],
   ): void {
     this.$emit("viewport-change", {
       viewport,
@@ -1056,16 +1008,8 @@ export class VioletGantt extends FASTElement {
     } satisfies VioletGanttViewportChangeDetail);
   }
 
-  #requestViewportFill(range: {
-    start: number;
-    endExclusive: number;
-    count: number;
-  }): void {
-    if (
-      this.#resolvedStatusKind === "loading" ||
-      this.#resolvedStatusKind === "error"
-    )
-      return;
+  #requestViewportFill(range: { start: number; endExclusive: number; count: number }): void {
+    if (this.#resolvedStatusKind === "loading" || this.#resolvedStatusKind === "error") return;
     const viewport = this.#scrollElement;
     if (!viewport) return;
     const available = viewport.clientWidth - this.#nameColumnWidth;
@@ -1086,7 +1030,7 @@ export class VioletGantt extends FASTElement {
     const requestedEnd = Math.min(
       range.start + VIOLET_GANTT_DATE_LIMITS.maxViewportDays,
       range.start + requestedDays,
-      endLimit
+      endLimit,
     );
     if (requestedEnd <= range.endExclusive) return;
     const endExclusive = ganttDayToDate(requestedEnd);
@@ -1101,7 +1045,7 @@ export class VioletGantt extends FASTElement {
 
   #sameViewport(
     first: VioletGanttViewport | null | undefined,
-    second: VioletGanttViewport | null | undefined
+    second: VioletGanttViewport | null | undefined,
   ): boolean {
     return (
       first?.start === second?.start &&
@@ -1120,10 +1064,7 @@ export class VioletGantt extends FASTElement {
     }
     const viewport = this.#scrollElement;
     if (!viewport) return false;
-    const available = Math.max(
-      this.dayWidth,
-      this.viewportWidth - this.#nameColumnWidth
-    );
+    const available = Math.max(this.dayWidth, this.viewportWidth - this.#nameColumnWidth);
     const left = (day - range.start) * this.dayWidth;
     viewport.scrollLeft = Math.max(0, left - available / 2 + this.dayWidth / 2);
     this.scrollLeft = viewport.scrollLeft;
@@ -1156,7 +1097,7 @@ export class VioletGantt extends FASTElement {
     const expanded = new Set(
       Array.isArray(this.expandedRowIds)
         ? this.expandedRowIds.filter((id) => typeof id === "string")
-        : []
+        : [],
     );
     if (expanded.has(rowId)) expanded.delete(rowId);
     else expanded.add(rowId);
@@ -1166,9 +1107,7 @@ export class VioletGantt extends FASTElement {
   }
 
   #cycleItem(rowId: string, direction: 1 | -1): boolean {
-    const row = this.#presentedRows.find(
-      (candidate) => candidate.row.id === rowId
-    );
+    const row = this.#presentedRows.find((candidate) => candidate.row.id === rowId);
     if (!row) return false;
     const items = this.#keyboardItemsForRow(row);
     if (items.length === 0) return false;
@@ -1192,17 +1131,12 @@ export class VioletGantt extends FASTElement {
     this.#rowLayouts = this.#presentedRows.map((row) => {
       const items = (this.#itemsByRowId.get(row.row.id) ?? []).filter(
         (item) =>
-          !item.time ||
-          (range &&
-            ganttTimeIntersects(item.time, range.start, range.endExclusive))
+          !item.time || (range && ganttTimeIntersects(item.time, range.start, range.endExclusive)),
       );
-      const visibleLaneCount = Math.min(
-        MAX_VISIBLE_ITEM_LANES,
-        Math.max(1, items.length)
-      );
+      const visibleLaneCount = Math.min(MAX_VISIBLE_ITEM_LANES, Math.max(1, items.length));
       const renderedHeight = Math.max(
         minimumHeight,
-        visibleLaneCount * ITEM_LANE_HEIGHT + ITEM_LANE_BREATHING_ROOM
+        visibleLaneCount * ITEM_LANE_HEIGHT + ITEM_LANE_BREATHING_ROOM,
       );
       const layout = {
         top: totalHeight,
@@ -1218,10 +1152,7 @@ export class VioletGantt extends FASTElement {
 
   #rowIndexAtOffset(offset: number): number {
     if (this.#rowLayouts.length === 0) return -1;
-    const target = Math.max(
-      0,
-      Math.min(offset, Math.max(0, this.#bodyHeight - 1))
-    );
+    const target = Math.max(0, Math.min(offset, Math.max(0, this.#bodyHeight - 1)));
     let low = 0;
     let high = this.#rowLayouts.length;
     while (low < high) {
@@ -1237,14 +1168,8 @@ export class VioletGantt extends FASTElement {
     const viewport = this.#scrollElement;
     const viewportHeight = viewport?.clientHeight ?? this.viewportHeight;
     if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return;
-    const maximum = Math.max(
-      0,
-      HEADER_HEIGHT + this.#bodyHeight - viewportHeight
-    );
-    const next = Math.max(
-      0,
-      Math.min(viewport?.scrollTop ?? this.scrollTop, maximum)
-    );
+    const maximum = Math.max(0, HEADER_HEIGHT + this.#bodyHeight - viewportHeight);
+    const next = Math.max(0, Math.min(viewport?.scrollTop ?? this.scrollTop, maximum));
     if (viewport && viewport.scrollTop !== next) viewport.scrollTop = next;
     this.scrollTop = next;
   }
@@ -1259,12 +1184,10 @@ export class VioletGantt extends FASTElement {
     const viewport = this.#scrollElement;
     if (viewport) {
       const visibleTop = viewport.scrollTop;
-      const visibleBottom =
-        viewport.scrollTop + Math.max(0, viewport.clientHeight - HEADER_HEIGHT);
+      const visibleBottom = viewport.scrollTop + Math.max(0, viewport.clientHeight - HEADER_HEIGHT);
       if (layout.top < visibleTop) viewport.scrollTop = layout.top;
       else if (layout.top + layout.height > visibleBottom)
-        viewport.scrollTop =
-          layout.top + layout.height - (viewport.clientHeight - HEADER_HEIGHT);
+        viewport.scrollTop = layout.top + layout.height - (viewport.clientHeight - HEADER_HEIGHT);
       this.scrollTop = viewport.scrollTop;
     }
     this.#renderWindow();
@@ -1307,26 +1230,15 @@ export class VioletGantt extends FASTElement {
       this.axisContextStyle = "";
       return;
     }
-    const availableHeight = Math.max(
-      this.rowHeight,
-      this.viewportHeight - HEADER_HEIGHT
-    );
+    const availableHeight = Math.max(this.rowHeight, this.viewportHeight - HEADER_HEIGHT);
     const focusedRowId = this.#focusedRowId;
     const retainedRowId = this.#pendingFocusRowId ?? focusedRowId;
     const firstVisibleRow = this.#rowIndexAtOffset(this.scrollTop);
-    const lastVisibleRow = this.#rowIndexAtOffset(
-      this.scrollTop + availableHeight
-    );
+    const lastVisibleRow = this.#rowIndexAtOffset(this.scrollTop + availableHeight);
     const firstRow = Math.max(0, firstVisibleRow - OVERSCAN_ROWS);
-    const lastRow = Math.min(
-      this.#presentedRows.length,
-      lastVisibleRow + 1 + OVERSCAN_ROWS
-    );
+    const lastRow = Math.min(this.#presentedRows.length, lastVisibleRow + 1 + OVERSCAN_ROWS);
     const rowIndexes = new Set(
-      Array.from(
-        { length: Math.max(0, lastRow - firstRow) },
-        (_, offset) => firstRow + offset
-      )
+      Array.from({ length: Math.max(0, lastRow - firstRow) }, (_, offset) => firstRow + offset),
     );
     const focusedIndex = retainedRowId
       ? this.#presentedRows.findIndex((row) => row.row.id === retainedRowId)
@@ -1340,59 +1252,43 @@ export class VioletGantt extends FASTElement {
       });
     if (this.#pendingFocusRowId) this.#scheduleFocus(this.#pendingFocusRowId);
 
-    const chartViewportWidth = Math.max(
-      this.dayWidth,
-      this.viewportWidth - this.#nameColumnWidth
-    );
-    const firstDay = Math.max(
-      0,
-      Math.floor(this.scrollLeft / this.dayWidth) - OVERSCAN_DAYS
-    );
+    const chartViewportWidth = Math.max(this.dayWidth, this.viewportWidth - this.#nameColumnWidth);
+    const firstDay = Math.max(0, Math.floor(this.scrollLeft / this.dayWidth) - OVERSCAN_DAYS);
     const lastDay = Math.min(
       range.count,
-      Math.ceil((this.scrollLeft + chartViewportWidth) / this.dayWidth) +
-        OVERSCAN_DAYS
+      Math.ceil((this.scrollLeft + chartViewportWidth) / this.dayWidth) + OVERSCAN_DAYS,
     );
     const firstVisibleDay = Math.min(
       range.endExclusive - 1,
-      range.start + Math.max(0, Math.floor(this.scrollLeft / this.dayWidth))
+      range.start + Math.max(0, Math.floor(this.scrollLeft / this.dayWidth)),
     );
     const lastVisibleDay = Math.min(
       range.endExclusive - 1,
-      range.start +
-        Math.ceil((this.scrollLeft + chartViewportWidth) / this.dayWidth) -
-        1
+      range.start + Math.ceil((this.scrollLeft + chartViewportWidth) / this.dayWidth) - 1,
     );
     this.axisContextLabel = this.#monthYearLabel(firstVisibleDay);
     if (this.viewport.scale === "month") {
       const lastYear = this.#monthYearLabel(lastVisibleDay);
-      if (lastYear !== this.axisContextLabel)
-        this.axisContextLabel += ` – ${lastYear}`;
+      if (lastYear !== this.axisContextLabel) this.axisContextLabel += ` – ${lastYear}`;
     }
     this.axisContextStyle = `--_axis-context-left:${this.scrollLeft + 8}px;`;
-    this.renderedDays = Array.from(
-      { length: Math.max(0, lastDay - firstDay) },
-      (_, offset) => {
-        const index = firstDay + offset;
-        const day = range.start + index;
-        const date = ganttDayToDate(day);
-        const labelSpan = Math.min(
-          this.#dayLabelSpan(day),
-          range.endExclusive - day
-        );
-        const gridBoundary = this.#isGridBoundary(day);
-        return {
-          date,
-          label: this.#dayLabel(day, firstVisibleDay),
-          title: this.#fullDayLabel(day),
-          style: `--_day-left:${index * this.dayWidth}px;--_day-width:${
-            this.dayWidth
-          }px;--_day-label-width:${labelSpan * this.dayWidth}px;`,
-          gridStyle: `--_grid-left:${index * this.dayWidth}px;`,
-          gridBoundary,
-        };
-      }
-    );
+    this.renderedDays = Array.from({ length: Math.max(0, lastDay - firstDay) }, (_, offset) => {
+      const index = firstDay + offset;
+      const day = range.start + index;
+      const date = ganttDayToDate(day);
+      const labelSpan = Math.min(this.#dayLabelSpan(day), range.endExclusive - day);
+      const gridBoundary = this.#isGridBoundary(day);
+      return {
+        date,
+        label: this.#dayLabel(day, firstVisibleDay),
+        title: this.#fullDayLabel(day),
+        style: `--_day-left:${index * this.dayWidth}px;--_day-width:${
+          this.dayWidth
+        }px;--_day-label-width:${labelSpan * this.dayWidth}px;`,
+        gridStyle: `--_grid-left:${index * this.dayWidth}px;`,
+        gridBoundary,
+      };
+    });
     this.#requestViewportFill(range);
   }
 
@@ -1411,8 +1307,7 @@ export class VioletGantt extends FASTElement {
       indentStyle: `--_row-indent:${Math.max(0, row.level - 1) * 16}px;`,
       items,
       tabIndex:
-        this.activeRowId === row.row.id ||
-        (!this.activeRowId && row.logicalIndex === 0)
+        this.activeRowId === row.row.id || (!this.activeRowId && row.logicalIndex === 0)
           ? "0"
           : "-1",
       activeDescendant: activeItem?.elementId ?? null,
@@ -1427,8 +1322,7 @@ export class VioletGantt extends FASTElement {
     singleItemOverflow: boolean;
   } {
     const range = this.#viewportDays;
-    if (!range)
-      return { items: [], overflowCount: 0, singleItemOverflow: false };
+    if (!range) return { items: [], overflowCount: 0, singleItemOverflow: false };
     const visible = this.#horizontalDayWindow(range);
     const sourceItems = this.#itemsByRowId.get(row.row.id) ?? [];
     const geometries = sourceItems.flatMap((item) => {
@@ -1447,16 +1341,13 @@ export class VioletGantt extends FASTElement {
             ]
           : [];
       }
-      if (
-        !visible ||
-        !ganttTimeIntersects(item.time, visible.start, visible.endExclusive)
-      )
+      if (!visible || !ganttTimeIntersects(item.time, visible.start, visible.endExclusive))
         return [];
       const geometry = ganttClippedGeometry(
         item.time,
         range.start,
         range.endExclusive,
-        this.dayWidth
+        this.dayWidth,
       );
       return geometry ? [{ item, ...geometry, unscheduled: false }] : [];
     });
@@ -1465,41 +1356,27 @@ export class VioletGantt extends FASTElement {
     const itemCapacity = layout?.laneCapacity ?? 1;
     let mounted = geometries.slice(0, itemCapacity);
     const activeIndex = geometries.findIndex(
-      (geometry) =>
-        geometry.item.id === this.activeItemId &&
-        row.row.id === this.activeRowId
+      (geometry) => geometry.item.id === this.activeItemId && row.row.id === this.activeRowId,
     );
     const activeGeometry = geometries[activeIndex];
     if (activeIndex >= itemCapacity && itemCapacity > 0 && activeGeometry)
       mounted = [...mounted.slice(0, -1), activeGeometry];
-    const laneTop = Math.max(
-      2,
-      (rowHeight - mounted.length * ITEM_LANE_HEIGHT) / 2
-    );
+    const laneTop = Math.max(2, (rowHeight - mounted.length * ITEM_LANE_HEIGHT) / 2);
     const items = mounted.map((geometry, index) => {
       const item = geometry.item;
       const selected = item.id === this.selectedItemId;
-      const active =
-        item.id === this.activeItemId && row.row.id === this.activeRowId;
+      const active = item.id === this.activeItemId && row.row.id === this.activeRowId;
       const preferredWidth = geometry.point
-        ? Math.min(
-            POINT_LABEL_MAX_WIDTH,
-            Math.max(120, item.label.length * 7 + 24)
-          )
+        ? Math.min(POINT_LABEL_MAX_WIDTH, Math.max(120, item.label.length * 7 + 24))
         : Math.max(ITEM_LANE_HEIGHT, geometry.width);
       const pointAfterSpace = this.chartWidth - (geometry.left - 6);
       const pointBeforeSpace = geometry.left + 6;
       const labelBefore =
-        geometry.point &&
-        preferredWidth > pointAfterSpace &&
-        pointBeforeSpace > pointAfterSpace;
+        geometry.point && preferredWidth > pointAfterSpace && pointBeforeSpace > pointAfterSpace;
       const width = geometry.point
         ? Math.max(
             ITEM_LANE_HEIGHT,
-            Math.min(
-              preferredWidth,
-              labelBefore ? pointBeforeSpace : pointAfterSpace
-            )
+            Math.min(preferredWidth, labelBefore ? pointBeforeSpace : pointAfterSpace),
           )
         : preferredWidth;
       const left = geometry.point
@@ -1508,9 +1385,7 @@ export class VioletGantt extends FASTElement {
           : geometry.left - 6
         : geometry.left;
       const narrowInterval =
-        !geometry.point &&
-        !geometry.unscheduled &&
-        geometry.width < ITEM_LANE_HEIGHT;
+        !geometry.point && !geometry.unscheduled && geometry.width < ITEM_LANE_HEIGHT;
       const className = [
         "item",
         item.presentation === "milestone" ? "milestone" : "",
@@ -1536,7 +1411,7 @@ export class VioletGantt extends FASTElement {
           laneTop + index * ITEM_LANE_HEIGHT
         }px;--_item-height:${ITEM_LANE_HEIGHT}px;--_item-geometry-width:${Math.max(
           2,
-          geometry.width
+          geometry.width,
         )}px;inline-size:${width}px;`,
         className,
         partName,
@@ -1550,7 +1425,7 @@ export class VioletGantt extends FASTElement {
     const keyboardItems = this.#keyboardItemsForRow(row);
     const overflowCount = keyboardItems.reduce(
       (count, item) => count + (mountedIds.has(item.id) ? 0 : 1),
-      0
+      0,
     );
     return {
       items,
@@ -1563,9 +1438,7 @@ export class VioletGantt extends FASTElement {
     const range = this.#viewportDays;
     if (!range) return [];
     return (this.#itemsByRowId.get(row.row.id) ?? []).filter(
-      (item) =>
-        !item.time ||
-        ganttTimeIntersects(item.time, range.start, range.endExclusive)
+      (item) => !item.time || ganttTimeIntersects(item.time, range.start, range.endExclusive),
     );
   }
 
@@ -1579,14 +1452,8 @@ export class VioletGantt extends FASTElement {
       const bounds = ganttTimeBounds(item.time);
       if (bounds) {
         const left = (bounds.start - range.start) * this.dayWidth;
-        const available = Math.max(
-          this.dayWidth,
-          this.viewportWidth - this.#nameColumnWidth
-        );
-        if (
-          left < this.scrollLeft ||
-          left > this.scrollLeft + available - this.dayWidth
-        ) {
+        const available = Math.max(this.dayWidth, this.viewportWidth - this.#nameColumnWidth);
+        if (left < this.scrollLeft || left > this.scrollLeft + available - this.dayWidth) {
           viewport.scrollLeft = Math.max(0, left - available / 2);
         }
       }
@@ -1598,17 +1465,14 @@ export class VioletGantt extends FASTElement {
   #elementIdForItem(itemId: string): string {
     const existing = this.#itemElementIdById.get(itemId);
     if (existing) return existing;
-    const next = `violet-gantt-${this.#instanceId}-item-${++this
-      .#nextItemElementId}`;
+    const next = `violet-gantt-${this.#instanceId}-item-${++this.#nextItemElementId}`;
     this.#itemElementIdById.set(itemId, next);
     return next;
   }
 
   #itemLabel(item: VioletGanttItem): string {
     const time = this.#itemTimeLabel(item.time);
-    const reason = item.readOnlyReason
-      ? `. Read only: ${item.readOnlyReason}`
-      : ". Read only.";
+    const reason = item.readOnlyReason ? `. Read only: ${item.readOnlyReason}` : ". Read only.";
     return `${item.label}. ${item.presentation}. ${time}. ${
       item.provenance
     }${reason}${item.note ? ` ${item.note}` : ""}`;
@@ -1623,9 +1487,7 @@ export class VioletGantt extends FASTElement {
     });
     if (time.kind === "day-point") {
       const day = ganttDateToDay(time.at);
-      return day === null
-        ? time.at
-        : formatter.format(new Date(day * MILLISECONDS_PER_DAY));
+      return day === null ? time.at : formatter.format(new Date(day * MILLISECONDS_PER_DAY));
     }
     const start = ganttDateToDay(time.start);
     const endExclusive = ganttDateToDay(time.endExclusive);
@@ -1636,32 +1498,19 @@ export class VioletGantt extends FASTElement {
     const range =
       days === 1
         ? formatter.format(first)
-        : formatter.formatRange(
-            first,
-            new Date((endExclusive - 1) * MILLISECONDS_PER_DAY)
-          );
+        : formatter.formatRange(first, new Date((endExclusive - 1) * MILLISECONDS_PER_DAY));
     return `${range} (${days} ${days === 1 ? "day" : "days"})`;
   }
 
-  #horizontalDayWindow(range: {
-    start: number;
-    endExclusive: number;
-    count: number;
-  }): {
+  #horizontalDayWindow(range: { start: number; endExclusive: number; count: number }): {
     start: number;
     endExclusive: number;
   } {
-    const available = Math.max(
-      this.dayWidth,
-      this.viewportWidth - this.#nameColumnWidth
-    );
-    const first = Math.max(
-      0,
-      Math.floor(this.scrollLeft / this.dayWidth) - OVERSCAN_DAYS
-    );
+    const available = Math.max(this.dayWidth, this.viewportWidth - this.#nameColumnWidth);
+    const first = Math.max(0, Math.floor(this.scrollLeft / this.dayWidth) - OVERSCAN_DAYS);
     const last = Math.min(
       range.count,
-      Math.ceil((this.scrollLeft + available) / this.dayWidth) + OVERSCAN_DAYS
+      Math.ceil((this.scrollLeft + available) / this.dayWidth) + OVERSCAN_DAYS,
     );
     return {
       start: range.start + first,
@@ -1671,17 +1520,12 @@ export class VioletGantt extends FASTElement {
 
   get #focusedRowId(): string | null {
     const active = this.shadowRoot?.activeElement as HTMLElement | null;
-    return (
-      active?.closest<HTMLElement>(".row[data-row-id]")?.dataset.rowId ?? null
-    );
+    return active?.closest<HTMLElement>(".row[data-row-id]")?.dataset.rowId ?? null;
   }
 
   get #timelineOwnsFocus(): boolean {
     const active = this.shadowRoot?.activeElement as HTMLElement | null;
-    return (
-      active === this.#scrollElement ||
-      Boolean(active?.closest(".row[data-row-id]"))
-    );
+    return active === this.#scrollElement || Boolean(active?.closest(".row[data-row-id]"));
   }
 
   #rebuildData(): void {
@@ -1729,7 +1573,7 @@ export class VioletGantt extends FASTElement {
     }
 
     const rowById = new Map(
-      [...candidateRows].filter(([id]) => hierarchyState.get(id) === "valid")
+      [...candidateRows].filter(([id]) => hierarchyState.get(id) === "valid"),
     );
     const children = new Map<string | null, VioletGanttRow[]>();
     for (const row of rowById.values()) {
@@ -1741,7 +1585,7 @@ export class VioletGantt extends FASTElement {
     const expanded = new Set(
       Array.isArray(this.expandedRowIds)
         ? this.expandedRowIds.filter((id) => typeof id === "string")
-        : []
+        : [],
     );
     const presented: PresentedRow[] = [];
     const roots = children.get(null) ?? [];
@@ -1816,8 +1660,7 @@ export class VioletGantt extends FASTElement {
       }
       itemsByRowId.set(row.id, rowItems);
     }
-    if (usedItemIds.size !== rawItemById.size)
-      errors.push("unreferenced item identity");
+    if (usedItemIds.size !== rawItemById.size) errors.push("unreferenced item identity");
     for (const id of this.#itemElementIdById.keys()) {
       if (!usedItemIds.has(id)) this.#itemElementIdById.delete(id);
     }
@@ -1833,33 +1676,19 @@ export class VioletGantt extends FASTElement {
         } omitted.`
       : "";
 
-    if (
-      previousActive &&
-      !presented.some((row) => row.row.id === previousActive)
-    ) {
+    if (previousActive && !presented.some((row) => row.row.id === previousActive)) {
       let ancestor = previousRows.get(previousActive)?.parentId ?? null;
       while (ancestor && !presented.some((row) => row.row.id === ancestor))
         ancestor = previousRows.get(ancestor)?.parentId ?? null;
       this.activeRowId = ancestor ?? presented[0]?.row.id ?? null;
-    } else if (!this.activeRowId)
-      this.activeRowId = presented[0]?.row.id ?? null;
+    } else if (!this.activeRowId) this.activeRowId = presented[0]?.row.id ?? null;
     if (!presented.length) this.activeRowId = null;
 
-    const activeItems = this.activeRowId
-      ? itemsByRowId.get(this.activeRowId) ?? []
-      : [];
-    if (!activeItems.some((item) => item.id === this.activeItemId))
-      this.activeItemId = null;
-    if (
-      this.#pendingFocusRowId &&
-      !presented.some((row) => row.row.id === this.#pendingFocusRowId)
-    )
+    const activeItems = this.activeRowId ? (itemsByRowId.get(this.activeRowId) ?? []) : [];
+    if (!activeItems.some((item) => item.id === this.activeItemId)) this.activeItemId = null;
+    if (this.#pendingFocusRowId && !presented.some((row) => row.row.id === this.#pendingFocusRowId))
       this.#pendingFocusRowId = null;
-    if (
-      restoreTimelineFocus &&
-      this.$fastController.isConnected &&
-      this.activeRowId
-    )
+    if (restoreTimelineFocus && this.$fastController.isConnected && this.activeRowId)
       this.#scheduleFocus(this.activeRowId);
     if (this.$fastController.isConnected) this.#renderWindow();
     else this.#scheduleRenderWindow();
@@ -1872,10 +1701,9 @@ export class VioletGantt extends FASTElement {
         row.id.length > 0 &&
         typeof row.label === "string" &&
         (row.parentId === undefined || typeof row.parentId === "string") &&
-        (row.description === undefined ||
-          typeof row.description === "string") &&
+        (row.description === undefined || typeof row.description === "string") &&
         Array.isArray(row.itemIds) &&
-        row.itemIds.every((id) => typeof id === "string")
+        row.itemIds.every((id) => typeof id === "string"),
     );
   }
 
@@ -1888,30 +1716,25 @@ export class VioletGantt extends FASTElement {
         item.rowId.length > 0 &&
         typeof item.label === "string" &&
         (item.note === undefined || typeof item.note === "string") &&
-        (item.readOnlyReason === undefined ||
-          typeof item.readOnlyReason === "string") &&
+        (item.readOnlyReason === undefined || typeof item.readOnlyReason === "string") &&
         ["work", "window", "milestone"].includes(item.presentation) &&
-        ["planned", "derived", "actual", "advisory"].includes(item.provenance)
+        ["planned", "derived", "actual", "advisory"].includes(item.provenance),
     );
   }
 
   #validItemTime(item: VioletGanttItem): boolean {
     if (!item.time) return true;
     if (typeof item.time !== "object") return false;
-    if (item.time.kind === "day-point" && typeof item.time.at !== "string")
-      return false;
+    if (item.time.kind === "day-point" && typeof item.time.at !== "string") return false;
     if (
       item.time.kind === "day-range" &&
-      (typeof item.time.start !== "string" ||
-        typeof item.time.endExclusive !== "string")
+      (typeof item.time.start !== "string" || typeof item.time.endExclusive !== "string")
     )
       return false;
-    if (item.time.kind !== "day-point" && item.time.kind !== "day-range")
-      return false;
+    if (item.time.kind !== "day-point" && item.time.kind !== "day-range") return false;
     const bounds = ganttTimeBounds(item.time);
     if (!bounds || !this.#isSupportedDay(bounds.start)) return false;
-    if (!bounds.point && !this.#isSupportedDay(bounds.endExclusive - 1))
-      return false;
+    if (!bounds.point && !this.#isSupportedDay(bounds.endExclusive - 1)) return false;
     return item.presentation === "milestone" ? bounds.point : !bounds.point;
   }
 
@@ -1920,8 +1743,7 @@ export class VioletGantt extends FASTElement {
       this.status &&
         typeof this.status === "object" &&
         ["ready", "loading", "empty", "error"].includes(this.status.kind) &&
-        (this.status.message === undefined ||
-          typeof this.status.message === "string")
+        (this.status.message === undefined || typeof this.status.message === "string"),
     );
   }
 
@@ -1960,10 +1782,8 @@ export class VioletGantt extends FASTElement {
     const endExclusive = ganttDateToDay(viewport?.endExclusive ?? "");
     const min = ganttDateToDay(VIOLET_GANTT_DATE_LIMITS.min) ?? 0;
     const endLimit = ganttDateToDay(VIOLET_GANTT_DATE_LIMITS.endExclusive) ?? 0;
-    const count =
-      start === null || endExclusive === null ? 0 : endExclusive - start;
-    const validScale =
-      viewport && ["day", "week", "month"].includes(viewport.scale);
+    const count = start === null || endExclusive === null ? 0 : endExclusive - start;
+    const validScale = viewport && ["day", "week", "month"].includes(viewport.scale);
     const invalid =
       start === null ||
       endExclusive === null ||
@@ -1978,9 +1798,7 @@ export class VioletGantt extends FASTElement {
       scale: viewport?.scale,
       days: invalid ? null : { start, endExclusive, count },
       error: invalid
-        ? `Viewport must be a half-open YYYY-MM-DD range within ${
-            VIOLET_GANTT_DATE_LIMITS.min
-          }–${
+        ? `Viewport must be a half-open YYYY-MM-DD range within ${VIOLET_GANTT_DATE_LIMITS.min}–${
             VIOLET_GANTT_DATE_LIMITS.endExclusive
           }, spanning at most ${VIOLET_GANTT_DATE_LIMITS.maxViewportDays.toLocaleString()} days.`
         : "",
@@ -1995,10 +1813,7 @@ export class VioletGantt extends FASTElement {
     return day >= min && day <= max;
   }
 
-  #isSupportedViewport(
-    start: VioletGanttDate,
-    endExclusive: VioletGanttDate
-  ): boolean {
+  #isSupportedViewport(start: VioletGanttDate, endExclusive: VioletGanttDate): boolean {
     const startDay = ganttDateToDay(start);
     const endDay = ganttDateToDay(endExclusive);
     return (
@@ -2006,8 +1821,7 @@ export class VioletGantt extends FASTElement {
       endDay !== null &&
       this.#isSupportedDay(startDay) &&
       endDay > startDay &&
-      endDay <=
-        (ganttDateToDay(VIOLET_GANTT_DATE_LIMITS.endExclusive) ?? endDay) &&
+      endDay <= (ganttDateToDay(VIOLET_GANTT_DATE_LIMITS.endExclusive) ?? endDay) &&
       endDay - startDay <= VIOLET_GANTT_DATE_LIMITS.maxViewportDays
     );
   }
@@ -2017,8 +1831,7 @@ export class VioletGantt extends FASTElement {
     if (this.viewport.scale === "month")
       return day >= firstVisibleDay &&
         (date.getUTCDate() === 1 ||
-          (day === firstVisibleDay &&
-            this.#dayLabelSpan(day) * this.dayWidth >= 24))
+          (day === firstVisibleDay && this.#dayLabelSpan(day) * this.dayWidth >= 24))
         ? cachedDateTimeFormat(this.resolvedLocale, {
             month: "short",
             timeZone: "UTC",
@@ -2044,18 +1857,13 @@ export class VioletGantt extends FASTElement {
     const date = new Date(day * MILLISECONDS_PER_DAY);
     const nextMonth = new Date(date.getTime());
     nextMonth.setUTCFullYear(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
-    return Math.max(
-      1,
-      Math.round((nextMonth.getTime() - date.getTime()) / MILLISECONDS_PER_DAY)
-    );
+    return Math.max(1, Math.round((nextMonth.getTime() - date.getTime()) / MILLISECONDS_PER_DAY));
   }
 
   #isGridBoundary(day: number): boolean {
     if (this.viewport.scale === "day") return true;
     const date = new Date(day * MILLISECONDS_PER_DAY);
-    return this.viewport.scale === "week"
-      ? date.getUTCDay() === 1
-      : date.getUTCDate() === 1;
+    return this.viewport.scale === "week" ? date.getUTCDay() === 1 : date.getUTCDate() === 1;
   }
 
   #fullDayLabel(day: number): string {
@@ -2076,22 +1884,15 @@ export class VioletGantt extends FASTElement {
   /** Measured once per render frame instead of once per row. */
   get #nameColumnWidth(): number {
     if (this.#nameColumnWidthCache === null) {
-      const header =
-        this.shadowRoot?.querySelector<HTMLElement>(".name-header");
+      const header = this.shadowRoot?.querySelector<HTMLElement>(".name-header");
       const measured = header?.getBoundingClientRect().width ?? 0;
-      this.#nameColumnWidthCache =
-        measured > 0 ? measured : DEFAULT_NAME_COLUMN_WIDTH;
+      this.#nameColumnWidthCache = measured > 0 ? measured : DEFAULT_NAME_COLUMN_WIDTH;
     }
     return this.#nameColumnWidthCache;
   }
 
   get resolvedLocale(): string {
-    return (
-      this.locale ||
-      document.documentElement.lang ||
-      navigator.language ||
-      "en-US"
-    );
+    return this.locale || document.documentElement.lang || navigator.language || "en-US";
   }
 
   get #scrollElement(): HTMLDivElement | null {
@@ -2101,10 +1902,7 @@ export class VioletGantt extends FASTElement {
 
 attr(VioletGantt.prototype, "density");
 attr(VioletGantt.prototype, "locale");
-attr({ attribute: "aria-label", mode: "fromView" })(
-  VioletGantt.prototype,
-  "ariaLabel"
-);
+attr({ attribute: "aria-label", mode: "fromView" })(VioletGantt.prototype, "ariaLabel");
 observable(VioletGantt.prototype, "rows");
 observable(VioletGantt.prototype, "items");
 observable(VioletGantt.prototype, "expandedRowIds");

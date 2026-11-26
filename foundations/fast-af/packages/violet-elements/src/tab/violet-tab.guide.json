@@ -9,9 +9,7 @@
     {
       "id": "tab.disabled",
       "text": "A disabled tab cannot be activated by click or keyboard, and the arrow keys skip it.",
-      "members": [
-        "disabled"
-      ]
+      "members": ["disabled"]
     }
   ],
   "a11y": [

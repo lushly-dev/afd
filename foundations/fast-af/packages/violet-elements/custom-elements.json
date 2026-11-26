@@ -5706,7 +5706,7 @@
               "name": "#optionsObserver",
               "privacy": "private",
               "readonly": true,
-              "default": "new MutationObserver(records => { if (records.some(record => record.target !== this)) { this.handleSlotChange(); } })"
+              "default": "new MutationObserver((records) => { if (records.some((record) => record.target !== this)) { this.handleSlotChange(); } })"
             },
             {
               "kind": "field",
@@ -9819,7 +9819,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n        selected: boolean;\n        rangeEdge: string;\n        fillPreview: boolean;\n        active: boolean;\n        editing: boolean;\n    }"
+                "text": "{\n    selected: boolean;\n    rangeEdge: string;\n    fillPreview: boolean;\n    active: boolean;\n    editing: boolean;\n  }"
               }
             }
           ]
@@ -9923,7 +9923,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    selection: VioletDataGridBoundsLike | null;\n    locations: VioletDataGridLocationLike[];\n    rows: VioletDataGridIdRowLike[];\n    columns: VioletDataGridIdColumnLike[];\n    getCellText: (location: VioletDataGridLocationLike) => string;\n}"
+                "text": "{\n  selection: VioletDataGridBoundsLike | null;\n  locations: VioletDataGridLocationLike[];\n  rows: VioletDataGridIdRowLike[];\n  columns: VioletDataGridIdColumnLike[];\n  getCellText: (location: VioletDataGridLocationLike) => string;\n}"
               }
             }
           ]
@@ -9993,7 +9993,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    selection: VioletDataGridBoundsLike | null;\n    rows: VioletDataGridIdRowLike[];\n    columns: VioletDataGridIdColumnLike[];\n    activeCell: VioletDataGridLocationLike | null;\n}"
+                "text": "{\n  selection: VioletDataGridBoundsLike | null;\n  rows: VioletDataGridIdRowLike[];\n  columns: VioletDataGridIdColumnLike[];\n  activeCell: VioletDataGridLocationLike | null;\n}"
               }
             }
           ]
@@ -10169,7 +10169,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    column: VioletDataGridDataColumnLike<RowData>;\n    rowData: RowData;\n    rawValue: unknown;\n    booleanCellValue: (value: unknown) => boolean;\n}"
+                "text": "{\n  column: VioletDataGridDataColumnLike<RowData>;\n  rowData: RowData;\n  rawValue: unknown;\n  booleanCellValue: (value: unknown) => boolean;\n}"
               }
             }
           ]
@@ -10186,7 +10186,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    rows: VioletDataGridDataRowLike<RowData>[] | undefined;\n    columns: VioletDataGridDataColumnLike<RowData>[];\n    sort: VioletDataGridSortLike | null;\n    sortMode: \"local\" | \"external\";\n    getSortKey?: (row: VioletDataGridDataRowLike<RowData>, column: VioletDataGridDataColumnLike<RowData>) => string;\n}"
+                "text": "{\n  rows: VioletDataGridDataRowLike<RowData>[] | undefined;\n  columns: VioletDataGridDataColumnLike<RowData>[];\n  sort: VioletDataGridSortLike | null;\n  sortMode: \"local\" | \"external\";\n  getSortKey?: (\n    row: VioletDataGridDataRowLike<RowData>,\n    column: VioletDataGridDataColumnLike<RowData>,\n  ) => string;\n}"
               }
             }
           ]
@@ -10315,7 +10315,7 @@
           "name": "cancelEditingState",
           "return": {
             "type": {
-              "text": "{\n    nextState: VioletDataGridEditingState<Location>;\n    cancelledCell: Location | null;\n}"
+              "text": "{\n  nextState: VioletDataGridEditingState<Location>;\n  cancelledCell: Location | null;\n}"
             }
           },
           "parameters": [
@@ -10341,14 +10341,14 @@
           "name": "commitEditingState",
           "return": {
             "type": {
-              "text": "{\n    nextState: VioletDataGridEditingState<Location>;\n    detail: VioletDataGridEditingCommitDetail | null;\n}"
+              "text": "{\n  nextState: VioletDataGridEditingState<Location>;\n  detail: VioletDataGridEditingCommitDetail | null;\n}"
             }
           },
           "parameters": [
             {
               "name": "options",
               "type": {
-                "text": "{\n    editingCell: Location | null;\n    editingValue: string;\n    cell: Cell | null;\n    normalizeValue: (cell: Cell, value: unknown) => unknown;\n}"
+                "text": "{\n  editingCell: Location | null;\n  editingValue: string;\n  cell: Cell | null;\n  normalizeValue: (cell: Cell, value: unknown) => unknown;\n}"
               }
             }
           ]
@@ -10752,7 +10752,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    rows: VioletDataGridMatrixRowLike<CellLike>[];\n    columns: VioletDataGridIdLike[];\n    sourceBounds: VioletDataGridBoundsLike;\n    targetBounds: VioletDataGridBoundsLike;\n    normalizeValue: (cell: CellLike, value: string) => unknown;\n}"
+                "text": "{\n  rows: VioletDataGridMatrixRowLike<CellLike>[];\n  columns: VioletDataGridIdLike[];\n  sourceBounds: VioletDataGridBoundsLike;\n  targetBounds: VioletDataGridBoundsLike;\n  normalizeValue: (cell: CellLike, value: string) => unknown;\n}"
               }
             }
           ]
@@ -10769,7 +10769,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    text: string;\n    originIndices: { rowIndex: number; columnIndex: number };\n    selection: VioletDataGridBoundsLike | null;\n    selectedLocations: VioletDataGridLocationLike[];\n    rows: VioletDataGridMatrixRowLike<CellLike>[];\n    columns: VioletDataGridIdLike[];\n    normalizeValue: (cell: CellLike, value: string) => unknown;\n}"
+                "text": "{\n  text: string;\n  originIndices: { rowIndex: number; columnIndex: number };\n  selection: VioletDataGridBoundsLike | null;\n  selectedLocations: VioletDataGridLocationLike[];\n  rows: VioletDataGridMatrixRowLike<CellLike>[];\n  columns: VioletDataGridIdLike[];\n  normalizeValue: (cell: CellLike, value: string) => unknown;\n}"
               }
             }
           ]
@@ -11019,7 +11019,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    grid: HTMLElement;\n    ownerDocument: Document;\n    shadowRoot: ShadowRoot | null;\n    pending: PendingCellFocusRecovery;\n    focusGeneration: number;\n    gridCellFocusGeneration: number;\n    activeCell: HTMLTableCellElement | null;\n    parkFocusOnScrollContainer: () => void;\n}"
+                "text": "{\n  grid: HTMLElement;\n  ownerDocument: Document;\n  shadowRoot: ShadowRoot | null;\n  pending: PendingCellFocusRecovery;\n  focusGeneration: number;\n  gridCellFocusGeneration: number;\n  activeCell: HTMLTableCellElement | null;\n  parkFocusOnScrollContainer: () => void;\n}"
               }
             }
           ],
@@ -11195,7 +11195,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    cells: HTMLTableCellElement[];\n    clientX: number;\n    clientY: number;\n    predicate?: (location: VioletDataGridLocationLike) => boolean;\n}"
+                "text": "{\n  cells: HTMLTableCellElement[];\n  clientX: number;\n  clientY: number;\n  predicate?: (location: VioletDataGridLocationLike) => boolean;\n}"
               }
             }
           ]
@@ -12371,7 +12371,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    rows: RowLike[];\n    columns: ColumnLike[];\n    activeCell: VioletDataGridNavigationLocationLike | null;\n    key: string;\n    metaKey: boolean;\n}"
+                "text": "{\n  rows: RowLike[];\n  columns: ColumnLike[];\n  activeCell: VioletDataGridNavigationLocationLike | null;\n  key: string;\n  metaKey: boolean;\n}"
               }
             }
           ]
@@ -13707,7 +13707,7 @@
               "privacy": "private",
               "return": {
                 "type": {
-                  "text": "{\n        background: string;\n        foreground: string;\n        borderColor: string;\n    }"
+                  "text": "{\n    background: string;\n    foreground: string;\n    borderColor: string;\n  }"
                 }
               },
               "parameters": [
@@ -14148,7 +14148,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n        resolvedWidth: string | undefined;\n        mergePartNames: (base: string, extra?: string) => string;\n  }"
+                "text": "{\n    resolvedWidth: string | undefined;\n    mergePartNames: (base: string, extra?: string) => string;\n  }"
               }
             }
           ]
@@ -14158,7 +14158,7 @@
           "name": "createPresentedRow",
           "return": {
             "type": {
-              "text": "{\n    id: string;\n    label: string;\n    data: RowData;\n    cells: Array<{\n        rowId: string;\n        rowLabel: string;\n        columnId: string;\n        columnLabel: string;\n        rowData: RowData;\n        align: \"start\" | \"center\" | \"end\";\n        rawValue: unknown;\n        text: string;\n        widthStyle: string;\n        cellId: string;\n        active: boolean;\n        selected: boolean;\n        rangeEdge: string;\n        editable: boolean;\n        editor: \"text\" | \"number\" | \"checkbox\" | \"select\" | \"custom\";\n        editing: boolean;\n        editValue: string;\n    editingError: string;\n    editingErrorId: string;\n        fillPreview: boolean;\n        cellPart?: string;\n        cellPartText: string;\n        resolvedCellPartText: string;\n        cellTemplate?: ContentTemplate;\n        editorTemplate?: ContentTemplate;\n        editorOptions: EditorOption[];\n        parse?: (value: unknown, row: RowData) => unknown;\n    }>;\n}"
+              "text": "{\n  id: string;\n  label: string;\n  data: RowData;\n  cells: Array<{\n    rowId: string;\n    rowLabel: string;\n    columnId: string;\n    columnLabel: string;\n    rowData: RowData;\n    align: \"start\" | \"center\" | \"end\";\n    rawValue: unknown;\n    text: string;\n    widthStyle: string;\n    cellId: string;\n    active: boolean;\n    selected: boolean;\n    rangeEdge: string;\n    editable: boolean;\n    editor: \"text\" | \"number\" | \"checkbox\" | \"select\" | \"custom\";\n    editing: boolean;\n    editValue: string;\n    editingError: string;\n    editingErrorId: string;\n    fillPreview: boolean;\n    cellPart?: string;\n    cellPartText: string;\n    resolvedCellPartText: string;\n    cellTemplate?: ContentTemplate;\n    editorTemplate?: ContentTemplate;\n    editorOptions: EditorOption[];\n    parse?: (value: unknown, row: RowData) => unknown;\n  }>;\n}"
             }
           },
           "parameters": [
@@ -14177,7 +14177,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n        cellValueFor: (\n            row: VioletPresentationSourceRowLike<RowData>,\n      column: VioletPresentationColumnLike<RowData>,\n        ) => unknown;\n        serializeCellValue: (\n            column: VioletPresentationSourceColumnLike<RowData>,\n            rowData: RowData,\n      rawValue: unknown,\n        ) => string;\n        cellIdFor: (rowId: string, columnId: string) => string;\n    editingErrorIdFor: (rowId: string, columnId: string) => string;\n        editorOptionsForColumn: (\n            column: VioletPresentationSourceColumnLike<RowData>,\n      rowData: RowData,\n        ) => EditorOption[];\n  }"
+                "text": "{\n    cellValueFor: (\n      row: VioletPresentationSourceRowLike<RowData>,\n      column: VioletPresentationColumnLike<RowData>,\n    ) => unknown;\n    serializeCellValue: (\n      column: VioletPresentationSourceColumnLike<RowData>,\n      rowData: RowData,\n      rawValue: unknown,\n    ) => string;\n    cellIdFor: (rowId: string, columnId: string) => string;\n    editingErrorIdFor: (rowId: string, columnId: string) => string;\n    editorOptionsForColumn: (\n      column: VioletPresentationSourceColumnLike<RowData>,\n      rowData: RowData,\n    ) => EditorOption[];\n  }"
               }
             }
           ]
@@ -14223,7 +14223,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    focusMode: \"row\" | \"cell\";\n    rows: VioletPresentationIdLike[];\n    columns: VioletPresentationIdLike[];\n    activeCell: VioletPresentationLocationLike | null;\n}"
+                "text": "{\n  focusMode: \"row\" | \"cell\";\n  rows: VioletPresentationIdLike[];\n  columns: VioletPresentationIdLike[];\n  activeCell: VioletPresentationLocationLike | null;\n}"
               }
             }
           ]
@@ -14240,7 +14240,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    focusMode: \"row\" | \"cell\";\n    activeCell: LocationLike | null;\n    cellSelection: VioletPresentationRangeLike<LocationLike> | null;\n    isValidLocation: (location: LocationLike | null) => boolean;\n}"
+                "text": "{\n  focusMode: \"row\" | \"cell\";\n  activeCell: LocationLike | null;\n  cellSelection: VioletPresentationRangeLike<LocationLike> | null;\n  isValidLocation: (location: LocationLike | null) => boolean;\n}"
               }
             }
           ]
@@ -14257,7 +14257,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    focusMode: \"row\" | \"cell\";\n    editingCell: LocationLike | null;\n    editingValue: string;\n    isEditableLocation: (location: LocationLike | null) => boolean;\n}"
+                "text": "{\n  focusMode: \"row\" | \"cell\";\n  editingCell: LocationLike | null;\n  editingValue: string;\n  isEditableLocation: (location: LocationLike | null) => boolean;\n}"
               }
             }
           ]
@@ -14274,7 +14274,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    focusMode: \"row\" | \"cell\";\n    fillPreview: VioletPresentationRangeLike<LocationLike> | null;\n    isValidLocation: (location: LocationLike | null) => boolean;\n}"
+                "text": "{\n  focusMode: \"row\" | \"cell\";\n  fillPreview: VioletPresentationRangeLike<LocationLike> | null;\n  isValidLocation: (location: LocationLike | null) => boolean;\n}"
               }
             }
           ]
@@ -14297,7 +14297,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n        isActiveCell: (rowId: string, columnId: string) => boolean;\n        isCellSelected: (rowId: string, columnId: string) => boolean;\n        isFillPreviewCell: (rowId: string, columnId: string) => boolean;\n        rangeEdgeForCell: (rowId: string, columnId: string) => string;\n        isEditingCell: (rowId: string, columnId: string) => boolean;\n        editingValue: string;\n    editingError: string;\n        resolveCellPartText: (rowId: string, columnId: string, basePartText: string) => string;\n  }"
+                "text": "{\n    isActiveCell: (rowId: string, columnId: string) => boolean;\n    isCellSelected: (rowId: string, columnId: string) => boolean;\n    isFillPreviewCell: (rowId: string, columnId: string) => boolean;\n    rangeEdgeForCell: (rowId: string, columnId: string) => string;\n    isEditingCell: (rowId: string, columnId: string) => boolean;\n    editingValue: string;\n    editingError: string;\n    resolveCellPartText: (rowId: string, columnId: string, basePartText: string) => string;\n  }"
               }
             }
           ]
@@ -15850,7 +15850,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    button: number;\n    pointerId: number;\n    columnId: string;\n    clientX: number;\n    startWidth: number;\n}"
+                "text": "{\n  button: number;\n  pointerId: number;\n  columnId: string;\n  clientX: number;\n  startWidth: number;\n}"
               }
             }
           ]
@@ -15926,7 +15926,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    key: string;\n    shiftKey: boolean;\n    currentWidth: number;\n    minimumWidth: number;\n    rtl: boolean;\n}"
+                "text": "{\n  key: string;\n  shiftKey: boolean;\n  currentWidth: number;\n  minimumWidth: number;\n  rtl: boolean;\n}"
               }
             }
           ],
@@ -15944,7 +15944,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    session: VioletDataGridResizeSession;\n    clientX: number;\n    minimumWidth: number;\n}"
+                "text": "{\n  session: VioletDataGridResizeSession;\n  clientX: number;\n  minimumWidth: number;\n}"
               }
             }
           ]
@@ -16566,7 +16566,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    columnId: string;\n    column: VioletDataGridSizedColumnLike | null;\n    rows: RowLike[];\n    headerCell: HTMLTableCellElement | null;\n    sampleCell: HTMLTableCellElement | null;\n    getCellText: (location: { rowId: string; columnId: string }) => string;\n    sampleRows: RowLike[];\n    measurementCanvas: HTMLCanvasElement | null;\n    /** The grid host, whose computed font family measures text when no cell is rendered. */\n    fontSource?: Element | null;\n}"
+                "text": "{\n  columnId: string;\n  column: VioletDataGridSizedColumnLike | null;\n  rows: RowLike[];\n  headerCell: HTMLTableCellElement | null;\n  sampleCell: HTMLTableCellElement | null;\n  getCellText: (location: { rowId: string; columnId: string }) => string;\n  sampleRows: RowLike[];\n  measurementCanvas: HTMLCanvasElement | null;\n  /** The grid host, whose computed font family measures text when no cell is rendered. */\n  fontSource?: Element | null;\n}"
               }
             }
           ]
@@ -16688,7 +16688,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    headerCell: HTMLTableCellElement | null;\n    resolvedWidth: string | undefined;\n}"
+                "text": "{\n  headerCell: HTMLTableCellElement | null;\n  resolvedWidth: string | undefined;\n}"
               }
             }
           ]
@@ -17095,14 +17095,14 @@
           "name": "buildRenderedRows",
           "return": {
             "type": {
-              "text": "{\n    renderedRows: VioletRenderedVirtualRow<RowLike, ItemLike | VirtualItem>[];\n    virtualPaddingStart: number;\n    virtualPaddingEnd: number;\n}"
+              "text": "{\n  renderedRows: VioletRenderedVirtualRow<RowLike, ItemLike | VirtualItem>[];\n  virtualPaddingStart: number;\n  virtualPaddingEnd: number;\n}"
             }
           },
           "parameters": [
             {
               "name": "options",
               "type": {
-                "text": "{\n    virtualize: boolean;\n    rows: RowLike[];\n    estimatedRowHeight: number;\n    virtualItems: ItemLike[];\n    totalSize: number;\n}"
+                "text": "{\n  virtualize: boolean;\n  rows: RowLike[];\n  estimatedRowHeight: number;\n  virtualItems: ItemLike[];\n  totalSize: number;\n}"
               }
             }
           ]
@@ -17112,14 +17112,14 @@
           "name": "buildVirtualizerUpdateOptions",
           "return": {
             "type": {
-              "text": "{\n    count: number;\n    estimateSize: () => number;\n    overscan: number;\n    enabled: boolean;\n    getItemKey: (index: number) => string | number;\n}"
+              "text": "{\n  count: number;\n  estimateSize: () => number;\n  overscan: number;\n  enabled: boolean;\n  getItemKey: (index: number) => string | number;\n}"
             }
           },
           "parameters": [
             {
               "name": "options",
               "type": {
-                "text": "{\n    rows: RowLike[];\n    estimatedRowHeight: number;\n    overscanCount: number;\n    virtualize: boolean;\n}"
+                "text": "{\n  rows: RowLike[];\n  estimatedRowHeight: number;\n  overscanCount: number;\n  virtualize: boolean;\n}"
               }
             }
           ]
@@ -24372,7 +24372,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    locale: string;\n    monthDate: Date;\n    weekStartDay: number;\n    value?: string;\n    start?: string;\n    end?: string;\n    focused?: string;\n    min?: string;\n    max?: string;\n    disabledDate?: ((iso: string) => boolean) | null;\n}"
+                "text": "{\n  locale: string;\n  monthDate: Date;\n  weekStartDay: number;\n  value?: string;\n  start?: string;\n  end?: string;\n  focused?: string;\n  min?: string;\n  max?: string;\n  disabledDate?: ((iso: string) => boolean) | null;\n}"
               }
             }
           ]
@@ -28174,7 +28174,7 @@
           "type": {
             "text": "ReferenceComponentDefinition[]"
           },
-          "default": "[ { id: \"data-grid\", title: \"Data Grid\", status: \"done\", shape: \"Dense structured data, selection, sorting, scrolling, and composed controls.\", validates: [\"surface hierarchy\", \"row states\", \"selection\", \"spacing density\", \"focus visibility\"], whyItMatters: \"It is the richest composite in the set and pressure-tests nearly every foundational token family at once.\", }, { id: \"button\", title: \"Button\", status: \"done\", shape: \"Primary action surface with text, icon, disabled, and focus states.\", validates: [\"action emphasis\", \"shape\", \"focus ring\", \"inline spacing\"], whyItMatters: \"Buttons set the tone for interaction hierarchy and quickly expose weak action or focus tokens.\", }, { id: \"text-field\", title: \"Text Field\", status: \"done\", shape: \"Input shell with text, label, placeholder, focus, and helper/error adjacency.\", validates: [\"input surfaces\", \"border hierarchy\", \"text roles\", \"control sizing\"], whyItMatters: \"Text fields are one of the fastest ways to see whether the system has the right neutral control vocabulary.\", }, { id: \"checkbox\", title: \"Checkbox\", status: \"done\", shape: \"Binary control with label, selected, hover, focus, and compact inline states.\", validates: [\"control geometry\", \"selection styling\", \"target size\", \"label spacing\"], whyItMatters: \"Checkboxes catch subtle issues with density, alignment, and interactive contrast in the smallest reusable control shapes.\", }, { id: \"radio\", title: \"Radio\", status: \"done\", shape: \"Single-choice control with label, selected, focus, and compact inline states.\", validates: [\"control geometry\", \"selection styling\", \"target size\", \"label spacing\"], whyItMatters: \"Radio controls prove whether grouped selection states and compact control sizing still feel precise and intentional.\", }, { id: \"switch\", title: \"Switch\", status: \"done\", shape: \"Binary toggle with on/off track, thumb motion, label, and focus treatment.\", validates: [\"binary state clarity\", \"motion cues\", \"control sizing\", \"target size\"], whyItMatters: \"Switches round out the core control family and force us to reconcile motion, binary contrast, and compact affordance sizing.\", }, { id: \"tabs\", title: \"Tabs\", status: \"done\", shape: \"Horizontal navigation/selection pattern with active, hover, and focus states.\", validates: [\"navigation emphasis\", \"selected vs resting states\", \"divider logic\"], whyItMatters: \"Tabs clarify whether the token set distinguishes persistent selection from simple structure.\", }, { id: \"slider\", title: \"Slider\", status: \"done\", shape: \"Continuous range control with track, thumb, active range, and labels.\", validates: [\"track contrast\", \"interactive target sizing\", \"focus visibility\"], whyItMatters: \"Sliders expose whether interactive accents and small control geometry hold up under motion and input pressure.\", }, { id: \"card\", title: \"Card\", status: \"done\", shape: \"Contained content surface with title, metadata, body copy, and action region.\", validates: [\"surface nesting\", \"shadow usage\", \"content spacing\", \"text hierarchy\"], whyItMatters: \"Cards help us reconcile the broad visual language of the system outside of form controls.\", }, { id: \"menu\", title: \"Menu / Popover\", status: \"done\", shape: \"Floating selection surface with grouped items, hover, selected, and focus states.\", validates: [\"floating surfaces\", \"elevation\", \"recessed structure\", \"menu-item spacing\"], whyItMatters: \"Menus prove whether floating tokens are actually distinct enough from cards and pages to feel intentional.\", }, { id: \"carousel\", title: \"Carousel\", status: \"done\", shape: \"Paged horizontal surface with slotted slides, generated navigation, and active item state.\", validates: [\"scroll snapping\", \"overlay-free navigation\", \"active vs inactive content\", \"control grouping\"], whyItMatters: \"Carousels pressure-test how well the system handles reusable composite navigation around arbitrary content instead of one fixed media type.\", }, { id: \"tree\", title: \"Tree\", status: \"done\", shape: \"Hierarchical navigation and selection surface with expansion, focus movement, and nested item metadata.\", validates: [\"hierarchy clarity\", \"keyboard traversal\", \"selection vs focus\", \"nested spacing\", \"branch indicators\"], whyItMatters: \"Trees prove whether the system can express hierarchy, expansion, and single selection without collapsing into listbox or accordion patterns.\", }, { id: \"color-picker\", title: \"Color Picker\", status: \"done\", shape: \"Field-like color selection control with a swatch trigger, textual value, channel editing, and suggested presets.\", validates: [\"non-color value fallback\", \"popover composition\", \"token-driven previews\", \"form value clarity\", \"editable color channels\"], whyItMatters: \"Color pickers pressure-test whether the system can expose complex visual input without relying on color alone or falling back to browser-default chrome.\", }, ]"
+          "default": "[ { id: \"data-grid\", title: \"Data Grid\", status: \"done\", shape: \"Dense structured data, selection, sorting, scrolling, and composed controls.\", validates: [ \"surface hierarchy\", \"row states\", \"selection\", \"spacing density\", \"focus visibility\", ], whyItMatters: \"It is the richest composite in the set and pressure-tests nearly every foundational token family at once.\", }, { id: \"button\", title: \"Button\", status: \"done\", shape: \"Primary action surface with text, icon, disabled, and focus states.\", validates: [\"action emphasis\", \"shape\", \"focus ring\", \"inline spacing\"], whyItMatters: \"Buttons set the tone for interaction hierarchy and quickly expose weak action or focus tokens.\", }, { id: \"text-field\", title: \"Text Field\", status: \"done\", shape: \"Input shell with text, label, placeholder, focus, and helper/error adjacency.\", validates: [\"input surfaces\", \"border hierarchy\", \"text roles\", \"control sizing\"], whyItMatters: \"Text fields are one of the fastest ways to see whether the system has the right neutral control vocabulary.\", }, { id: \"checkbox\", title: \"Checkbox\", status: \"done\", shape: \"Binary control with label, selected, hover, focus, and compact inline states.\", validates: [\"control geometry\", \"selection styling\", \"target size\", \"label spacing\"], whyItMatters: \"Checkboxes catch subtle issues with density, alignment, and interactive contrast in the smallest reusable control shapes.\", }, { id: \"radio\", title: \"Radio\", status: \"done\", shape: \"Single-choice control with label, selected, focus, and compact inline states.\", validates: [\"control geometry\", \"selection styling\", \"target size\", \"label spacing\"], whyItMatters: \"Radio controls prove whether grouped selection states and compact control sizing still feel precise and intentional.\", }, { id: \"switch\", title: \"Switch\", status: \"done\", shape: \"Binary toggle with on/off track, thumb motion, label, and focus treatment.\", validates: [\"binary state clarity\", \"motion cues\", \"control sizing\", \"target size\"], whyItMatters: \"Switches round out the core control family and force us to reconcile motion, binary contrast, and compact affordance sizing.\", }, { id: \"tabs\", title: \"Tabs\", status: \"done\", shape: \"Horizontal navigation/selection pattern with active, hover, and focus states.\", validates: [\"navigation emphasis\", \"selected vs resting states\", \"divider logic\"], whyItMatters: \"Tabs clarify whether the token set distinguishes persistent selection from simple structure.\", }, { id: \"slider\", title: \"Slider\", status: \"done\", shape: \"Continuous range control with track, thumb, active range, and labels.\", validates: [\"track contrast\", \"interactive target sizing\", \"focus visibility\"], whyItMatters: \"Sliders expose whether interactive accents and small control geometry hold up under motion and input pressure.\", }, { id: \"card\", title: \"Card\", status: \"done\", shape: \"Contained content surface with title, metadata, body copy, and action region.\", validates: [\"surface nesting\", \"shadow usage\", \"content spacing\", \"text hierarchy\"], whyItMatters: \"Cards help us reconcile the broad visual language of the system outside of form controls.\", }, { id: \"menu\", title: \"Menu / Popover\", status: \"done\", shape: \"Floating selection surface with grouped items, hover, selected, and focus states.\", validates: [\"floating surfaces\", \"elevation\", \"recessed structure\", \"menu-item spacing\"], whyItMatters: \"Menus prove whether floating tokens are actually distinct enough from cards and pages to feel intentional.\", }, { id: \"carousel\", title: \"Carousel\", status: \"done\", shape: \"Paged horizontal surface with slotted slides, generated navigation, and active item state.\", validates: [ \"scroll snapping\", \"overlay-free navigation\", \"active vs inactive content\", \"control grouping\", ], whyItMatters: \"Carousels pressure-test how well the system handles reusable composite navigation around arbitrary content instead of one fixed media type.\", }, { id: \"tree\", title: \"Tree\", status: \"done\", shape: \"Hierarchical navigation and selection surface with expansion, focus movement, and nested item metadata.\", validates: [ \"hierarchy clarity\", \"keyboard traversal\", \"selection vs focus\", \"nested spacing\", \"branch indicators\", ], whyItMatters: \"Trees prove whether the system can express hierarchy, expansion, and single selection without collapsing into listbox or accordion patterns.\", }, { id: \"color-picker\", title: \"Color Picker\", status: \"done\", shape: \"Field-like color selection control with a swatch trigger, textual value, channel editing, and suggested presets.\", validates: [ \"non-color value fallback\", \"popover composition\", \"token-driven previews\", \"form value clarity\", \"editable color channels\", ], whyItMatters: \"Color pickers pressure-test whether the system can expose complex visual input without relying on color alone or falling back to browser-default chrome.\", }, ]"
         }
       ],
       "exports": [
@@ -29236,7 +29236,7 @@
                 {
                   "name": "range",
                   "type": {
-                    "text": "{\n    start: number;\n    endExclusive: number;\n    count: number;\n  }"
+                    "text": "{ start: number; endExclusive: number; count: number }"
                   }
                 }
               ]
@@ -29575,7 +29575,7 @@
                 {
                   "name": "range",
                   "type": {
-                    "text": "{\n    start: number;\n    endExclusive: number;\n    count: number;\n  }"
+                    "text": "{ start: number; endExclusive: number; count: number }"
                   }
                 }
               ]
@@ -36938,7 +36938,7 @@
               "name": "#optionsObserver",
               "privacy": "private",
               "readonly": true,
-              "default": "new MutationObserver(records => { if (records.some(record => record.target !== this)) { this.handleSlotChange(); } })"
+              "default": "new MutationObserver((records) => { if (records.some((record) => record.target !== this)) { this.handleSlotChange(); } })"
             },
             {
               "kind": "field",
@@ -38466,7 +38466,7 @@
             {
               "name": "options",
               "type": {
-                "text": "{\n    internalAnchor: HTMLElement | null;\n    externalAnchor: HTMLElement | null;\n    floating: HTMLElement | null;\n    anchorName: string;\n}"
+                "text": "{\n  internalAnchor: HTMLElement | null;\n  externalAnchor: HTMLElement | null;\n  floating: HTMLElement | null;\n  anchorName: string;\n}"
               }
             }
           ],
@@ -44987,7 +44987,7 @@
         {
           "kind": "variable",
           "name": "violetThemeDeclarationsByPreset",
-          "default": "Object.fromEntries( Object.entries(violetThemeBuiltInSet.presets).map(([name, tokens]) => [ name, tokens.map(token => ` ${violetTokenProperty(token.id)}: ${token.value};`).join(\"\\n\"), ]), )",
+          "default": "Object.fromEntries( Object.entries(violetThemeBuiltInSet.presets).map(([name, tokens]) => [ name, tokens.map((token) => ` ${violetTokenProperty(token.id)}: ${token.value};`).join(\"\\n\"), ]), )",
           "description": "The built-in default set's declarations, per preset, one `  --property: value;` per line."
         }
       ],
@@ -45110,7 +45110,7 @@
           "kind": "variable",
           "name": "VIOLET_TOKEN_TYPES",
           "type": {
-            "text": "[\n    \"color\",\n    \"dimension\",\n    \"duration\",\n    \"cubicBezier\",\n    \"fontWeight\",\n    \"fontFamily\",\n    \"number\",\n    \"shadow\",\n]"
+            "text": "[\n  \"color\",\n  \"dimension\",\n  \"duration\",\n  \"cubicBezier\",\n  \"fontWeight\",\n  \"fontFamily\",\n  \"number\",\n  \"shadow\",\n]"
           },
           "default": "[ \"color\", \"dimension\", \"duration\", \"cubicBezier\", \"fontWeight\", \"fontFamily\", \"number\", \"shadow\", ]",
           "description": "The token types `tokens/interface.json` uses."

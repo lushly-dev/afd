@@ -1,9 +1,15 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 import { registerSystemArrowUpIcon } from "../icon/generated/icons/system-arrow-up";
 import { registerSystemStopIcon } from "../icon/generated/icons/system-stop";
 import type { VioletTextArea } from "../text-area/violet-text-area";
+import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -123,21 +129,22 @@ const template = html<VioletChatComposer>`
             <violet-text-area
                 class="input-field"
                 part="input"
-                label="${x => x.label}"
-                placeholder="${x => x.placeholder}"
-                value="${x => x.value}"
-                ?disabled="${x => x.disabled || x.status === "submitted" || x.status === "streaming"}"
+                label="${(x) => x.label}"
+                placeholder="${(x) => x.placeholder}"
+                value="${(x) => x.value}"
+                ?disabled="${(x) => x.disabled || x.status === "submitted" || x.status === "streaming"}"
                 rows="3"
                 @keydown="${(x, c) => x.handleKeydown(c.event as KeyboardEvent)}"
                 @input="${(x, c) => x.handleInput(c.event)}"
             ></violet-text-area>
-            ${x => x.status === "streaming"
+            ${(x) =>
+              x.status === "streaming"
                 ? html<VioletChatComposer>`
                     <violet-icon-button
                         appearance="primary"
                         label="Stop generating"
                         part="stop-button"
-                        @click="${x => x.handleStop()}"
+                        @click="${(x) => x.handleStop()}"
                     >
                         <violet-icon icon="system/stop" decorative></violet-icon>
                     </violet-icon-button>
@@ -147,19 +154,18 @@ const template = html<VioletChatComposer>`
                         appearance="primary"
                         label="Send message"
                         part="submit-button"
-                        ?disabled="${x => !x.canSubmit}"
-                        @click="${x => x.handleSubmit()}"
+                        ?disabled="${(x) => !x.canSubmit}"
+                        @click="${(x) => x.handleSubmit()}"
                     >
                         <violet-icon icon="system/arrow-up" decorative></violet-icon>
                     </violet-icon-button>
-                `
-            }
+                `}
         </div>
-        <div class="actions" part="actions" ?hidden="${x => !x.hasActions}">
-            <slot name="actions" @slotchange="${x => x.handleActionsSlotChange()}"></slot>
+        <div class="actions" part="actions" ?hidden="${(x) => !x.hasActions}">
+            <slot name="actions" @slotchange="${(x) => x.handleActionsSlotChange()}"></slot>
         </div>
-        <div class="footer" part="footer" ?hidden="${x => !x.hasFooter}">
-            <slot name="footer" @slotchange="${x => x.handleFooterSlotChange()}"></slot>
+        <div class="footer" part="footer" ?hidden="${(x) => !x.hasFooter}">
+            <slot name="footer" @slotchange="${(x) => x.handleFooterSlotChange()}"></slot>
         </div>
     </div>
 `;
@@ -182,143 +188,149 @@ const template = html<VioletChatComposer>`
  * @fires stop - When the user clicks stop during streaming.
  */
 export class VioletChatComposer extends FASTElement {
-    declare public status: string;
-    declare public placeholder: string;
-    declare public label: string;
-    declare public disabled: boolean;
-    declare public value: string;
+  declare public status: string;
+  declare public placeholder: string;
+  declare public label: string;
+  declare public disabled: boolean;
+  declare public value: string;
 
-    @observable
-    declare public hasInput: boolean;
+  @observable
+  declare public hasInput: boolean;
 
-    @observable
-    declare public hasActions: boolean;
+  @observable
+  declare public hasActions: boolean;
 
-    @observable
-    declare public hasFooter: boolean;
+  @observable
+  declare public hasFooter: boolean;
 
-    public constructor() {
-        super();
-        this.status = "ready";
-        this.placeholder = "Send a message\u2026";
-        this.label = "Message";
-        this.disabled = false;
-        this.value = "";
-        this.hasInput = false;
-        this.hasActions = false;
-        this.hasFooter = false;
+  public constructor() {
+    super();
+    this.status = "ready";
+    this.placeholder = "Send a message\u2026";
+    this.label = "Message";
+    this.disabled = false;
+    this.value = "";
+    this.hasInput = false;
+    this.hasActions = false;
+    this.hasFooter = false;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    registerSystemArrowUpIcon();
+    registerSystemStopIcon();
+    this.syncInputState();
+    queueMicrotask(() => this.syncTextareaHeight());
+  }
+
+  get textAreaField(): VioletTextArea | null {
+    return this.shadowRoot?.querySelector("violet-text-area") as VioletTextArea | null;
+  }
+
+  get textareaEl(): HTMLTextAreaElement | null {
+    return this.textAreaField?.shadowRoot?.querySelector("textarea") as HTMLTextAreaElement | null;
+  }
+
+  get canSubmit(): boolean {
+    return (
+      !this.disabled &&
+      this.status !== "submitted" &&
+      this.status !== "streaming" &&
+      Boolean(this.value.trim())
+    );
+  }
+
+  public handleKeydown(event: KeyboardEvent): boolean {
+    // Enter that confirms an IME composition must not submit the message.
+    if (event.isComposing || event.keyCode === 229) {
+      return true;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        registerSystemArrowUpIcon();
-        registerSystemStopIcon();
-        this.syncInputState();
-        queueMicrotask(() => this.syncTextareaHeight());
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      // Enter never stops a running response; Stop is the explicit button.
+      if (this.status !== "streaming") {
+        this.handleSubmit();
+      }
+      return false;
+    }
+    return true;
+  }
+
+  public handleInput(_event: Event): void {
+    const field = this.textAreaField;
+    this.value = field?.value ?? "";
+    this.hasInput = Boolean(this.value.trim());
+    this.syncTextareaHeight();
+  }
+
+  public handleSubmit(): void {
+    const field = this.textAreaField;
+    const text = field?.value.trim();
+    if (!text || this.disabled || this.status === "submitted" || this.status === "streaming") {
+      return;
     }
 
-    get textAreaField(): VioletTextArea | null {
-        return this.shadowRoot?.querySelector("violet-text-area") as VioletTextArea | null;
+    this.$emit("submit", { text });
+
+    if (field) {
+      field.value = "";
+    }
+    this.value = "";
+    this.hasInput = false;
+    this.syncTextareaHeight();
+  }
+
+  public handleStop(): void {
+    this.$emit("stop");
+  }
+
+  public handleActionsSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="actions"]') as HTMLSlotElement | null;
+    this.hasActions = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
+
+  public handleFooterSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="footer"]') as HTMLSlotElement | null;
+    this.hasFooter = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
+
+  public valueChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.syncInputState();
+      queueMicrotask(() => this.syncTextareaHeight());
+    }
+  }
+
+  public syncInputState(): void {
+    this.hasInput = Boolean(this.value.trim());
+  }
+
+  public syncTextareaHeight(): void {
+    const textarea = this.textareaEl;
+    if (!textarea) {
+      return;
     }
 
-    get textareaEl(): HTMLTextAreaElement | null {
-        return this.textAreaField?.shadowRoot?.querySelector("textarea") as HTMLTextAreaElement | null;
-    }
+    const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || 20;
+    const maxRows =
+      Number.parseFloat(getComputedStyle(this).getPropertyValue("--_composer-max-rows")) || 8;
+    const maxHeight = lineHeight * maxRows;
 
-    get canSubmit(): boolean {
-        return !this.disabled && this.status !== "submitted" && this.status !== "streaming" && Boolean(this.value.trim());
-    }
-
-    public handleKeydown(event: KeyboardEvent): boolean {
-        // Enter that confirms an IME composition must not submit the message.
-        if (event.isComposing || event.keyCode === 229) {
-            return true;
-        }
-
-        if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            // Enter never stops a running response; Stop is the explicit button.
-            if (this.status !== "streaming") {
-                this.handleSubmit();
-            }
-            return false;
-        }
-        return true;
-    }
-
-    public handleInput(_event: Event): void {
-        const field = this.textAreaField;
-        this.value = field?.value ?? "";
-        this.hasInput = Boolean(this.value.trim());
-        this.syncTextareaHeight();
-    }
-
-    public handleSubmit(): void {
-        const field = this.textAreaField;
-        const text = field?.value.trim();
-        if (!text || this.disabled || this.status === "submitted" || this.status === "streaming") {
-            return;
-        }
-
-        this.$emit("submit", { text });
-
-        if (field) {
-            field.value = "";
-        }
-        this.value = "";
-        this.hasInput = false;
-        this.syncTextareaHeight();
-    }
-
-    public handleStop(): void {
-        this.$emit("stop");
-    }
-
-    public handleActionsSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="actions"]') as HTMLSlotElement | null;
-        this.hasActions = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
-
-    public handleFooterSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="footer"]') as HTMLSlotElement | null;
-        this.hasFooter = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
-
-    public valueChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.syncInputState();
-            queueMicrotask(() => this.syncTextareaHeight());
-        }
-    }
-
-    public syncInputState(): void {
-        this.hasInput = Boolean(this.value.trim());
-    }
-
-    public syncTextareaHeight(): void {
-        const textarea = this.textareaEl;
-        if (!textarea) {
-            return;
-        }
-
-        const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || 20;
-        const maxRows = Number.parseFloat(getComputedStyle(this).getPropertyValue("--_composer-max-rows")) || 8;
-        const maxHeight = lineHeight * maxRows;
-
-        textarea.style.height = "auto";
-        textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
-        textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
-    }
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }
 }
 
 export type VioletChatComposerStatus = "ready" | "submitted" | "streaming" | "error";
@@ -332,8 +344,8 @@ attr({ mode: "boolean" })(VioletChatComposer.prototype, "disabled");
 
 /** The FAST definition of `<violet-chat-composer>`; `defineVioletChatComposer` in `./violet-chat-composer.define` registers it. */
 export const violetChatComposerDefinition = {
-    name: "violet-chat-composer",
-    template,
-    styles,
-    shadowOptions: { delegatesFocus: true },
+  name: "violet-chat-composer",
+  template,
+  styles,
+  shadowOptions: { delegatesFocus: true },
 } satisfies PartialFASTElementDefinition;

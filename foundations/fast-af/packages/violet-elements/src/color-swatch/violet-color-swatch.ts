@@ -1,4 +1,10 @@
-import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { normalizeHexColor } from "../color-picker/violet-color-utils";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
@@ -57,9 +63,9 @@ const template = html<VioletColorSwatch>`
     <span
         class="swatch"
         part="swatch"
-        role="${x => (x.decorative ? "presentation" : "img")}"
-        aria-label="${x => (x.decorative ? null : x.ariaLabel)}"
-        style="${x => `--_swatch-color: ${x.normalizedValue || "transparent"};`}"
+        role="${(x) => (x.decorative ? "presentation" : "img")}"
+        aria-label="${(x) => (x.decorative ? null : x.ariaLabel)}"
+        style="${(x) => `--_swatch-color: ${x.normalizedValue || "transparent"};`}"
     ></span>
 `;
 
@@ -70,28 +76,28 @@ const template = html<VioletColorSwatch>`
  * @csspart swatch - The rendered swatch surface.
  */
 export class VioletColorSwatch extends FASTElement {
-    declare public value: string;
-    declare public label: string;
-    declare public decorative: boolean;
-    declare public shape: VioletColorSwatchShape;
-    declare public size: VioletColorSwatchSize;
+  declare public value: string;
+  declare public label: string;
+  declare public decorative: boolean;
+  declare public shape: VioletColorSwatchShape;
+  declare public size: VioletColorSwatchSize;
 
-    public constructor() {
-        super();
-        this.value = "";
-        this.label = "";
-        this.decorative = false;
-        this.shape = "square";
-        this.size = "natural";
-    }
+  public constructor() {
+    super();
+    this.value = "";
+    this.label = "";
+    this.decorative = false;
+    this.shape = "square";
+    this.size = "natural";
+  }
 
-    public get normalizedValue(): string {
-        return normalizeHexColor(this.value) ?? "";
-    }
+  public get normalizedValue(): string {
+    return normalizeHexColor(this.value) ?? "";
+  }
 
-    public get ariaLabel(): string {
-        return this.label || this.normalizedValue || "No color selected";
-    }
+  public get ariaLabel(): string {
+    return this.label || this.normalizedValue || "No color selected";
+  }
 }
 
 attr(VioletColorSwatch.prototype, "value");
@@ -102,7 +108,7 @@ attr(VioletColorSwatch.prototype, "size");
 
 /** The FAST definition of `<violet-color-swatch>`; `defineVioletColorSwatch` in `./violet-color-swatch.define` registers it. */
 export const violetColorSwatchDefinition = {
-    name: "violet-color-swatch",
-    template,
-    styles,
+  name: "violet-color-swatch",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

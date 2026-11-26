@@ -1,17 +1,13 @@
-import { userEvent } from "vitest/browser";
 import { afterEach, describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 import "./violet-gantt.define";
-import type {
-  VioletGantt,
-  VioletGanttItem,
-  VioletGanttRow,
-} from "./violet-gantt";
+import type { VioletGantt, VioletGanttItem, VioletGanttRow } from "./violet-gantt";
 
 const settle = () =>
   new Promise<void>((resolve) =>
     requestAnimationFrame(() =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-    )
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    ),
   );
 const rows: VioletGanttRow[] = [
   { id: "one", label: "First record", itemIds: ["item-one"] },
@@ -25,9 +21,7 @@ const items: VioletGanttItem[] = rows.map((row) => ({
   presentation: "window",
   provenance: "derived",
 }));
-async function mount(
-  overrides: Partial<VioletGantt> = {}
-): Promise<VioletGantt> {
+async function mount(overrides: Partial<VioletGantt> = {}): Promise<VioletGantt> {
   const element = document.createElement("violet-gantt") as VioletGantt;
   element.style.cssText = "display:block;width:760px;height:320px";
   element.rows = rows;
@@ -58,28 +52,22 @@ describe("violet-gantt UX regression contract", () => {
     });
     element.style.width = "280px";
     await settle();
-    const viewport =
-      element.shadowRoot!.querySelector<HTMLElement>(".viewport")!;
+    const viewport = element.shadowRoot!.querySelector<HTMLElement>(".viewport")!;
     viewport.scrollLeft = 15 * element.dayWidth;
     viewport.dispatchEvent(new Event("scroll"));
     await settle();
     expect(element.axisContextLabel).toBe("2028");
-    const labels = [
-      ...element.shadowRoot!.querySelectorAll<HTMLElement>(".day-label"),
-    ];
+    const labels = [...element.shadowRoot!.querySelectorAll<HTMLElement>(".day-label")];
     const january = labels.find((label) => label.textContent?.trim() === "Jan");
     expect(january).toBeTruthy();
-    const nameHeader =
-      element.shadowRoot!.querySelector<HTMLElement>(".name-header")!;
+    const nameHeader = element.shadowRoot!.querySelector<HTMLElement>(".name-header")!;
     expect(january!.getBoundingClientRect().left).toBeGreaterThanOrEqual(
-      nameHeader.getBoundingClientRect().right
+      nameHeader.getBoundingClientRect().right,
     );
-    const february = labels.find(
-      (label) => label.textContent?.trim() === "Feb"
-    );
+    const february = labels.find((label) => label.textContent?.trim() === "Feb");
     if (february) {
       expect(january!.getBoundingClientRect().right).toBeLessThanOrEqual(
-        february.getBoundingClientRect().left
+        february.getBoundingClientRect().left,
       );
     }
   });
@@ -91,22 +79,16 @@ describe("violet-gantt UX regression contract", () => {
     element.rows = [rows[1]!];
     element.items = [items[1]!];
     await settle();
-    const focusable = element.shadowRoot?.querySelectorAll(
-      '[part~="row"][tabindex="0"]'
-    );
+    const focusable = element.shadowRoot?.querySelectorAll('[part~="row"][tabindex="0"]');
     expect(focusable).toHaveLength(1);
-    expect(element.shadowRoot?.activeElement?.getAttribute("data-row-id")).toBe(
-      "two"
-    );
+    expect(element.shadowRoot?.activeElement?.getAttribute("data-row-id")).toBe("two");
     element.rows = [];
     element.items = [];
     await settle();
     element.rows = rows;
     element.items = items;
     await settle();
-    expect(
-      element.shadowRoot?.querySelectorAll('[part~="row"][tabindex="0"]')
-    ).toHaveLength(1);
+    expect(element.shadowRoot?.querySelectorAll('[part~="row"][tabindex="0"]')).toHaveLength(1);
   });
 
   it("reconciles filtered identities without stealing focus from an external control", async () => {
@@ -121,9 +103,7 @@ describe("violet-gantt UX regression contract", () => {
     element.items = [items[1]!];
     await settle();
     expect(document.activeElement).toBe(outside);
-    expect(
-      element.shadowRoot?.querySelectorAll('[part~="row"][tabindex="0"]')
-    ).toHaveLength(1);
+    expect(element.shadowRoot?.querySelectorAll('[part~="row"][tabindex="0"]')).toHaveLength(1);
   });
 
   it("offers row inspection separately from item activation through the keyboard", async () => {
@@ -131,10 +111,10 @@ describe("violet-gantt UX regression contract", () => {
     const inspected: string[] = [];
     const activated: string[] = [];
     element.addEventListener("row-inspect", (event) =>
-      inspected.push((event as CustomEvent<{ rowId: string }>).detail.rowId)
+      inspected.push((event as CustomEvent<{ rowId: string }>).detail.rowId),
     );
     element.addEventListener("item-activate", (event) =>
-      activated.push((event as CustomEvent<{ itemId: string }>).detail.itemId)
+      activated.push((event as CustomEvent<{ itemId: string }>).detail.itemId),
     );
     element.focusItem("item-one");
     await settle();
@@ -154,24 +134,18 @@ describe("violet-gantt UX regression contract", () => {
     });
     const activated: string[] = [];
     element.addEventListener("item-activate", (event) =>
-      activated.push((event as CustomEvent<{ itemId: string }>).detail.itemId)
+      activated.push((event as CustomEvent<{ itemId: string }>).detail.itemId),
     );
     element.focusItem("a");
     await settle();
     await userEvent.keyboard("{Tab}");
     await settle();
-    expect(element.shadowRoot?.activeElement?.getAttribute("data-action")).toBe(
-      "cycle-overflow"
-    );
-    expect(
-      element.shadowRoot?.activeElement?.getAttribute("data-direction")
-    ).toBe("previous");
+    expect(element.shadowRoot?.activeElement?.getAttribute("data-action")).toBe("cycle-overflow");
+    expect(element.shadowRoot?.activeElement?.getAttribute("data-direction")).toBe("previous");
     await userEvent.keyboard("{Enter}");
     await settle();
     expect(element.activeItemId).toBe("g");
-    expect(element.shadowRoot?.activeElement?.getAttribute("data-action")).toBe(
-      "cycle-overflow"
-    );
+    expect(element.shadowRoot?.activeElement?.getAttribute("data-action")).toBe("cycle-overflow");
     await userEvent.keyboard(" ");
     await settle();
     expect(element.activeItemId).toBe("f");
@@ -214,8 +188,7 @@ describe("violet-gantt UX regression contract", () => {
       });
       element.style.width = "380px";
       await settle();
-      const viewport =
-        element.shadowRoot!.querySelector<HTMLElement>('[part~="viewport"]')!;
+      const viewport = element.shadowRoot!.querySelector<HTMLElement>('[part~="viewport"]')!;
       viewport.scrollLeft = 2500;
       await settle();
       element.addEventListener("viewport-change", (event) => {
@@ -223,24 +196,18 @@ describe("violet-gantt UX regression contract", () => {
           event as CustomEvent<{ viewport: VioletGantt["viewport"] }>
         ).detail.viewport;
       });
-      expect(
-        reason === "today" ? element.showToday() : element.scrollToDate(target)
-      ).toBe(true);
+      expect(reason === "today" ? element.showToday() : element.scrollToDate(target)).toBe(true);
       await settle();
-      const mark = element.shadowRoot!.querySelector<HTMLElement>(
-        '[data-item-id="target"]'
-      );
+      const mark = element.shadowRoot!.querySelector<HTMLElement>('[data-item-id="target"]');
       expect(mark).not.toBeNull();
-      const name = element.shadowRoot!.querySelector<HTMLElement>(
-        '[part~="name-header"]'
-      )!;
+      const name = element.shadowRoot!.querySelector<HTMLElement>('[part~="name-header"]')!;
       expect(mark!.getBoundingClientRect().left).toBeGreaterThanOrEqual(
-        name.getBoundingClientRect().right - 1
+        name.getBoundingClientRect().right - 1,
       );
       expect(mark!.getBoundingClientRect().left).toBeLessThan(
-        viewport.getBoundingClientRect().right
+        viewport.getBoundingClientRect().right,
       );
-    }
+    },
   );
 
   it("distinguishes projected provenance without selection-like duration outlines", async () => {
@@ -259,10 +226,7 @@ describe("violet-gantt UX regression contract", () => {
       })),
     });
     const marks = provenance.map(
-      (value) =>
-        element.shadowRoot!.querySelector<HTMLElement>(
-          `[data-item-id="${value}"]`
-        )!
+      (value) => element.shadowRoot!.querySelector<HTMLElement>(`[data-item-id="${value}"]`)!,
     );
     for (const mark of marks) {
       expect(getComputedStyle(mark).borderTopStyle).toBe("dashed");
@@ -270,13 +234,9 @@ describe("violet-gantt UX regression contract", () => {
       if (mark.dataset.active !== "true") {
         expect(getComputedStyle(mark).outlineStyle).toBe("none");
       }
-      expect(mark.getAttribute("aria-label")).toContain(
-        mark.dataset.provenance
-      );
+      expect(mark.getAttribute("aria-label")).toContain(mark.dataset.provenance);
     }
-    const glyphs = marks
-      .slice(0, 3)
-      .map((mark) => getComputedStyle(mark, "::before").content);
+    const glyphs = marks.slice(0, 3).map((mark) => getComputedStyle(mark, "::before").content);
     expect(new Set(glyphs).size).toBe(3);
     expect(getComputedStyle(marks[3]!).borderBottomWidth).toBe("3px");
   });
@@ -319,17 +279,17 @@ describe("violet-gantt UX regression contract", () => {
     });
     for (const presentation of variants) {
       const normal = element.shadowRoot!.querySelector<HTMLElement>(
-        `[data-item-id="${presentation}"]`
+        `[data-item-id="${presentation}"]`,
       )!;
       const short = element.shadowRoot!.querySelector<HTMLElement>(
-        `[data-item-id="${presentation}-short"]`
+        `[data-item-id="${presentation}-short"]`,
       )!;
       const geometry = short.querySelector<HTMLElement>(".item-geometry")!;
       expect(getComputedStyle(normal).borderTopStyle).toBe(
-        presentation === "window" ? "dashed" : "solid"
+        presentation === "window" ? "dashed" : "solid",
       );
       expect(getComputedStyle(geometry).borderTopStyle).toBe(
-        presentation === "window" ? "dashed" : "solid"
+        presentation === "window" ? "dashed" : "solid",
       );
       expect(getComputedStyle(short).borderTopWidth).toBe("0px");
       expect(geometry.getBoundingClientRect().width).toBe(element.dayWidth);
@@ -354,9 +314,7 @@ describe("violet-gantt UX regression contract", () => {
         },
       ],
     });
-    const mounted = [
-      ...element.shadowRoot!.querySelectorAll<HTMLElement>('[part~="item"]'),
-    ];
+    const mounted = [...element.shadowRoot!.querySelectorAll<HTMLElement>('[part~="item"]')];
     expect(mounted).toHaveLength(2);
     for (const node of mounted) {
       const bounds = node.getBoundingClientRect();
@@ -385,24 +343,17 @@ describe("violet-gantt UX regression contract", () => {
     });
     element.style.width = "380px";
     await settle();
-    const name = element.shadowRoot!.querySelector<HTMLElement>(
-      '[part~="name-header"]'
-    )!;
+    const name = element.shadowRoot!.querySelector<HTMLElement>('[part~="name-header"]')!;
     expect(name.getBoundingClientRect().width).toBeLessThanOrEqual(190);
     element.focusItem("far");
     await settle();
-    const mark = element.shadowRoot!.querySelector<HTMLElement>(
-      '[data-item-id="far"]'
-    )!;
+    const mark = element.shadowRoot!.querySelector<HTMLElement>('[data-item-id="far"]')!;
     expect(mark).toBeTruthy();
-    const viewport =
-      element.shadowRoot!.querySelector<HTMLElement>('[part~="viewport"]')!;
+    const viewport = element.shadowRoot!.querySelector<HTMLElement>('[part~="viewport"]')!;
     expect(mark.getBoundingClientRect().left).toBeGreaterThanOrEqual(
-      name.getBoundingClientRect().right - 1
+      name.getBoundingClientRect().right - 1,
     );
-    expect(mark.getBoundingClientRect().left).toBeLessThan(
-      viewport.getBoundingClientRect().right
-    );
+    expect(mark.getBoundingClientRect().left).toBeLessThan(viewport.getBoundingClientRect().right);
   });
 
   it("keeps chronological scrolling coherent under inherited RTL and preserves RTL names", async () => {
@@ -415,11 +366,8 @@ describe("violet-gantt UX regression contract", () => {
     });
     element.setAttribute("dir", "rtl");
     await settle();
-    const viewport =
-      element.shadowRoot!.querySelector<HTMLElement>('[part~="viewport"]')!;
-    const rowHeader = element.shadowRoot!.querySelector<HTMLElement>(
-      '[part~="row-header"]'
-    )!;
+    const viewport = element.shadowRoot!.querySelector<HTMLElement>('[part~="viewport"]')!;
+    const rowHeader = element.shadowRoot!.querySelector<HTMLElement>('[part~="row-header"]')!;
     expect(getComputedStyle(viewport).direction).toBe("ltr");
     expect(getComputedStyle(rowHeader).direction).toBe("rtl");
     const before = element.renderedDays[0]?.date;
@@ -428,14 +376,8 @@ describe("violet-gantt UX regression contract", () => {
     expect(viewport.scrollLeft).toBeGreaterThan(0);
     expect(element.renderedDays[0]?.date).not.toBe(before);
     const viewportLeft = viewport.getBoundingClientRect().left;
-    const name = element.shadowRoot!.querySelector<HTMLElement>(
-      '[part~="name-header"]'
-    )!;
-    expect(
-      Math.abs(name.getBoundingClientRect().left - viewportLeft)
-    ).toBeLessThanOrEqual(1);
-    expect(
-      Math.abs(rowHeader.getBoundingClientRect().left - viewportLeft)
-    ).toBeLessThanOrEqual(1);
+    const name = element.shadowRoot!.querySelector<HTMLElement>('[part~="name-header"]')!;
+    expect(Math.abs(name.getBoundingClientRect().left - viewportLeft)).toBeLessThanOrEqual(1);
+    expect(Math.abs(rowHeader.getBoundingClientRect().left - viewportLeft)).toBeLessThanOrEqual(1);
   });
 });

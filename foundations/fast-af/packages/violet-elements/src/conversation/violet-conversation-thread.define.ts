@@ -1,5 +1,8 @@
 import { defineVioletElement } from "../shared/define-element";
-import { VioletConversationThread, violetConversationThreadDefinition } from "./violet-conversation-thread";
+import {
+  VioletConversationThread,
+  violetConversationThreadDefinition,
+} from "./violet-conversation-thread";
 
 /**
  * Defines `<violet-conversation-thread>` in `registry`.
@@ -7,8 +10,10 @@ import { VioletConversationThread, violetConversationThreadDefinition } from "./
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletConversationThread(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletConversationThread, violetConversationThreadDefinition, registry);
+export async function defineVioletConversationThread(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletConversationThread, violetConversationThreadDefinition, registry);
 }
 
 await defineVioletConversationThread();

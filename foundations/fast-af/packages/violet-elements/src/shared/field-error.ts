@@ -1,9 +1,9 @@
 export interface FieldErrorOptions {
-    invalid: boolean;
-    disabled?: boolean;
-    readonly?: boolean;
-    errorText?: string;
-    fallbackValidationMessage?: string;
+  invalid: boolean;
+  disabled?: boolean;
+  readonly?: boolean;
+  errorText?: string;
+  fallbackValidationMessage?: string;
 }
 
 /**
@@ -12,14 +12,14 @@ export interface FieldErrorOptions {
  * preferring trimmed `errorText` and falling back to the browser validation message.
  */
 export function resolveFieldErrorText(options: FieldErrorOptions): string {
-    if (!options.invalid || options.disabled || options.readonly) {
-        return "";
-    }
+  if (!options.invalid || options.disabled || options.readonly) {
+    return "";
+  }
 
-    const customError = (options.errorText ?? "").trim();
-    if (customError) {
-        return customError;
-    }
+  const customError = (options.errorText ?? "").trim();
+  if (customError) {
+    return customError;
+  }
 
-    return (options.fallbackValidationMessage ?? "").trim();
+  return (options.fallbackValidationMessage ?? "").trim();
 }

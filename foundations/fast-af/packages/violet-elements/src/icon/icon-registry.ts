@@ -2,19 +2,19 @@
 import { Observable } from "@lushly-dev/fast-element/observable.js";
 
 export type VioletIconSource = {
-    id: string;
-    title: string;
-    license: string;
-    attribution: string;
-    homepage: string;
-    notes: string;
+  id: string;
+  title: string;
+  license: string;
+  attribution: string;
+  homepage: string;
+  notes: string;
 };
 
 export type VioletIconDefinition = {
-    name: string;
-    svg: string;
-    sourceId: string;
-    originalFile: string;
+  name: string;
+  svg: string;
+  sourceId: string;
+  originalFile: string;
 };
 
 const iconRegistry = new Map<string, VioletIconDefinition>();
@@ -27,39 +27,41 @@ const iconRegistry = new Map<string, VioletIconDefinition>();
 const registryChanges = { names: 0 };
 
 function notifyRegistryChange(): void {
-    registryChanges.names += 1;
-    Observable.notify(registryChanges, "names");
+  registryChanges.names += 1;
+  Observable.notify(registryChanges, "names");
 }
 
 export function registerVioletIcon(definition: VioletIconDefinition): VioletIconDefinition {
-    const current = iconRegistry.get(definition.name);
-    iconRegistry.set(definition.name, definition);
-    // Components register their icons each time they connect: only a new or changed one re-renders.
-    if (current?.svg !== definition.svg) {
-        notifyRegistryChange();
-    }
-    return definition;
+  const current = iconRegistry.get(definition.name);
+  iconRegistry.set(definition.name, definition);
+  // Components register their icons each time they connect: only a new or changed one re-renders.
+  if (current?.svg !== definition.svg) {
+    notifyRegistryChange();
+  }
+  return definition;
 }
 
-export function registerVioletIcons(definitions: readonly VioletIconDefinition[]): readonly VioletIconDefinition[] {
-    definitions.forEach(registerVioletIcon);
-    return definitions;
+export function registerVioletIcons(
+  definitions: readonly VioletIconDefinition[],
+): readonly VioletIconDefinition[] {
+  definitions.forEach(registerVioletIcon);
+  return definitions;
 }
 
 export function resolveVioletIcon(name: string): VioletIconDefinition | null {
-    Observable.track(registryChanges, "names");
-    return iconRegistry.get(name) ?? null;
+  Observable.track(registryChanges, "names");
+  return iconRegistry.get(name) ?? null;
 }
 
 export function hasVioletIcon(name: string): boolean {
-    return iconRegistry.has(name);
+  return iconRegistry.has(name);
 }
 
 export function listRegisteredVioletIcons(): string[] {
-    return [...iconRegistry.keys()].sort((a, b) => a.localeCompare(b));
+  return [...iconRegistry.keys()].sort((a, b) => a.localeCompare(b));
 }
 
 export function clearVioletIconRegistryForTesting(): void {
-    iconRegistry.clear();
-    notifyRegistryChange();
+  iconRegistry.clear();
+  notifyRegistryChange();
 }

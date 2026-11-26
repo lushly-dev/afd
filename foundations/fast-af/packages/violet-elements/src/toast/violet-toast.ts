@@ -1,10 +1,16 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 import { registerSystemCheckmarkIcon } from "../icon/generated/icons/system-checkmark";
 import { registerSystemCloseIcon } from "../icon/generated/icons/system-close";
 import { registerSystemDismissIcon } from "../icon/generated/icons/system-dismiss";
 import { registerSystemWarningIcon } from "../icon/generated/icons/system-warning";
+import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -183,27 +189,27 @@ const styles = css`
 const template = html<VioletToast>`
     <violet-card class="frame" part="root" appearance="outline" padding="medium">
         <div class="layout" part="layout">
-            <span class="leading" part="icon" ?hidden="${x => !x.showLeading}">
-                <slot class="icon-slot" name="icon" @slotchange="${x => x.handleIconSlotChange()}"></slot>
-                ${x => (x.hasIcon ? html`` : x.defaultIconTemplate)}
+            <span class="leading" part="icon" ?hidden="${(x) => !x.showLeading}">
+                <slot class="icon-slot" name="icon" @slotchange="${(x) => x.handleIconSlotChange()}"></slot>
+                ${(x) => (x.hasIcon ? html`` : x.defaultIconTemplate)}
             </span>
 
             <div class="body" part="body">
                 <div
                     class="copy"
                     part="copy"
-                    role="${x => x.liveRegionRole || null}"
-                    aria-live="${x => x.liveRegionPoliteness || null}"
+                    role="${(x) => x.liveRegionRole || null}"
+                    aria-live="${(x) => x.liveRegionPoliteness || null}"
                 >
-                    <p class="title" part="title" ?hidden="${x => !x.hasTitle}">
-                        <slot name="title" @slotchange="${x => x.handleTitleSlotChange()}"></slot>
+                    <p class="title" part="title" ?hidden="${(x) => !x.hasTitle}">
+                        <slot name="title" @slotchange="${(x) => x.handleTitleSlotChange()}"></slot>
                     </p>
                     <div class="content" part="content">
                         <slot></slot>
                     </div>
                 </div>
-                <div class="actions" part="actions" ?hidden="${x => !x.hasActions}">
-                    <slot name="actions" @slotchange="${x => x.handleActionsSlotChange()}"></slot>
+                <div class="actions" part="actions" ?hidden="${(x) => !x.hasActions}">
+                    <slot name="actions" @slotchange="${(x) => x.handleActionsSlotChange()}"></slot>
                 </div>
             </div>
 
@@ -212,8 +218,8 @@ const template = html<VioletToast>`
                 part="dismiss-button"
                 appearance="transparent"
                 label="Dismiss notification"
-                ?hidden="${x => !x.dismissible}"
-                @click="${x => x.dismiss("dismiss-button")}"
+                ?hidden="${(x) => !x.dismissible}"
+                @click="${(x) => x.dismiss("dismiss-button")}"
             >
                 <violet-icon icon="system/close" decorative></violet-icon>
             </violet-icon-button>
@@ -241,174 +247,176 @@ const template = html<VioletToast>`
  * @csspart dismiss-button - Optional dismiss button.
  */
 export class VioletToast extends FASTElement {
-    @observable
-    declare public hasTitle: boolean;
+  @observable
+  declare public hasTitle: boolean;
 
-    @observable
-    declare public hasActions: boolean;
+  @observable
+  declare public hasActions: boolean;
 
-    @observable
-    declare public hasIcon: boolean;
+  @observable
+  declare public hasIcon: boolean;
 
-    declare public open: boolean;
-    declare public tone: string;
-    declare public announcement: string;
-    declare public dismissible: boolean;
-    declare public timeout: string;
+  declare public open: boolean;
+  declare public tone: string;
+  declare public announcement: string;
+  declare public dismissible: boolean;
+  declare public timeout: string;
 
-    #timeoutHandle: number | null = null;
+  #timeoutHandle: number | null = null;
 
-    public constructor() {
-        super();
-        this.hasTitle = false;
-        this.hasActions = false;
-        this.hasIcon = false;
-        this.open = false;
-        this.tone = "default";
-        this.announcement = "polite";
-        this.dismissible = true;
-        this.timeout = "5000";
+  public constructor() {
+    super();
+    this.hasTitle = false;
+    this.hasActions = false;
+    this.hasIcon = false;
+    this.open = false;
+    this.tone = "default";
+    this.announcement = "polite";
+    this.dismissible = true;
+    this.timeout = "5000";
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    registerSystemCheckmarkIcon();
+    registerSystemCloseIcon();
+    registerSystemDismissIcon();
+    registerSystemWarningIcon();
+    this.handleTitleSlotChange();
+    this.handleActionsSlotChange();
+    this.handleIconSlotChange();
+    this.#syncTimeout();
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#clearTimeout();
+  }
+
+  public openChanged(previous: boolean | undefined, next: boolean): void {
+    if (!this.$fastController.isConnected || previous === next) {
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        registerSystemCheckmarkIcon();
-        registerSystemCloseIcon();
-        registerSystemDismissIcon();
-        registerSystemWarningIcon();
-        this.handleTitleSlotChange();
-        this.handleActionsSlotChange();
-        this.handleIconSlotChange();
-        this.#syncTimeout();
+    this.#syncTimeout();
+    this.$emit("open-change", { open: next });
+  }
+
+  public timeoutChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#syncTimeout();
+    }
+  }
+
+  public handleTitleSlotChange(): void {
+    this.hasTitle = this.#slotHasContent('slot[name="title"]');
+  }
+
+  public handleActionsSlotChange(): void {
+    this.hasActions = this.#slotHasContent('slot[name="actions"]');
+    const actions = this.shadowRoot?.querySelector(".actions") as HTMLElement | null;
+    if (actions) {
+      actions.hidden = !this.hasActions;
+    }
+    if (this.$fastController.isConnected) {
+      this.#syncTimeout();
+    }
+  }
+
+  public handleIconSlotChange(): void {
+    this.hasIcon = this.#slotHasContent('slot[name="icon"]');
+  }
+
+  public dismiss(reason: "timeout" | "dismiss-button"): void {
+    if (!this.open) {
+      return;
     }
 
-    public disconnectedCallback(): void {
-        super.disconnectedCallback();
-        this.#clearTimeout();
+    this.#clearTimeout();
+    this.open = false;
+    this.$emit("dismiss", { reason });
+  }
+
+  public get showLeading(): boolean {
+    return (
+      this.hasIcon || this.tone === "success" || this.tone === "warning" || this.tone === "danger"
+    );
+  }
+
+  public get liveRegionRole(): "alert" | "status" | null {
+    if (this.announcement === "assertive") {
+      return "alert";
     }
 
-    public openChanged(previous: boolean | undefined, next: boolean): void {
-        if (!this.$fastController.isConnected || previous === next) {
-            return;
-        }
-
-        this.#syncTimeout();
-        this.$emit("open-change", { open: next });
+    if (this.announcement === "polite") {
+      return "status";
     }
 
-    public timeoutChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#syncTimeout();
-        }
+    return null;
+  }
+
+  public get liveRegionPoliteness(): "assertive" | "polite" | null {
+    if (this.announcement === "assertive") {
+      return "assertive";
     }
 
-    public handleTitleSlotChange(): void {
-        this.hasTitle = this.#slotHasContent('slot[name="title"]');
+    if (this.announcement === "polite") {
+      return "polite";
     }
 
-    public handleActionsSlotChange(): void {
-        this.hasActions = this.#slotHasContent('slot[name="actions"]');
-        const actions = this.shadowRoot?.querySelector(".actions") as HTMLElement | null;
-        if (actions) {
-            actions.hidden = !this.hasActions;
-        }
-        if (this.$fastController.isConnected) {
-            this.#syncTimeout();
-        }
+    return null;
+  }
+
+  public get defaultIconTemplate() {
+    if (this.tone === "success") {
+      return html`<violet-icon icon="system/checkmark" decorative></violet-icon>`;
     }
 
-    public handleIconSlotChange(): void {
-        this.hasIcon = this.#slotHasContent('slot[name="icon"]');
+    if (this.tone === "danger") {
+      return html`<violet-icon icon="system/dismiss" decorative></violet-icon>`;
     }
 
-    public dismiss(reason: "timeout" | "dismiss-button"): void {
-        if (!this.open) {
-            return;
-        }
-
-        this.#clearTimeout();
-        this.open = false;
-        this.$emit("dismiss", { reason });
+    if (this.tone === "warning") {
+      return html`<violet-icon icon="system/warning" decorative></violet-icon>`;
     }
 
-    public get showLeading(): boolean {
-        return this.hasIcon || this.tone === "success" || this.tone === "warning" || this.tone === "danger";
+    return html``;
+  }
+
+  #syncTimeout(): void {
+    this.#clearTimeout();
+
+    const timeout = Number.parseInt(this.timeout, 10);
+    // A close button and a timeout coexist; only actions, which need the person, hold it open.
+    if (!this.open || this.hasActions || !Number.isFinite(timeout) || timeout <= 0) {
+      return;
     }
 
-    public get liveRegionRole(): "alert" | "status" | null {
-        if (this.announcement === "assertive") {
-            return "alert";
-        }
+    this.#timeoutHandle = window.setTimeout(() => {
+      this.dismiss("timeout");
+    }, timeout);
+  }
 
-        if (this.announcement === "polite") {
-            return "status";
-        }
-
-        return null;
+  #clearTimeout(): void {
+    if (this.#timeoutHandle !== null) {
+      window.clearTimeout(this.#timeoutHandle);
+      this.#timeoutHandle = null;
     }
+  }
 
-    public get liveRegionPoliteness(): "assertive" | "polite" | null {
-        if (this.announcement === "assertive") {
-            return "assertive";
-        }
-
-        if (this.announcement === "polite") {
-            return "polite";
-        }
-
-        return null;
+  #slotHasContent(selector: string): boolean {
+    const slot = this.shadowRoot?.querySelector(selector) as HTMLSlotElement | null;
+    const slotName = slot?.name;
+    if (slotName && this.querySelector(`[slot="${slotName}"]`)) {
+      return true;
     }
-
-    public get defaultIconTemplate() {
-        if (this.tone === "success") {
-            return html`<violet-icon icon="system/checkmark" decorative></violet-icon>`;
-        }
-
-        if (this.tone === "danger") {
-            return html`<violet-icon icon="system/dismiss" decorative></violet-icon>`;
-        }
-
-        if (this.tone === "warning") {
-            return html`<violet-icon icon="system/warning" decorative></violet-icon>`;
-        }
-
-        return html``;
-    }
-
-    #syncTimeout(): void {
-        this.#clearTimeout();
-
-        const timeout = Number.parseInt(this.timeout, 10);
-        // A close button and a timeout coexist; only actions, which need the person, hold it open.
-        if (!this.open || this.hasActions || !Number.isFinite(timeout) || timeout <= 0) {
-            return;
-        }
-
-        this.#timeoutHandle = window.setTimeout(() => {
-            this.dismiss("timeout");
-        }, timeout);
-    }
-
-    #clearTimeout(): void {
-        if (this.#timeoutHandle !== null) {
-            window.clearTimeout(this.#timeoutHandle);
-            this.#timeoutHandle = null;
-        }
-    }
-
-    #slotHasContent(selector: string): boolean {
-        const slot = this.shadowRoot?.querySelector(selector) as HTMLSlotElement | null;
-        const slotName = slot?.name;
-        if (slotName && this.querySelector(`[slot="${slotName}"]`)) {
-            return true;
-        }
-        return (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
+    return (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
 }
 
 export type VioletToastTone = "default" | "info" | "success" | "warning" | "danger";
@@ -422,10 +430,10 @@ attr(VioletToast.prototype, "timeout");
 
 /** The FAST definition of `<violet-toast>`; `defineVioletToast` in `./violet-toast.define` registers it. */
 export const violetToastDefinition = {
-    name: "violet-toast",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-toast",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

@@ -9,10 +9,12 @@ import { VioletTabs, violetTabsDefinition } from "./violet-tabs";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletTabs(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletTab(registry);
-    await defineVioletTabPanel(registry);
-    await defineVioletElement(VioletTabs, violetTabsDefinition, registry);
+export async function defineVioletTabs(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletTab(registry);
+  await defineVioletTabPanel(registry);
+  await defineVioletElement(VioletTabs, violetTabsDefinition, registry);
 }
 
 await defineVioletTabs();

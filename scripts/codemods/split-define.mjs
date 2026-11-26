@@ -397,10 +397,10 @@ const helperFile = join(packageDir, 'src/shared/define-element.ts');
 write(
 	helperFile,
 	`import {
-    type Constructable,
-    type FASTElementExtension,
-    FASTElementDefinition,
-    type PartialFASTElementDefinition,
+  type Constructable,
+  FASTElementDefinition,
+  type FASTElementExtension,
+  type PartialFASTElementDefinition,
 } from "@lushly-dev/fast-element";
 
 const definitions = new WeakMap<Constructable<HTMLElement>, Promise<FASTElementDefinition>>();
@@ -423,17 +423,17 @@ const definitions = new WeakMap<Constructable<HTMLElement>, Promise<FASTElementD
  * @param extensions - FAST extensions applied once per registry before the element is defined.
  */
 export async function defineVioletElement<TType extends Constructable<HTMLElement>>(
-    type: TType,
-    partial: PartialFASTElementDefinition<TType>,
-    registry: CustomElementRegistry = customElements,
-    extensions?: FASTElementExtension[],
+  type: TType,
+  partial: PartialFASTElementDefinition<TType>,
+  registry: CustomElementRegistry = customElements,
+  extensions?: FASTElementExtension[],
 ): Promise<void> {
-    let definition = definitions.get(type);
-    if (definition === undefined) {
-        definition = FASTElementDefinition.compose(type, partial);
-        definitions.set(type, definition);
-    }
-    (await definition).define(registry, extensions);
+  let definition = definitions.get(type);
+  if (definition === undefined) {
+    definition = FASTElementDefinition.compose(type, partial);
+    definitions.set(type, definition);
+  }
+  (await definition).define(registry, extensions);
 }
 `
 );

@@ -1,21 +1,27 @@
-import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 import type { ViewTemplate } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { resolveVioletIcon } from "./icon-registry";
 
 const fallbackSvg =
-    "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M5 5L19 19\"/><path d=\"M19 5L5 19\"/></svg>";
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M5 5L19 19"/><path d="M19 5L5 19"/></svg>';
 const iconTemplateCache = new Map<string, ViewTemplate>();
 
 function getIconTemplate(svg: string): ViewTemplate {
-    let template = iconTemplateCache.get(svg);
+  let template = iconTemplateCache.get(svg);
 
-    if (!template) {
-        template = html`${html.partial(svg)}`;
-        iconTemplateCache.set(svg, template);
-    }
+  if (!template) {
+    template = html`${html.partial(svg)}`;
+    iconTemplateCache.set(svg, template);
+  }
 
-    return template;
+  return template;
 }
 
 const styles = css`
@@ -50,11 +56,11 @@ const template = html<VioletIcon>`
     <span
         class="glyph"
         part="glyph"
-        role="${x => x.decorative ? "presentation" : "img"}"
-        aria-label="${x => x.decorative ? null : (x.label || x.icon)}"
-        aria-hidden="${x => x.decorative ? "true" : "false"}"
+        role="${(x) => (x.decorative ? "presentation" : "img")}"
+        aria-label="${(x) => (x.decorative ? null : x.label || x.icon)}"
+        aria-hidden="${(x) => (x.decorative ? "true" : "false")}"
     >
-        ${x => getIconTemplate(resolveVioletIcon(x.icon)?.svg ?? fallbackSvg)}
+        ${(x) => getIconTemplate(resolveVioletIcon(x.icon)?.svg ?? fallbackSvg)}
     </span>
 `;
 
@@ -65,27 +71,27 @@ const template = html<VioletIcon>`
  * @csspart glyph - Inline wrapper containing the rendered SVG.
  */
 export class VioletIcon extends FASTElement {
-    /**
-     * Registry name for the icon, using source-prefixed ids such as system/search.
-     */
-    declare public icon: string;
+  /**
+   * Registry name for the icon, using source-prefixed ids such as system/search.
+   */
+  declare public icon: string;
 
-    /**
-     * Optional accessible label when the icon is not decorative.
-     */
-    declare public label: string;
+  /**
+   * Optional accessible label when the icon is not decorative.
+   */
+  declare public label: string;
 
-    /**
-     * Marks the icon decorative when it should be hidden from assistive technology.
-     */
-    declare public decorative: boolean;
+  /**
+   * Marks the icon decorative when it should be hidden from assistive technology.
+   */
+  declare public decorative: boolean;
 
-    public constructor() {
-        super();
-        this.icon = "system/search";
-        this.label = "";
-        this.decorative = false;
-    }
+  public constructor() {
+    super();
+    this.icon = "system/search";
+    this.label = "";
+    this.decorative = false;
+  }
 }
 
 attr(VioletIcon.prototype, "icon");
@@ -94,7 +100,7 @@ attr({ mode: "boolean" })(VioletIcon.prototype, "decorative");
 
 /** The FAST definition of `<violet-icon>`; `defineVioletIcon` in `./violet-icon.define` registers it. */
 export const violetIconDefinition = {
-    name: "violet-icon",
-    template,
-    styles,
+  name: "violet-icon",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

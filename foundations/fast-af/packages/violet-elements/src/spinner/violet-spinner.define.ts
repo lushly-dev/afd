@@ -7,8 +7,10 @@ import { VioletSpinner, violetSpinnerDefinition } from "./violet-spinner";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletSpinner(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletSpinner, violetSpinnerDefinition, registry);
+export async function defineVioletSpinner(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletSpinner, violetSpinnerDefinition, registry);
 }
 
 await defineVioletSpinner();

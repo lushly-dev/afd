@@ -1,17 +1,27 @@
-import { FASTElement, attr, css, html, observable, repeat, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  repeat,
+  when,
+} from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import {
-    normalizeRatingMax,
-    parseRatingValue,
-    serializeRatingValue,
+  normalizeRatingMax,
+  parseRatingValue,
+  serializeRatingValue,
 } from "./violet-data-grid-rating-values";
 
-const STAR_PATH = "M12 2.2 14.9 8.2 21.5 9.1 16.8 13.6 17.9 20 12 16.8 6.1 20 7.2 13.6 2.5 9.1 9.1 8.2 12 2.2Z";
+const STAR_PATH =
+  "M12 2.2 14.9 8.2 21.5 9.1 16.8 13.6 17.9 20 12 16.8 6.1 20 7.2 13.6 2.5 9.1 9.1 8.2 12 2.2Z";
 
 type VioletDataGridRatingChangeDetail = {
-    rating: number | null;
-    value: string;
+  rating: number | null;
+  value: string;
 };
 
 const styles = css`
@@ -128,27 +138,27 @@ const interactiveTemplate = html<VioletDataGridRating>`
         data-interactive="true"
         role="slider"
         tabindex="0"
-        aria-label="${x => x.controlLabel}"
+        aria-label="${(x) => x.controlLabel}"
         aria-valuemin="0"
-        aria-valuemax="${x => String(x.resolvedMax)}"
-        aria-valuenow="${x => String(x.rating ?? 0)}"
-        aria-valuetext="${x => x.accessibleValueText}"
+        aria-valuemax="${(x) => String(x.resolvedMax)}"
+        aria-valuenow="${(x) => String(x.rating ?? 0)}"
+        aria-valuetext="${(x) => x.accessibleValueText}"
         @click="${(x, c) => {
-            x.handleControlClick(c.event as MouseEvent);
-            return true;
+          x.handleControlClick(c.event as MouseEvent);
+          return true;
         }}"
         @keydown="${(x, c) => {
-            x.handleControlKeydown(c.event as KeyboardEvent);
-            return true;
+          x.handleControlKeydown(c.event as KeyboardEvent);
+          return true;
         }}"
     >
         ${repeat(
-            x => x.starValues,
-            html<number, VioletDataGridRating>`
+          (x) => x.starValues,
+          html<number, VioletDataGridRating>`
                 <span
                     class="star"
                     part="star"
-                    data-index="${x => String(x)}"
+                    data-index="${(x) => String(x)}"
                     data-filled="${(x, c) => String(c.parent.isFilled(x))}"
                     data-current="${(x, c) => String(c.parent.rating === x)}"
                     aria-hidden="true"
@@ -159,7 +169,7 @@ const interactiveTemplate = html<VioletDataGridRating>`
                 </span>
             `,
         )}
-        <span class="summary" part="summary">${x => x.selectionSummary}</span>
+        <span class="summary" part="summary">${(x) => x.selectionSummary}</span>
     </div>
 `;
 
@@ -169,16 +179,16 @@ const readonlyTemplate = html<VioletDataGridRating>`
         part="control"
         data-interactive="false"
         role="img"
-        aria-label="${x => x.readonlyLabel}"
-        aria-disabled="${x => x.disabled ? "true" : null}"
+        aria-label="${(x) => x.readonlyLabel}"
+        aria-disabled="${(x) => (x.disabled ? "true" : null)}"
     >
         ${repeat(
-            x => x.starValues,
-            html<number, VioletDataGridRating>`
+          (x) => x.starValues,
+          html<number, VioletDataGridRating>`
                 <span
                     class="star"
                     part="star"
-                    data-index="${x => String(x)}"
+                    data-index="${(x) => String(x)}"
                     data-filled="${(x, c) => String(c.parent.isFilled(x))}"
                     data-current="${(x, c) => String(c.parent.rating === x)}"
                     aria-hidden="true"
@@ -194,11 +204,7 @@ const readonlyTemplate = html<VioletDataGridRating>`
 
 const template = html<VioletDataGridRating>`
     <div class="root" part="base">
-        ${when(
-            x => x.interactive,
-            interactiveTemplate,
-            readonlyTemplate,
-        )}
+        ${when((x) => x.interactive, interactiveTemplate, readonlyTemplate)}
     </div>
 `;
 
@@ -214,186 +220,191 @@ const template = html<VioletDataGridRating>`
  * @csspart summary - Compact numeric summary shown in interactive mode.
  */
 export class VioletDataGridRating extends FASTElement {
-    declare public disabled: boolean;
+  declare public disabled: boolean;
 
-    declare public readonly: boolean;
+  declare public readonly: boolean;
 
-    declare public ariaLabel: string;
+  declare public ariaLabel: string;
 
-    declare public rating: number | null;
+  declare public rating: number | null;
 
-    declare public max: number;
+  declare public max: number;
 
-    public constructor() {
-        super();
-        this.disabled = false;
-        this.readonly = false;
-        this.ariaLabel = "";
-        this.rating = null;
-        this.max = 5;
+  public constructor() {
+    super();
+    this.disabled = false;
+    this.readonly = false;
+    this.ariaLabel = "";
+    this.rating = null;
+    this.max = 5;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.max = normalizeRatingMax(this.max);
+    this.rating = parseRatingValue(this.rating, this.max);
+  }
+
+  public ratingChanged(): void {
+    const normalizedRating = parseRatingValue(this.rating, this.max);
+    if (normalizedRating !== this.rating) {
+      this.rating = normalizedRating;
+    }
+  }
+
+  public maxChanged(): void {
+    const normalizedMax = normalizeRatingMax(this.max);
+    if (normalizedMax !== this.max) {
+      this.max = normalizedMax;
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.max = normalizeRatingMax(this.max);
-        this.rating = parseRatingValue(this.rating, this.max);
+    const normalizedRating = parseRatingValue(this.rating, normalizedMax);
+    if (normalizedRating !== this.rating) {
+      this.rating = normalizedRating;
+    }
+  }
+
+  public get value(): string {
+    return serializeRatingValue(this.rating, this.max);
+  }
+
+  public set value(nextValue: string) {
+    const nextRating = parseRatingValue(nextValue, this.max);
+    if (nextRating === this.rating) {
+      return;
     }
 
-    public ratingChanged(): void {
-        const normalizedRating = parseRatingValue(this.rating, this.max);
-        if (normalizedRating !== this.rating) {
-            this.rating = normalizedRating;
-        }
+    this.rating = nextRating;
+  }
+
+  public override focus(options?: FocusOptions): void {
+    const control = this.shadowRoot?.querySelector<HTMLElement>('.control[tabindex="0"]');
+    control?.focus(options);
+  }
+
+  public get resolvedMax(): number {
+    return normalizeRatingMax(this.max);
+  }
+
+  public get starValues(): number[] {
+    return Array.from({ length: this.resolvedMax }, (_, index) => index + 1);
+  }
+
+  public get interactive(): boolean {
+    return !this.disabled && !this.readonly;
+  }
+
+  public get selectionSummary(): string {
+    return this.rating === null ? "No rating" : `${this.rating}/${this.resolvedMax}`;
+  }
+
+  public get controlLabel(): string {
+    return this.ariaLabel || "Rating";
+  }
+
+  public get accessibleValueText(): string {
+    if (this.rating === null) {
+      return `No rating, out of ${this.resolvedMax}`;
     }
 
-    public maxChanged(): void {
-        const normalizedMax = normalizeRatingMax(this.max);
-        if (normalizedMax !== this.max) {
-            this.max = normalizedMax;
-            return;
-        }
+    return `${this.rating} of ${this.resolvedMax}`;
+  }
 
-        const normalizedRating = parseRatingValue(this.rating, normalizedMax);
-        if (normalizedRating !== this.rating) {
-            this.rating = normalizedRating;
-        }
+  public get readonlyLabel(): string {
+    return `${this.controlLabel}: ${this.accessibleValueText}`;
+  }
+
+  public isFilled(index: number): boolean {
+    return this.rating !== null && index <= this.rating;
+  }
+
+  public selectRating(nextRating: number | null): void {
+    if (!this.interactive) {
+      return;
     }
 
-    public get value(): string {
-        return serializeRatingValue(this.rating, this.max);
+    const normalizedRating = parseRatingValue(nextRating, this.resolvedMax);
+    if (normalizedRating === this.rating) {
+      return;
     }
 
-    public set value(nextValue: string) {
-        const nextRating = parseRatingValue(nextValue, this.max);
-        if (nextRating === this.rating) {
-            return;
-        }
+    this.rating = normalizedRating;
+    this.emitSelectionChange();
+  }
 
-        this.rating = nextRating;
+  public clearRating(): void {
+    this.selectRating(null);
+  }
+
+  public handleControlClick(event: MouseEvent): void {
+    if (!this.interactive) {
+      return;
     }
 
-    public override focus(options?: FocusOptions): void {
-        const control = this.shadowRoot?.querySelector<HTMLElement>('.control[tabindex="0"]');
-        control?.focus(options);
+    const star = event
+      .composedPath()
+      .find(
+        (node): node is HTMLElement =>
+          node instanceof HTMLElement && typeof node.dataset.index === "string",
+      );
+
+    if (!star) {
+      return;
     }
 
-    public get resolvedMax(): number {
-        return normalizeRatingMax(this.max);
+    const clickedRating = parseRatingValue(star.dataset.index, this.resolvedMax);
+    this.selectRating(
+      clickedRating !== null && clickedRating === this.rating ? null : clickedRating,
+    );
+  }
+
+  public handleControlKeydown(event: KeyboardEvent): void {
+    if (!this.interactive) {
+      return;
     }
 
-    public get starValues(): number[] {
-        return Array.from({ length: this.resolvedMax }, (_, index) => index + 1);
-    }
-
-    public get interactive(): boolean {
-        return !this.disabled && !this.readonly;
-    }
-
-    public get selectionSummary(): string {
-        return this.rating === null ? "No rating" : `${this.rating}/${this.resolvedMax}`;
-    }
-
-    public get controlLabel(): string {
-        return this.ariaLabel || "Rating";
-    }
-
-    public get accessibleValueText(): string {
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowUp":
+        event.preventDefault();
+        this.selectRating(Math.min(this.resolvedMax, (this.rating ?? 0) + 1));
+        break;
+      case "ArrowLeft":
+      case "ArrowDown":
+        event.preventDefault();
         if (this.rating === null) {
-            return `No rating, out of ${this.resolvedMax}`;
+          return;
         }
-
-        return `${this.rating} of ${this.resolvedMax}`;
+        this.selectRating(this.rating > 1 ? this.rating - 1 : null);
+        break;
+      case "Home":
+        event.preventDefault();
+        this.selectRating(1);
+        break;
+      case "End":
+        event.preventDefault();
+        this.selectRating(this.resolvedMax);
+        break;
+      case "Backspace":
+      case "Delete":
+        event.preventDefault();
+        this.clearRating();
+        break;
+      default:
+        break;
     }
+  }
 
-    public get readonlyLabel(): string {
-        return `${this.controlLabel}: ${this.accessibleValueText}`;
-    }
+  private emitSelectionChange(): void {
+    const detail = {
+      rating: this.rating,
+      value: this.value,
+    } satisfies VioletDataGridRatingChangeDetail;
 
-    public isFilled(index: number): boolean {
-        return this.rating !== null && index <= this.rating;
-    }
-
-    public selectRating(nextRating: number | null): void {
-        if (!this.interactive) {
-            return;
-        }
-
-        const normalizedRating = parseRatingValue(nextRating, this.resolvedMax);
-        if (normalizedRating === this.rating) {
-            return;
-        }
-
-        this.rating = normalizedRating;
-        this.emitSelectionChange();
-    }
-
-    public clearRating(): void {
-        this.selectRating(null);
-    }
-
-    public handleControlClick(event: MouseEvent): void {
-        if (!this.interactive) {
-            return;
-        }
-
-        const star = event.composedPath().find((node): node is HTMLElement =>
-            node instanceof HTMLElement && typeof node.dataset.index === "string"
-        );
-
-        if (!star) {
-            return;
-        }
-
-        const clickedRating = parseRatingValue(star.dataset.index, this.resolvedMax);
-        this.selectRating(clickedRating !== null && clickedRating === this.rating ? null : clickedRating);
-    }
-
-    public handleControlKeydown(event: KeyboardEvent): void {
-        if (!this.interactive) {
-            return;
-        }
-
-        switch (event.key) {
-            case "ArrowRight":
-            case "ArrowUp":
-                event.preventDefault();
-                this.selectRating(Math.min(this.resolvedMax, (this.rating ?? 0) + 1));
-                break;
-            case "ArrowLeft":
-            case "ArrowDown":
-                event.preventDefault();
-                if (this.rating === null) {
-                    return;
-                }
-                this.selectRating(this.rating > 1 ? this.rating - 1 : null);
-                break;
-            case "Home":
-                event.preventDefault();
-                this.selectRating(1);
-                break;
-            case "End":
-                event.preventDefault();
-                this.selectRating(this.resolvedMax);
-                break;
-            case "Backspace":
-            case "Delete":
-                event.preventDefault();
-                this.clearRating();
-                break;
-            default:
-                break;
-        }
-    }
-
-    private emitSelectionChange(): void {
-        const detail = {
-            rating: this.rating,
-            value: this.value,
-        } satisfies VioletDataGridRatingChangeDetail;
-
-        this.$emit("input", detail);
-        this.$emit("change", detail);
-    }
+    this.$emit("input", detail);
+    this.$emit("change", detail);
+  }
 }
 
 attr({ mode: "boolean" })(VioletDataGridRating.prototype, "disabled");
@@ -404,10 +415,10 @@ observable(VioletDataGridRating.prototype, "max");
 
 /** The FAST definition of `<violet-data-grid-rating>`; `defineVioletDataGridRating` in `./violet-data-grid-rating.define` registers it. */
 export const violetDataGridRatingDefinition = {
-    name: "violet-data-grid-rating",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-data-grid-rating",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

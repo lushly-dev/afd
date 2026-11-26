@@ -5,19 +5,12 @@
     {
       "id": "text-area.validation",
       "text": "Only required (whitespace-only counts as empty) and invalid affect validity. The maxlength attribute limits typing but a longer value set from script is not reported invalid. A readonly field is never invalid.",
-      "members": [
-        "required",
-        "invalid",
-        "maxlength",
-        "readonly"
-      ]
+      "members": ["required", "invalid", "maxlength", "readonly"]
     },
     {
       "id": "text-area.rows",
       "text": "The rows attribute sets the initial height and falls back to 4 when it is not a positive number; the user can still resize the field vertically.",
-      "members": [
-        "rows"
-      ]
+      "members": ["rows"]
     }
   ],
   "a11y": [

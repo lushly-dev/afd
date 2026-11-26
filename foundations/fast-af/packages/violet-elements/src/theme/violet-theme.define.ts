@@ -7,8 +7,10 @@ import { VioletTheme, violetThemeDefinition } from "./violet-theme";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletTheme(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletTheme, violetThemeDefinition, registry);
+export async function defineVioletTheme(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletTheme, violetThemeDefinition, registry);
 }
 
 await defineVioletTheme();

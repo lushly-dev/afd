@@ -7,7 +7,9 @@ import { VioletGantt, violetGanttDefinition } from "./violet-gantt";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletGantt(registry: CustomElementRegistry = customElements): Promise<void> {
+export async function defineVioletGantt(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
   await defineVioletElement(VioletGantt, violetGanttDefinition, registry);
 }
 

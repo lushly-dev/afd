@@ -7,8 +7,10 @@ import { VioletDivider, violetDividerDefinition } from "./violet-divider";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletDivider(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletDivider, violetDividerDefinition, registry);
+export async function defineVioletDivider(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletDivider, violetDividerDefinition, registry);
 }
 
 await defineVioletDivider();

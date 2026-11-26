@@ -1,7 +1,7 @@
-import { defineVioletElement } from "../shared/define-element";
 import { defineVioletButton } from "../button/violet-button.define";
-import { defineVioletIconButton } from "../icon-button/violet-icon-button.define";
 import { defineVioletIcon } from "../icon/violet-icon.define";
+import { defineVioletIconButton } from "../icon-button/violet-icon-button.define";
+import { defineVioletElement } from "../shared/define-element";
 import { VioletFileUpload, violetFileUploadDefinition } from "./violet-file-upload";
 
 /**
@@ -10,11 +10,13 @@ import { VioletFileUpload, violetFileUploadDefinition } from "./violet-file-uplo
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletFileUpload(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletButton(registry);
-    await defineVioletIconButton(registry);
-    await defineVioletIcon(registry);
-    await defineVioletElement(VioletFileUpload, violetFileUploadDefinition, registry);
+export async function defineVioletFileUpload(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletButton(registry);
+  await defineVioletIconButton(registry);
+  await defineVioletIcon(registry);
+  await defineVioletElement(VioletFileUpload, violetFileUploadDefinition, registry);
 }
 
 await defineVioletFileUpload();

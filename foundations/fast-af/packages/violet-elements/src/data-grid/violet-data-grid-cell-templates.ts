@@ -1,25 +1,25 @@
 import { html, repeat } from "@lushly-dev/fast-element";
 
 interface VioletDataGridCellTemplateModel {
-    active: boolean;
-    align: "start" | "center" | "end";
-    columnId: string;
-    columnLabel: string;
-    editValue: string;
-    editable: boolean;
-    editor: "text" | "number" | "checkbox" | "select" | "custom";
-    editing: boolean;
+  active: boolean;
+  align: "start" | "center" | "end";
+  columnId: string;
+  columnLabel: string;
+  editValue: string;
+  editable: boolean;
+  editor: "text" | "number" | "checkbox" | "select" | "custom";
+  editing: boolean;
   editingError: string;
   editingErrorId: string;
-    editingHint?: string;
-    editingHintId?: string;
-    editorOptions: Array<{ label: string; value: string }>;
-    fillPreview: boolean;
-    rawValue: unknown;
-    rowId: string;
-    rowLabel: string;
-    selected: boolean;
-    text: string;
+  editingHint?: string;
+  editingHintId?: string;
+  editorOptions: Array<{ label: string; value: string }>;
+  fillPreview: boolean;
+  rawValue: unknown;
+  rowId: string;
+  rowLabel: string;
+  selected: boolean;
+  text: string;
 }
 
 export const defaultCellContentTemplate = html<VioletDataGridCellTemplateModel>`
@@ -55,7 +55,7 @@ export const selectCellEditorTemplate = html<VioletDataGridCellTemplateModel>`
     >
         ${repeat(
           (x) => x.editorOptions,
-            html<{ label: string; value: string }>`
+          html<{ label: string; value: string }>`
                 <option value="${(x) => x.value}">${(x) => x.label}</option>
             `,
         )}

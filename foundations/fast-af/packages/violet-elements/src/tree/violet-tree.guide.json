@@ -9,27 +9,17 @@
     {
       "id": "tree.value",
       "text": "value selects the item whose value matches, or whose label text matches when the item has no value. With no tree value, an item marked selected is used.",
-      "members": [
-        "value"
-      ]
+      "members": ["value"]
     },
     {
       "id": "tree.events",
       "text": "change fires on user selection with detail { value, itemId }; setting value from script fires nothing. expanded-change fires only when the user expands or collapses a branch.",
-      "members": [
-        "change",
-        "expanded-change",
-        "value"
-      ]
+      "members": ["change", "expanded-change", "value"]
     },
     {
       "id": "tree.not-form",
       "text": "It is not form-associated: a form does not receive its value. Read value or listen for change; set invalid with error-text to show an error.",
-      "members": [
-        "value",
-        "invalid",
-        "error-text"
-      ]
+      "members": ["value", "invalid", "error-text"]
     },
     {
       "id": "tree.keyboard",
@@ -40,10 +30,7 @@
     {
       "id": "tree.name",
       "text": "Name it with label or aria-label; with neither it is named \"Tree\". When label is set, aria-label is ignored.",
-      "members": [
-        "label",
-        "aria-label"
-      ]
+      "members": ["label", "aria-label"]
     }
   ]
 }

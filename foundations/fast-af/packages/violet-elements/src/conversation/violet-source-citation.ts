@@ -1,8 +1,14 @@
-import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { isSafeLinkHref } from "../foundations/violet-safe-url";
-import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import { registerSystemDocumentIcon } from "../icon/generated/icons/system-document";
+import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -91,25 +97,25 @@ const styles = css`
 
 const template = html<VioletSourceCitation>`
     <span class="root" part="root">
-        <span class="badge" part="badge" ?hidden="${x => !x.index}" aria-hidden="true">${x => x.index}</span>
-        ${x => {
-            if (x.type === "url" && x.href) {
-                // Only http(s)/mailto/relative hrefs become links; anything else
-                // (e.g. javascript:) is rendered as plain text.
-                if (!isSafeLinkHref(x.href)) {
-                    return html<VioletSourceCitation>`
-                        <span class="title" part="title">${x => x.sourceTitle || x.href}</span>
+        <span class="badge" part="badge" ?hidden="${(x) => !x.index}" aria-hidden="true">${(x) => x.index}</span>
+        ${(x) => {
+          if (x.type === "url" && x.href) {
+            // Only http(s)/mailto/relative hrefs become links; anything else
+            // (e.g. javascript:) is rendered as plain text.
+            if (!isSafeLinkHref(x.href)) {
+              return html<VioletSourceCitation>`
+                        <span class="title" part="title">${(x) => x.sourceTitle || x.href}</span>
                     `;
-                }
-                return html<VioletSourceCitation>`
-                    <a class="link" part="link" href="${x => x.href}" target="_blank" rel="noopener noreferrer">
-                        ${x => x.sourceTitle || x.href}
-                    </a>
-                `;
             }
             return html<VioletSourceCitation>`
+                    <a class="link" part="link" href="${(x) => x.href}" target="_blank" rel="noopener noreferrer">
+                        ${(x) => x.sourceTitle || x.href}
+                    </a>
+                `;
+          }
+          return html<VioletSourceCitation>`
                 <span class="doc-icon" part="icon"><violet-icon icon="system/document" decorative></violet-icon></span>
-                <span class="title" part="title">${x => x.sourceTitle || "Document"}</span>
+                <span class="title" part="title">${(x) => x.sourceTitle || "Document"}</span>
             `;
         }}
         <slot></slot>
@@ -129,27 +135,27 @@ const template = html<VioletSourceCitation>`
  * @csspart title - The document title (document type).
  */
 export class VioletSourceCitation extends FASTElement {
-    declare public type: string;
-    declare public href: string;
-    declare public sourceTitle: string;
-    declare public sourceId: string;
-    declare public mediaType: string;
-    declare public index: string;
+  declare public type: string;
+  declare public href: string;
+  declare public sourceTitle: string;
+  declare public sourceId: string;
+  declare public mediaType: string;
+  declare public index: string;
 
-    public constructor() {
-        super();
-        this.type = "url";
-        this.href = "";
-        this.sourceTitle = "";
-        this.sourceId = "";
-        this.mediaType = "";
-        this.index = "";
-    }
+  public constructor() {
+    super();
+    this.type = "url";
+    this.href = "";
+    this.sourceTitle = "";
+    this.sourceId = "";
+    this.mediaType = "";
+    this.index = "";
+  }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        registerSystemDocumentIcon();
-    }
+  public connectedCallback(): void {
+    super.connectedCallback();
+    registerSystemDocumentIcon();
+  }
 }
 
 export type VioletSourceCitationType = "url" | "document";
@@ -163,7 +169,7 @@ attr(VioletSourceCitation.prototype, "index");
 
 /** The FAST definition of `<violet-source-citation>`; `defineVioletSourceCitation` in `./violet-source-citation.define` registers it. */
 export const violetSourceCitationDefinition = {
-    name: "violet-source-citation",
-    template,
-    styles,
+  name: "violet-source-citation",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

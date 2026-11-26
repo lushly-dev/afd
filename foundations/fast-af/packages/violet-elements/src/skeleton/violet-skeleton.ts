@@ -1,4 +1,11 @@
-import { FASTElement, attr, css, html, repeat, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+  repeat,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -99,33 +106,33 @@ const styles = css`
 `;
 
 const lineWidths = (x: VioletSkeleton): string[] => {
-    const count = Math.max(1, Number(x.lines) || 1);
-    return Array.from({ length: count }, (_, index) => {
-        if (count === 1) {
-            return "100%";
-        }
+  const count = Math.max(1, Number(x.lines) || 1);
+  return Array.from({ length: count }, (_, index) => {
+    if (count === 1) {
+      return "100%";
+    }
 
-        if (index === count - 1) {
-            return "68%";
-        }
+    if (index === count - 1) {
+      return "68%";
+    }
 
-        if (index % 3 === 1) {
-            return "84%";
-        }
+    if (index % 3 === 1) {
+      return "84%";
+    }
 
-        return "100%";
-    });
+    return "100%";
+  });
 };
 
 const template = html<VioletSkeleton>`
     <div class="root" part="root" aria-hidden="true">
         ${repeat(
-            x => lineWidths(x),
-            html<string, VioletSkeleton>`
+          (x) => lineWidths(x),
+          html<string, VioletSkeleton>`
                 <div
                     class="${(_, c) => `bar${c.parent.shape === "circle" ? " circle" : ""}`}"
                     part="bar"
-                    style="inline-size:${x => x};"
+                    style="inline-size:${(x) => x};"
                 ></div>
             `,
         )}
@@ -140,23 +147,23 @@ const template = html<VioletSkeleton>`
  * @csspart bar - Individual placeholder bar.
  */
 export class VioletSkeleton extends FASTElement {
-    declare public shape: VioletSkeletonShape;
-    declare public size: VioletSkeletonSize;
-    declare public lines: string;
-    declare public animated: boolean;
+  declare public shape: VioletSkeletonShape;
+  declare public size: VioletSkeletonSize;
+  declare public lines: string;
+  declare public animated: boolean;
 
-    public constructor() {
-        super();
-        this.shape = "rect";
-        this.size = "md";
-        this.lines = "1";
-        this.animated = false;
-    }
+  public constructor() {
+    super();
+    this.shape = "rect";
+    this.size = "md";
+    this.lines = "1";
+    this.animated = false;
+  }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.setAttribute("aria-hidden", "true");
-    }
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.setAttribute("aria-hidden", "true");
+  }
 }
 
 attr(VioletSkeleton.prototype, "shape");
@@ -166,7 +173,7 @@ attr({ mode: "boolean" })(VioletSkeleton.prototype, "animated");
 
 /** The FAST definition of `<violet-skeleton>`; `defineVioletSkeleton` in `./violet-skeleton.define` registers it. */
 export const violetSkeletonDefinition = {
-    name: "violet-skeleton",
-    template,
-    styles,
+  name: "violet-skeleton",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

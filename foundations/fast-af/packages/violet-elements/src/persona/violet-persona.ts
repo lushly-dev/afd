@@ -1,4 +1,13 @@
-import { FASTElement, Observable, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  Observable,
+  observable,
+  type PartialFASTElementDefinition,
+  when,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -129,30 +138,30 @@ const template = html<VioletPersona>`
     <div
         class="root"
         part="root"
-        data-tone="${x => x.tone}"
-        role="${x => (x.decorative ? "presentation" : "img")}"
-        aria-hidden="${x => (x.decorative ? "true" : "false")}"
-        aria-label="${x => (x.decorative ? null : x.accessibleLabel)}"
+        data-tone="${(x) => x.tone}"
+        role="${(x) => (x.decorative ? "presentation" : "img")}"
+        aria-hidden="${(x) => (x.decorative ? "true" : "false")}"
+        aria-label="${(x) => (x.decorative ? null : x.accessibleLabel)}"
     >
         ${when(
-            x => Boolean(x.src),
-            html<VioletPersona>`
+          (x) => Boolean(x.src),
+          html<VioletPersona>`
                 <img
                     class="image"
                     part="image"
-                    src="${x => x.src}"
+                    src="${(x) => x.src}"
                     alt=""
-                    ?hidden="${x => x.imageFailed}"
-                    @error="${x => x.handleImageError()}"
+                    ?hidden="${(x) => x.imageFailed}"
+                    @error="${(x) => x.handleImageError()}"
                 />
-            `
+            `,
         )}
         <span
             class="fallback"
             part="fallback"
             aria-hidden="true"
-            data-initials="${x => x.displayInitials}"
-            ?hidden="${x => Boolean(x.src) && !x.imageFailed}"
+            data-initials="${(x) => x.displayInitials}"
+            ?hidden="${(x) => Boolean(x.src) && !x.imageFailed}"
         ></span>
     </div>
 `;
@@ -166,98 +175,101 @@ const template = html<VioletPersona>`
  * @csspart fallback - The initials shown without an image.
  */
 export class VioletPersona extends FASTElement {
-    @observable
-    declare public imageFailed: boolean;
+  @observable
+  declare public imageFailed: boolean;
 
-    @observable
-    declare public tone: string;
+  @observable
+  declare public tone: string;
 
-    declare public label: string;
-    declare public src: string;
-    declare public initials: string;
-    declare public decorative: boolean;
-    declare public size: "xs" | "sm" | "md" | "lg" | "xl";
+  declare public label: string;
+  declare public src: string;
+  declare public initials: string;
+  declare public decorative: boolean;
+  declare public size: "xs" | "sm" | "md" | "lg" | "xl";
 
-    public readonly personaId: string;
+  public readonly personaId: string;
 
-    public constructor() {
-        super();
-        violetPersonaCount += 1;
-        this.personaId = `violet-persona-${violetPersonaCount}`;
+  public constructor() {
+    super();
+    violetPersonaCount += 1;
+    this.personaId = `violet-persona-${violetPersonaCount}`;
 
-        this.label = "";
-        this.src = "";
-        this.initials = "";
-        this.decorative = false;
-        this.size = "sm";
-        this.imageFailed = false;
-        this.tone = "moss";
+    this.label = "";
+    this.src = "";
+    this.initials = "";
+    this.decorative = false;
+    this.size = "sm";
+    this.imageFailed = false;
+    this.tone = "moss";
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.syncTone();
+  }
+
+  public labelChanged(): void {
+    this.syncTone();
+  }
+
+  public initialsChanged(): void {
+    this.syncTone();
+  }
+
+  public srcChanged(): void {
+    this.imageFailed = false;
+  }
+
+  public handleImageError(): void {
+    this.imageFailed = true;
+  }
+
+  public get accessibleLabel(): string {
+    Observable.trackVolatile();
+    return this.label || this.displayInitials || "Persona";
+  }
+
+  public get displayInitials(): string {
+    Observable.trackVolatile();
+    if (this.initials.trim()) {
+      return this.initials
+        .trim()
+        .slice(0, this.size === "xs" ? 1 : 3)
+        .toUpperCase();
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.syncTone();
-    }
+    const derived = getPersonaInitials(this.label, this.size === "xs");
+    return derived || "?";
+  }
 
-    public labelChanged(): void {
-        this.syncTone();
-    }
-
-    public initialsChanged(): void {
-        this.syncTone();
-    }
-
-    public srcChanged(): void {
-        this.imageFailed = false;
-    }
-
-    public handleImageError(): void {
-        this.imageFailed = true;
-    }
-
-    public get accessibleLabel(): string {
-        Observable.trackVolatile();
-        return this.label || this.displayInitials || "Persona";
-    }
-
-    public get displayInitials(): string {
-        Observable.trackVolatile();
-        if (this.initials.trim()) {
-            return this.initials.trim().slice(0, this.size === "xs" ? 1 : 3).toUpperCase();
-        }
-
-        const derived = getPersonaInitials(this.label, this.size === "xs");
-        return derived || "?";
-    }
-
-    private syncTone(): void {
-        const source = this.label || this.initials || this.personaId || "";
-        const tones = ["moss", "sky", "amber", "terracotta", "plum", "slate"];
-        const hash = Array.from(source).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-        this.tone = tones[hash % tones.length] ?? "moss";
-    }
+  private syncTone(): void {
+    const source = this.label || this.initials || this.personaId || "";
+    const tones = ["moss", "sky", "amber", "terracotta", "plum", "slate"];
+    const hash = Array.from(source).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    this.tone = tones[hash % tones.length] ?? "moss";
+  }
 }
 
 function getPersonaInitials(label: string, firstInitialOnly: boolean): string {
-    const cleaned = label.replace(/\s+/g, " ").trim();
-    if (!cleaned) {
-        return "";
-    }
+  const cleaned = label.replace(/\s+/g, " ").trim();
+  if (!cleaned) {
+    return "";
+  }
 
-    const parts = cleaned
-        .split(" ")
-        .map(part => part.replace(/[^A-Za-z0-9]/g, ""))
-        .filter(Boolean);
+  const parts = cleaned
+    .split(" ")
+    .map((part) => part.replace(/[^A-Za-z0-9]/g, ""))
+    .filter(Boolean);
 
-    if (parts.length === 0) {
-        return "";
-    }
+  if (parts.length === 0) {
+    return "";
+  }
 
-    if (firstInitialOnly || parts.length === 1) {
-        return parts[0].charAt(0).toUpperCase();
-    }
+  if (firstInitialOnly || parts.length === 1) {
+    return parts[0].charAt(0).toUpperCase();
+  }
 
-    return `${parts[0].charAt(0)}${parts.at(-1)?.charAt(0) ?? ""}`.toUpperCase();
+  return `${parts[0].charAt(0)}${parts.at(-1)?.charAt(0) ?? ""}`.toUpperCase();
 }
 
 attr(VioletPersona.prototype, "label");
@@ -268,7 +280,7 @@ attr(VioletPersona.prototype, "size");
 
 /** The FAST definition of `<violet-persona>`; `defineVioletPersona` in `./violet-persona.define` registers it. */
 export const violetPersonaDefinition = {
-    name: "violet-persona",
-    template,
-    styles,
+  name: "violet-persona",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

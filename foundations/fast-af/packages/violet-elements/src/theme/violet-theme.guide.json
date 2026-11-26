@@ -5,9 +5,7 @@
     {
       "id": "theme.preset",
       "text": "preset is light, dark or high-contrast; any other or missing value falls back to light. Changing the attribute restyles the subtree at once.",
-      "members": [
-        "preset"
-      ]
+      "members": ["preset"]
     },
     {
       "id": "theme.scope-install",
@@ -30,9 +28,7 @@
     {
       "id": "theme.contrast",
       "text": "high-contrast is a black-on-white preset you choose; nothing follows the OS contrast or color-scheme setting, and it sets no color-scheme, so native controls stay light under dark.",
-      "members": [
-        "preset"
-      ]
+      "members": ["preset"]
     }
   ]
 }

@@ -1,6 +1,15 @@
-import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
-import { violetFieldTokenDefaults, violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  violetFieldTokenDefaults,
+  violetSurfaceTokenDefaults,
+} from "../theme/violet-token-defaults";
 
 type VioletTabInternalAppearance = "open" | "closed" | "mixed";
 type VioletTabInternalOrientation = "horizontal" | "vertical";
@@ -253,32 +262,35 @@ const template = html<VioletTab>`
  * @csspart indicator - Underline indicator used by open tab presentation.
  */
 export class VioletTab extends FASTElement {
-    #disabledFromTabs = false;
+  #disabledFromTabs = false;
 
-    /**
-     * Disables the individual tab.
-     */
-    declare public disabled: boolean;
+  /**
+   * Disables the individual tab.
+   */
+  declare public disabled: boolean;
 
-    public get effectiveDisabled(): boolean {
-        return this.disabled || this.#disabledFromTabs;
-    }
+  public get effectiveDisabled(): boolean {
+    return this.disabled || this.#disabledFromTabs;
+  }
 
-    public setDisabledFromTabs(disabled: boolean): void {
-        this.#disabledFromTabs = disabled;
-    }
+  public setDisabledFromTabs(disabled: boolean): void {
+    this.#disabledFromTabs = disabled;
+  }
 
-    public syncPresentation(appearance: VioletTabInternalAppearance, orientation: VioletTabInternalOrientation): void {
-        this.setAttribute("data-appearance", appearance);
-        this.setAttribute("data-orientation", orientation);
-    }
+  public syncPresentation(
+    appearance: VioletTabInternalAppearance,
+    orientation: VioletTabInternalOrientation,
+  ): void {
+    this.setAttribute("data-appearance", appearance);
+    this.setAttribute("data-orientation", orientation);
+  }
 }
 
 attr({ mode: "boolean" })(VioletTab.prototype, "disabled");
 
 /** The FAST definition of `<violet-tab>`; `defineVioletTab` in `./violet-tab.define` registers it. */
 export const violetTabDefinition = {
-    name: "violet-tab",
-    template,
-    styles,
+  name: "violet-tab",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

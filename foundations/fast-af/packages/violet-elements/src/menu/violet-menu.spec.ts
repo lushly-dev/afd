@@ -9,33 +9,33 @@ import "./violet-menu-item.define";
 import type { VioletMenu } from "./violet-menu";
 
 function nextFrame(): Promise<void> {
-    return new Promise(resolve => requestAnimationFrame(() => resolve()));
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
 interface AxNode {
-    backendDOMNodeId?: number;
-    role?: { value?: string };
-    name?: { value?: string };
-    description?: { value?: string };
-    properties?: { name: string; value: { relatedNodes?: { backendDOMNodeId: number }[] } }[];
+  backendDOMNodeId?: number;
+  role?: { value?: string };
+  name?: { value?: string };
+  description?: { value?: string };
+  properties?: { name: string; value: { relatedNodes?: { backendDOMNodeId: number }[] } }[];
 }
 
 interface FrameTree {
-    frame: { id: string; url: string };
-    childFrames?: FrameTree[];
+  frame: { id: string; url: string };
+  childFrames?: FrameTree[];
 }
 
 function findFrame(tree: FrameTree, url: string): string | undefined {
-    if (tree.frame.url === url) {
-        return tree.frame.id;
+  if (tree.frame.url === url) {
+    return tree.frame.id;
+  }
+  for (const child of tree.childFrames ?? []) {
+    const found = findFrame(child, url);
+    if (found) {
+      return found;
     }
-    for (const child of tree.childFrames ?? []) {
-        const found = findFrame(child, url);
-        if (found) {
-            return found;
-        }
-    }
-    return undefined;
+  }
+  return undefined;
 }
 
 /**
@@ -43,20 +43,30 @@ function findFrame(tree: FrameTree, url: string): string | undefined {
  * aria-controls resolves to. The tree resolves references, or drops them, as assistive
  * technology sees them, which the attributes alone do not show.
  */
-async function accessibleNode(role: string, name: string): Promise<AxNode & { controls: AxNode[] }> {
-    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
-    // Each spec runs in a frame of the runner's page; read that frame's tree, found by its URL.
-    const { frameTree } = (await session.send("Page.getFrameTree")) as { frameTree: FrameTree };
-    const frameId = findFrame(frameTree, location.href);
-    const { nodes } = (await session.send("Accessibility.getFullAXTree", { frameId })) as { nodes: AxNode[] };
-    const node = nodes.find(candidate => candidate.role?.value === role && candidate.name?.value === name);
-    if (!node) {
-        throw new Error(`No ${role} named "${name}" in the accessibility tree.`);
-    }
-    const byId = new Map(nodes.map(candidate => [candidate.backendDOMNodeId, candidate]));
-    const related = node.properties?.find(property => property.name === "controls")?.value.relatedNodes ?? [];
-    const controls = related.map(entry => byId.get(entry.backendDOMNodeId)).filter(entry => entry !== undefined);
-    return { ...node, controls };
+async function accessibleNode(
+  role: string,
+  name: string,
+): Promise<AxNode & { controls: AxNode[] }> {
+  const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+  // Each spec runs in a frame of the runner's page; read that frame's tree, found by its URL.
+  const { frameTree } = (await session.send("Page.getFrameTree")) as { frameTree: FrameTree };
+  const frameId = findFrame(frameTree, location.href);
+  const { nodes } = (await session.send("Accessibility.getFullAXTree", { frameId })) as {
+    nodes: AxNode[];
+  };
+  const node = nodes.find(
+    (candidate) => candidate.role?.value === role && candidate.name?.value === name,
+  );
+  if (!node) {
+    throw new Error(`No ${role} named "${name}" in the accessibility tree.`);
+  }
+  const byId = new Map(nodes.map((candidate) => [candidate.backendDOMNodeId, candidate]));
+  const related =
+    node.properties?.find((property) => property.name === "controls")?.value.relatedNodes ?? [];
+  const controls = related
+    .map((entry) => byId.get(entry.backendDOMNodeId))
+    .filter((entry) => entry !== undefined);
+  return { ...node, controls };
 }
 
 /**
@@ -64,125 +74,132 @@ async function accessibleNode(role: string, name: string): Promise<AxNode & { co
  * number of frames is sure to include it (#505).
  */
 async function untilOpen(menu: VioletMenu): Promise<void> {
-    await vi.waitFor(() => expect(menu.open).toBe(true));
+  await vi.waitFor(() => expect(menu.open).toBe(true));
 }
 
 async function renderMenu(template: string): Promise<VioletMenu> {
-    document.body.innerHTML = template;
-    await customElements.whenDefined("violet-menu");
-    await nextFrame();
-    return document.querySelector("violet-menu") as VioletMenu;
+  document.body.innerHTML = template;
+  await customElements.whenDefined("violet-menu");
+  await nextFrame();
+  return document.querySelector("violet-menu") as VioletMenu;
 }
 
 describe("violet-menu", () => {
-    afterEach(() => {
-        document.body.innerHTML = "";
-    });
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
 
-    it("syncs menu trigger aria relationships", async () => {
-        const menu = await renderMenu(`
+  it("syncs menu trigger aria relationships", async () => {
+    const menu = await renderMenu(`
             <violet-menu label="Actions">
                 <button slot="trigger" type="button">Open</button>
                 <violet-menu-item>First</violet-menu-item>
             </violet-menu>
         `);
 
-        const trigger = menu.querySelector('[slot="trigger"]');
-        expect(trigger?.getAttribute("aria-haspopup")).toBe("menu");
-        expect(trigger?.getAttribute("aria-expanded")).toBe("false");
-        // The panel is in the menu's shadow root: the trigger names the host, whose shadow root
-        // forwards the reference to the panel when referenceTarget is supported.
-        if ("referenceTarget" in ShadowRoot.prototype) {
-            expect(trigger?.getAttribute("aria-controls")).toBe(menu.id);
-        }
-        // A closed popover is not rendered, so the relationship shows in the tree once it opens.
-        (trigger as HTMLElement).click();
-        await untilOpen(menu);
-        if (isChromium) {
-            await vi.waitFor(async () => {
-                const controls = (await accessibleNode("button", "Open")).controls;
-                expect(controls.map(node => `${node.role?.value}: ${node.name?.value}`)).toEqual(["menu: Actions"]);
-            });
-        }
-    });
+    const trigger = menu.querySelector('[slot="trigger"]');
+    expect(trigger?.getAttribute("aria-haspopup")).toBe("menu");
+    expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+    // The panel is in the menu's shadow root: the trigger names the host, whose shadow root
+    // forwards the reference to the panel when referenceTarget is supported.
+    if ("referenceTarget" in ShadowRoot.prototype) {
+      expect(trigger?.getAttribute("aria-controls")).toBe(menu.id);
+    }
+    // A closed popover is not rendered, so the relationship shows in the tree once it opens.
+    (trigger as HTMLElement).click();
+    await untilOpen(menu);
+    if (isChromium) {
+      await vi.waitFor(async () => {
+        const controls = (await accessibleNode("button", "Open")).controls;
+        expect(controls.map((node) => `${node.role?.value}: ${node.name?.value}`)).toEqual([
+          "menu: Actions",
+        ]);
+      });
+    }
+  });
 
-    it("forwards menu trigger aria relationships to a violet-button control", async () => {
-        const menu = await renderMenu(`
+  it("forwards menu trigger aria relationships to a violet-button control", async () => {
+    const menu = await renderMenu(`
             <violet-menu label="Actions">
                 <violet-button slot="trigger">Open</violet-button>
                 <violet-menu-item>First</violet-menu-item>
             </violet-menu>
         `);
 
-        const trigger = menu.querySelector("violet-button");
-        const control = trigger?.shadowRoot?.querySelector("button");
+    const trigger = menu.querySelector("violet-button");
+    const control = trigger?.shadowRoot?.querySelector("button");
 
-        expect(control?.getAttribute("aria-haspopup")).toBe("menu");
-        expect(control?.getAttribute("aria-expanded")).toBe("false");
-        control?.click();
-        await untilOpen(menu);
-        if (isChromium) {
-            await vi.waitFor(async () => {
-                const controls = (await accessibleNode("button", "Open")).controls;
-                expect(controls.map(node => `${node.role?.value}: ${node.name?.value}`)).toEqual(["menu: Actions"]);
-            });
-        }
+    expect(control?.getAttribute("aria-haspopup")).toBe("menu");
+    expect(control?.getAttribute("aria-expanded")).toBe("false");
+    control?.click();
+    await untilOpen(menu);
+    if (isChromium) {
+      await vi.waitFor(async () => {
+        const controls = (await accessibleNode("button", "Open")).controls;
+        expect(controls.map((node) => `${node.role?.value}: ${node.name?.value}`)).toEqual([
+          "menu: Actions",
+        ]);
+      });
+    }
 
-        expect(trigger?.getAttribute("aria-expanded")).toBe("true");
-        expect(trigger?.ariaExpanded).toBe("true");
-        expect(control?.getAttribute("aria-expanded")).toBe("true");
+    expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+    expect(trigger?.ariaExpanded).toBe("true");
+    expect(control?.getAttribute("aria-expanded")).toBe("true");
 
-        control?.click();
-        await vi.waitFor(() => expect(menu.open).toBe(false));
+    control?.click();
+    await vi.waitFor(() => expect(menu.open).toBe(false));
 
-        expect(control?.getAttribute("aria-expanded")).toBe("false");
-    });
+    expect(control?.getAttribute("aria-expanded")).toBe("false");
+  });
 
-    it.each([false, true])("returns invocation focus unless the action moved it (moved: %s)", async moved => {
-        const menu = await renderMenu(`
+  it.each([false, true])(
+    "returns invocation focus unless the action moved it (moved: %s)",
+    async (moved) => {
+      const menu = await renderMenu(`
             <violet-menu label="Actions">
                 <violet-button slot="trigger">Open</violet-button>
                 <violet-menu-item>First</violet-menu-item>
             </violet-menu>
         `);
-        const wrapper = document.createElement("div");
-        const shadow = wrapper.attachShadow({ mode: "open" });
-        shadow.append(menu);
-        const destination = document.createElement("button");
-        destination.textContent = "Action destination";
-        shadow.append(destination);
-        document.body.append(wrapper);
-        await nextFrame();
-        const trigger = menu.querySelector("violet-button")!;
-        const control = trigger.shadowRoot!.querySelector("button")!;
-        const item = menu.querySelector("violet-menu-item")!;
-        control.click();
-        await vi.waitFor(() => expect(shadow.activeElement).toBe(item));
-        if (moved) {
-            menu.addEventListener("invoke", () => destination.focus(), { capture: true, once: true });
-        }
-        item.shadowRoot!.querySelector<HTMLElement>(".control")!.click();
-        await vi.waitFor(() => expect(menu.open).toBe(false));
-        await vi.waitFor(() => expect(shadow.activeElement).toBe(moved ? destination : trigger));
-        if (!moved) expect(trigger.shadowRoot!.activeElement).toBe(control);
-    });
+      const wrapper = document.createElement("div");
+      const shadow = wrapper.attachShadow({ mode: "open" });
+      shadow.append(menu);
+      const destination = document.createElement("button");
+      destination.textContent = "Action destination";
+      shadow.append(destination);
+      document.body.append(wrapper);
+      await nextFrame();
+      const trigger = menu.querySelector("violet-button")!;
+      const control = trigger.shadowRoot!.querySelector("button")!;
+      const item = menu.querySelector("violet-menu-item")!;
+      control.click();
+      await vi.waitFor(() => expect(shadow.activeElement).toBe(item));
+      if (moved) {
+        menu.addEventListener("invoke", () => destination.focus(), { capture: true, once: true });
+      }
+      item.shadowRoot!.querySelector<HTMLElement>(".control")!.click();
+      await vi.waitFor(() => expect(menu.open).toBe(false));
+      await vi.waitFor(() => expect(shadow.activeElement).toBe(moved ? destination : trigger));
+      if (!moved) expect(trigger.shadowRoot!.activeElement).toBe(control);
+    },
+  );
 
-    it("opens from the trigger click", async () => {
-        const menu = await renderMenu(`
+  it("opens from the trigger click", async () => {
+    const menu = await renderMenu(`
             <violet-menu label="Actions">
                 <button slot="trigger" type="button">Open</button>
                 <violet-menu-item>First</violet-menu-item>
             </violet-menu>
         `);
 
-        (menu.querySelector('[slot="trigger"]') as HTMLButtonElement | null)?.click();
-        await untilOpen(menu);
+    (menu.querySelector('[slot="trigger"]') as HTMLButtonElement | null)?.click();
+    await untilOpen(menu);
 
-        expect(menu.shadowRoot?.querySelector(".panel")?.matches(":popover-open")).toBe(true);
-    });
+    expect(menu.shadowRoot?.querySelector(".panel")?.matches(":popover-open")).toBe(true);
+  });
 
-    it("clears the pending type-ahead timer when removed", async () => {
-        const menu = await renderMenu(`
+  it("clears the pending type-ahead timer when removed", async () => {
+    const menu = await renderMenu(`
             <violet-menu label="Actions">
                 <button slot="trigger" type="button">Open</button>
                 <violet-menu-item>Alpha</violet-menu-item>
@@ -190,21 +207,21 @@ describe("violet-menu", () => {
             </violet-menu>
         `);
 
-        menu.show();
-        await untilOpen(menu);
+    menu.show();
+    await untilOpen(menu);
 
-        const clearSpy = vi.spyOn(window, "clearTimeout");
-        menu.handlePanelKeydown(new KeyboardEvent("keydown", { key: "b", cancelable: true }));
-        clearSpy.mockClear();
+    const clearSpy = vi.spyOn(window, "clearTimeout");
+    menu.handlePanelKeydown(new KeyboardEvent("keydown", { key: "b", cancelable: true }));
+    clearSpy.mockClear();
 
-        menu.remove();
+    menu.remove();
 
-        expect(clearSpy).toHaveBeenCalledTimes(1);
-        clearSpy.mockRestore();
-    });
+    expect(clearSpy).toHaveBeenCalledTimes(1);
+    clearSpy.mockRestore();
+  });
 
-    it("keeps keyboard-open focus on the requested item after the toggle settles", async () => {
-        const menu = await renderMenu(`
+  it("keeps keyboard-open focus on the requested item after the toggle settles", async () => {
+    const menu = await renderMenu(`
             <violet-menu label="Actions">
                 <button slot="trigger" type="button">Open</button>
                 <violet-menu-item>First</violet-menu-item>
@@ -212,23 +229,23 @@ describe("violet-menu", () => {
                 <violet-menu-item>Third</violet-menu-item>
             </violet-menu>
         `);
-        const trigger = menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!;
-        const items = menu.querySelectorAll("violet-menu-item");
+    const trigger = menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!;
+    const items = menu.querySelectorAll("violet-menu-item");
 
-        trigger.focus();
-        trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
-        await vi.waitFor(() => expect(document.activeElement).toBe(items[2]));
+    trigger.focus();
+    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+    await vi.waitFor(() => expect(document.activeElement).toBe(items[2]));
 
-        // It stays there once the toggle has settled.
-        await nextFrame();
-        await nextFrame();
-        await nextFrame();
-        expect(menu.open).toBe(true);
-        expect(document.activeElement).toBe(items[2]);
-    });
+    // It stays there once the toggle has settled.
+    await nextFrame();
+    await nextFrame();
+    await nextFrame();
+    expect(menu.open).toBe(true);
+    expect(document.activeElement).toBe(items[2]);
+  });
 
-    describe("keyboard (real key presses)", () => {
-        const threeItems = `
+  describe("keyboard (real key presses)", () => {
+    const threeItems = `
             <violet-menu label="Actions">
                 <button slot="trigger" type="button">Open</button>
                 <violet-menu-item>First</violet-menu-item>
@@ -238,89 +255,89 @@ describe("violet-menu", () => {
             <button id="after" type="button">After</button>
         `;
 
-        /** Focus reaches `item` and stays there; a machine under load takes its own time (#505). */
-        async function settle(item: Element): Promise<void> {
-            await vi.waitFor(() => expect(document.activeElement).toBe(item));
-            await nextFrame();
-            await nextFrame();
-            await nextFrame();
-            expect(document.activeElement).toBe(item);
-        }
+    /** Focus reaches `item` and stays there; a machine under load takes its own time (#505). */
+    async function settle(item: Element): Promise<void> {
+      await vi.waitFor(() => expect(document.activeElement).toBe(item));
+      await nextFrame();
+      await nextFrame();
+      await nextFrame();
+      expect(document.activeElement).toBe(item);
+    }
 
-        it("keeps a second ArrowDown pressed straight after the opening one", async () => {
-            const menu = await renderMenu(threeItems);
-            const items = menu.querySelectorAll("violet-menu-item");
-            const invoked: EventTarget[] = [];
-            menu.addEventListener("invoke", event => invoked.push(event.target!));
-            menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!.focus();
+    it("keeps a second ArrowDown pressed straight after the opening one", async () => {
+      const menu = await renderMenu(threeItems);
+      const items = menu.querySelectorAll("violet-menu-item");
+      const invoked: EventTarget[] = [];
+      menu.addEventListener("invoke", (event) => invoked.push(event.target!));
+      menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!.focus();
 
-            await userEvent.keyboard("{ArrowDown}{ArrowDown}");
-            await settle(items[1]);
-            expect(menu.open).toBe(true);
+      await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+      await settle(items[1]);
+      expect(menu.open).toBe(true);
 
-            await userEvent.keyboard("{Enter}");
-            expect(invoked).toEqual([items[1]]);
-        });
-
-        it("keeps a second ArrowDown pressed in the frame after the opening one", async () => {
-            const menu = await renderMenu(threeItems);
-            const items = menu.querySelectorAll("violet-menu-item");
-            menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!.focus();
-
-            await userEvent.keyboard("{ArrowDown}");
-            await nextFrame();
-            await userEvent.keyboard("{ArrowDown}");
-            await settle(items[1]);
-        });
-
-        it("keeps a second ArrowUp pressed straight after the opening one", async () => {
-            const menu = await renderMenu(threeItems);
-            const items = menu.querySelectorAll("violet-menu-item");
-            menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!.focus();
-
-            await userEvent.keyboard("{ArrowUp}{ArrowUp}");
-            await settle(items[1]);
-        });
-
-        it("moves through the items when an arrow key reaches the trigger of an open menu", async () => {
-            const menu = await renderMenu(threeItems);
-            const items = menu.querySelectorAll("violet-menu-item");
-            const trigger = menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!;
-
-            // Let the open menu's deferred first-item focus land before the key: whether it lands
-            // before or after a key pressed straight away is the frame's race, not the menu's (#505).
-            menu.show();
-            await settle(items[0]);
-            trigger.focus();
-            await userEvent.keyboard("{ArrowDown}");
-            await settle(items[1]);
-        });
-
-        it("lets Tab leave the trigger", async () => {
-            const menu = await renderMenu(threeItems);
-            menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!.focus();
-
-            await userEvent.tab();
-
-            expect(menu.open).toBe(false);
-            expect(document.activeElement?.id).toBe("after");
-        });
-
-        it("closes on Tab and moves focus past the menu", async () => {
-            const menu = await renderMenu(threeItems);
-            menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!.focus();
-            await userEvent.keyboard("{ArrowDown}");
-            await settle(menu.querySelector("violet-menu-item")!);
-
-            await userEvent.tab();
-
-            await vi.waitFor(() => expect(menu.open).toBe(false));
-            await vi.waitFor(() => expect(document.activeElement?.id).toBe("after"));
-        });
+      await userEvent.keyboard("{Enter}");
+      expect(invoked).toEqual([items[1]]);
     });
 
-    describe("native key handling", () => {
-        const template = `
+    it("keeps a second ArrowDown pressed in the frame after the opening one", async () => {
+      const menu = await renderMenu(threeItems);
+      const items = menu.querySelectorAll("violet-menu-item");
+      menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!.focus();
+
+      await userEvent.keyboard("{ArrowDown}");
+      await nextFrame();
+      await userEvent.keyboard("{ArrowDown}");
+      await settle(items[1]);
+    });
+
+    it("keeps a second ArrowUp pressed straight after the opening one", async () => {
+      const menu = await renderMenu(threeItems);
+      const items = menu.querySelectorAll("violet-menu-item");
+      menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!.focus();
+
+      await userEvent.keyboard("{ArrowUp}{ArrowUp}");
+      await settle(items[1]);
+    });
+
+    it("moves through the items when an arrow key reaches the trigger of an open menu", async () => {
+      const menu = await renderMenu(threeItems);
+      const items = menu.querySelectorAll("violet-menu-item");
+      const trigger = menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!;
+
+      // Let the open menu's deferred first-item focus land before the key: whether it lands
+      // before or after a key pressed straight away is the frame's race, not the menu's (#505).
+      menu.show();
+      await settle(items[0]);
+      trigger.focus();
+      await userEvent.keyboard("{ArrowDown}");
+      await settle(items[1]);
+    });
+
+    it("lets Tab leave the trigger", async () => {
+      const menu = await renderMenu(threeItems);
+      menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!.focus();
+
+      await userEvent.tab();
+
+      expect(menu.open).toBe(false);
+      expect(document.activeElement?.id).toBe("after");
+    });
+
+    it("closes on Tab and moves focus past the menu", async () => {
+      const menu = await renderMenu(threeItems);
+      menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!.focus();
+      await userEvent.keyboard("{ArrowDown}");
+      await settle(menu.querySelector("violet-menu-item")!);
+
+      await userEvent.tab();
+
+      await vi.waitFor(() => expect(menu.open).toBe(false));
+      await vi.waitFor(() => expect(document.activeElement?.id).toBe("after"));
+    });
+  });
+
+  describe("native key handling", () => {
+    const template = `
             <violet-menu label="Actions">
                 <button slot="trigger" type="button">Open</button>
                 <violet-menu-item>First</violet-menu-item>
@@ -328,35 +345,35 @@ describe("violet-menu", () => {
             </violet-menu>
         `;
 
-        it("does not cancel Tab or unrelated keys on the trigger", async () => {
-            const menu = await renderMenu(template);
-            const trigger = menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!;
-            const press = (key: string) => {
-                const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
-                trigger.dispatchEvent(event);
-                return event;
-            };
+    it("does not cancel Tab or unrelated keys on the trigger", async () => {
+      const menu = await renderMenu(template);
+      const trigger = menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!;
+      const press = (key: string) => {
+        const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+        trigger.dispatchEvent(event);
+        return event;
+      };
 
-            expect(press("Tab").defaultPrevented).toBe(false);
-            expect(press("Enter").defaultPrevented).toBe(false);
-            expect(press("ArrowDown").defaultPrevented).toBe(true);
-        });
-
-        it("lets Tab through inside the panel while still cancelling navigation keys", async () => {
-            const menu = await renderMenu(template);
-            menu.show();
-            await untilOpen(menu);
-            const panel = menu.shadowRoot?.querySelector(".panel") as HTMLElement;
-            const press = (key: string) => {
-                const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
-                panel.dispatchEvent(event);
-                return event;
-            };
-
-            expect(press("Tab").defaultPrevented).toBe(false);
-            menu.show();
-            await untilOpen(menu);
-            expect(press("ArrowDown").defaultPrevented).toBe(true);
-        });
+      expect(press("Tab").defaultPrevented).toBe(false);
+      expect(press("Enter").defaultPrevented).toBe(false);
+      expect(press("ArrowDown").defaultPrevented).toBe(true);
     });
+
+    it("lets Tab through inside the panel while still cancelling navigation keys", async () => {
+      const menu = await renderMenu(template);
+      menu.show();
+      await untilOpen(menu);
+      const panel = menu.shadowRoot?.querySelector(".panel") as HTMLElement;
+      const press = (key: string) => {
+        const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+        panel.dispatchEvent(event);
+        return event;
+      };
+
+      expect(press("Tab").defaultPrevented).toBe(false);
+      menu.show();
+      await untilOpen(menu);
+      expect(press("ArrowDown").defaultPrevented).toBe(true);
+    });
+  });
 });

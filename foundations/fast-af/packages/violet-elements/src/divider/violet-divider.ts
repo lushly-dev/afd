@@ -1,4 +1,11 @@
-import { FASTElement, attr, css, html, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+  when,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -55,21 +62,21 @@ const styles = css`
 
 const template = html<VioletDivider>`
     ${when(
-        x => x.orientation === "vertical",
-        html<VioletDivider>`
+      (x) => x.orientation === "vertical",
+      html<VioletDivider>`
             <div
                 class="rule vertical"
                 part="rule"
-                role="${x => (x.decorative ? "presentation" : "separator")}"
-                aria-hidden="${x => (x.decorative ? "true" : "false")}"
-                aria-orientation="${x => (x.decorative ? null : "vertical")}"
+                role="${(x) => (x.decorative ? "presentation" : "separator")}"
+                aria-hidden="${(x) => (x.decorative ? "true" : "false")}"
+                aria-orientation="${(x) => (x.decorative ? null : "vertical")}"
             ></div>
         `,
     )}
     ${when(
-        x => x.orientation !== "vertical",
-        html<VioletDivider>`
-            <hr class="rule horizontal" part="rule" aria-hidden="${x => (x.decorative ? "true" : "false")}" />
+      (x) => x.orientation !== "vertical",
+      html<VioletDivider>`
+            <hr class="rule horizontal" part="rule" aria-hidden="${(x) => (x.decorative ? "true" : "false")}" />
         `,
     )}
 `;
@@ -81,16 +88,16 @@ const template = html<VioletDivider>`
  * @csspart rule - The rendered divider rule.
  */
 export class VioletDivider extends FASTElement {
-    declare public appearance: VioletDividerAppearance;
-    declare public orientation: VioletDividerOrientation;
-    declare public decorative: boolean;
+  declare public appearance: VioletDividerAppearance;
+  declare public orientation: VioletDividerOrientation;
+  declare public decorative: boolean;
 
-    public constructor() {
-        super();
-        this.appearance = "subtle";
-        this.orientation = "horizontal";
-        this.decorative = false;
-    }
+  public constructor() {
+    super();
+    this.appearance = "subtle";
+    this.orientation = "horizontal";
+    this.decorative = false;
+  }
 }
 
 attr(VioletDivider.prototype, "appearance");
@@ -99,7 +106,7 @@ attr({ mode: "boolean" })(VioletDivider.prototype, "decorative");
 
 /** The FAST definition of `<violet-divider>`; `defineVioletDivider` in `./violet-divider.define` registers it. */
 export const violetDividerDefinition = {
-    name: "violet-divider",
-    template,
-    styles,
+  name: "violet-divider",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;
