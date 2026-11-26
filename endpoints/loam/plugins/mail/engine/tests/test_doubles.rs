@@ -101,7 +101,10 @@ mod with_feature {
     use loam_mail::doubles::imap::Server as ImapServer;
     #[cfg(unix)]
     use loam_mail::doubles::world::WorldOutputs;
-    use loam_mail::doubles::world::{SEED_MAIL_F_BASE, SEED_PASSWORD, SEED_USER, start_world};
+    use loam_mail::doubles::world::{
+        SEED_LOAM_DESKTOP, SEED_MAIL_F_BASE, SEED_PASSWORD, SEED_USER, STRANGER_INSTRUCTION,
+        start_world,
+    };
     use loam_mail::engine::Engine;
     use loam_mail::home::Home;
     use loam_mail::provider::ProviderError;
@@ -624,6 +627,79 @@ mod with_feature {
         assert_eq!(parsed["data"]["build"]["testDoubles"], true);
         assert_eq!(parsed["data"]["tokens"]["agents"], 1);
         assert_eq!(parsed["data"]["tokens"]["approvers"], 1);
+    }
+
+    /// Opens `thread` with the built binary on a world `test-world` seeded, as a script reads it.
+    #[cfg(unix)]
+    fn open_seeded_thread(program: &str, outputs: &WorldOutputs, thread: u32) -> Value {
+        let status = Command::new(program)
+            .args(["mail-thread-open", &json!({ "thread": thread }).to_string()])
+            .env("LOAM_MAIL_HOME", &outputs.home)
+            .env(TEST_SECRETS_VAR, &outputs.secrets)
+            .env(TEST_ENDPOINTS_VAR, &outputs.endpoints)
+            .output()
+            .unwrap();
+        assert!(
+            status.status.success(),
+            "mail-thread-open failed: {}",
+            String::from_utf8_lossy(&status.stderr)
+        );
+        serde_json::from_slice(&status.stdout).unwrap()
+    }
+
+    /// Loam's desktop seed (its phase 5 step 7): message 9 is a stranger's instruction and
+    /// thread 7 is still Ada's; `mail-f-base`'s own message 9 stays the plain note. Both seeds
+    /// are built by the same code, which differs only in message 9.
+    #[cfg(unix)]
+    #[test]
+    fn ft14_loam_desktop_seed_is_mail_f_base_with_a_strangers_instruction() {
+        let program = env!("CARGO_BIN_EXE_loam-mail");
+        for (seed, stranger) in [(SEED_LOAM_DESKTOP, true), (SEED_MAIL_F_BASE, false)] {
+            let dir = tempfile::tempdir().unwrap();
+            let home = dir.path().join("home");
+            let out = dir.path().join("out");
+            let mut child = ChildGuard(
+                Command::new(program)
+                    .args([
+                        "test-world",
+                        "--seed",
+                        seed,
+                        "--home",
+                        home.to_str().unwrap(),
+                        "--out",
+                        out.to_str().unwrap(),
+                    ])
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::null())
+                    .spawn()
+                    .expect("test-world starts"),
+            );
+            let mut reader = BufReader::new(child.0.stdout.take().unwrap());
+            let mut line = String::new();
+            reader.read_line(&mut line).expect("reads ready line");
+            let outputs: WorldOutputs = serde_json::from_str(line.trim())
+                .unwrap_or_else(|e| panic!("invalid JSON `{line}`: {e}"));
+            assert_eq!(outputs.seed, seed);
+
+            let nine = open_seeded_thread(program, &outputs, 9).to_string();
+            assert_eq!(
+                nine.contains(STRANGER_INSTRUCTION),
+                stranger,
+                "{seed}: {nine}"
+            );
+            assert_eq!(
+                nine.contains("desk@unknown.example.net"),
+                stranger,
+                "{seed}"
+            );
+            let seven = open_seeded_thread(program, &outputs, 7).to_string();
+            assert!(
+                seven.contains("ada@example.com"),
+                "{seed}: thread 7 is Ada's"
+            );
+            drop(child);
+        }
     }
 
     #[cfg(not(unix))]

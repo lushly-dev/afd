@@ -205,6 +205,9 @@ for the full contract.
 
    `mounts.json` holds the copied bearer and must remain private to the person.
 
+Loam's desktop suite mounts the engine with this entry on every Linux run (`test/mail.test.ts`, P5-A9),
+against a test build seeded by `loam-mail test-world --seed loam-desktop`, with the mail app beside it.
+
 ## The mail app
 
 `app/` is `mailapp`, titled Mail, a native Loam app ([the plugin's specification](docs/plugin.spec.md#13-the-native-app)).

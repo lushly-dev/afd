@@ -873,7 +873,9 @@ So F-T12, phase 5's P5-A9 and this document's scenarios need all three answered.
   paths, and keeps serving the scripted servers until it is stopped. The scripted SMTP server and
   the scripted HTTPS target append every message and request they receive to `received.jsonl` in
   `--out` (envelope, recipients and the body's digest), so a test can count what was sent. Seeds
-  are code in the crate: `mail-f-base` is the one the scenario files' headers describe. The
+  are code in the crate: `mail-f-base` is the one the scenario files' headers describe, and
+  `loam-desktop` is `mail-f-base` with message 9 a stranger's instruction to act elsewhere, for
+  Loam's desktop suite (its phase 5 step 7, P5-A9). The
   engine's own tests keep starting the servers in process, from the same code.
 - **How a run goes:** `loam-mail test-world --seed mail-f-base --home <h> --out <o>`; then
   `loam-mail serve --port <p>` with `LOAM_MAIL_HOME=<h>` and `LOAM_MAIL_TEST_SECRETS` and

@@ -616,7 +616,7 @@ export const SUITES = [
 		"tools": [
 			"cargo"
 		],
-		"remote": "the WebDriver suite (P6-D1 to P6-D4, P6-D6, P6-D7, P5-A2) under tauri-driver on Linux (PRs) and Windows (daily/manual), the macOS WKWebView checks (test:macos), and each OS's unsigned installers and P6-D5 HTTPS updater suite (Build the installers)",
+		"remote": "the WebDriver suite (P6-D1 to P6-D4, P6-D6, P6-D7, P5-A2, P5-A9 with the mail engine's test build) under tauri-driver on Linux (PRs) and Windows (daily/manual), the macOS WKWebView checks (test:macos), and each OS's unsigned installers and P6-D5 HTTPS updater suite (Build the installers)",
 		"steps": [
 			{
 				"gate": "run",
