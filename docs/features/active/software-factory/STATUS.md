@@ -276,7 +276,7 @@ The lane host, its slots, Node and the other toolchains.
 
 Pull request [#2697](https://github.com/lushly-dev/afd/pull/2697), for
 [#1309](https://github.com/lushly-dev/afd/issues/1309), after Phase B landed in Lushly
-(lushly-dev/lushly#2956). Completes the `#1309` remainder in the Phase A entry below:
+(lushly-dev/lushly#2956). Covers the `#1309` remainder in the Phase A entry below, short of a full AFD lane run on `random`:
 
 - **Both directions, one machine:** on the MacBook Air, AFD's `ValidationLock` and Lushly's
   `createHostValidationLock` ran as separate processes over one `LUSHLY_FACTORY_HOST_LOCK_DIR`.
@@ -286,8 +286,12 @@ Pull request [#2697](https://github.com/lushly-dev/afd/pull/2697), for
 - **On `random`, against the live lane:** with Lushly's lane holding the real lock for
   `pnpm validate:coverage`, AFD's code (Python 3.12, `check_available` with no waiter
   registered) named that hold, its PID and `acquiredAt` as its blocker, so the two languages
-  agree on process identity there. Lushly waiting on a real AFD lane on `random` was not run:
-  it would hold up Lushly's working lane.
+  agree on process identity there.
+- **On `random`, the other way (later that day, after #2697 merged):** while Lushly's lane was between validations,
+  AFD's code took the real lock for a probe hold, and Lushly's `tryAcquire`, from a separate
+  process, named that hold (`botcore-factory`, `lushly-dev/afd`, its PID) as its blocker. The
+  probe then withdrew Lushly's waiter and released AFD's hold, and the file ended with no owner
+  and no waiters. A full AFD lane run beside Lushly's on `random` has not been made.
 - Replaced `run-fleet`'s manual `random` host note (start AFD's lane only while Lushly's is idle)
   with how the shared lock shows: the lanes now wait for each other (`waitingOnHostLock`).
 
