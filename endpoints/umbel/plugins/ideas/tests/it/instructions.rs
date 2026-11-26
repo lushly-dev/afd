@@ -1,9 +1,9 @@
-//! The paragraph for the server's instructions (specification, section 11.2): the README holds
-//! it twice, as the text a deployer reads and inside the instance's `mcp.instructions`, and both
-//! equal the specification's. A deployer's text replaces AFD's default whole, so the paragraph
-//! starts with the default's sentences for the hybrid strategy, read here from a host with no
-//! `mcp.instructions`. `ideas-guide`'s `start` is the rest of the paragraph, and none of it tells
-//! an agent to call `ideas-guide` first (phase 0.10).
+//! The paragraph for the server's instructions (specification, section 11.2): the manifest
+//! declares it as `instructions` (manifest version 7), and the host adds it after AFD's default
+//! (Umbel's phase 1 specification, section 8.7), so the README's instance sets no
+//! `mcp.instructions`. The manifest's paragraph equals the specification's and the README's, a host
+//! serves it after AFD's default for the hybrid strategy, `ideas-guide`'s `start` begins with it,
+//! and none of it tells an agent to call `ideas-guide` first (phase 0.10).
 use crate::support;
 use serde_json::json;
 use support::{Fx, data};
@@ -33,9 +33,8 @@ fn readme_instance() -> toml::Table {
     block.parse().unwrap()
 }
 
-/// AFD's default instructions, as `initialize` answers them on a workspace with none set.
-async fn afd_default() -> String {
-    let fx = Fx::new();
+/// The server's instructions, as `initialize` answers them over stdio on `fx`'s host.
+async fn initialize_instructions(fx: &Fx) -> String {
     let mut stdio = Stdio::connect_modern(&fx.host);
     let initialize = stdio
         .request(
@@ -54,38 +53,41 @@ async fn afd_default() -> String {
 }
 
 #[tokio::test]
-async fn the_paragraph_starts_with_afds_default_for_the_hybrid_strategy() {
+async fn the_manifest_paragraph_follows_afds_default_for_the_hybrid_strategy() {
     let paragraph = quoted_after(SPEC, "### 11.2 The paragraph for the server's instructions");
+    let manifest: toml::Table = umbel_plugin_ideas::MANIFEST.parse().unwrap();
+    assert_eq!(manifest["manifest_version"].as_integer(), Some(7));
+    assert_eq!(
+        manifest["instructions"].as_str().unwrap(),
+        paragraph,
+        "the manifest's paragraph is the specification's"
+    );
     assert_eq!(
         quoted_after(README, "### The paragraph for the server's instructions"),
         paragraph,
         "the README's paragraph is the specification's"
     );
     let instance = readme_instance();
-    assert_eq!(
-        instance["mcp"]["instructions"].as_str().unwrap(),
-        paragraph,
-        "the README's instance pastes the paragraph into mcp.instructions"
+    assert!(
+        instance["mcp"].get("instructions").is_none(),
+        "the README's instance leaves the text to the host"
     );
 
-    // The default's sentences for the hybrid strategy: up to the sentence on batches and pipes.
-    let default = afd_default().await;
-    let end = "afd-pipe to chain them.";
-    let head = &default[..default.find(end).unwrap() + end.len()];
-    // The default names the server by its workspace's name; the paragraph names it Umbel.
-    let (name, _) = head.split_once(" is an AFD server.").unwrap();
-    let head = &format!("Umbel{}", &head[name.len()..]);
+    // AFD's default for the hybrid strategy, read from a host with no plugin enabled (the
+    // plugin contributes no context, so its sentence is not in either), then the paragraph.
+    let bare = Fx::with("config_version = 6\ndefault_space = \"main\"\n\n[spaces.main]\n");
+    let default = initialize_instructions(&bare).await;
     assert!(
-        head.contains("The command tools listed are the common ones."),
+        default.contains("The command tools listed are the common ones."),
         "the hybrid strategy: {default}"
     );
-    assert!(paragraph.starts_with(head), "{paragraph}\n\n{head}");
+    let served = initialize_instructions(&Fx::new()).await;
+    assert_eq!(served, format!("{default}\n\n{paragraph}"));
 
-    // `ideas-guide`'s start is the rest, then how to review.
+    // `ideas-guide`'s start is the paragraph, then how to review.
     let guide = Fx::new().agent("ideas-guide", json!({})).await;
     let start = data(&guide)["start"].as_str().unwrap().to_owned();
-    let rest = paragraph[head.len()..].trim_start();
-    assert!(start.starts_with(rest), "{start}");
+    assert!(start.starts_with(&format!("{paragraph}\n")), "{start}");
 
     // Nothing sends an agent to the guide before each request.
     for text in [paragraph.as_str(), start.as_str()] {

@@ -89,6 +89,7 @@ no two hosts claim one name:
 | `expose`, `result` | A pipeline; `expose` with a command's `mcp`, `agent` and `cli` and their meanings | Umbel, from its manifest version 4 |
 | `task`, `person` | A command and a pipeline | Umbel, from its manifest version 5 |
 | `records` | Top level | Umbel, from its manifest version 6 |
+| `instructions` | Top level | Umbel, from its manifest version 7 |
 | `command`, `cwd`, `env`, `bearer` | `mount` | Umbel |
 | `bind_space` | A mount tool | Umbel |
 | `ui` | Top level, in the core as an object | Loam, which defines its contents |

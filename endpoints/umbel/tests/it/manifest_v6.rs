@@ -493,8 +493,9 @@ fn a_plugin_that_declares_a_kind_journals_every_command_and_pipeline() {
 
 #[test]
 fn a_host_reads_manifest_versions_1_to_6() {
-    assert_eq!(umbel::MANIFEST_VERSION, 6);
-    assert_eq!(umbel::MANIFEST_VERSIONS, [1, 2, 3, 4, 5, 6]);
+    // Version 7 (phase 1 section 8.7) is read beside them and tested in `manifest_v7.rs`.
+    assert_eq!(umbel::MANIFEST_VERSION, 7);
+    assert_eq!(umbel::MANIFEST_VERSIONS, [1, 2, 3, 4, 5, 6, 7]);
     for version in umbel::MANIFEST_VERSIONS {
         assert!(
             schemas_dir()
@@ -503,11 +504,11 @@ fn a_host_reads_manifest_versions_1_to_6() {
             "{version}"
         );
     }
-    for other in [0, 7] {
+    for other in [0, 8] {
         let error = parse(&head(other, "compiled", "")).unwrap_err();
         assert_eq!(error.code(), "PLUGIN_PROTOCOL_UNSUPPORTED", "{other}");
         assert!(
-            error.suggestion().contains("manifest versions 1 to 6"),
+            error.suggestion().contains("manifest versions 1 to 7"),
             "{error}"
         );
     }

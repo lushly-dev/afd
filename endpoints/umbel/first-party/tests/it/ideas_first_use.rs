@@ -367,15 +367,20 @@ fn affirm(idea: &str, group: &str) -> Value {
 async fn the_readme_local_instance_walks_from_capture_to_the_report() {
     let mut garden = Instance::start().await;
 
-    // The harness reads the README's paragraph and the four first-class tools.
+    // The harness reads AFD's default, then the plugin's paragraph, which the README's instance
+    // leaves to the host, and the four first-class tools.
     let instructions = garden.initialize["result"]["instructions"]
         .as_str()
         .unwrap();
     let configured: toml::Table = readme_instance().parse().unwrap();
-    assert_eq!(
-        instructions,
-        configured["mcp"]["instructions"].as_str().unwrap()
+    assert!(configured["mcp"].get("instructions").is_none());
+    let manifest: toml::Table = umbel_plugin_ideas::MANIFEST.parse().unwrap();
+    let paragraph = manifest["instructions"].as_str().unwrap();
+    assert!(
+        instructions.ends_with(&format!("\n\n{paragraph}")),
+        "{instructions}"
     );
+    assert!(instructions.contains("is an AFD server."), "{instructions}");
     assert_eq!(
         garden.host.first_class_tools(),
         [

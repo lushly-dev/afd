@@ -70,10 +70,10 @@ fn paragraph() -> String {
 /// An `oauth` workspace: namespace `corp`, whose person login asks for D181's passkey login
 /// (`acr_values = ["phr"]`, `uv_amr = ["mfa"]`, the `better-auth` preset's person rule in the
 /// auth profiles specification, 7.2); the kit's authorization server as issuer `as`; the space
-/// `main` with the person `human:corp/ada`; the ideas plugin; and the instance's instructions
-/// and first-class tools as the README's instance sets them (section 11.4).
+/// `main` with the person `human:corp/ada`; the ideas plugin, whose manifest gives the paragraph
+/// for the instructions; and the first-class tools as the README's instance sets them (section
+/// 11.4).
 fn config(kit: &TestIdp) -> String {
-    let instructions = serde_json::to_string(&paragraph()).unwrap();
     format!(
         r#"config_version = 7
 default_space = "main"
@@ -86,7 +86,6 @@ public_url = "{PUBLIC_URL}"
 allowed_hosts = ["127.0.0.1"]
 
 [mcp]
-instructions = {instructions}
 first_class_tools = ["ideas-capture", "ideas-ask", "ideas-guide"]
 
 [auth]
@@ -492,10 +491,13 @@ async fn a_signed_in_harness_with_no_skill_gets_the_instances_instructions_and_t
         .await;
     assert_eq!(discovered.status, 200, "{}", discovered.text);
     let discovered = discovered.json();
-    assert_eq!(
-        discovered["result"]["instructions"].as_str().unwrap(),
-        paragraph()
+    // AFD's default, then the manifest's paragraph (Umbel's phase 1 specification, section 8.7).
+    let instructions = discovered["result"]["instructions"].as_str().unwrap();
+    assert!(
+        instructions.ends_with(&format!("\n\n{}", paragraph())),
+        "{instructions}"
     );
+    assert!(instructions.contains("is an AFD server."), "{instructions}");
     let listed = instance
         .rpc("tools/list", json!({}), json!({}), Some(&token), None)
         .await;

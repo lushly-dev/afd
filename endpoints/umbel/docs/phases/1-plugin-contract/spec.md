@@ -376,6 +376,7 @@ phase 0 rules (D36). A compiled plugin embeds the same file with
 ```toml
 manifest_version = 1          # required; this host reads 1
 protocol = 1                  # required; the plugin protocol version (D40)
+instructions = "..."          # optional, manifest version 7: one paragraph for the server's instructions (section 8.7)
 
 [plugin]                      # required
 id = "hello"                  # required; ^[a-z][a-z0-9]{0,31}$; the default instance id
@@ -1390,6 +1391,80 @@ naming them. A deployer's `mcp.first_class_tools` always wins.
 and `config: 2`. `plugin-new` and `skill-export` join the unprojected
 mutations of phase 0, beside `event-ack` and `event-rebuild`.
 
+### 8.7 Instructions (manifest version 7, D211)
+
+*Added 2026-11-26 for P18 of the Ideas plan ([#2011](https://github.com/lushly-dev/afd/issues/2011)),
+after the plan was written: [D211](../../decisions.md).* A plugin's commands are described one by one;
+nothing told an agent how they fit together, or how they relate to another plugin's, except the
+server's instructions, which were the deployer's alone. A deployer's `mcp.instructions` replaces AFD's
+default text whole, so the Ideas README had the deployer paste AFD's default sentences and Ideas'
+paragraph by hand, and a text pasted that way went stale when AFD's default changed (the `recovery`
+sentence of 2026-11-24 is one example). A manifest now contributes a paragraph, and the host
+composes the text, as it composes the first-class set from suggestions (section 8.4, D45).
+
+**The key.** Manifest version 7 adds an optional top-level `instructions`: one paragraph of 1 to 800
+characters (Unicode scalar values, as `plugin.description` counts them) without control characters,
+so without line breaks. Only a compiled plugin declares it; on a component, mounted or pack plugin
+it is refused, naming the kind and suggesting `mcp.instructions` (see "Trust" below). Versions 1 to
+6 name and refuse it ("a plugin's instructions paragraph needs manifest_version = 7"). A bad value
+is `PLUGIN_MANIFEST_INVALID` naming `instructions`, with the code's suggestion, at load and in
+`plugin-check`. Version 7 keeps every key and reservation of version 6, and
+`schemas/plugin-manifest.v7.json` is version 6's with the key and its kind rule added. Write what
+the plugin's commands are for and when an agent reaches for them; a sentence may name another
+plugin's command when it says the instance may lack it ("where the instance has it"). Like a
+description, the paragraph says nothing about the caller's behaviour beyond that: `plugin-check`'s
+`schemas` check scans it with the `description-injection` rule (a `warn`, as for a description).
+
+**Composition.** When `mcp.instructions` is empty or absent, the server's instructions are AFD's
+default text for the server as built (its name, Umbel's or the one an embedding binary sets with
+`HostBuilder::with_server_identity`; the strategy; the bootstrap sentence; and, when a plugin
+contributes contexts, the contexts sentence), then each loaded instance's paragraph in
+`plugins.enabled` order, joined by a blank line (`"\n\n"`). Each distinct paragraph appears once,
+at its first instance: two instances of one plugin contribute it once. An optional instance that
+failed to load contributes nothing. With no paragraph the text is AFD's default exactly, as before.
+`initialize` and `server/discover` answer the same text over stdio and HTTP, to every caller. The
+host reads AFD's default through `McpServer`'s `ServerHandler::get_info` once the contexts are
+configured and before it sets any text, so the `afd` crate needs no accessor (the phase 0
+follow-up of 2026-10-31 is answered without one).
+
+**The deployer's control.** A non-empty `mcp.instructions` keeps its meaning: it replaces the whole
+text, every paragraph included. That override suffices to drop a paragraph, at the cost P18 removes
+for everyone else (the deployer writes AFD's sentences too). `plugin-show` reports a declared
+paragraph as `instructions: { text, served }`, where `served` says whether the server's
+instructions carry that text: false when the deployer's text replaces it, or when the instance
+failed to load and no loaded instance contributes the same paragraph. A deployer reads what the
+server says without reading manifests. A per-instance opt-out needs a configuration key, which this
+change does not add (configuration version 7 is unchanged): a follow-up below. A deployment that
+pasted a paragraph into `mcp.instructions` before version 7 keeps serving that text until the
+deployer removes it.
+
+**Trust.** Compiled plugins are trusted code (D42, D205), and their manifest is compiled in with
+them, so a compiled plugin's paragraph adds no trust the host did not already give it. The other
+kinds are not given this: a component is the untrusted-code route (section 11), a pack's content is
+untrusted, and a mounted plugin's text sits beside a process the host does not vet, while a client
+gives instructions more weight than a tool description. A mounted server's own `instructions`,
+which its `initialize` returns at run time, are not forwarded either. Whether other kinds may
+contribute is the owner's decision, a follow-up below; until then the trust model is unchanged.
+Skills and packs stay content no one reads as instructions (section 11). The text is host-wide, like
+the first-class set: a hosted caller who cannot list an instance's spaces still reads its paragraph, so a
+hosted deployment that must not name an instance to some callers sets `mcp.instructions`.
+
+**Size.** The host does not cut the text. One client, Claude Code, is reported to truncate a
+server's instructions past 2,048 UTF-16 code units; AFD's hybrid default is about 520 characters
+with the bootstrap sentence (the Ideas instance serves about 1,100 in all), so one paragraph at the
+cap fits and two may not. A doctor warning when the composed text passes that length is a
+follow-up.
+
+**Tests.** `tests/it/manifest_v7.rs`: the key's rules, the compiled-only rule and versions, the
+schema accepting and refusing what the reader does, version 7's examples.
+`tests/it/plugin_instructions.rs`: AFD's default unchanged without a paragraph; the paragraphs after
+it in instance order, once each, over stdio and HTTP; the default read for the server as built (an
+embedder's name and a plugin's context); a failed optional instance; the deployer's text winning;
+`plugin-show`'s report; and `plugin-check`'s scan. The Ideas plugin adopts it (manifest version 7
+with its paragraph; its specification's section 11.2 and README), and
+`plugins/ideas/tests/it/instructions.rs` pins the paragraph to the specification, the README and
+`ideas-guide`'s `start`.
+
 ## 9. The workspace
 
 ### 9.1 `umbel.toml`, version 2
@@ -2233,3 +2308,6 @@ manifest's `PluginKind` is parsed crate-wide, and the writer of the one-plugin `
 | 2026-11-01 | MCP prompts in AFD servers, the step after step 0a's proposal, when a phase needs workflows as prompts | AFD |
 | 2026-11-01 | The `http` and `secrets` grants, each with its required per-instance `allow` list, and moving the instance's `bearer_env` under `secrets` | The first plugin that needs outbound calls; `secrets` by phase 5 |
 | 2026-11-01 | Remove the three `--suppress` rules from `tests/scripts/external-clients.sh`: give Umbel's built-in commands descriptions with an action verb and 20 characters, and reduce `event-list`'s schema complexity (`src/`, which step 6 may not change); the todo example's overlap and complexity warnings need a decision in the shared suite | Not done in step 8 (it changes no `src/`); a later phase |
+| 2026-11-26 | A per-instance opt-out of a plugin's instructions paragraph (section 8.7, D211), such as `plugins.<id>.instructions = false`: today a deployer drops one only by writing the whole text in `mcp.instructions`. It needs a configuration key, which #2011 did not add | A later configuration version, when a deployer asks |
+| 2026-11-26 | A doctor warning when the composed instructions (section 8.7) pass 2,048 UTF-16 code units, the length one client is reported to keep | Umbel, when a deployment enables two plugins with paragraphs |
+| 2026-11-26 | Whether a component, mounted or pack plugin may contribute an instructions paragraph (section 8.7, D211): version 7 admits compiled plugins only, since a client gives instructions more weight than a description and those kinds are not trusted code | The owner, when a plugin of another kind needs one |

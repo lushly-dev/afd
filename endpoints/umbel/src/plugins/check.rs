@@ -235,9 +235,29 @@ fn join(problems: &[(bool, PluginError)]) -> String {
         .join("; ")
 }
 
+/// The instructions paragraph's matches of the `description-injection` rule (phase 1 section
+/// 8.7), one note each.
+fn instructions_notes(manifest: &Manifest) -> Vec<String> {
+    #[cfg(feature = "mounted")]
+    if let Some(text) = &manifest.instructions {
+        return super::mounted::scan_description(text)
+            .into_iter()
+            .map(|hit| {
+                format!(
+                    "instructions: the paragraph matches the description-injection rule ({})",
+                    hit.pattern
+                )
+            })
+            .collect();
+    }
+    #[cfg(not(feature = "mounted"))]
+    let _ = manifest;
+    Vec::new()
+}
+
 /// Input schemas passed the `afd` checker when the manifest read. Here: a command with no
 /// `returns` schema is AFD's surface rule `missing-output-schema` (a `warn`), and a description
-/// that matches the `description-injection` rule is a `warn`.
+/// or an instructions paragraph that matches the `description-injection` rule is a `warn`.
 fn schemas(manifest: &Manifest, files: &DirFiles) -> Check {
     if manifest.plugin.kind == PluginKind::Mounted {
         return Check::skip(
@@ -245,7 +265,8 @@ fn schemas(manifest: &Manifest, files: &DirFiles) -> Check {
             "A mounted plugin's tool schemas come from its server; boot with spawn=true lists them and scans their descriptions.",
         );
     }
-    let mut notes = Vec::new();
+    // Only a compiled plugin declares a paragraph (section 8.7).
+    let mut notes = instructions_notes(manifest);
     for command in &manifest.commands {
         if command.returns.is_none() {
             notes.push(format!(
@@ -278,7 +299,7 @@ fn schemas(manifest: &Manifest, files: &DirFiles) -> Check {
         return Check::pass(
             "schemas",
             format!(
-                "{} command schema(s) pass the afd checker, declare returns and carry no injection pattern",
+                "{} command schema(s) pass the afd checker, declare returns and carry no injection pattern, nor does an instructions paragraph",
                 manifest.commands.len()
             ),
         );
@@ -286,7 +307,7 @@ fn schemas(manifest: &Manifest, files: &DirFiles) -> Check {
     Check::warn(
         "schemas",
         notes.join("; "),
-        "Declare returns for every command, and write descriptions that say what a command does and nothing about the caller's behaviour.",
+        "Declare returns for every command, and write descriptions and the instructions paragraph so they say what the commands do and nothing about the caller's behaviour.",
     )
 }
 

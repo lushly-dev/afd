@@ -228,8 +228,17 @@ fn mount_summary(mount: &MountReport) -> Value {
     })
 }
 
-/// `instance` in full, to a caller listed `listed` (`None`: every space).
-fn show(instance: &InstanceReport, listed: Option<&[String]>, hosted: bool) -> Value {
+/// Whether the server's instructions carry `text`, a paragraph of the shown instance's manifest
+/// (phase 1 section 8.7): not when the deployer's `mcp.instructions` replaces the whole text, nor
+/// when the instance failed to load and no loaded instance contributes the same paragraph.
+fn instructions_served(workspace: &Workspace, loaded: &LoadedPlugins, text: &str) -> bool {
+    workspace.config().mcp.instructions.is_empty()
+        && loaded.instructions.iter().any(|part| part.text == text)
+}
+
+/// `instance` in full, to a caller listed `listed` (`None`: every space); `served` says whether
+/// the server's instructions carry its paragraph.
+fn show(instance: &InstanceReport, listed: Option<&[String]>, hosted: bool, served: bool) -> Value {
     let shown = |space: &str| listed.is_none_or(|listed| listed.iter().any(|s| s == space));
     let mut data = Map::new();
     let mut about = summary(instance);
@@ -263,6 +272,12 @@ fn show(instance: &InstanceReport, listed: Option<&[String]>, hosted: bool) -> V
         plugin.insert("license".into(), json!(license));
     }
     data.insert("plugin".into(), Value::Object(plugin));
+    if let Some(text) = &manifest.instructions {
+        data.insert(
+            "instructions".into(),
+            json!({ "text": text, "served": served }),
+        );
+    }
     data.insert(
         "grants".into(),
         grants(instance, manifest, listed.is_some()),
@@ -351,6 +366,11 @@ impl CommandHandler for Handler {
                 instance,
                 listed.as_deref(),
                 crate::plugins::loader::person_mcp_served(self.workspace.config()),
+                instance
+                    .manifest
+                    .as_ref()
+                    .and_then(|manifest| manifest.instructions.as_deref())
+                    .is_some_and(|text| instructions_served(&self.workspace, &loaded, text)),
             )),
             None => failure(
                 afd::CommandError::new(
@@ -377,7 +397,7 @@ pub(crate) fn plugin_show(
     )
     .with_category("plugins")
     .with_returns(returns_object(
-        "instance, plugin, grants (trust, items), commands, packs (per space), contexts, pipelines and skills",
+        "instance, plugin, instructions (text, served) when the manifest declares a paragraph, grants (trust, items), commands, packs (per space), contexts, pipelines and skills",
     ))
     .with_expose(expose_everywhere_but_the_palette());
     Builtin {

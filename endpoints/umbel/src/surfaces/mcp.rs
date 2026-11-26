@@ -2,6 +2,7 @@
 //! workspace's shared key.
 
 use crate::host::HostError;
+use crate::plugins::Manifest;
 use crate::principal;
 use crate::workspace::{Confirmations, Workspace};
 use afd::server::{ConfirmationMode, McpServer, ServerInstances, ToolStrategy};
@@ -14,6 +15,42 @@ pub(crate) fn mode(confirmations: Confirmations) -> ConfirmationMode {
         Confirmations::RequireHuman => ConfirmationMode::RequireHuman,
         Confirmations::Off => ConfirmationMode::Off,
     }
+}
+
+/// One loaded instance's paragraph for the server's instructions (phase 1 specification, section
+/// 8.7, D211).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct InstructionsPart {
+    pub instance: String,
+    pub text: String,
+}
+
+impl InstructionsPart {
+    /// Add `instance`'s paragraph to `parts`, in instance order, unless an earlier instance
+    /// contributed the same text: each distinct paragraph appears once, at its first instance.
+    pub(crate) fn add(parts: &mut Vec<Self>, instance: &str, manifest: &Manifest) {
+        if let Some(text) = &manifest.instructions
+            && !parts.iter().any(|part| part.text == *text)
+        {
+            parts.push(Self {
+                instance: instance.to_owned(),
+                text: text.clone(),
+            });
+        }
+    }
+}
+
+/// The server's instructions (phase 1 specification, section 8.7, D211): AFD's `default`, then
+/// each plugin paragraph in instance order, joined by a blank line.
+pub(crate) fn compose_instructions(default: &str, parts: &[InstructionsPart]) -> String {
+    let mut text = default.to_owned();
+    for part in parts {
+        if !text.is_empty() {
+            text.push_str("\n\n");
+        }
+        text.push_str(&part.text);
+    }
+    text
 }
 
 /// The name and version the MCP server announces in `initialize` (`serverInfo`). Umbel's own,
@@ -36,6 +73,9 @@ impl Default for ServerIdentity {
 
 /// Build the server over `registry` and check its surface (`McpServer::validate`).
 ///
+/// The instructions are the deployer's `mcp.instructions` when set; otherwise AFD's default
+/// followed by `instructions`, the loaded instances' paragraphs (section 8.7).
+///
 /// With `contexts`, the server scopes commands by them and registers `afd-context-list`,
 /// `afd-context-enter` and `afd-context-exit` into `registry` (once: pass none when the registry
 /// already has them, as the doctor's re-check does).
@@ -49,6 +89,7 @@ pub(crate) fn build_server(
     workspace: &Workspace,
     first_class: &[String],
     contexts: &[ContextConfig],
+    instructions: &[InstructionsPart],
     clock: Option<&Arc<dyn Clock>>,
     identity: &ServerIdentity,
 ) -> Result<McpServer, HostError> {
@@ -80,9 +121,6 @@ pub(crate) fn build_server(
                 ),
             )
         })?;
-    if !config.instructions.is_empty() {
-        server = server.with_instructions(config.instructions.clone());
-    }
     // A hosted mode's server fails closed over HTTP however it is served (phase 5 section 6.3):
     // only the listener's own authorized server admits a caller. Without the `auth` feature there
     // is no authorization to attach, so a hosted workspace does not open a host at all.
@@ -117,6 +155,16 @@ pub(crate) fn build_server(
                 "Rename the plugin's contexts so that no two instances share a name and none is an AFD context command.",
             )
         })?;
+    }
+    // After the contexts, whose sentence AFD's default carries, and before any text is set, so
+    // `get_info` answers AFD's default for the server as built.
+    if !config.instructions.is_empty() {
+        server = server.with_instructions(config.instructions.clone());
+    } else if !instructions.is_empty() {
+        let default = rmcp::ServerHandler::get_info(&server)
+            .instructions
+            .unwrap_or_default();
+        server = server.with_instructions(compose_instructions(&default, instructions));
     }
     server.validate().map_err(|message| {
         HostError::config_invalid(
