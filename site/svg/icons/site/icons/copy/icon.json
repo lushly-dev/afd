@@ -1,0 +1,20 @@
+{
+  "meaning": "Copy to the clipboard",
+  "aliases": [],
+  "category": "",
+  "notes": "",
+  "alike": [],
+  "mirror": false,
+  "reviews": [
+    {
+      "master": "outline-24",
+      "hash": "603b4d52bf2c",
+      "by": "agent",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "pass",
+      "notes": "Replaces the site's Lucide copy. Read at 24 and 16px, light and dark: names correctly; two equal 11.7 squares, the back one cut where the front covers it. Density warning kept, as for board.",
+      "at": "2026-11-26T20:43:02.405Z"
+    }
+  ],
+  "approvals": {}
+}

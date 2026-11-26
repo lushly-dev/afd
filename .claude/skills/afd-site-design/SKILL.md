@@ -46,6 +46,7 @@ all of them unless a line says which.
 | `site/css/design.css` | The design side's mint hero and the design home's figures. |
 | `site/css/<tool>.css`, `<tool>-dev.css` | One tool's own figures: shared by its two pages, then dev only. |
 | `site/css/refined.css` | **The interface layer, Refined.** Loaded last by every page; rounds, raises and wells the controls, panels and drawn UI. See Interface below. |
+| `site/svg/icons/site/` | The control icons, one `.icon--<name>` mask each in `manifesto-2.css`, drawn in Violet's system style (1.75 line, round caps, 2 to 2.5 corners). An icon-kit set: each icon's `icon.json` beside `outline-24.svg`, with `brief.md` and `provenance.md`. Draw a new one from scratch, never from an icon library; `foundations/fast-af/packages/violet-elements/icons/ATTRIBUTION.md` says how. |
 | `site/js/runtime.js` | The home pages' command registry. |
 | `site/js/<tool>-runtime.js` | A tool's commands in the page, over a bundle in `site/js/vendor/`, or its recorded run. |
 | `site/<tool>/` beside the page | What the tool wrote for the page, unedited: Specimen's `captures/` and `pack/`, Umbel's and Botcore's `runs.json`, FAST-AF's `library.json`. |

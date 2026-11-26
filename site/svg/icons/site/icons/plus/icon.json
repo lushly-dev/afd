@@ -1,0 +1,20 @@
+{
+  "meaning": "Add or create",
+  "aliases": [],
+  "category": "",
+  "notes": "",
+  "alike": [],
+  "mirror": false,
+  "reviews": [
+    {
+      "master": "outline-24",
+      "hash": "875ed0686b84",
+      "by": "agent",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "pass",
+      "notes": "Replaces the site's Lucide plus. Read on the site set's sheet at 24 and 16px, light and dark: names correctly; two equal 15-unit strokes, the primitive every set shares (overlap 0.93 with Feather's and Lucide's).",
+      "at": "2026-11-26T20:43:07.801Z"
+    }
+  ],
+  "approvals": {}
+}

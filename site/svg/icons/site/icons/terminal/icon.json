@@ -1,0 +1,20 @@
+{
+  "meaning": "A terminal or command line",
+  "aliases": [],
+  "category": "",
+  "notes": "",
+  "alike": [],
+  "mirror": false,
+  "reviews": [
+    {
+      "master": "outline-24",
+      "hash": "dc2959ec2875",
+      "by": "agent",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "pass",
+      "notes": "Replaces the site's Lucide terminal. Read at 24 and 16px, light and dark: names correctly; prompt and cursor run, overlap 0.34.",
+      "at": "2026-11-26T20:43:00.048Z"
+    }
+  ],
+  "approvals": {}
+}

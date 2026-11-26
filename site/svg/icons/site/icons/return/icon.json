@@ -1,0 +1,20 @@
+{
+  "meaning": "Apply or submit, as the Return key would",
+  "aliases": [],
+  "category": "",
+  "notes": "",
+  "alike": [],
+  "mirror": false,
+  "reviews": [
+    {
+      "master": "outline-24",
+      "hash": "a3fc68180a6c",
+      "by": "agent",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "pass",
+      "notes": "Redrawn from Key's own numbers after review found the first drawing followed Lucide's corner-down-left (its radius-4 bend). Now a 2.5 bend, as Key's corners are, and a 4.5-unit head; best overlap with any Feather or Lucide icon 0.28. Read at 18, 15 and 13px, 1x and 2x, light and dark: names correctly.",
+      "at": "2026-11-26T20:54:24.802Z"
+    }
+  ],
+  "approvals": {}
+}

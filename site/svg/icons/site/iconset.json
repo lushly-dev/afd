@@ -1,0 +1,17 @@
+{
+	"id": "site",
+	"title": "AFD site icons",
+	"description": "The control icons of afd.dev and afd.design, in Violet's system style: an even 1.75 line with round ends and soft corners, built from circles and straight runs, so an icon sits in a Refined control beside Inter text.",
+	"prefix": "site",
+	"brief": "brief.md",
+	"sizes": {
+		"24": {
+			"padding": 2,
+			"stroke": 1.75,
+			"keylines": { "circle": 20, "square": 18, "portrait": [16, 20], "landscape": [20, 16] }
+		}
+	},
+	"defaultSize": 24,
+	"stroke": { "linecap": "round", "linejoin": "round" },
+	"surfaces": { "light": "#f4f0ea", "dark": "#181b1a" }
+}
