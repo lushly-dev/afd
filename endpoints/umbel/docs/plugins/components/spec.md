@@ -537,7 +537,14 @@ component builds answer the same checks).
 Phase A specification for [Patterns](../../../../../docs/features/active/patterns/spec.md) (epic
 [#1073](https://github.com/lushly-dev/afd/issues/1073), Phase A [#2133](https://github.com/lushly-dev/afd/issues/2133)),
 authored 2026-11-22 following the owner's Phase 0 step 0.5 **go with changes** decision on [#1966](https://github.com/lushly-dev/afd/issues/1966).
-Implementation (Phase C steps C1–C3) remains gated on Phase A exit approval.
+Amended 2026-11-24 by Agent-First Design Phase A ([`docs/features/active/patterns/spec.md` §8](../../../../../docs/features/active/patterns/spec.md#8-amendment-agent-first-design-phase-a-approved-2026-11-24),
+Epic [#2544](https://github.com/lushly-dev/afd/issues/2544), Phase B3 [#2560](https://github.com/lushly-dev/afd/issues/2560)):
+adds optional `approvalStatus` (`proposed` | `approved` | `deprecated`, defaulting to `approved`),
+`derivedFrom` and `waivedKeep` on Pack Format 2 pattern records, `includeProposed` filtering across
+`components-pattern-list`, `components-pattern-open`, and `components-brief`, optional `patterns[]`
+input on `components-brief`, and compiled `patternBindings` in Pack Format 2 (`library.json`) and
+`consumers.json` (version 3) resolved under WASI `Cx::pack_read` (falling back to the approved
+upstream default while a bound local copy is still `proposed`, unless `includeProposed: true`).
 
 #### A31.1 Format 2 reader and identifiers (step C1)
 

@@ -38,6 +38,11 @@
 			"type": "string",
 			"maxLength": 129,
 			"description": "The page starts after this pattern: the value of the last answer's next.after, written <library>/<pattern> when more than one library is listed"
+		},
+		"includeProposed": {
+			"type": "boolean",
+			"default": false,
+			"description": "Include proposed patterns and copies for review; omitted or false serves only approved content"
 		}
 	}
 }

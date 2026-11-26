@@ -532,6 +532,8 @@ impl Checker {
             .map(|item| (item.kind.as_str(), item.sort_name()))
             .collect();
         self.ascending_pairs(path, "/implementations", &impl_pairs);
+        let waived_ids: Vec<&str> = record.waived_keep.iter().map(|w| w.id.as_str()).collect();
+        self.unique_ids(path, "/waivedKeep", &waived_ids);
     }
 
     /// `checkCopyRecord`.
@@ -804,6 +806,7 @@ impl Checker {
                 if let Some(record) = pat_records.get(entry.pattern.as_str())
                     && (record.summary != entry.summary
                         || record.status != entry.status
+                        || record.approval_status != entry.approval_status
                         || record.replaced_by != entry.replaced_by
                         || record.scope != entry.scope
                         || record.facets != entry.facets)
@@ -853,6 +856,7 @@ impl Checker {
                 if let Some(record) =
                     copy_records.get(&(entry.pattern.as_str(), entry.name.as_str()))
                     && (record.status != entry.status
+                        || record.approval_status != entry.approval_status
                         || record.replaced_by != entry.replaced_by
                         || record.revision != entry.revision
                         || record.fingerprint != entry.fingerprint)
@@ -1193,6 +1197,7 @@ mod tests {
                 components: vec![],
                 patterns: vec![],
                 copies: vec![],
+                pattern_bindings: BTreeMap::new(),
             },
             rules: Rules {
                 library: id.to_owned(),
@@ -1250,6 +1255,9 @@ mod tests {
             pattern: "select".to_owned(),
             summary: Some("Select".to_owned()),
             status: "stable".to_owned(),
+            approval_status: None,
+            derived_from: None,
+            waived_keep: vec![],
             replaced_by: None,
             scope: "control".to_owned(),
             facets: BTreeMap::new(),
@@ -1268,6 +1276,7 @@ mod tests {
             pattern: "select".to_owned(),
             name: "inline-copy".to_owned(),
             status: "stable".to_owned(),
+            approval_status: None,
             replaced_by: None,
             html: "<div></div>".to_owned(),
             css: String::new(),
@@ -1318,6 +1327,9 @@ mod tests {
             pattern: "empty-pat".to_owned(),
             summary: Some("No implementations yet.".to_owned()),
             status: "preview".to_owned(),
+            approval_status: None,
+            derived_from: None,
+            waived_keep: vec![],
             replaced_by: None,
             scope: "composition".to_owned(),
             facets: BTreeMap::new(),

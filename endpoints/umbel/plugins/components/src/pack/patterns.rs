@@ -83,3 +83,12 @@ impl Pattern {
         value.len() <= self.max && self.matches(value)
     }
 }
+
+/// Whether `value` is a valid `<library>/<pattern>` reference with independent `library <= 64`
+/// and `pattern <= 64` bounds (Patterns spec §2.2).
+pub(crate) fn accepts_qualified_pattern(value: &str) -> bool {
+    QUALIFIED_PATTERN.accepts(value)
+        && value
+            .split_once('/')
+            .is_some_and(|(library, pattern)| LIBRARY.accepts(library) && PATTERN.accepts(pattern))
+}

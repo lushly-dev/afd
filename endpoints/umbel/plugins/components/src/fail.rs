@@ -214,10 +214,47 @@ pub(crate) fn too_many_tags(count: usize) -> Outcome {
     .with_error_details(json!({ "count": count }))
 }
 
+/// `PATTERN_BINDING_INVALID`: active `patternBindings` contain a cycle or exceed the 8-hop limit.
+pub(crate) fn pattern_binding_invalid(reason: &str) -> Outcome {
+    let message = match reason {
+        "cycle" => "active `patternBindings` contain a cycle",
+        "depth-exceeded" => "active `patternBindings` exceed the 8-hop resolution limit",
+        _ => "active `patternBindings` could not be resolved",
+    };
+    failure(
+        "PATTERN_BINDING_INVALID",
+        message,
+        "Remove the cycle or shorten the chain in `patternBindings` in `consumers.json` or the library catalog, then run the command again.",
+    )
+    .with_error_details(json!({ "reason": reason }))
+}
+
 /// `OUTPUT_BUDGET_EXCEEDED` for a brief whose floors do not fit (section 6.4). `guidance` counts the
 /// deployment's statements, which every brief carries (amendment A28): when none of the tags fit
 /// beside them, briefing fewer tags cannot help, so the suggestion says to raise the budget.
-pub(crate) fn brief_budget_exceeded(fits: usize, guidance: usize) -> Outcome {
+pub(crate) fn brief_budget_exceeded(
+    fits: usize,
+    guidance: usize,
+    requested_tags: usize,
+) -> Outcome {
+    if requested_tags == 0 {
+        let mut message = String::from(
+            "the brief does not fit in the call's output budget even with every section left out",
+        );
+        let mut details = json!({ "fits": 0 });
+        if guidance > 0 {
+            message.push_str(&format!(
+                ", beside the deployment's {guidance} guidance statement(s), which every brief carries"
+            ));
+            details["guidance"] = Value::from(guidance);
+        }
+        return failure(
+            "OUTPUT_BUDGET_EXCEEDED",
+            &message,
+            "Request fewer patterns at a time, raise `maxBytes` if you set it, or ask for a larger budget per call with `_meta[\"dev.afd/outputBudget\"]`, up to the command's 96 000.",
+        )
+        .with_error_details(details);
+    }
     let mut message = format!(
         "the brief does not fit in the call's output budget even with every section left out; the first {fits} requested tag(s) would"
     );

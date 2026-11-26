@@ -14,6 +14,7 @@ on:
       - 'packages/server/**'
       - 'packages/testing/**'
       - '.cargo/config.toml'
+      - 'foundations/specimen/defaults/pack/**'
       - 'foundations/specimen/fixtures/pack/**'
       - 'foundations/specimen/schema/pack/**'
       - 'foundations/specimen/docs/pack-format.md'
@@ -38,6 +39,7 @@ on:
       - 'packages/server/**'
       - 'packages/testing/**'
       - '.cargo/config.toml'
+      - 'foundations/specimen/defaults/pack/**'
       - 'foundations/specimen/fixtures/pack/**'
       - 'foundations/specimen/schema/pack/**'
       - 'foundations/specimen/docs/pack-format.md'
@@ -91,7 +93,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: host
-        run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path packages/examples/todo/backends/rust/ --path foundations/specimen/fixtures/pack/ --path foundations/specimen/schema/pack/ --path foundations/specimen/docs/pack-format.md --path foundations/fast-af/packages/violet-elements/pack/ --path foundations/fast-af/packages/violet-elements/specimen.config.json --path foundations/fast-af/packages/violet-elements/package.json --path .cargo/config.toml --path .github/workflows/umbel.yml
+        run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path packages/examples/todo/backends/rust/ --path foundations/specimen/defaults/pack/ --path foundations/specimen/fixtures/pack/ --path foundations/specimen/schema/pack/ --path foundations/specimen/docs/pack-format.md --path foundations/fast-af/packages/violet-elements/pack/ --path foundations/fast-af/packages/violet-elements/specimen.config.json --path foundations/fast-af/packages/violet-elements/package.json --path .cargo/config.toml --path .github/workflows/umbel.yml
 
   check:
     name: Umbel (fmt, clippy, test)

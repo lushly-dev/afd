@@ -700,6 +700,7 @@ impl Shape {
             "components",
             "patterns",
             "copies",
+            "patternBindings",
         ];
         let keys: &[&str] = if format == 1 { &keys_v1 } else { &keys_v2 };
         let Some(map) = self.object("", Some(value), keys) else {
@@ -743,6 +744,7 @@ impl Shape {
         if format >= 2 {
             self.catalog_patterns(map.get("patterns"));
             self.catalog_copies(map.get("copies"));
+            self.catalog_pattern_bindings(map.get("patternBindings"));
         }
     }
 }
@@ -964,6 +966,7 @@ pub(crate) struct AppliesTo {
 
 /// A checked catalog.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct Catalog {
     pub(crate) library: String,
     pub(crate) title: String,
@@ -981,6 +984,9 @@ pub(crate) struct Catalog {
     #[serde(default)]
     #[allow(dead_code)]
     pub(crate) copies: Vec<super::schema_pattern::CatalogCopyEntry>,
+    /// Format 2 compiled pattern bindings (`<sourceLib>/<pattern>` -> `<localLib>/<pattern>`).
+    #[serde(default)]
+    pub(crate) pattern_bindings: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -121,6 +121,9 @@ pub fn export_catalog(files: &BTreeMap<String, Vec<u8>>, library: &str, stamp: &
                 if let Some(summary) = record.get("summary") {
                     entry["summary"] = summary.clone();
                 }
+                if let Some(approval) = record.get("approvalStatus") {
+                    entry["approvalStatus"] = approval.clone();
+                }
                 if let Some(replaced) = record.get("replacedBy") {
                     entry["replacedBy"] = replaced.clone();
                 }
@@ -150,6 +153,9 @@ pub fn export_catalog(files: &BTreeMap<String, Vec<u8>>, library: &str, stamp: &
                     "fingerprint": record["fingerprint"],
                     "digest": digest::file_digest(bytes),
                 });
+                if let Some(approval) = record.get("approvalStatus") {
+                    entry["approvalStatus"] = approval.clone();
+                }
                 if let Some(replaced) = record.get("replacedBy") {
                     entry["replacedBy"] = replaced.clone();
                 }
@@ -158,6 +164,9 @@ pub fn export_catalog(files: &BTreeMap<String, Vec<u8>>, library: &str, stamp: &
             .collect();
         catalog["patterns"] = Value::Array(patterns);
         catalog["copies"] = Value::Array(copies);
+        if let Some(bindings) = stamp.get("patternBindings") {
+            catalog["patternBindings"] = bindings.clone();
+        }
     }
     canonical::canonical_json(&catalog).into_bytes()
 }
