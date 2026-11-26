@@ -187,4 +187,8 @@ export const ERROR_SUGGESTIONS: Readonly<Record<string, string>> = {
 		'Run panel-review first to generate provisional panel agreements before calling panel-calibrate.',
 	SAMPLE_NOT_FOUND:
 		'Run panel-calibrate with action: "sample" first to generate a valid sample id.',
+	NOT_RELEASED:
+		'Record a release containing this decision with design-release before running design-observe.',
+	JOURNAL_NOT_FOUND:
+		'Provide a readable AFD command journal file path inside the workspace (for example journals/post-release.jsonl).',
 };

@@ -28,6 +28,7 @@ import {
 	requireNoteText,
 	resolveNotes,
 } from './note.js';
+import { runDesignObserve } from './observe.js';
 import {
 	checkCommitted,
 	exportPack,
@@ -92,6 +93,8 @@ import type {
 	DecisionRecordResult,
 	DesignCardListRequest,
 	DesignCardListResult,
+	DesignObserveRequest,
+	DesignObserveResult,
 	DesignReleaseRequest,
 	DesignReleaseResult,
 	DesignStatesRequest,
@@ -381,6 +384,8 @@ export interface SpecimenBench {
 		request: DesignReleaseRequest,
 		options?: RecordDecisionOptions
 	): Promise<DesignReleaseResult>;
+	/** Observe a post-release AFD command journal against an approved, released decision's `meantToFix` target. */
+	designObserve(request: DesignObserveRequest): Promise<DesignObserveResult>;
 	/** Copy an upstream pattern into `specimens/patterns/<target>/pattern.json` as proposed with `derivedFrom` digests. */
 	patternFork(request: PatternForkRequest): Promise<PatternForkResult>;
 	/** Compare one copied pattern (or all copied patterns in bulk) statement-by-statement against its upstream source. */
@@ -417,6 +422,7 @@ export type BenchRuntime = Omit<
 	| 'panelCalibrate'
 	| 'listDesignCards'
 	| 'recordDesignRelease'
+	| 'designObserve'
 	| 'patternFork'
 	| 'patternCompare'
 	| 'patternMerge'
@@ -1287,6 +1293,11 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		async recordDesignRelease(rawRequest, decisionOptions) {
 			const snapshot = ensureOpen();
 			return recordDesignRelease(snapshot.root, rawRequest, decisionOptions);
+		},
+		async designObserve(rawRequest) {
+			const snapshot = ensureOpen();
+			const current = await refreshConfigIfChanged(snapshot);
+			return runDesignObserve(current, rawRequest);
 		},
 		async patternFork(rawRequest) {
 			ensureOpen();

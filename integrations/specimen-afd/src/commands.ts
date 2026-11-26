@@ -92,6 +92,7 @@ import {
 } from '@lushly-dev/specimen/schema';
 import { z } from 'zod';
 import { type ExecuteSpecimenCommandOptions, executeValidatedCommand } from './execute.js';
+import { createDesignObserveCommand } from './observe-commands.js';
 import { createPanelReviewCommands } from './panel-review-commands.js';
 import { createPatternForkCommands } from './pattern-commands.js';
 import {
@@ -158,6 +159,8 @@ import type {
 	DecisionRecordResult,
 	DesignCardListRequest,
 	DesignCardListResult,
+	DesignObserveRequest,
+	DesignObserveResult,
 	DesignReleaseRequest,
 	DesignReleaseResult,
 	DesignStatesRequest,
@@ -425,6 +428,7 @@ export interface SpecimenCommandBench {
 		request: DesignReleaseRequest,
 		options?: RecordDecisionOptions
 	): Promise<DesignReleaseResult>;
+	designObserve(request: DesignObserveRequest): Promise<DesignObserveResult>;
 	patternFork(request: PatternForkRequest): Promise<PatternForkResult>;
 	patternCompare(request?: PatternCompareRequest): Promise<PatternCompareResult>;
 	patternMerge(request: PatternMergeRequest): Promise<PatternMergeResult>;
@@ -1314,6 +1318,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 			return undefined;
 		}
 	);
+	const designObserve = createDesignObserveCommand(bench, result);
 	const [patternFork, patternCompare, patternMerge] = createPatternForkCommands(bench, result);
 	return [
 		list,
@@ -1357,6 +1362,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		panelWalk,
 		designCardList,
 		designRelease,
+		designObserve,
 		patternFork,
 		patternCompare,
 		patternMerge,
@@ -1390,7 +1396,7 @@ export async function executeSpecimenCommand(
 			code: 'COMMAND_NOT_FOUND',
 			message: `Unknown command: ${name}`,
 			suggestion:
-				'Use specimen list, validate, inspect, render, capture, compare, review, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, panel-walk, panel-review, panel-calibrate, design-card-list, design-release, specimen-pattern-fork, specimen-pattern-compare, or specimen-pattern-merge.',
+				'Use specimen list, validate, inspect, render, capture, compare, review, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, panel-walk, panel-review, panel-calibrate, design-card-list, design-release, design-observe, specimen-pattern-fork, specimen-pattern-compare, or specimen-pattern-merge.',
 		});
 	}
 	return executeValidatedCommand(command as ZodCommandDefinition, input, options);
