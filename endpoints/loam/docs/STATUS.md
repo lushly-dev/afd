@@ -197,7 +197,7 @@ The design review and phases 0, 1, 2 and 4 are done or exited: their detail is a
 - **Not done, beyond the steps below:** the amendment that gives the plugin install, its approver token and the model key a path with no terminal, before step 9; the macOS and Linux keychain paths, which no suite exercises.
 - **Rechecked 2026-11-23** ([#1803](https://github.com/lushly-dev/afd/issues/1803)): the amendment is written and approved, [no-terminal-install.amendment.md](phases/5-copilot/no-terminal-install.amendment.md) (D165 to D168, 2026-11-22, [#2217](https://github.com/lushly-dev/afd/pull/2217)), and step 9 builds it; the keychain paths stay open.
 - **Steps** ([plan](phases/5-copilot/spec.md#19-implementation-plan); one line each, made before the step starts, so parallel pull requests touch different lines):
-  - 7, mail on the desktop: in progress in [#2495](https://github.com/lushly-dev/afd/pull/2495).
+  - 7, mail on the desktop: merged as [#2495](https://github.com/lushly-dev/afd/pull/2495).
 
   - 8, milestone A: not started.
 
