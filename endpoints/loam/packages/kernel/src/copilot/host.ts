@@ -613,6 +613,9 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 				threadId: run.session.id,
 				text: run.text,
 				history: plain(run.history),
+				...(run.attachments && run.attachments.length > 0
+					? { attachments: plain(run.attachments) }
+					: {}),
 				provider: plain(run.provider),
 			});
 		},

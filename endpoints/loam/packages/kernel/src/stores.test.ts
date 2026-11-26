@@ -91,6 +91,28 @@ function exempted(name: string, schema: unknown): unknown {
 		for (const branch of copy.properties?.link?.anyOf ?? []) delete branch.properties?.route;
 		return copy;
 	}
+	if (name === 'copilot-message-send') {
+		// Each `attach` item is a `ResourceLinkV1` (phase 5 specification, 3.5, #1508), whose app-link `route` is an app's
+		// own route within its URL, never a projection entry's `route` (same contract as `notification-push`'s `link.route`).
+		// Self-invalidating: fails if `attach[].route` disappears from the schema.
+		const copy = structuredClone(schema) as {
+			properties?: {
+				attach?: { items?: { anyOf?: Array<{ properties?: Record<string, unknown> }> } };
+			};
+		};
+		let removed = 0;
+		for (const branch of copy.properties?.attach?.items?.anyOf ?? []) {
+			if (branch.properties && 'route' in branch.properties) {
+				delete branch.properties.route;
+				removed += 1;
+			}
+		}
+		expect(
+			removed,
+			'copilot-message-send attach[].route exemption must remain live'
+		).toBeGreaterThan(0);
+		return copy;
+	}
 	// Phase 4's experiments are turned on for the person or the workspace by `audience` (its 5.4): who an enablement is
 	// for, never a mounted instance's `audience`, which only a deployment entry holds (step 9).
 	if (name === 'experiment-enable' || name === 'experiment-disable') {

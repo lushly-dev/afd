@@ -5,7 +5,7 @@
  * blocks of their own under the same rule. This is a mitigation, not the boundary: the kernel's taint is (5.3).
  */
 
-import type { CommandResultLike, ContextMessageV1 } from './types.js';
+import type { AttachedContentV1, CommandResultLike, ContextMessageV1 } from './types.js';
 
 /** Loam's system prompt (5.2), in Loam's words. */
 export const SYSTEM_PROMPT = [
@@ -138,15 +138,38 @@ export function toolResultText(
 	return [body, ...blocks].join('\n');
 }
 
-/** The model's messages for a turn: the kernel's history, then the person's text. */
+const withAttachments = (
+	text: string,
+	attachments: ReadonlyArray<AttachedContentV1> | undefined,
+	id: string
+): string =>
+	attachments && attachments.length > 0
+		? [
+				...(text.length > 0 ? [text] : []),
+				...attachments.map((item) =>
+					contentBlock(item.source, JSON.stringify({ link: item.link, content: item.content }), id)
+				),
+			].join('\n\n')
+		: text;
+
+/**
+ * The model's messages for a turn: the kernel's history, then the person's text with any attached resources
+ * wrapped in content blocks from their sources (3.5, 5.1, 5.2).
+ */
 export function messagesFor(
 	history: ReadonlyArray<ContextMessageV1>,
-	text: string
+	text: string,
+	attachments?: ReadonlyArray<AttachedContentV1>,
+	nonce?: string
 ): Array<{ role: 'user' | 'assistant'; content: string }> {
+	const id = nonce ?? sessionNonce();
 	return [
 		...history
-			.filter((message) => message.text.length > 0)
-			.map((message) => ({ role: message.role, content: message.text })),
-		{ role: 'user', content: text },
+			.filter((message) => message.text.length > 0 || (message.attachments?.length ?? 0) > 0)
+			.map((message) => ({
+				role: message.role,
+				content: withAttachments(message.text, message.attachments, id),
+			})),
+		{ role: 'user', content: withAttachments(text, attachments, id) },
 	];
 }

@@ -7,14 +7,28 @@
 
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
-import type { ConfirmationRecordV1, NotificationV1 } from '@lushly-dev/loam-sdk';
+import type {
+	ConfirmationRecordV1,
+	DocumentRecordV1,
+	NotificationV1,
+	ResourceLinkV1,
+} from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppsRuntime } from '../apps-runtime.js';
 import { mountCallGranted } from '../call-grant.js';
 import { INTERNAL_COMMANDS } from '../commands.js';
 import type { CopilotConfirmationCardV1, CopilotParts } from '../copilot/commands.js';
+import type { AttachedContentV1 } from '../copilot/types.js';
+import {
+	DOCUMENT_TABLE,
+	type DocumentCheck,
+	documentNotFound,
+	sameScope,
+} from '../documents/document-types.js';
+import { kernelFailure } from '../errors.js';
 import type { AccessActorV1 } from '../scope/access.js';
 import { personOf } from '../scope/access.js';
+import { canOpen } from '../scope/main-state.js';
 import { sessionActor } from '../scope/middleware.js';
 import { teamListed } from '../scope/owners.js';
 import type { ScopeV1 } from '../scope/records.js';
@@ -415,12 +429,130 @@ export interface CopilotWiringRefs {
 }
 
 /**
+ * Read one attached resource link as the calling person under `decideAccess` (phase 5 specification, 3.5, 5.1):
+ * a document link reads its record (verifying workspace, exact scope and access, returning `DOCUMENT_NOT_FOUND`
+ * identically for missing, wrong scope or forbidden) and exports its content via `export_command` when available;
+ * an app link verifies scope access (`PROJECT_NOT_FOUND`) and `canOpen` and returns the link's metadata.
+ */
+async function readAttachment(
+	deps: LateCommandDeps,
+	documents: DocumentCheck,
+	link: ResourceLinkV1,
+	context: CommandContext
+): Promise<AttachedContentV1 | CommandResult<never>> {
+	const actor = context.actor as AccessActorV1;
+	if (link.kind === 'document') {
+		if (context.traceId !== undefined)
+			deps.recordOrder?.(context.traceId, `doc:${link.document}`)?.read();
+		const record = await deps.store.get<DocumentRecordV1>(DOCUMENT_TABLE, link.document);
+		if (
+			context.traceId !== undefined &&
+			(record?.scope.project !== undefined || link.scope.project !== undefined)
+		)
+			deps.recordOrder?.(context.traceId, 'record:project')?.read();
+		if (
+			!record ||
+			record.workspace !== deps.scope.workspace.id ||
+			!sameScope(record.scope, link.scope) ||
+			!deps.scope.allows(actor, record.scope)
+		) {
+			return documentNotFound();
+		}
+		const content: Record<string, unknown> = {
+			kind: 'document',
+			document: record.id,
+			type: record.type,
+			title: record.title,
+			tags: record.tags,
+			status: record.status,
+			scope: record.scope,
+			...(link.anchor !== undefined ? { anchor: link.anchor } : {}),
+		};
+		const type = documents.types().types.get(record.type);
+		const command = type?.declared.export_command;
+		if (type !== undefined && command !== undefined && !documents.opens(type, record.scope)) {
+			const exported = await deps.run<{ content?: unknown }>(
+				'palette',
+				command,
+				{ document: record.id },
+				{},
+				{
+					...(context.traceId !== undefined ? { parent: context.traceId } : {}),
+					scope: record.scope,
+					...(context.actor ? { actor: context.actor } : {}),
+				}
+			);
+			if (!exported.success) {
+				const error = exported.error;
+				return {
+					success: false,
+					error: {
+						code: error?.code ?? 'HANDLER_RESULT_INVALID',
+						message: error?.message ?? `'${command}' failed while reading the attached document`,
+						suggestion:
+							error?.suggestion && error.suggestion.trim().length > 0
+								? error.suggestion
+								: `Check the app '${type.instance}' or send the message without this attachment`,
+						retryable: error?.retryable ?? false,
+						...(error?.details !== undefined ? { details: error.details } : {}),
+					},
+				};
+			}
+			const data = exported.data as { content?: unknown } | undefined;
+			if (data === null || typeof data !== 'object' || !('content' in data)) {
+				return kernelFailure(
+					'HANDLER_RESULT_INVALID',
+					`'${command}' did not return { content }`,
+					`Report this to the owner of the app '${type.instance}'`
+				);
+			}
+			content.content = data.content;
+		}
+		return { source: record.instance, link, content };
+	}
+	if (context.traceId !== undefined && link.scope.project !== undefined)
+		deps.recordOrder?.(context.traceId, 'record:project')?.read();
+	if (
+		(link.scope.project !== undefined &&
+			deps.scope.projects.get(link.scope.project) === undefined) ||
+		!deps.scope.allows(actor, link.scope)
+	) {
+		return DOCUMENT_KIT.projectNotFound();
+	}
+	const blocked = canOpen(deps.apps(), deps.scope, link.instance, link.scope.project);
+	if (blocked) return blocked;
+	const summary = deps
+		.apps()
+		.summaries()
+		.find((candidate) => candidate.instance === link.instance);
+	if (summary?.state !== 'ready') {
+		return kernelFailure(
+			'APP_NOT_READY',
+			`The app '${link.instance}' is not ready, so it cannot be attached`,
+			'Check the app with app-get, then retry'
+		);
+	}
+	return {
+		source: link.instance,
+		link,
+		content: {
+			kind: 'app',
+			instance: link.instance,
+			title: summary.title,
+			...(link.route !== undefined ? { route: link.route } : {}),
+			scope: link.scope,
+		},
+	};
+}
+
+/**
  * The copilot's records, commands and phase 5's enforcement (its 6.1), wired to `late/`'s parts: the `late-copilot`
  * chunk's factory is given, so this module imports nothing of that chunk.
  */
 export function copilotPartsOf(
 	create: typeof import('../copilot/commands.js').createCopilotParts,
 	deps: LateCommandDeps,
+	documents: DocumentCheck,
 	refs: CopilotWiringRefs
 ): CopilotParts {
 	return create({
@@ -515,6 +647,18 @@ export function copilotPartsOf(
 					withdrawalMatch(match),
 					person
 				),
+		// Read each attached link as the calling person under `decideAccess` (3.5, 5.1, #1508).
+		readAttachment: (link, context) =>
+			readAttachment(
+				deps,
+				documents,
+				link,
+				context ??
+					({
+						actor: sessionActor(deps.auth, deps.clock),
+						clock: { now: () => deps.clock?.now() ?? Date.now() },
+					} as CommandContext)
+			),
 	});
 }
 

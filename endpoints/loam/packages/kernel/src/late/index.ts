@@ -390,7 +390,7 @@ export async function createLateParts(
 		if (deps.disposed?.()) throw new Error('The kernel was disposed');
 	};
 	endIfDisposed();
-	const copilot: CopilotParts = copilotPartsOf(createCopilotParts, deps, {
+	const copilot: CopilotParts = copilotPartsOf(createCopilotParts, deps, documents, {
 		settings: () => settings,
 		autonomy: () => autonomy,
 		confirmations: () => confirmations,
