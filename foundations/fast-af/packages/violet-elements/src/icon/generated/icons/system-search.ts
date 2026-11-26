@@ -10,7 +10,7 @@ export const systemSearchIcon = {
   "name": "system/search",
   "sourceId": "system",
   "originalFile": "search.svg",
-  "svg": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"11\" cy=\"11\" r=\"6\"/><path d=\"M20 20L16.2 16.2\"/></svg>"
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"10.5\" cy=\"10.5\" r=\"6.75\"/><path d=\"M15.4 15.4 L20.5 20.5\"/></svg>"
 } as const satisfies VioletIconDefinition;
 
 export function registerSystemSearchIcon(): VioletIconDefinition {

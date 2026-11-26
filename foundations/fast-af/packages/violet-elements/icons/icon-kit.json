@@ -1,0 +1,6 @@
+{
+	"sets": [
+		"sources/system"
+	],
+	"out": ".icon-kit"
+}

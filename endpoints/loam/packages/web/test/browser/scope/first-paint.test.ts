@@ -201,8 +201,9 @@ describe('P2-E1: one first paint', () => {
 		// lowered by #2107 (wrapper provenance and `redactWrapped` injected from `late/journal-wrappers.ts`, measured
 		// 344,982 against `main` at `bd30d790b`), and raised under D115 by #2539 (engine errors carry a recovery in
 		// `afd-server`'s `command-routing.ts`, on top of #2576's `secret` commands; measured 346,326 against `main` at
-		// `ad9e42890`).
-		expect(javascript).toBeLessThanOrEqual(346_800);
+		// `ad9e42890`), and by #2599 (Violet's redrawn system icons, +66; measured 346,861 against `main` at
+		// `7e75987e9`).
+		expect(javascript).toBeLessThanOrEqual(347_200);
 		expect(javascript).toBe(budgetRow());
 		// Stage B still runs in every deployment: `late` loads after the mark, on the empty shell too.
 		await expect

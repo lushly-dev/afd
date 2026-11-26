@@ -10,7 +10,7 @@ export const systemClockIcon = {
   "name": "system/clock",
   "sourceId": "system",
   "originalFile": "clock.svg",
-  "svg": "<svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"8\" cy=\"8\" r=\"5.375\" stroke=\"currentColor\" stroke-width=\"1.25\"/><path d=\"M8 4.75V8L10.25 9.5\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>"
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9.1\"/><path d=\"M12 6.75 V12 L15.75 14.25\"/></svg>"
 } as const satisfies VioletIconDefinition;
 
 export function registerSystemClockIcon(): VioletIconDefinition {

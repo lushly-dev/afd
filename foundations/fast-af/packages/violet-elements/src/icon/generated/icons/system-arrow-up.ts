@@ -10,7 +10,7 @@ export const systemArrowUpIcon = {
   "name": "system/arrow-up",
   "sourceId": "system",
   "originalFile": "arrow-up.svg",
-  "svg": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M12 19V5\"/><path d=\"M5 12L12 5L19 12\"/></svg>"
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 19.5 L12 4.5\"/><path d=\"M5.5 11 L12 4.5 L18.5 11\"/></svg>"
 } as const satisfies VioletIconDefinition;
 
 export function registerSystemArrowUpIcon(): VioletIconDefinition {

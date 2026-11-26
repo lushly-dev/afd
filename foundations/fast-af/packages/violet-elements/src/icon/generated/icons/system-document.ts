@@ -10,7 +10,7 @@ export const systemDocumentIcon = {
   "name": "system/document",
   "sourceId": "system",
   "originalFile": "document.svg",
-  "svg": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M14 2H6A2 2 0 0 0 4 4V20A2 2 0 0 0 6 22H18A2 2 0 0 0 20 20V8Z\"/><polyline points=\"14 2 14 8 20 8\"/></svg>"
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4.9 4.9 A2 2 0 0 1 6.9 2.9 L12.92 2.9 A2 2 0 0 1 14.34 3.49 L18.51 7.66 A2 2 0 0 1 19.1 9.08 L19.1 19.1 A2 2 0 0 1 17.1 21.1 L6.9 21.1 A2 2 0 0 1 4.9 19.1 Z\"/><path d=\"M8.5 12.5 L15.5 12.5\"/><path d=\"M8.5 16.5 L12.5 16.5\"/></svg>"
 } as const satisfies VioletIconDefinition;
 
 export function registerSystemDocumentIcon(): VioletIconDefinition {

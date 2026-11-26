@@ -10,7 +10,7 @@ export const systemSortDescendingIcon = {
   "name": "system/sort-descending",
   "sourceId": "system",
   "originalFile": "sort-descending.svg",
-  "svg": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M12 6V18\"/><path d=\"M7 13L12 18L17 13\"/></svg>"
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 6 L12 18\"/><path d=\"M8 14 L12 18 L16 14\"/></svg>"
 } as const satisfies VioletIconDefinition;
 
 export function registerSystemSortDescendingIcon(): VioletIconDefinition {

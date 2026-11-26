@@ -658,7 +658,10 @@ export const CEILINGS = Object.freeze({
 	// first-paint JS dropped from 349,265 to 344,982 (-4,283) against `main` at `bd30d790b`; lowered to 346,000.
 	// Raised under D115 by #2539 (engine errors carry a recovery in `afd-server`'s `command-routing.ts`, on top of
 	// #2576's `secret` commands): measured 346,326 with `main` at `ad9e42890` merged; set to 346,800.
-	jsMinified: 346_800,
+	// Raised under D115 by #2599 (Violet's redrawn system icons: `folder`, `document`, `close`, `search` and
+	// `warning`, which first paint carries, grow and `settings` shrinks): measured 346,861 with `main` at `7e75987e9`
+	// merged, against 346,795 with main's icons (+66); set to 347,200.
+	jsMinified: 347_200,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.

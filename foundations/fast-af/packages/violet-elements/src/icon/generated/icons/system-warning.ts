@@ -10,7 +10,7 @@ export const systemWarningIcon = {
   "name": "system/warning",
   "sourceId": "system",
   "originalFile": "warning.svg",
-  "svg": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M10.29 3.86L1.82 18A2 2 0 0 0 3.54 21H20.46A2 2 0 0 0 22.18 18L13.71 3.86A2 2 0 0 0 10.29 3.86Z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg>"
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10.25 6.73 A2 2 0 0 1 13.75 6.73 L19.44 16.93 A2 2 0 0 1 17.69 19.9 L6.31 19.9 A2 2 0 0 1 4.56 16.93 Z\"/><path d=\"M12 9.5 L12 13.5\"/><circle cx=\"12\" cy=\"16.6\" r=\"1.1\" fill=\"currentColor\" stroke=\"none\"/></svg>"
 } as const satisfies VioletIconDefinition;
 
 export function registerSystemWarningIcon(): VioletIconDefinition {

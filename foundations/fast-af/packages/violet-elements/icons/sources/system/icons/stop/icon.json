@@ -1,0 +1,20 @@
+{
+  "meaning": "Stop a running response or task",
+  "aliases": [],
+  "category": "",
+  "notes": "Solid on purpose: the stop key in the chat composer swaps with arrow-up, and a filled square is the universal stop.",
+  "alike": [],
+  "mirror": false,
+  "reviews": [
+    {
+      "master": "outline-24",
+      "hash": "cf724c14d451",
+      "by": "agent",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "pass",
+      "notes": "Key, drawn from scratch for afd#2567 (no third-party geometry). Read on the sixteen-icon set sheet at 48, 24 and 16px: names correctly at 16px and sits in the row.",
+      "at": "2026-11-26T00:05:24.707Z"
+    }
+  ],
+  "approvals": {}
+}

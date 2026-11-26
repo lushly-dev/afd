@@ -10,7 +10,7 @@ export const systemFolderIcon = {
   "name": "system/folder",
   "sourceId": "system",
   "originalFile": "folder.svg",
-  "svg": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M3 6A2 2 0 0 1 5 4H9L11 6H19A2 2 0 0 1 21 8V18A2 2 0 0 1 19 20H5A2 2 0 0 1 3 18Z\"/></svg>"
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2.9 6.4 A2 2 0 0 1 4.9 4.4 L8.5 4.4 A2 2 0 0 1 10 5.08 L11 6.22 A2 2 0 0 0 12.5 6.9 L19.1 6.9 A2 2 0 0 1 21.1 8.9 L21.1 17.6 A2 2 0 0 1 19.1 19.6 L4.9 19.6 A2 2 0 0 1 2.9 17.6 Z\"/></svg>"
 } as const satisfies VioletIconDefinition;
 
 export function registerSystemFolderIcon(): VioletIconDefinition {

@@ -8,11 +8,11 @@ import type { VioletIconSource } from "../icon-registry";
 export const violetIconSources = [
   {
     "id": "system",
-    "title": "Violet System Seed Icons",
+    "title": "Violet System Icons",
     "license": "MIT",
     "attribution": "Lushly Dev",
     "homepage": "",
-    "notes": "Small hand-authored seed set used to validate the internal FAST-AF icon workflow."
+    "notes": "Original icons drawn from scratch for Violet: a 1.75 line on a 24-unit grid with round caps and joins. They replace the first seed set, four of whose icons carried Feather geometry (lushly-dev/afd#2542, #2567)."
   }
 ] as const satisfies readonly VioletIconSource[];
 

@@ -1,0 +1,22 @@
+{
+  "meaning": "Denied, failed, or remove an item such as a chip or file",
+  "aliases": [],
+  "category": "",
+  "notes": "Deliberately close to close: dismiss is the status mark that pairs with checkmark (denied, failed) and removes a chip or file, so it is drawn a step smaller (10.5 across) than close (13 across), which closes a surface.",
+  "alike": [
+    "close"
+  ],
+  "mirror": false,
+  "reviews": [
+    {
+      "master": "outline-24",
+      "hash": "577b9f79aeda",
+      "by": "agent",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "pass",
+      "notes": "Key, drawn from scratch for afd#2567 (no third-party geometry). Read on the sixteen-icon set sheet at 48, 24 and 16px: names correctly at 16px and sits in the row.",
+      "at": "2026-11-26T00:05:20.759Z"
+    }
+  ],
+  "approvals": {}
+}
