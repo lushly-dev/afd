@@ -36,7 +36,8 @@
 			"!spec/wire/*.json",
 			"!docs/features/complete/agent-first-design/bench/held/checks/*.json",
 			"!docs/features/complete/agent-first-design/bench/held/fault-proofs.mjs",
-			"!scripts/affected/suites.generated.mjs"
+			"!scripts/affected/suites.generated.mjs",
+			"!endpoints/umbel/src/person/style.css"
 		]
 	},
 	"formatter": {

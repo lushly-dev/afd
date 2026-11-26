@@ -99,12 +99,10 @@ const LOCAL_LOGIN: &str = "local";
 /// What the local page says of itself on every page (section 6.5).
 const NO_SIGN_IN: &str = "This page has no sign-in. Anything on this machine can open it, every other account on this machine included: what it shows can be read, and a request approved, by any of them.";
 
-const STYLE: &str = "body{font-family:system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;line-height:1.5;color:#1b1b1f;background:#fbfbfd}\
-h1{font-size:1.4rem}dl{display:grid;grid-template-columns:max-content 1fr;gap:.25rem 1rem}dt{font-weight:600}\
-pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f0f0f4;padding:1rem;border-radius:.4rem}\
-button{font-size:1rem;padding:.5rem 1.2rem;margin-right:.8rem}\
-ul.items{list-style:none;padding:0}ul.items li{margin:.4rem 0}ul.items label{display:flex;gap:.6rem;align-items:flex-start}\
-ul.items span{white-space:pre-wrap;overflow-wrap:anywhere}table{border-collapse:collapse}td,th{text-align:left;padding:.25rem .8rem .25rem 0}@media (prefers-color-scheme:dark){body{background:#151518;color:#e9e9ee}pre{background:#24242a}}";
+/// The page's one style sheet: AFD's Refined look, its custom properties generated from AFD's theme
+/// export by `scripts/build-umbel-person-style.mjs` (#1490). It names fonts but fetches none, and
+/// draws the preview's checkmark with a clip path, so the CSP above needs nothing more.
+const STYLE: &str = include_str!("style.css");
 
 /// What the routes need: the service and the page's public URL's parts.
 #[derive(Clone)]
@@ -357,14 +355,7 @@ impl PersonPage {
             return self.local_route(&rest, &method, request).await;
         }
         match (rest.as_str(), &method) {
-            ("style.css", &Method::GET) => {
-                let mut response = Response::new(Body::from(STYLE));
-                response.headers_mut().insert(
-                    header::CONTENT_TYPE,
-                    HeaderValue::from_static("text/css; charset=utf-8"),
-                );
-                with_headers(response)
-            }
+            ("style.css", &Method::GET) => Self::style(),
             ("", &Method::GET) => self.list(request.uri().query()).await,
             ("return", &Method::GET) => self.returned(request).await,
             (id, &Method::GET) if is_id(id) => {
@@ -1252,7 +1243,7 @@ impl PersonPage {
              <dt>Asked by</dt><dd><code>{actor}</code></dd><dt>Client</dt><dd><code>{client}</code></dd>\
              <dt>Through</dt><dd><code>{chain}</code></dd><dt>Asked at</dt><dd>{asked}</dd><dt>Expires</dt><dd>{expires}</dd></dl>\
              <h2>What it will do</h2>{paging}\
-             <form method=\"post\" action=\"{action}\"><pre>{preview}</pre>{items}{login_field}<input type=\"hidden\" name=\"csrf\" value=\"{csrf}\"><input type=\"hidden\" name=\"page\" value=\"{page}\">{buttons}</form>",
+             <form method=\"post\" action=\"{action}\"><pre>{preview}</pre>{items}{login_field}<input type=\"hidden\" name=\"csrf\" value=\"{csrf}\"><input type=\"hidden\" name=\"page\" value=\"{page}\"><div class=\"actions\">{buttons}</div></form>",
             command = escape(&decision.command),
             space = escape(&decision.spaces.join(", ")),
             actor = escape(actor),
@@ -1484,6 +1475,9 @@ fn names(value: &str, expected: &str, expected_port: Option<u16>) -> bool {
 fn log_refusal(code: &str) {
     tracing::warn!(target: "umbel::person", rule = code, "the person page refused a request");
 }
+
+#[cfg(test)]
+mod style_tests;
 
 #[cfg(test)]
 mod tests {

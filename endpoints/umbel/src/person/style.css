@@ -1,0 +1,504 @@
+/*
+ * Umbel's person page (#1490): AFD's Refined look without the shared components, which the page's
+ * CSP (no scripts, nothing but this sheet) cannot load. The custom properties come from AFD's
+ * theme export; the rules after them use only those properties for colour, radius, shadow and type.
+ * Fonts are named, never fetched: Inter, Space Grotesk and IBM Plex Mono where installed, the
+ * system's faces elsewhere.
+ */
+/* GENERATED from violet-theme.export.json by scripts/build-umbel-person-style.mjs: do not edit. */
+:root {
+	color-scheme: light dark;
+	--violet-color-accent-text: #1b5f80;
+	--violet-color-action-primary-background: #181b1a;
+	--violet-color-action-primary-hover: #2f383e;
+	--violet-color-action-primary-pressed: #262e33;
+	--violet-color-action-primary-text: #f4f0ea;
+	--violet-color-action-secondary-background: rgba(24, 27, 26, 0.07);
+	--violet-color-action-secondary-border: transparent;
+	--violet-color-action-secondary-hover: rgba(24, 27, 26, 0.11);
+	--violet-color-action-secondary-pressed: rgba(24, 27, 26, 0.15);
+	--violet-color-action-secondary-text: #181b1a;
+	--violet-color-border-strong: #6b7d6e;
+	--violet-color-border-subtle: rgba(24, 27, 26, 0.10);
+	--violet-color-control-selected-background: #c0daeb;
+	--violet-color-control-selected-border: rgba(27, 95, 128, 0.5);
+	--violet-color-control-selected-foreground: #1b5f80;
+	--violet-color-focus-ring: #28769e;
+	--violet-color-state-warning-background: #f3e8d2;
+	--violet-color-state-warning-border: transparent;
+	--violet-color-state-warning-text: #92400e;
+	--violet-color-surface-card: #f8f9f3;
+	--violet-color-surface-page: #f4f0ea;
+	--violet-color-text-primary: #181b1a;
+	--violet-color-text-secondary: #48534b;
+	--violet-duration-base: 180ms;
+	--violet-duration-fast: 120ms;
+	--violet-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+	--violet-font-family-body: "Inter", system-ui, sans-serif;
+	--violet-font-family-heading: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+	--violet-font-family-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+	--violet-radius-control: 8px;
+	--violet-radius-floating: 12px;
+	--violet-radius-inset: 4px;
+	--violet-shadow-card: 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06);
+	--violet-shadow-control: 0 0 0 1px rgba(24, 27, 26, 0.05), 0 1px 2px rgba(24, 27, 26, 0.10);
+	--violet-size-focus-ring-width: 2px;
+	--violet-size-target-comfortable: 44px;
+	--violet-size-target-natural: 32px;
+	--violet-space-inline-hairline: 2px;
+	--violet-space-layout-page: 24px;
+	--violet-space-layout-panel: 12px;
+	--violet-space-stack-group: 8px;
+	--violet-space-stack-section: 12px;
+	--violet-space-stack-tight: 4px;
+	--violet-type-body-line: 20px;
+	--violet-type-body-size: 14px;
+	--violet-type-body-weight: 400;
+	--violet-type-heading-page-line: 32px;
+	--violet-type-heading-page-size: 24px;
+	--violet-type-heading-page-weight: 600;
+	--violet-type-heading-section-line: 24px;
+	--violet-type-heading-section-size: 18px;
+	--violet-type-heading-section-weight: 600;
+	--violet-type-label-line: 16px;
+	--violet-type-label-size: 13px;
+	--violet-type-label-weight: 500;
+	--violet-weight-medium: 500;
+	--violet-weight-semibold: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		color-scheme: dark;
+		--violet-color-accent-text: #a1d4f3;
+		--violet-color-action-primary-background: #f4f0ea;
+		--violet-color-action-primary-hover: #d8dcd6;
+		--violet-color-action-primary-pressed: #bec6bd;
+		--violet-color-action-primary-text: #141515;
+		--violet-color-action-secondary-background: rgba(244, 240, 234, 0.09);
+		--violet-color-action-secondary-hover: rgba(244, 240, 234, 0.13);
+		--violet-color-action-secondary-pressed: rgba(244, 240, 234, 0.17);
+		--violet-color-action-secondary-text: #f4f0ea;
+		--violet-color-border-strong: #999e9b;
+		--violet-color-border-subtle: rgba(244, 240, 234, 0.10);
+		--violet-color-control-selected-background: #162832;
+		--violet-color-control-selected-border: rgba(61, 146, 191, 0.5);
+		--violet-color-control-selected-foreground: #a1d4f3;
+		--violet-color-focus-ring: #3d92bf;
+		--violet-color-state-warning-background: #3a2b18;
+		--violet-color-state-warning-text: #f3d6a3;
+		--violet-color-surface-card: #1b1c1c;
+		--violet-color-surface-page: #141515;
+		--violet-color-text-primary: #f4f0ea;
+		--violet-color-text-secondary: #CCCCCC;
+		--violet-shadow-card: 0 0 0 1px rgba(244, 240, 234, 0.07), 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 14px -2px rgba(0, 0, 0, 0.30);
+		--violet-shadow-control: 0 0 0 1px rgba(244, 240, 234, 0.07), 0 1px 2px rgba(0, 0, 0, 0.40);
+	}
+}
+
+@media (prefers-contrast: more) {
+	:root {
+		color-scheme: light;
+		--violet-color-accent-text: #004A80;
+		--violet-color-action-primary-background: #000000;
+		--violet-color-action-primary-hover: #333333;
+		--violet-color-action-primary-pressed: #4D4D4D;
+		--violet-color-action-primary-text: #ffffff;
+		--violet-color-action-secondary-background: #ffffff;
+		--violet-color-action-secondary-border: #000000;
+		--violet-color-action-secondary-hover: #E6E6E6;
+		--violet-color-action-secondary-pressed: #CCCCCC;
+		--violet-color-action-secondary-text: #000000;
+		--violet-color-border-strong: #000000;
+		--violet-color-border-subtle: #595959;
+		--violet-color-control-selected-background: #E0E0E0;
+		--violet-color-control-selected-border: #000000;
+		--violet-color-control-selected-foreground: #000000;
+		--violet-color-focus-ring: #000000;
+		--violet-color-state-warning-background: #ffffff;
+		--violet-color-state-warning-border: #6B3200;
+		--violet-color-state-warning-text: #6B3200;
+		--violet-color-surface-card: #ffffff;
+		--violet-color-surface-page: #ffffff;
+		--violet-color-text-primary: #000000;
+		--violet-color-text-secondary: #1F1F1F;
+		--violet-shadow-card: 0 0 0 1px #000000;
+		--violet-shadow-control: 0 0 0 1px #000000;
+	}
+}
+/* END GENERATED */
+
+/* The page: one column of text on the page surface. */
+html {
+	background: var(--violet-color-surface-page);
+	color: var(--violet-color-text-primary);
+}
+
+body {
+	margin: 0;
+	background: var(--violet-color-surface-page);
+	color: var(--violet-color-text-primary);
+	font-family: var(--violet-font-family-body);
+	font-size: var(--violet-type-body-size);
+	line-height: var(--violet-type-body-line);
+	font-weight: var(--violet-type-body-weight);
+	-webkit-text-size-adjust: 100%;
+}
+
+main {
+	box-sizing: border-box;
+	max-width: 46rem;
+	margin: 0 auto;
+	padding: calc(var(--violet-space-layout-page) * 2) var(--violet-space-layout-page);
+}
+
+h1,
+h2 {
+	font-family: var(--violet-font-family-heading);
+	color: var(--violet-color-text-primary);
+	margin: 0 0 var(--violet-space-stack-section);
+}
+
+h1 {
+	font-size: var(--violet-type-heading-page-size);
+	line-height: var(--violet-type-heading-page-line);
+	font-weight: var(--violet-type-heading-page-weight);
+	margin-bottom: var(--violet-space-layout-page);
+}
+
+h2 {
+	font-size: var(--violet-type-heading-section-size);
+	line-height: var(--violet-type-heading-section-line);
+	font-weight: var(--violet-type-heading-section-weight);
+	margin-top: var(--violet-space-layout-page);
+}
+
+p,
+ul {
+	margin: 0 0 var(--violet-space-stack-section);
+}
+
+b {
+	font-weight: var(--violet-weight-semibold);
+}
+
+a {
+	color: var(--violet-color-accent-text);
+	text-underline-offset: 0.2em;
+}
+
+a:focus-visible {
+	outline: var(--violet-size-focus-ring-width) solid var(--violet-color-focus-ring);
+	outline-offset: var(--violet-space-inline-hairline);
+	border-radius: var(--violet-radius-inset);
+}
+
+code,
+pre {
+	font-family: var(--violet-font-family-mono);
+	overflow-wrap: anywhere;
+}
+
+code {
+	font-size: 0.92em;
+}
+
+/* Cards: the request's facts, its preview and the list of requests. The edge is the card's shadow;
+ * the transparent border becomes a drawn one under forced colours. */
+dl,
+pre,
+table {
+	box-sizing: border-box;
+	background: var(--violet-color-surface-card);
+	border: 1px solid transparent;
+	border-radius: var(--violet-radius-floating);
+	box-shadow: var(--violet-shadow-card);
+	margin: 0 0 var(--violet-space-layout-page);
+}
+
+dl {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	gap: var(--violet-space-stack-group) var(--violet-space-layout-page);
+	padding: var(--violet-space-layout-page);
+}
+
+dt {
+	color: var(--violet-color-text-secondary);
+	font-size: var(--violet-type-label-size);
+	line-height: var(--violet-type-body-line);
+	font-weight: var(--violet-type-label-weight);
+}
+
+dd {
+	margin: 0;
+	min-width: 0;
+}
+
+pre {
+	white-space: pre-wrap;
+	padding: var(--violet-space-layout-page);
+	font-size: var(--violet-type-label-size);
+	line-height: var(--violet-type-body-line);
+}
+
+table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	overflow: hidden;
+}
+
+th,
+td {
+	text-align: left;
+	vertical-align: top;
+	padding: var(--violet-space-layout-panel) var(--violet-space-layout-page)
+		var(--violet-space-layout-panel) 0;
+}
+
+th:first-child,
+td:first-child {
+	padding-left: var(--violet-space-layout-page);
+}
+
+th {
+	overflow-wrap: anywhere;
+	color: var(--violet-color-text-secondary);
+	font-size: var(--violet-type-label-size);
+	line-height: var(--violet-type-label-line);
+	font-weight: var(--violet-type-label-weight);
+}
+
+td {
+	border-top: 1px solid var(--violet-color-border-subtle);
+	overflow-wrap: anywhere;
+}
+
+/* A command's name and the two times stay on one line: their hyphens would otherwise break them
+ * where the columns share a wide page. A phone lets them break (below). */
+td:nth-child(n + 3),
+td code {
+	white-space: nowrap;
+}
+
+/* A warning: the review changed while the person read it. */
+.notice {
+	background: var(--violet-color-state-warning-background);
+	color: var(--violet-color-state-warning-text);
+	border: 1px solid var(--violet-color-state-warning-border);
+	border-radius: var(--violet-radius-control);
+	padding: var(--violet-space-layout-panel) var(--violet-space-layout-page);
+	margin-bottom: var(--violet-space-layout-page);
+}
+
+/* The decision's keys. Approve is the one filled key, one step up and flat when pressed; the
+ * others are tonal. */
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--violet-space-stack-section);
+	margin-top: var(--violet-space-layout-page);
+}
+
+button {
+	box-sizing: border-box;
+	min-height: var(--violet-size-target-comfortable);
+	min-width: var(--violet-size-target-comfortable);
+	padding: 0 calc(var(--violet-size-target-comfortable) * 0.375);
+	border: 1px solid var(--violet-color-action-secondary-border);
+	border-radius: var(--violet-radius-control);
+	background: var(--violet-color-action-secondary-background);
+	color: var(--violet-color-action-secondary-text);
+	font-family: inherit;
+	font-size: var(--violet-type-body-size);
+	line-height: var(--violet-type-body-line);
+	font-weight: var(--violet-weight-medium);
+	cursor: pointer;
+	transition:
+		background-color var(--violet-duration-fast) var(--violet-easing-standard),
+		box-shadow var(--violet-duration-base) var(--violet-easing-standard);
+}
+
+button:hover {
+	background: var(--violet-color-action-secondary-hover);
+}
+
+button:active {
+	background: var(--violet-color-action-secondary-pressed);
+}
+
+button[value="approve"] {
+	border-color: transparent;
+	background: var(--violet-color-action-primary-background);
+	color: var(--violet-color-action-primary-text);
+	box-shadow: var(--violet-shadow-control);
+}
+
+button[value="approve"]:hover {
+	background: var(--violet-color-action-primary-hover);
+}
+
+button[value="approve"]:active {
+	background: var(--violet-color-action-primary-pressed);
+	box-shadow: none;
+}
+
+button:focus-visible {
+	outline: var(--violet-size-focus-ring-width) solid var(--violet-color-focus-ring);
+	outline-offset: var(--violet-space-inline-hairline);
+}
+
+/* The paged preview's items: a box like the shared checkbox, its mark drawn with a clip path so the
+ * page needs no image. */
+ul.items {
+	list-style: none;
+	padding: 0;
+}
+
+ul.items li {
+	margin: 0 0 var(--violet-space-stack-group);
+}
+
+ul.items label {
+	display: flex;
+	gap: var(--violet-space-stack-section);
+	align-items: flex-start;
+	min-height: var(--violet-size-target-natural);
+	cursor: pointer;
+}
+
+ul.items span {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	min-width: 0;
+}
+
+ul.items input[type="checkbox"] {
+	appearance: none;
+	box-sizing: border-box;
+	display: inline-grid;
+	place-content: center;
+	flex: none;
+	width: 18px;
+	height: 18px;
+	margin: 1px 0 0;
+	border: 1px solid var(--violet-color-border-strong);
+	border-radius: var(--violet-radius-inset);
+	background: var(--violet-color-surface-card);
+	cursor: pointer;
+	transition:
+		background-color var(--violet-duration-fast) var(--violet-easing-standard),
+		border-color var(--violet-duration-fast) var(--violet-easing-standard);
+}
+
+ul.items input[type="checkbox"]::before {
+	content: "";
+	width: 13px;
+	height: 13px;
+	background: var(--violet-color-control-selected-foreground);
+	clip-path: polygon(14% 44%, 0 59%, 37% 100%, 100% 16%, 84% 0, 35% 62%);
+	opacity: 0;
+	transform: scale(0.7);
+	transition:
+		opacity var(--violet-duration-fast) var(--violet-easing-standard),
+		transform var(--violet-duration-fast) var(--violet-easing-standard);
+}
+
+ul.items input[type="checkbox"]:checked {
+	background: var(--violet-color-control-selected-background);
+	border-color: var(--violet-color-control-selected-border);
+}
+
+ul.items input[type="checkbox"]:checked::before {
+	opacity: 1;
+	transform: scale(1);
+}
+
+ul.items input[type="checkbox"]:focus-visible {
+	outline: var(--violet-size-focus-ring-width) solid var(--violet-color-focus-ring);
+	outline-offset: var(--violet-space-inline-hairline);
+}
+
+/* A phone: tighter gutters, the facts stacked under their names, and a table whose columns share
+ * the width, its cells breaking anywhere rather than pushing the page sideways. */
+@media (max-width: 40rem) {
+	main {
+		padding: var(--violet-space-layout-page) var(--violet-space-layout-panel);
+	}
+
+	dl {
+		grid-template-columns: minmax(0, 1fr);
+		row-gap: var(--violet-space-stack-tight);
+		padding: var(--violet-space-layout-panel) var(--violet-space-layout-page);
+	}
+
+	dd + dt {
+		margin-top: var(--violet-space-stack-group);
+	}
+
+	th,
+	td {
+		padding: var(--violet-space-layout-panel) var(--violet-space-layout-panel)
+			var(--violet-space-layout-panel) 0;
+	}
+
+	th:first-child,
+	td:first-child {
+		padding-left: var(--violet-space-layout-panel);
+	}
+
+	table {
+		table-layout: fixed;
+	}
+
+	td:nth-child(n + 3),
+	td code {
+		white-space: normal;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	button,
+	ul.items input[type="checkbox"],
+	ul.items input[type="checkbox"]::before {
+		transition: none;
+	}
+}
+
+/* Forced colours drop shadows and backgrounds: borders and system colours draw every edge and state. */
+@media (forced-colors: active) {
+	dl,
+	pre,
+	table,
+	.notice {
+		border-color: CanvasText;
+	}
+
+	button,
+	button[value="approve"] {
+		border-color: ButtonText;
+	}
+
+	ul.items input[type="checkbox"] {
+		forced-color-adjust: none;
+		border-color: ButtonText;
+		background: Canvas;
+	}
+
+	ul.items input[type="checkbox"]::before {
+		forced-color-adjust: none;
+		background: HighlightText;
+	}
+
+	ul.items input[type="checkbox"]:checked {
+		border-color: Highlight;
+		background: Highlight;
+	}
+
+	a:focus-visible,
+	button:focus-visible,
+	ul.items input[type="checkbox"]:focus-visible {
+		outline-color: Highlight;
+	}
+}
