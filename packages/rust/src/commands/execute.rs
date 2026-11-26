@@ -259,9 +259,16 @@ impl CommandRegistry {
             .instance_guard
             .is_some_and(|guard| guard.violated_by(middleware.approval_state))
         {
-            return failure(CommandError::internal(
-                "ServerInstances::Multiple cannot run per-process approval state; configure a shared confirmation key and nonce_store",
-            ));
+            return failure(
+                CommandError::new(
+                    error_codes::INTERNAL_ERROR,
+                    "ServerInstances::Multiple cannot run per-process approval state; configure a shared confirmation key and nonce_store",
+                )
+                .with_suggestion(
+                    "Configure a shared confirmation key and nonce_store, or contact the server operator.",
+                )
+                .with_retryable(false),
+            );
         }
         // A command declaring `secret` reads off every recording parent's tape, recorded or not
         // (`spec/journal.md`): it runs on the sources under the recording ones, and in a secret
