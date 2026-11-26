@@ -1,0 +1,148 @@
+{
+	"avoidWhen": [
+		{
+			"id": "alternatives-and-confidence.avoid-when.single-certain",
+			"text": "Avoid showing confidence numbers when the person cannot act on them or choose another option."
+		}
+	],
+	"customize": [
+		{
+			"id": "alternatives-and-confidence.customize.presentation",
+			"text": "Choose how strongly to emphasize the primary recommendation and whether to display numeric confidence beside each option."
+		}
+	],
+	"facets": {
+		"behavior": [
+			"selection"
+		],
+		"purpose": [
+			"alternatives",
+			"confidence"
+		],
+		"structure": [
+			"panel"
+		]
+	},
+	"format": 2,
+	"gates": {
+		"alternative-operable": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"disabled": false,
+							"nameContains": "Completed",
+							"role": [
+								"button",
+								"radio",
+								"option"
+							]
+						},
+						"target": "alternative"
+					},
+					"id": "check-alt"
+				},
+				{
+					"action": {
+						"focus": "alternative"
+					},
+					"id": "focus-alt"
+				},
+				{
+					"expect": {
+						"focus": true,
+						"target": "alternative"
+					},
+					"id": "alt-focused"
+				}
+			],
+			"setup": "default"
+		},
+		"fits-narrow": {
+			"context": {
+				"viewport": {
+					"height": 844,
+					"width": 390
+				}
+			},
+			"scenario": [
+				{
+					"expect": {
+						"layout": {
+							"noOverflow": true
+						},
+						"target": "region"
+					},
+					"id": "narrow-layout"
+				}
+			],
+			"setup": "default"
+		},
+		"region-named": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"nameNonEmpty": true,
+							"role": "region"
+						},
+						"target": "region"
+					},
+					"id": "check-region"
+				}
+			],
+			"setup": "default"
+		}
+	},
+	"implementations": [],
+	"keep": [
+		{
+			"gate": "region-named",
+			"id": "alternatives-and-confidence.keep.region-named",
+			"text": "Exposes an accessible region naming the primary recommendation and its alternatives."
+		},
+		{
+			"gate": "alternative-operable",
+			"id": "alternatives-and-confidence.keep.alternative-operable",
+			"text": "Each offered alternative is reachable and selectable through a named operable control."
+		},
+		{
+			"gate": "fits-narrow",
+			"id": "alternatives-and-confidence.keep.fits-narrow",
+			"text": "Fits a narrow viewport without horizontal overflow."
+		},
+		{
+			"id": "alternatives-and-confidence.keep.reversibility-governs-apply",
+			"text": "Confidence expresses certainty only; whether an action applies automatically depends on reversibility, not a confidence threshold."
+		}
+	],
+	"pattern": "alternatives-and-confidence",
+	"scope": "composition",
+	"setups": {
+		"default": {
+			"targets": {
+				"alternative": {
+					"nameContains": "Completed",
+					"role": [
+						"button",
+						"radio",
+						"option"
+					]
+				},
+				"region": {
+					"nameContains": "Alternatives",
+					"role": "region"
+				}
+			},
+			"text": "Mount a result with confidence and alternatives from spec/wire/result-success-full.json, showing the primary option and an operable alternative control."
+		}
+	},
+	"status": "stable",
+	"summary": "Present a primary result alongside selectable alternatives and calibrated certainty without tying auto-apply to confidence.",
+	"useWhen": [
+		{
+			"id": "alternatives-and-confidence.use-when.multiple-matches",
+			"text": "Use when a command returns alternatives or a confidence score the person can review and act on."
+		}
+	]
+}

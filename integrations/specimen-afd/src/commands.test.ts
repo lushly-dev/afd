@@ -521,6 +521,31 @@ function bench(): SpecimenCommandBench {
 		})),
 		listDecisions: vi.fn(async () => ({ decisions: [], undecided: [] })),
 		checkDecisions: vi.fn(async () => ({ decisions: [] })),
+		designStates: vi.fn(async () => ({
+			defaultsVersion: 'afd-defaults@1.0.0',
+			states: [
+				{
+					id: 'error-recovery',
+					command: 'order-create',
+					trigger: 'result.success === false',
+					pattern: 'afd-defaults/error-recovery',
+					source: 'default' as const,
+					approvalStatus: 'approved' as const,
+					setup: 'spec/wire/result-failure.json (order-create failure)',
+				},
+			],
+			nextSteps: [
+				'Call umbel: components-brief with patterns [afd-defaults/error-recovery] to load the approved pattern guidance before building the screen.',
+			],
+			unmeasured: [
+				{
+					area: 'screen-gates',
+					reason: 'No specimen setup cases or captures exist yet to run portable pattern gates.',
+					addToMeasure:
+						'Bind specimen setups to these patterns and run specimen-capture and specimen-run.',
+				},
+			],
+		})),
 		review: vi.fn(async () => ({
 			before: { set: 'set-4f1c0a9e2b7d', revision: 'a1b2c3d', dirty: false },
 			after: { set: 'set-7e2a90c4d311', revision: 'e4f5a6b', dirty: false },
@@ -654,6 +679,7 @@ describe('specimen commands', () => {
 			'decision-get',
 			'decision-list',
 			'decision-check',
+			'design-states',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -2657,6 +2683,79 @@ describe('specimen commands', () => {
 				],
 				settled: { unchanged: 1, kept: 0, answered: 0 },
 			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it('exposes design-states as a read-only command with outputBudget and satisfies Scenarios 01, 09 step 1, and 10 step 1', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'specimen-afd-design-states-'));
+		try {
+			await writeFile(
+				join(root, 'bookshop.commands.json'),
+				JSON.stringify({
+					app: 'bookshop',
+					defaultsVersion: 'afd-defaults@1.0.0',
+					commands: [
+						{ name: 'order-create', undoable: true, errors: ['OUT_OF_STOCK'] },
+						{ name: 'stock-list', returnsCollection: true },
+						{ name: 'catalog-import', batch: true },
+						{ name: 'member-delete', destructive: true },
+					],
+				})
+			);
+			await writeFile(
+				join(root, 'specimen.config.json'),
+				JSON.stringify({
+					defaults: 'afd-defaults@1.0.0',
+					commandManifest: './bookshop.commands.json',
+				})
+			);
+			const realBench = await createSpecimenBench({ root });
+			try {
+				const commands = createSpecimenCommands(realBench);
+				const def = commands.find((command) => command.name === 'design-states');
+				expect(def).toMatchObject({
+					name: 'design-states',
+					mutation: false,
+					expose: { mcp: true, cli: true },
+					outputBudget: { defaultBytes: 32768, maxBytes: 98304 },
+				});
+
+				const ok = await executeSpecimenCommand(realBench, 'design-states', {
+					commands: ['order-create', 'stock-list', 'catalog-import', 'member-delete'],
+				});
+				expect(ok.success).toBe(true);
+				expect(ok.data).toMatchObject({
+					defaultsVersion: 'afd-defaults@1.0.0',
+					nextSteps: [expect.stringContaining('components-brief'), expect.any(String)],
+					unmeasured: expect.arrayContaining([
+						expect.objectContaining({
+							area: 'screen-gates',
+							addToMeasure: expect.stringContaining('specimen-capture'),
+						}),
+					]),
+				});
+
+				const empty = await executeSpecimenCommand(realBench, 'design-states', {});
+				expect(empty.success).toBe(false);
+				expect(empty.error).toMatchObject({
+					code: 'NO_COMMANDS',
+					suggestion: expect.stringContaining('commands'),
+				});
+
+				const missing = await executeSpecimenCommand(realBench, 'design-states', {
+					commands: ['book-teleport'],
+				});
+				expect(missing.success).toBe(false);
+				expect(missing.error).toMatchObject({
+					code: 'TARGET_COMMAND_NOT_FOUND',
+					message: expect.stringContaining('book-teleport'),
+					suggestion: expect.stringContaining('manifest'),
+				});
+			} finally {
+				await realBench.close();
+			}
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

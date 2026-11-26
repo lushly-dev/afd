@@ -2,6 +2,7 @@ import { type Dirent, existsSync, statSync } from 'node:fs';
 import { readdir, readFile, realpath } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { getDefaultPatternsPackDir, isBuiltinDefaultPatternSource } from './defaults.js';
 import { guidePatternRegExp, type LoadedGuides } from './guides.js';
 import { PACK_PATTERNS } from './pack-schema.js';
 import type { ImplementationContexts, PatternFile, PatternSetupBinding } from './pattern-types.js';
@@ -293,6 +294,12 @@ function findNodeModulesPackageJson(startDir: string, packageName: string): stri
 
 /** Resolve one `patternSources` entry offline to a pack root directory, or throw with a clear reason. */
 export async function resolvePatternSource(configFile: string, source: string): Promise<string> {
+	if (isBuiltinDefaultPatternSource(source)) {
+		const defaultsPack = getDefaultPatternsPackDir();
+		if (!existsSync(defaultsPack) || !statSync(defaultsPack).isDirectory())
+			throw new Error(`Bundled defaults pack for '${source}' is missing`);
+		return realpath(defaultsPack);
+	}
 	const base = dirname(configFile);
 	const looksLikePath =
 		source.startsWith('.') ||

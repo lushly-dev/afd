@@ -396,6 +396,31 @@ function harness() {
 				},
 			],
 		})),
+		designStates: vi.fn(async () => ({
+			defaultsVersion: 'afd-defaults@1.0.0',
+			states: [
+				{
+					id: 'error-recovery',
+					command: 'order-create',
+					trigger: 'result.success === false',
+					pattern: 'afd-defaults/error-recovery',
+					source: 'default' as const,
+					approvalStatus: 'approved' as const,
+					setup: 'spec/wire/result-failure.json (order-create failure)',
+				},
+			],
+			nextSteps: [
+				'Call umbel: components-brief with patterns [afd-defaults/error-recovery] to load the approved pattern guidance before building the screen.',
+			],
+			unmeasured: [
+				{
+					area: 'screen-gates',
+					reason: 'No specimen setup cases or captures exist yet to run portable pattern gates.',
+					addToMeasure:
+						'Bind specimen setups to these patterns and run specimen-capture and specimen-run.',
+				},
+			],
+		})),
 		close: vi.fn(async () => {}),
 	};
 	const createBench = vi.fn(async () => bench);
@@ -2171,6 +2196,56 @@ describe('specimen CLI', () => {
 		expect(await runCli(['--root', root, 'review', 'main', 'branch', '--ids', ' , '], h.io)).toBe(
 			1
 		);
+	});
+
+	it('wires design-states with --commands, --scenario, --consumer, --include-proposed, and pagination flags', async () => {
+		const root = await directory();
+		const h = harness();
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'design-states',
+					'--commands',
+					'order-create,stock-list',
+					'--consumer',
+					'bookshop-ui',
+					'--include-proposed',
+					'--limit',
+					'5',
+					'--after',
+					'order-create:error-recovery',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.designStates).toHaveBeenLastCalledWith({
+			commands: ['order-create', 'stock-list'],
+			consumer: 'bookshop-ui',
+			includeProposed: true,
+			limit: 5,
+			after: 'order-create:error-recovery',
+		});
+
+		expect(
+			await runCli(
+				['--root', root, 'design-states', '--scenario', './scenarios/checkout.scenario.yaml'],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.designStates).toHaveBeenLastCalledWith({
+			scenario: './scenarios/checkout.scenario.yaml',
+		});
+
+		expect(
+			await runCli(['--root', root, 'design-states', 'order-create', 'member-delete'], h.io)
+		).toBe(0);
+		expect(h.bench.designStates).toHaveBeenLastCalledWith({
+			commands: ['order-create', 'member-delete'],
+		});
+
+		expect(await runCli(['--root', root, 'design-states', '--limit', '0'], h.io)).toBe(1);
 	});
 });
 

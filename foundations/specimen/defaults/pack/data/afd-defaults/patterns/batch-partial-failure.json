@@ -1,0 +1,148 @@
+{
+	"avoidWhen": [
+		{
+			"id": "batch-partial-failure.avoid-when.single-command",
+			"text": "Avoid for single-item command failures; use error-recovery instead."
+		}
+	],
+	"customize": [
+		{
+			"id": "batch-partial-failure.customize.grouping",
+			"text": "Group failed items above succeeded items or offer a filter between failed and succeeded rows."
+		}
+	],
+	"facets": {
+		"behavior": [
+			"live-announcement",
+			"recovery"
+		],
+		"purpose": [
+			"batch",
+			"partial-failure"
+		],
+		"structure": [
+			"list",
+			"status"
+		]
+	},
+	"format": 2,
+	"gates": {
+		"announces-summary": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"nameNonEmpty": true,
+							"role": [
+								"status",
+								"alert"
+							]
+						},
+						"target": "summary"
+					},
+					"id": "check-summary"
+				}
+			],
+			"setup": "default"
+		},
+		"failed-item-operable": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"disabled": false,
+							"nameContains": "Retry",
+							"role": "button"
+						},
+						"target": "retry"
+					},
+					"id": "check-retry"
+				},
+				{
+					"action": {
+						"focus": "retry"
+					},
+					"id": "focus-retry"
+				},
+				{
+					"expect": {
+						"focus": true,
+						"target": "retry"
+					},
+					"id": "retry-focused"
+				}
+			],
+			"setup": "default"
+		},
+		"fits-narrow": {
+			"context": {
+				"viewport": {
+					"height": 800,
+					"width": 320
+				}
+			},
+			"scenario": [
+				{
+					"expect": {
+						"layout": {
+							"noOverflow": true
+						},
+						"target": "retry"
+					},
+					"id": "narrow-layout"
+				}
+			],
+			"setup": "default"
+		}
+	},
+	"implementations": [],
+	"keep": [
+		{
+			"gate": "announces-summary",
+			"id": "batch-partial-failure.keep.announces-summary",
+			"text": "Announces the batch outcome summary in a live status or alert region."
+		},
+		{
+			"gate": "failed-item-operable",
+			"id": "batch-partial-failure.keep.failed-item-operable",
+			"text": "Exposes each failed item's recovery control in the accessibility tree without re-entering succeeded items."
+		},
+		{
+			"gate": "fits-narrow",
+			"id": "batch-partial-failure.keep.fits-narrow",
+			"text": "Fits a narrow viewport without clipping failed-item reasons or recovery controls."
+		},
+		{
+			"id": "batch-partial-failure.keep.preserve-per-item-reason",
+			"text": "Keep each failed item's error reason visible and exposed to assistive technology alongside its item identity."
+		}
+	],
+	"pattern": "batch-partial-failure",
+	"scope": "composition",
+	"setups": {
+		"default": {
+			"targets": {
+				"retry": {
+					"nameContains": "Retry",
+					"role": "button"
+				},
+				"summary": {
+					"nameContains": "Batch",
+					"role": [
+						"status",
+						"alert"
+					]
+				}
+			},
+			"text": "Mount a batch partial failure from spec/wire/batch-result.json showing 1 succeeded and 1 failed item with a live outcome summary and a retry or fix control for the failed item."
+		}
+	},
+	"status": "stable",
+	"summary": "Report per-item outcomes of a batch command so succeeded items stay done and failed items expose reasons and recovery controls.",
+	"useWhen": [
+		{
+			"id": "batch-partial-failure.use-when.mixed-batch",
+			"text": "Use when a batch result reports both succeeded and failed items so the person can resolve only the failed items."
+		}
+	]
+}

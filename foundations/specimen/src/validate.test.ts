@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defaultContext } from './config.js';
+import { parseDesignStatesRequest } from './design-validate.js';
 import { packIdentifier } from './pack-schema.js';
 import { implementationContextsSchema, patternSetupBindingSchema } from './pattern-schema.js';
 import {
@@ -20,6 +21,7 @@ import {
 	decisionGetRequestSchema,
 	decisionListRequestSchema,
 	decisionRecordRequestSchema,
+	designStatesRequestSchema,
 	jobConfigSchema,
 	jobCreateRequestSchema,
 	jobRunRequestSchema,
@@ -204,6 +206,8 @@ const configSchema = z
 		guides: z.array(z.string().min(1)).optional(),
 		patterns: z.array(z.string().min(1)).optional(),
 		patternSources: z.array(z.string().min(1)).optional(),
+		defaults: z.string().min(1).optional(),
+		commandManifest: z.string().min(1).optional(),
 		pack: z
 			.strictObject({
 				library: packIdentifier('library'),
@@ -233,7 +237,12 @@ const configSchema = z
 			})
 			.optional(),
 	})
-	.refine((config) => config.specimens !== undefined || config.stories !== undefined)
+	.refine(
+		(config) =>
+			config.specimens !== undefined ||
+			config.stories !== undefined ||
+			config.commandManifest !== undefined
+	)
 	.refine((config) => config.preview === undefined || config.stories !== undefined)
 	.refine((config) => config.test === undefined || config.stories !== undefined)
 	.refine((config) => config.guides === undefined || config.manifest !== undefined)
@@ -1532,6 +1541,36 @@ describe('request parsing agrees with the public schemas', () => {
 			null,
 		]) {
 			agrees(decisionCheckRequestSchema, parseDecisionCheckRequest, value);
+		}
+	});
+
+	it('agrees with designStatesRequestSchema and defaults/commandManifest config fields', () => {
+		for (const value of [
+			{},
+			{ commands: ['order-create', 'stock-list'] },
+			{ scenario: 'scenarios/01.scenario.yaml', consumer: 'bookshop-ui', includeProposed: true },
+			{ commands: ['order-create'], limit: 10, after: 'order-create:error-recovery' },
+			{ commands: [] },
+			{ commands: [''] },
+			{ commands: 'order-create' },
+			{ scenario: '' },
+			{ includeProposed: 'yes' },
+			{ limit: 0 },
+			{ limit: 501 },
+			{ limit: 1.5 },
+			{ after: '' },
+			{ extra: true },
+			null,
+		]) {
+			agrees(designStatesRequestSchema, parseDesignStatesRequest, value);
+		}
+		for (const config of [
+			{ commandManifest: './commands.json' },
+			{ commandManifest: './commands.json', defaults: 'afd-defaults@1.0.0' },
+			{ commandManifest: '' },
+			{ defaults: 'afd-defaults@1.0.0' },
+		]) {
+			agrees(configSchema, parseConfig, config);
 		}
 	});
 });

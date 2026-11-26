@@ -1,0 +1,110 @@
+{
+	"pattern": "approval-request",
+	"summary": "Show an action held for explicit approval with what was requested, where it waits, and safe focus on decline or cancel.",
+	"status": "stable",
+	"scope": "composition",
+	"facets": {
+		"behavior": ["confirmation", "focus-management"],
+		"purpose": ["approval", "governance"],
+		"structure": ["dialog", "panel"]
+	},
+	"useWhen": [
+		{
+			"id": "approval-request.use-when.approval-gate",
+			"text": "Use when a command declares an approval gate or returns APPROVAL_REQUIRED so a person must approve or withdraw the request."
+		}
+	],
+	"avoidWhen": [
+		{
+			"id": "approval-request.avoid-when.routine-read",
+			"text": "Avoid for routine read commands or reversible edits that do not require an approval gate."
+		}
+	],
+	"keep": [
+		{
+			"id": "approval-request.keep.named-container",
+			"text": "Exposes an accessible dialog or status region naming the pending approval request.",
+			"gate": "named-container"
+		},
+		{
+			"id": "approval-request.keep.cancel-operable",
+			"text": "Provides an operable Cancel, Decline, or Withdraw control that can be focused and activated from the keyboard.",
+			"gate": "cancel-operable"
+		},
+		{
+			"id": "approval-request.keep.safe-initial-focus",
+			"text": "When presented as a confirmation dialog, initial focus lands on Decline or Cancel rather than Approve.",
+			"gate": "safe-initial-focus"
+		},
+		{
+			"id": "approval-request.keep.show-pending-details",
+			"text": "Name what was requested, who or what must approve it, and any expiration or hold window in plain text."
+		}
+	],
+	"customize": [
+		{
+			"id": "approval-request.customize.layout",
+			"text": "Present as a modal confirmation dialog for synchronous approval or an inline held-request panel when approval is asynchronous."
+		}
+	],
+	"setups": {
+		"default": {
+			"text": "Mount an approval request dialog or region showing what is held for approval with an operable Cancel or Decline control.",
+			"targets": {
+				"container": {
+					"role": ["dialog", "alertdialog", "region", "status"],
+					"nameContains": "Approval"
+				},
+				"cancel": {
+					"role": "button",
+					"nameContains": "Decline"
+				}
+			}
+		}
+	},
+	"gates": {
+		"named-container": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-container",
+					"expect": {
+						"target": "container",
+						"a11y": {
+							"role": ["dialog", "alertdialog", "region", "status"],
+							"nameNonEmpty": true
+						}
+					}
+				}
+			]
+		},
+		"cancel-operable": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-cancel",
+					"expect": {
+						"target": "cancel",
+						"a11y": {
+							"role": "button",
+							"nameNonEmpty": true,
+							"disabled": false
+						}
+					}
+				}
+			]
+		},
+		"safe-initial-focus": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "cancel-focused",
+					"expect": {
+						"target": "cancel",
+						"focus": true
+					}
+				}
+			]
+		}
+	}
+}

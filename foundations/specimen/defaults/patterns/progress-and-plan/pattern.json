@@ -1,0 +1,88 @@
+{
+	"pattern": "progress-and-plan",
+	"summary": "Show pending work and multi-step plan status in an accessible status or progressbar region without stealing focus.",
+	"status": "stable",
+	"scope": "composition",
+	"facets": {
+		"behavior": ["live-announcement"],
+		"purpose": ["loading", "progress"],
+		"structure": ["status"]
+	},
+	"useWhen": [
+		{
+			"id": "progress-and-plan.use-when.pending-or-plan",
+			"text": "Use when a command is running asynchronously, loading screen data, or returns a multi-step plan."
+		}
+	],
+	"avoidWhen": [
+		{
+			"id": "progress-and-plan.avoid-when.instant-complete",
+			"text": "Avoid flashing a spinner or plan tracker for instant operations that settle synchronously."
+		}
+	],
+	"keep": [
+		{
+			"id": "progress-and-plan.keep.status-exposed",
+			"text": "Exposes pending work or plan progress through role status or progressbar.",
+			"gate": "status-exposed"
+		},
+		{
+			"id": "progress-and-plan.keep.fits-narrow",
+			"text": "Fits a narrow viewport without horizontal overflow.",
+			"gate": "fits-narrow"
+		},
+		{
+			"id": "progress-and-plan.keep.show-step-outcome",
+			"text": "When a plan includes completed, in-progress, or failed steps, name each step and its current state clearly."
+		}
+	],
+	"customize": [
+		{
+			"id": "progress-and-plan.customize.granularity",
+			"text": "Use a concise status line for loading frames (such as Loam's loam-view-frame) or a step list when a plan has multiple steps."
+		}
+	],
+	"setups": {
+		"default": {
+			"text": "Mount a pending or multi-step plan state from spec/wire/result-success-full.json (or Loam's ViewFrameLoading) with role status or progressbar.",
+			"targets": {
+				"progress": {
+					"role": ["status", "progressbar"]
+				}
+			}
+		}
+	},
+	"gates": {
+		"status-exposed": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-progress",
+					"expect": {
+						"target": "progress",
+						"a11y": {
+							"role": ["status", "progressbar"]
+						}
+					}
+				}
+			]
+		},
+		"fits-narrow": {
+			"setup": "default",
+			"context": {
+				"viewport": { "width": 390, "height": 844 }
+			},
+			"scenario": [
+				{
+					"id": "narrow-layout",
+					"expect": {
+						"target": "progress",
+						"layout": {
+							"noOverflow": true
+						}
+					}
+				}
+			]
+		}
+	}
+}

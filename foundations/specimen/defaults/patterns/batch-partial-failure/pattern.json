@@ -1,0 +1,126 @@
+{
+	"pattern": "batch-partial-failure",
+	"summary": "Report per-item outcomes of a batch command so succeeded items stay done and failed items expose reasons and recovery controls.",
+	"status": "stable",
+	"scope": "composition",
+	"facets": {
+		"behavior": ["live-announcement", "recovery"],
+		"purpose": ["batch", "partial-failure"],
+		"structure": ["list", "status"]
+	},
+	"useWhen": [
+		{
+			"id": "batch-partial-failure.use-when.mixed-batch",
+			"text": "Use when a batch result reports both succeeded and failed items so the person can resolve only the failed items."
+		}
+	],
+	"avoidWhen": [
+		{
+			"id": "batch-partial-failure.avoid-when.single-command",
+			"text": "Avoid for single-item command failures; use error-recovery instead."
+		}
+	],
+	"keep": [
+		{
+			"id": "batch-partial-failure.keep.announces-summary",
+			"text": "Announces the batch outcome summary in a live status or alert region.",
+			"gate": "announces-summary"
+		},
+		{
+			"id": "batch-partial-failure.keep.failed-item-operable",
+			"text": "Exposes each failed item's recovery control in the accessibility tree without re-entering succeeded items.",
+			"gate": "failed-item-operable"
+		},
+		{
+			"id": "batch-partial-failure.keep.fits-narrow",
+			"text": "Fits a narrow viewport without clipping failed-item reasons or recovery controls.",
+			"gate": "fits-narrow"
+		},
+		{
+			"id": "batch-partial-failure.keep.preserve-per-item-reason",
+			"text": "Keep each failed item's error reason visible and exposed to assistive technology alongside its item identity."
+		}
+	],
+	"customize": [
+		{
+			"id": "batch-partial-failure.customize.grouping",
+			"text": "Group failed items above succeeded items or offer a filter between failed and succeeded rows."
+		}
+	],
+	"setups": {
+		"default": {
+			"text": "Mount a batch partial failure from spec/wire/batch-result.json showing 1 succeeded and 1 failed item with a live outcome summary and a retry or fix control for the failed item.",
+			"targets": {
+				"summary": {
+					"role": ["status", "alert"],
+					"nameContains": "Batch"
+				},
+				"retry": {
+					"role": "button",
+					"nameContains": "Retry"
+				}
+			}
+		}
+	},
+	"gates": {
+		"announces-summary": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-summary",
+					"expect": {
+						"target": "summary",
+						"a11y": {
+							"role": ["status", "alert"],
+							"nameNonEmpty": true
+						}
+					}
+				}
+			]
+		},
+		"failed-item-operable": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-retry",
+					"expect": {
+						"target": "retry",
+						"a11y": {
+							"role": "button",
+							"nameContains": "Retry",
+							"disabled": false
+						}
+					}
+				},
+				{
+					"id": "focus-retry",
+					"action": { "focus": "retry" }
+				},
+				{
+					"id": "retry-focused",
+					"expect": {
+						"target": "retry",
+						"focus": true
+					}
+				}
+			]
+		},
+		"fits-narrow": {
+			"setup": "default",
+			"context": {
+				"viewport": { "width": 320, "height": 800 }
+			},
+			"scenario": [
+				{
+					"id": "narrow-layout",
+					"expect": {
+						"target": "retry",
+						"layout": {
+							"noOverflow": true
+						}
+					}
+				}
+			]
+		}
+	}
+}

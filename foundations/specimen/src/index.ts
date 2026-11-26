@@ -58,6 +58,23 @@ export {
 	SPECIMENS_DIR,
 	writeDecisionEvidence,
 } from './decisions.js';
+export {
+	buildDefaultPatternsPackFiles,
+	getDefaultPatternsDir,
+	getDefaultPatternsPackDir,
+	hasBundledDefaultsPack,
+	isBuiltinDefaultPatternSource,
+	loadDefaultPatterns,
+	patternContentDigest,
+	resolveDefaultsVersion,
+} from './defaults.js';
+export { runDesignStates } from './design-states.js';
+export {
+	CANONICAL_DEFAULT_PATTERNS,
+	DEFAULT_PATTERNS_LIBRARY,
+	DEFAULT_PATTERNS_SEMVER,
+	DEFAULT_PATTERNS_VERSION,
+} from './design-types.js';
 export { canonicalJson, diffObservations } from './diff.js';
 export {
 	defineGuideSource,

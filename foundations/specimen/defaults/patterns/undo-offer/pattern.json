@@ -1,0 +1,124 @@
+{
+	"pattern": "undo-offer",
+	"summary": "Offer an immediate, keyboard-reachable Undo action inside a polite status notice after a reversible mutation.",
+	"status": "stable",
+	"scope": "composition",
+	"facets": {
+		"behavior": ["live-announcement", "recovery"],
+		"purpose": ["reversibility", "undo"],
+		"structure": ["status", "toast"]
+	},
+	"useWhen": [
+		{
+			"id": "undo-offer.use-when.undoable-mutation",
+			"text": "Use when a command declares undoable: true or returns undoCommand and undoArgs so the person can take the change back immediately."
+		}
+	],
+	"avoidWhen": [
+		{
+			"id": "undo-offer.avoid-when.irreversible",
+			"text": "Avoid offering undo for destructive commands that cannot be reversed; use destructive-confirm beforehand."
+		}
+	],
+	"keep": [
+		{
+			"id": "undo-offer.keep.status-region",
+			"text": "Announces the completed reversible action in a polite status region.",
+			"gate": "status-region"
+		},
+		{
+			"id": "undo-offer.keep.undo-operable",
+			"text": "Provides an operable Undo button reachable by keyboard focus.",
+			"gate": "undo-operable"
+		},
+		{
+			"id": "undo-offer.keep.fits-narrow",
+			"text": "Fits a narrow viewport without clipping the Undo button.",
+			"gate": "fits-narrow"
+		},
+		{
+			"id": "undo-offer.keep.invokes-undo-command",
+			"text": "Activating Undo invokes the result's undoCommand with its undoArgs rather than reimplementing reversal in the UI."
+		}
+	],
+	"customize": [
+		{
+			"id": "undo-offer.customize.duration",
+			"text": "Choose whether the undo offer sits in a non-blocking toast or an inline confirmation bar."
+		}
+	],
+	"setups": {
+		"default": {
+			"text": "Mount a reversible mutation result from spec/wire/result-success-full.json with a status region and an operable Undo button.",
+			"targets": {
+				"notice": {
+					"role": "status"
+				},
+				"undo": {
+					"role": "button",
+					"nameContains": "Undo"
+				}
+			}
+		}
+	},
+	"gates": {
+		"status-region": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-status",
+					"expect": {
+						"target": "notice",
+						"a11y": {
+							"role": "status"
+						}
+					}
+				}
+			]
+		},
+		"undo-operable": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-undo",
+					"expect": {
+						"target": "undo",
+						"a11y": {
+							"role": "button",
+							"nameContains": "Undo",
+							"disabled": false
+						}
+					}
+				},
+				{
+					"id": "focus-undo",
+					"action": { "focus": "undo" }
+				},
+				{
+					"id": "undo-focused",
+					"expect": {
+						"target": "undo",
+						"focus": true
+					}
+				}
+			]
+		},
+		"fits-narrow": {
+			"setup": "default",
+			"context": {
+				"viewport": { "width": 390, "height": 844 }
+			},
+			"scenario": [
+				{
+					"id": "narrow-layout",
+					"expect": {
+						"target": "undo",
+						"layout": {
+							"noOverflow": true
+						}
+					}
+				}
+			]
+		}
+	}
+}

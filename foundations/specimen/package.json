@@ -32,12 +32,17 @@
 			"types": "./dist/pack.d.ts",
 			"import": "./dist/pack.js"
 		},
+		"./defaults": {
+			"types": "./dist/defaults.d.ts",
+			"import": "./dist/defaults.js"
+		},
 		"./pack/*.schema.json": "./schema/pack/*.schema.json",
 		"./guide/*.schema.json": "./schema/guide/*.schema.json",
 		"./pattern.schema.json": "./schema/pattern.schema.json"
 	},
 	"files": [
 		"dist",
+		"defaults",
 		"schema",
 		"docs/pack-format.md",
 		"README.md"

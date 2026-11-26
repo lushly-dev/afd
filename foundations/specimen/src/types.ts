@@ -6,6 +6,7 @@ export const CAPTURE_VERSION = '0.10' as const;
 export const NORMALIZATION_VERSION = '0.2' as const;
 
 export type { Args, Decorator, Meta, Preview, StoryContext, StoryObj } from './csf-types.js';
+export type * from './design-types.js';
 export type * from './note-types.js';
 export type * from './pack-types.js';
 export type * from './pattern-types.js';
@@ -373,6 +374,10 @@ export interface BenchConfig {
 	 * whose `package.json` exports `./pack`.
 	 */
 	patternSources?: string[];
+	/** Pinned AFD default pattern library version (e.g. `'afd-defaults@1.0.0'`). */
+	defaults?: string;
+	/** Path to the product's AFD command manifest JSON, relative to the configuration file. */
+	commandManifest?: string;
 	/** What `specimen pack` builds: one library's component pack. Needs `manifest`, or `patterns` with `dependencies`/`localElements`. */
 	pack?: PackConfig;
 }

@@ -1,0 +1,147 @@
+{
+	"pattern": "destructive-confirm",
+	"summary": "Ask for explicit confirmation before running a destructive command, focusing Cancel first and cancelling cleanly on Escape.",
+	"status": "stable",
+	"scope": "composition",
+	"facets": {
+		"behavior": ["confirmation", "escape-dismiss", "focus-management"],
+		"purpose": ["destructive-action", "safety"],
+		"structure": ["dialog"]
+	},
+	"useWhen": [
+		{
+			"id": "destructive-confirm.use-when.irreversible",
+			"text": "Use whenever a command declares destructive: true or a confirmPrompt for an action that cannot be undone."
+		}
+	],
+	"avoidWhen": [
+		{
+			"id": "destructive-confirm.avoid-when.reversible",
+			"text": "Avoid interrupting reversible actions; execute them and offer undo-offer instead."
+		}
+	],
+	"keep": [
+		{
+			"id": "destructive-confirm.keep.modal-dialog",
+			"text": "Presents the confirmation prompt inside a named dialog or alertdialog.",
+			"gate": "modal-dialog"
+		},
+		{
+			"id": "destructive-confirm.keep.focuses-cancel",
+			"text": "Places initial keyboard focus on Cancel rather than the destructive confirm button.",
+			"gate": "focuses-cancel"
+		},
+		{
+			"id": "destructive-confirm.keep.escape-dismisses",
+			"text": "Pressing Escape dismisses the dialog without submitting and returns focus to the opener.",
+			"gate": "escape-dismisses"
+		},
+		{
+			"id": "destructive-confirm.keep.cancel-no-side-effect",
+			"text": "Cancelling via Escape or Cancel never invokes the destructive command."
+		},
+		{
+			"id": "destructive-confirm.keep.show-confirm-prompt",
+			"text": "State the command's confirmPrompt consequences in plain text before invoking the command."
+		}
+	],
+	"customize": [
+		{
+			"id": "destructive-confirm.customize.labels",
+			"text": "Use a specific verb on the confirm button naming what will be removed or retired."
+		}
+	],
+	"setups": {
+		"default": {
+			"text": "Mount a destructive confirmation dialog (such as Loam's loam-modal with danger: true) beside its opener button, with Cancel and a destructive Confirm button.",
+			"targets": {
+				"opener": {
+					"role": "button",
+					"nameContains": "Remove"
+				},
+				"dialog": {
+					"role": ["dialog", "alertdialog"]
+				},
+				"cancel": {
+					"role": "button",
+					"name": "Cancel"
+				},
+				"confirm": {
+					"role": "button",
+					"nameContains": "Delete"
+				}
+			}
+		}
+	},
+	"gates": {
+		"modal-dialog": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-dialog",
+					"expect": {
+						"target": "dialog",
+						"a11y": {
+							"role": ["dialog", "alertdialog"],
+							"nameNonEmpty": true
+						}
+					}
+				},
+				{
+					"id": "check-confirm",
+					"expect": {
+						"target": "confirm",
+						"a11y": {
+							"role": "button",
+							"nameContains": "Delete",
+							"disabled": false
+						}
+					}
+				}
+			]
+		},
+		"focuses-cancel": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "cancel-has-focus",
+					"expect": {
+						"target": "cancel",
+						"focus": true
+					}
+				},
+				{
+					"id": "confirm-not-focused",
+					"expect": {
+						"target": "confirm",
+						"focus": false
+					}
+				}
+			]
+		},
+		"escape-dismisses": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "press-escape",
+					"action": { "press": "Escape" }
+				},
+				{
+					"id": "no-submit",
+					"expect": {
+						"event": "submit",
+						"since": "press-escape",
+						"absent": true
+					}
+				},
+				{
+					"id": "returns-focus",
+					"expect": {
+						"target": "opener",
+						"focus": true
+					}
+				}
+			]
+		}
+	}
+}

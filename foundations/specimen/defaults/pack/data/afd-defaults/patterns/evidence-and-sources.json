@@ -1,0 +1,146 @@
+{
+	"avoidWhen": [
+		{
+			"id": "evidence-and-sources.avoid-when.no-evidence",
+			"text": "Avoid rendering an empty evidence box when the command returned neither reasoning nor sources."
+		}
+	],
+	"customize": [
+		{
+			"id": "evidence-and-sources.customize.disclosure",
+			"text": "Present inline for high-stakes estimates or inside a disclosure when secondary to the main outcome."
+		}
+	],
+	"facets": {
+		"behavior": [
+			"disclosure"
+		],
+		"purpose": [
+			"evidence",
+			"transparency"
+		],
+		"structure": [
+			"panel"
+		]
+	},
+	"format": 2,
+	"gates": {
+		"fits-narrow": {
+			"context": {
+				"viewport": {
+					"height": 844,
+					"width": 390
+				}
+			},
+			"scenario": [
+				{
+					"expect": {
+						"layout": {
+							"noOverflow": true
+						},
+						"target": "region"
+					},
+					"id": "narrow-layout"
+				}
+			],
+			"setup": "default"
+		},
+		"region-named": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"nameNonEmpty": true,
+							"role": "region"
+						},
+						"target": "region"
+					},
+					"id": "check-region"
+				}
+			],
+			"setup": "default"
+		},
+		"source-operable": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"disabled": false,
+							"nameContains": "Team guidelines",
+							"role": [
+								"link",
+								"button"
+							]
+						},
+						"target": "source"
+					},
+					"id": "check-source"
+				},
+				{
+					"action": {
+						"focus": "source"
+					},
+					"id": "focus-source"
+				},
+				{
+					"expect": {
+						"focus": true,
+						"target": "source"
+					},
+					"id": "source-focused"
+				}
+			],
+			"setup": "default"
+		}
+	},
+	"implementations": [],
+	"keep": [
+		{
+			"gate": "region-named",
+			"id": "evidence-and-sources.keep.region-named",
+			"text": "Exposes a named region holding the reasoning and cited sources."
+		},
+		{
+			"gate": "source-operable",
+			"id": "evidence-and-sources.keep.source-operable",
+			"text": "Each cited source with a target exposes an operable link or button carrying the source title."
+		},
+		{
+			"gate": "fits-narrow",
+			"id": "evidence-and-sources.keep.fits-narrow",
+			"text": "Fits a narrow viewport without horizontal overflow."
+		},
+		{
+			"id": "evidence-and-sources.keep.reachable-not-forced",
+			"text": "Keep reasoning and sources reachable without crowding the primary result."
+		}
+	],
+	"pattern": "evidence-and-sources",
+	"scope": "composition",
+	"setups": {
+		"default": {
+			"targets": {
+				"region": {
+					"nameContains": "Sources",
+					"role": "region"
+				},
+				"source": {
+					"nameContains": "Team guidelines",
+					"role": [
+						"link",
+						"button"
+					]
+				}
+			},
+			"text": "Mount reasoning and sources from spec/wire/result-success-full.json with a named evidence region and an operable link to \"Team guidelines\"."
+		}
+	},
+	"status": "stable",
+	"summary": "Make a command result's reasoning and cited sources inspectable with operable source references.",
+	"useWhen": [
+		{
+			"id": "evidence-and-sources.use-when.cited-result",
+			"text": "Use when a command result carries reasoning or sources so the person can inspect what the answer rests on."
+		}
+	]
+}

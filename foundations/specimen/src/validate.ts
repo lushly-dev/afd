@@ -1177,10 +1177,16 @@ export function parseConfig(value: unknown): BenchConfig {
 		'jobSources',
 		'patterns',
 		'patternSources',
+		'defaults',
+		'commandManifest',
 		'pack',
 	]);
-	if (fields.specimens === undefined && fields.stories === undefined)
-		fail('configuration', 'expected specimens, stories or both');
+	if (
+		fields.specimens === undefined &&
+		fields.stories === undefined &&
+		fields.commandManifest === undefined
+	)
+		fail('configuration', 'expected specimens, stories, commandManifest or a combination');
 	if (fields.preview !== undefined && fields.stories === undefined)
 		fail('configuration.preview', 'project annotations apply only to stories');
 	if (fields.test !== undefined && fields.stories === undefined)
@@ -1262,6 +1268,12 @@ export function parseConfig(value: unknown): BenchConfig {
 				}),
 		...(patterns === undefined ? {} : { patterns }),
 		...(patternSources === undefined ? {} : { patternSources }),
+		...(fields.defaults === undefined
+			? {}
+			: { defaults: text(fields.defaults, 'configuration.defaults') }),
+		...(fields.commandManifest === undefined
+			? {}
+			: { commandManifest: text(fields.commandManifest, 'configuration.commandManifest') }),
 		...(pack === undefined ? {} : { pack }),
 	};
 }
@@ -1478,12 +1490,5 @@ export function parsePointCheckRequest(value: unknown): PointCheckRequest {
 }
 
 export * from './decision-validate.js';
-export {
-	parseNoteAddRequest,
-	parseNoteCheckRequest,
-	parseNoteListRequest,
-	parseNoteMoveRequest,
-	parseNoteReopenRequest,
-	parseNoteResolveRequest,
-} from './note-validate.js';
+export * from './note-validate.js';
 export { parseReviewRequest } from './review-validate.js';

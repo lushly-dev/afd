@@ -1,0 +1,124 @@
+{
+	"pattern": "error-recovery",
+	"summary": "Show a command failure with its message and actionable recovery step in an accessible alert or notice.",
+	"status": "stable",
+	"scope": "composition",
+	"facets": {
+		"behavior": ["live-announcement", "recovery"],
+		"purpose": ["error-state", "recovery"],
+		"structure": ["alert", "notice"]
+	},
+	"useWhen": [
+		{
+			"id": "error-recovery.use-when.command-failure",
+			"text": "Use whenever an AFD command returns success: false with an error message and recovery suggestion."
+		}
+	],
+	"avoidWhen": [
+		{
+			"id": "error-recovery.avoid-when.empty-state",
+			"text": "Avoid for empty search or list results where the command succeeded; use collection-states instead."
+		}
+	],
+	"keep": [
+		{
+			"id": "error-recovery.keep.alert-role",
+			"text": "Announces the failure in an alert or named notice region visible to assistive technology.",
+			"gate": "alert-role"
+		},
+		{
+			"id": "error-recovery.keep.recovery-operable",
+			"text": "Provides an operable recovery control with an accessible name when retry or follow-up action is available.",
+			"gate": "recovery-operable"
+		},
+		{
+			"id": "error-recovery.keep.fits-narrow",
+			"text": "Fits a narrow viewport without horizontal overflow or clipped error text.",
+			"gate": "fits-narrow"
+		},
+		{
+			"id": "error-recovery.keep.clear-next-step",
+			"text": "Show both what failed (error.message) and what the person can do next (error.suggestion) in plain language."
+		}
+	],
+	"customize": [
+		{
+			"id": "error-recovery.customize.placement",
+			"text": "Place inline beside the failing control or in an embedded notice region depending on scope."
+		}
+	],
+	"setups": {
+		"default": {
+			"text": "Mount a command failure from spec/wire/result-failure.json showing the error message, suggestion, and an operable recovery control.",
+			"targets": {
+				"notice": {
+					"role": ["alert", "region"]
+				},
+				"recovery": {
+					"role": ["button", "link"],
+					"nameContains": "Retry"
+				}
+			}
+		}
+	},
+	"gates": {
+		"alert-role": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-notice",
+					"expect": {
+						"target": "notice",
+						"a11y": {
+							"role": ["alert", "region"]
+						}
+					}
+				}
+			]
+		},
+		"recovery-operable": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-recovery",
+					"expect": {
+						"target": "recovery",
+						"a11y": {
+							"role": ["button", "link"],
+							"nameContains": "Retry",
+							"disabled": false
+						}
+					}
+				},
+				{
+					"id": "focus-recovery",
+					"action": { "focus": "recovery" }
+				},
+				{
+					"id": "recovery-focused",
+					"expect": {
+						"target": "recovery",
+						"focus": true
+					}
+				}
+			]
+		},
+		"fits-narrow": {
+			"setup": "default",
+			"context": {
+				"viewport": { "width": 320, "height": 800 }
+			},
+			"scenario": [
+				{
+					"id": "narrow-layout",
+					"expect": {
+						"target": "notice",
+						"layout": {
+							"noOverflow": true
+						}
+					}
+				}
+			]
+		}
+	}
+}
