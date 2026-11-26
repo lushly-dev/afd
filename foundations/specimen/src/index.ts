@@ -165,6 +165,7 @@ export {
 	withNoteLock,
 	writeNoteFile,
 } from './note.js';
+export { OBSERVE_CAUSATION_NOTE, runDesignObserve } from './observe.js';
 export { assertWalkTargetAllowed } from './panel-browser.js';
 export {
 	generateSampleId,

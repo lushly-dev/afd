@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { type Dirent, existsSync } from 'node:fs';
-import { mkdir, readdir, readFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { designCardRecordSchema } from './card-schema.js';
 import {
@@ -18,9 +18,16 @@ import { parseDesignCardListRequest } from './card-validate.js';
 import { compareCodeUnits, typedError } from './decisions-store.js';
 import type { SpecimenHostError } from './host.js';
 import { PACK_PATTERNS } from './pack-atoms.js';
+import { PANEL_RUNS_DIR, RUN_ID_PATTERN } from './panel-review-types.js';
+import { WALK_ID_PATTERN, WALKS_DIR } from './panel-types.js';
 import { patternFileSchema } from './pattern-schema.js';
 import { DEFAULT_PATTERNS_DIRECTORY } from './patterns.js';
-import { assertRealContained, assertRealFileContained, writeFileAtomic } from './sets.js';
+import {
+	assertRealContained,
+	assertRealFileContained,
+	specimenDataDir,
+	writeFileAtomic,
+} from './sets.js';
 
 export const CARDS_PAGE_FILE = 'cards.html';
 
@@ -393,8 +400,53 @@ function toCardSummary(record: DesignCardRecord): DesignCardSummary {
 	};
 }
 
-function defaultCardUnmeasured(): CardUnmeasuredEntry[] {
-	return [
+async function hasAnyPanelWalksOrRuns(root: string): Promise<boolean> {
+	const dataDir = specimenDataDir(root);
+	const targets: Array<{ dir: string; pattern: RegExp }> = [
+		{ dir: join(dataDir, WALKS_DIR), pattern: WALK_ID_PATTERN },
+		{ dir: join(dataDir, PANEL_RUNS_DIR), pattern: RUN_ID_PATTERN },
+	];
+	for (const { dir, pattern } of targets) {
+		let entries: Dirent[];
+		try {
+			await assertRealContained(root, dir, `Directory escapes workspace root: ${dir}`);
+			entries = await readdir(dir, { withFileTypes: true });
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code === 'ENOENT' || code === 'ENOTDIR') continue;
+			throw error;
+		}
+		for (const entry of entries) {
+			if (!entry.name.endsWith('.json')) continue;
+			const stem = entry.name.slice(0, -5);
+			if (!pattern.test(stem)) continue;
+			const filePath = join(dir, entry.name);
+			try {
+				await assertRealFileContained(
+					root,
+					filePath,
+					`Panel record escapes workspace root: ${entry.name}`
+				);
+				const info = await stat(filePath);
+				if (info.isFile()) return true;
+			} catch {
+				// Ignore broken, escaped, or non-file entries when checking panel evidence presence.
+			}
+		}
+	}
+	return false;
+}
+
+async function defaultCardUnmeasured(root: string): Promise<CardUnmeasuredEntry[]> {
+	const entries: CardUnmeasuredEntry[] = [];
+	if (!(await hasAnyPanelWalksOrRuns(root))) {
+		entries.push({
+			area: 'panel-walks',
+			reason: 'No persona panel walks or reviews have been recorded for this workspace.',
+			addToMeasure: 'Run panel-walk or panel-review against the running application.',
+		});
+	}
+	entries.push(
 		{
 			area: 'forced-colors',
 			reason: 'Forced-colors (high-contrast OS mode) rendering is not evaluated by card queues.',
@@ -404,8 +456,9 @@ function defaultCardUnmeasured(): CardUnmeasuredEntry[] {
 			area: 'motion',
 			reason: 'Reduced-motion transition comfort is not evaluated by card queues.',
 			addToMeasure: 'Run Specimen captures with reducedMotion: reduce.',
-		},
-	];
+		}
+	);
+	return entries;
 }
 
 function buildCardsPageUrl(request: DesignCardListRequest): string {
@@ -442,7 +495,7 @@ export async function listDesignCards(
 ): Promise<DesignCardListResult> {
 	const request = parseDesignCardListRequest(rawRequest);
 	const page = buildCardsPageUrl(request);
-	const unmeasured = defaultCardUnmeasured();
+	const unmeasured = await defaultCardUnmeasured(root);
 
 	if (request.card !== undefined) {
 		const single = await readCardRecord(root, request.card.trim());

@@ -184,6 +184,9 @@ const valueOptions = new Set([
 	'seed',
 	'sample',
 	'judgements',
+	'decision',
+	'journal',
+	'before-journal',
 ]);
 const flagOptions = new Set([
 	'require-visual',
@@ -229,7 +232,7 @@ function parseArguments(args: string[]): ParsedArguments {
 	const action = positionals.shift();
 	if (!action)
 		throw new Error(
-			'Choose a command: list, validate, inspect, render, capture, compare, review, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, panel-walk, panel-review, panel-calibrate, design-card-list, design-release, pattern-fork, pattern-compare, or pattern-merge'
+			'Choose a command: list, validate, inspect, render, capture, compare, review, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, panel-walk, panel-review, panel-calibrate, design-card-list, design-release, design-observe, pattern-fork, pattern-compare, or pattern-merge'
 		);
 	return { action, positionals, options, flags };
 }
@@ -681,8 +684,15 @@ function validateOptions(parsed: ParsedArguments): void {
 			throw new Error(`${parsed.action} expects at most 1 positional argument`);
 		return;
 	}
-	if (parsed.action === 'panel-review' || parsed.action === 'panel-calibrate') {
-		if (parsed.positionals.length > (parsed.action === 'panel-calibrate' ? 2 : 1))
+	if (
+		parsed.action === 'panel-review' ||
+		parsed.action === 'panel-calibrate' ||
+		parsed.action === 'design-observe'
+	) {
+		if (
+			parsed.positionals.length >
+			(parsed.action === 'panel-calibrate' || parsed.action === 'design-observe' ? 2 : 1)
+		)
 			throw new Error(`${parsed.action} received too many positional arguments`);
 		return;
 	}
@@ -1461,7 +1471,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., review (BEFORE AFTER | --before SET --after SET) [--ids A,B], run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, job-run ID [--label NAME], decision-record --chosen VAL --reason TEXT (--set SET --slug SLUG --question TEXT | --supersedes IDS | --items ITEMS | --card CARD | --cards CARDS), decision-get ID, decision-list [--kind choice|card|answer|all] [--released|--unreleased] [--limit N] [--after ID], decision-check [--files A,B] [--specimens A,B] [--tokens A,B], design-states [COMMANDS...] [--commands A,B] [--scenario PATH] [--consumer NAME] [--include-proposed] [--limit N] [--after CURSOR], panel-walk --job ID --persona ID --modality MODALITY --target URL, panel-review (--change ID --jobs IDS --target URL --app-date DATE | --action withdraw --run ID --reason TEXT), panel-calibrate (--action sample [--count N] [--seed N] | --action record --sample ID --judgements JSON), design-card-list [--card ID] [--status STATUS] [--severity SEV] [--scope SCOPE] [--include-provisional] [--include-decided] [--limit N] [--after ID], design-release --release VER --decisions IDS [--scope SCOPE] [--released-at ISO], pattern-fork --source LIB/PAT [--target PAT] [--bind], pattern-compare [--pattern PAT] [--upstream-version VER] [--all-statements], or pattern-merge --pattern PAT [--upstream-version VER] [--accept IDS] [--decline IDS] [--waivers JSON] [--resolutions JSON]; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., review (BEFORE AFTER | --before SET --after SET) [--ids A,B], run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, job-run ID [--label NAME], decision-record --chosen VAL --reason TEXT (--set SET --slug SLUG --question TEXT | --supersedes IDS | --items ITEMS | --card CARD | --cards CARDS), decision-get ID, decision-list [--kind choice|card|answer|all] [--released|--unreleased] [--limit N] [--after ID], decision-check [--files A,B] [--specimens A,B] [--tokens A,B], design-states [COMMANDS...] [--commands A,B] [--scenario PATH] [--consumer NAME] [--include-proposed] [--limit N] [--after CURSOR], panel-walk --job ID --persona ID --modality MODALITY --target URL, panel-review (--change ID --jobs IDS --target URL --app-date DATE | --action withdraw --run ID --reason TEXT), panel-calibrate (--action sample [--count N] [--seed N] | --action record --sample ID --judgements JSON), design-card-list [--card ID] [--status STATUS] [--severity SEV] [--scope SCOPE] [--include-provisional] [--include-decided] [--limit N] [--after ID], design-release --release VER --decisions IDS [--scope SCOPE] [--released-at ISO], design-observe --decision ID --journal PATH [--before-journal PATH], pattern-fork --source LIB/PAT [--target PAT] [--bind], pattern-compare [--pattern PAT] [--upstream-version VER] [--all-statements], or pattern-merge --pattern PAT [--upstream-version VER] [--accept IDS] [--decline IDS] [--waivers JSON] [--resolutions JSON]; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

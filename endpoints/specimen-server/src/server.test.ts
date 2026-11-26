@@ -371,10 +371,10 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 			'host-verified'
 		);
 
-		// afd-discover reaches all 46 Specimen commands cleanly.
+		// afd-discover reaches all 47 Specimen commands cleanly.
 		const discovered = mcpResult(await callTool(hybridUrl, 'afd-discover', { limit: 100 }));
 		expect(discovered.success).toBe(true);
-		expect((discovered.data as { total: number }).total).toBe(46);
+		expect((discovered.data as { total: number }).total).toBe(47);
 
 		// Grouped strategy exposes category groups (`specimen`, `decision`, `design`, `panel`) + meta-tools.
 		const { url: groupedUrl } = await mountHandler({ toolStrategy: 'grouped' });
@@ -385,11 +385,11 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 		expect(groupedNames).toContain('panel');
 		expect(groupedNames).toContain('afd-call');
 
-		// Individual strategy exposes all 46 Specimen commands with annotations and schemas.
+		// Individual strategy exposes all 47 Specimen commands with annotations and schemas.
 		const { url: individualUrl } = await mountHandler({ toolStrategy: 'individual' });
 		const individualTools = await listTools(individualUrl);
 		const individualSpecimen = individualTools.filter((t) => !t.name.startsWith('afd-'));
-		expect(individualSpecimen).toHaveLength(46);
+		expect(individualSpecimen).toHaveLength(47);
 		expect(individualTools.find((t) => t.name === 'design-states')?.annotations).toMatchObject({
 			readOnlyHint: true,
 		});
@@ -429,13 +429,16 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 		expect(individualTools.find((t) => t.name === 'panel-calibrate')?._meta?.confirmationMode).toBe(
 			'host-verified'
 		);
+		expect(individualTools.find((t) => t.name === 'design-observe')?.annotations).toMatchObject({
+			readOnlyHint: true,
+		});
 
-		// Lazy strategy exposes only the 5 AFD meta-tools while keeping all 46 commands discoverable.
+		// Lazy strategy exposes only the 5 AFD meta-tools while keeping all 47 commands discoverable.
 		const { url: lazyUrl } = await mountHandler({ toolStrategy: 'lazy' });
 		const lazyNames = (await listTools(lazyUrl)).map((t) => t.name);
 		expect(lazyNames).toEqual(['afd-discover', 'afd-detail', 'afd-call', 'afd-batch', 'afd-pipe']);
 		const lazyDiscovered = mcpResult(await callTool(lazyUrl, 'afd-discover', { limit: 100 }));
-		expect((lazyDiscovered.data as { total: number }).total).toBe(46);
+		expect((lazyDiscovered.data as { total: number }).total).toBe(47);
 	});
 
 	it('preserves CLI envelopes, structured errors, and job-create + jobs@1 coverage over MCP', async () => {
@@ -1603,6 +1606,42 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 		expect(missingRun).toMatchObject({
 			success: false,
 			error: { code: 'RUN_NOT_FOUND' },
+		});
+	});
+
+	it('serves design-observe and Scenario 10 unmeasured reports over MCP', async () => {
+		await writeFile(join(root, 'commands.json'), JSON.stringify({ commands: ['order-create'] }));
+		await writeFile(
+			join(root, 'specimen.config.json'),
+			JSON.stringify({ commandManifest: './commands.json' })
+		);
+		const { url } = await mountHandler({ toolStrategy: 'hybrid' });
+
+		// Scenario 10 step 2: commands-only card queue succeeds and reports panel-walks unmeasured first
+		const queue = mcpResult(await callTool(url, 'design-card-list', { scope: 'all' }));
+		expect(queue.success).toBe(true);
+		expect(queue.data).toMatchObject({
+			page: expect.stringContaining('cards.html'),
+			unmeasured: [
+				expect.objectContaining({ area: 'panel-walks' }),
+				expect.anything(),
+				expect.anything(),
+			],
+		});
+
+		// Scenario 12 step 1 over MCP via afd-call: unknown decision returns DECISION_NOT_FOUND
+		const missingDecision = mcpResult(
+			await callViaAfd(url, 'design-observe', {
+				decision: 'dec-000000000000',
+				journal: 'journals/post-release.jsonl',
+			})
+		);
+		expect(missingDecision).toMatchObject({
+			success: false,
+			error: {
+				code: 'DECISION_NOT_FOUND',
+				suggestion: expect.stringContaining('decision-list'),
+			},
 		});
 	});
 });

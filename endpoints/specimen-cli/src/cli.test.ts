@@ -453,6 +453,26 @@ function harness() {
 			nextSteps: [],
 			unmeasured: [],
 		})),
+		designObserve: vi.fn(async (request) => ({
+			decision: request.decision,
+			releasedAt: '2030-05-12T00:00:00.000Z',
+			status: 'improved' as const,
+			metrics: {
+				runs: 2,
+				completionRate: 1,
+				unexpectedFailures: 0,
+				repeats: 0,
+				outsideSteps: 0,
+			},
+			note: 'Movement after release is observation, not proof of causation.',
+			unmeasured: [
+				{
+					area: 'perception-only-trouble',
+					reason: 'Command journals cannot observe visual friction.',
+					addToMeasure: 'Run panel-walk or panel-review.',
+				},
+			],
+		})),
 		patternFork: vi.fn(async (request) => ({
 			pattern: request.target ?? request.source.split('/')[1] ?? 'error-recovery',
 			path: `specimens/patterns/${request.target ?? 'error-recovery'}/pattern.json`,
@@ -2758,6 +2778,57 @@ describe('specimen CLI', () => {
 			{ action: 'sample', count: 2, seed: 7 },
 			expect.anything()
 		);
+
+		expect(
+			await runCli(
+				[
+					'design-observe',
+					'--decision',
+					'dec-000000000002',
+					'--journal',
+					'journals/post-release.jsonl',
+					'--before-journal',
+					'journals/pre-release.jsonl',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.designObserve).toHaveBeenCalledWith({
+			decision: 'dec-000000000002',
+			journal: 'journals/post-release.jsonl',
+			beforeJournal: 'journals/pre-release.jsonl',
+		});
+
+		// Reject conflicting --before-journal + --before or mixing flags with extra positionals
+		expect(
+			await runCli(
+				[
+					'design-observe',
+					'--decision',
+					'dec-000000000002',
+					'--journal',
+					'journals/post.jsonl',
+					'--before-journal',
+					'a.jsonl',
+					'--before',
+					'b.jsonl',
+				],
+				h.io
+			)
+		).toBe(1);
+		expect(
+			await runCli(
+				[
+					'design-observe',
+					'dec-000000000002',
+					'--decision',
+					'dec-000000000002',
+					'--journal',
+					'journals/post.jsonl',
+				],
+				h.io
+			)
+		).toBe(1);
 	});
 });
 

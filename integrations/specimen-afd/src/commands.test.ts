@@ -582,6 +582,38 @@ function bench(): SpecimenCommandBench {
 			nextSteps: [],
 			unmeasured: [],
 		})),
+		designObserve: vi.fn(async (request) => ({
+			decision: request.decision,
+			releasedAt: '2030-05-12T00:00:00.000Z',
+			meantToFix: { job: 'checkout-out-of-stock', target: 'checkout.substitutes' },
+			status: 'improved' as const,
+			metrics: {
+				runs: 2,
+				completionRate: 1,
+				unexpectedFailures: 0,
+				repeats: 0,
+				outsideSteps: 0,
+				...(request.beforeJournal
+					? {
+							before: {
+								runs: 2,
+								completionRate: 0.5,
+								unexpectedFailures: 1,
+								repeats: 1,
+								outsideSteps: 1,
+							},
+						}
+					: {}),
+			},
+			note: 'Movement after release is observation, not proof of causation.',
+			unmeasured: [
+				{
+					area: 'perception-only-trouble',
+					reason: 'Command journals cannot observe visual friction.',
+					addToMeasure: 'Run panel-walk or panel-review.',
+				},
+			],
+		})),
 		patternFork: vi.fn(async (request) => ({
 			pattern: request.target ?? request.source.split('/')[1] ?? 'error-recovery',
 			path: `specimens/patterns/${request.target ?? 'error-recovery'}/pattern.json`,
@@ -825,6 +857,7 @@ describe('specimen commands', () => {
 			'panel-walk',
 			'design-card-list',
 			'design-release',
+			'design-observe',
 			'specimen-pattern-fork',
 			'specimen-pattern-compare',
 			'specimen-pattern-merge',
@@ -3276,6 +3309,30 @@ describe('specimen commands', () => {
 			confirmationMode: 'host-verified',
 			outputBudget: { defaultBytes: 16384, maxBytes: 49152 },
 		});
+		expect(byName('design-observe')).toMatchObject({
+			mutation: false,
+			outputBudget: { defaultBytes: 16384, maxBytes: 49152 },
+			errors: ['DECISION_NOT_FOUND', 'NOT_RELEASED', 'JOURNAL_NOT_FOUND'],
+		});
+
+		const observed = await executeSpecimenCommand(instance, 'design-observe', {
+			decision: 'dec-000000000002',
+			journal: 'journals/post-release.jsonl',
+			beforeJournal: 'journals/pre-release.jsonl',
+		});
+		expect(observed.success).toBe(true);
+		expect(observed.data).toMatchObject({
+			decision: 'dec-000000000002',
+			status: 'improved',
+			metrics: { runs: 2, completionRate: 1, before: { runs: 2 } },
+		});
+
+		const badObserve = await executeSpecimenCommand(instance, 'design-observe', {
+			decision: 'not-a-decision-id',
+			journal: 'journals/post-release.jsonl',
+		});
+		expect(badObserve.success).toBe(false);
+		expect(badObserve.error?.code).toBe('VALIDATION_ERROR');
 
 		const reviewed = await executeSpecimenCommand(instance, 'panel-review', {
 			change: 'checkout-fix',

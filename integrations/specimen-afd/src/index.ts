@@ -19,6 +19,8 @@ export {
 	decisionRecordResultSchema,
 	designCardListRequestSchema,
 	designCardListResultSchema,
+	designObserveRequestSchema,
+	designObserveResultSchema,
 	designReleaseRequestSchema,
 	designReleaseResultSchema,
 	gateRunSchema,

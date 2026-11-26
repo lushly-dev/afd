@@ -25,6 +25,15 @@ export const DESIGN_ALLOWED_OPTIONS: Record<string, Set<string>> = {
 		'limit',
 		'after',
 	]),
+	'design-observe': new Set([
+		'root',
+		'config',
+		'output',
+		'decision',
+		'journal',
+		'before-journal',
+		'before',
+	]),
 	'panel-walk': new Set([
 		'root',
 		'config',
@@ -416,6 +425,27 @@ export async function runDesignCliAction(
 			action: 'sample',
 			...(count !== undefined ? { count } : {}),
 			...(seed !== undefined ? { seed } : {}),
+		});
+	}
+	if (parsed.action === 'design-observe') {
+		if (parsed.options.has('before-journal') && parsed.options.has('before')) {
+			throw new Error('Pass --before-journal or --before for design-observe, not both.');
+		}
+		const hasDecisionFlag = parsed.options.has('decision');
+		const hasJournalFlag = parsed.options.has('journal');
+		const maxPositionals = (hasDecisionFlag ? 0 : 1) + (hasJournalFlag ? 0 : 1);
+		if (parsed.positionals.length > maxPositionals) {
+			throw new Error('Give decision/journal positionally or with --decision/--journal, not both.');
+		}
+		const decision = parsed.options.get('decision') ?? parsed.positionals[0];
+		const journal =
+			parsed.options.get('journal') ??
+			(hasDecisionFlag ? parsed.positionals[0] : parsed.positionals[1]);
+		const beforeJournal = parsed.options.get('before-journal') ?? parsed.options.get('before');
+		return executeSpecimenCommand(bench, 'design-observe', {
+			decision,
+			journal,
+			...(beforeJournal !== undefined ? { beforeJournal } : {}),
 		});
 	}
 	return undefined;
