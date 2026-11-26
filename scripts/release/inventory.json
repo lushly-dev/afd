@@ -1438,6 +1438,27 @@
 			]
 		},
 		{
+			"id": "loam-os-host",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "7ac50931f085e2917307f4fde3689969b61ecb60",
+			"authority": "none: new first-party binary crate (the Loam OS host, Umbel's host library with the loamos plugin compiled in) authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "loam-os-host",
+					"registry": "crates",
+					"manifest": "endpoints/loam-os/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "umbel-first-party",
 			"family": "umbel",
 			"protocol": "language-tag-v1",

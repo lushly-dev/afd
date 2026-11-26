@@ -1,0 +1,27 @@
+manifest_version = 1
+protocol = 1
+
+[plugin]
+id = "loamos"
+title = "Loam OS host"
+version = "0.1.0"
+description = "Makes and governs Linux machines for one piece of work each, and keeps their record outside them."
+kind = "compiled"
+domains = ["host", "machine", "run", "checkpoint"]
+
+[[grants]]
+name = "config"
+reason = "Reads the operator's configuration: the container runtime, repositories, images, sizes, network policies, capacity and retention."
+
+[[commands]]
+name = "host-status"
+description = "Show the host, its container runtime, its journal and everything a caller may ask for: repositories, images by digest, sizes, network policies, capacity and retention."
+effects = ["inspect"]
+input_schema = "schemas/host-status.input.json"
+category = "host"
+version = "1.0.0"
+first_class = true
+examples = [{ title = "Read the host", input = {} }]
+
+[config]
+schema = "schemas/config.schema.json"

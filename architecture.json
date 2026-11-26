@@ -412,6 +412,12 @@
 			"publicSurfaces": ["bin:umbel-first-party", "bin:umbel-knowledge", "bin:umbel-memory"]
 		},
 		{
+			"manifest": "endpoints/loam-os/Cargo.toml",
+			"family": "umbel",
+			"layer": "endpoint",
+			"publicSurfaces": ["bin:loam-os", "rust-library"]
+		},
+		{
 			"manifest": "endpoints/umbel/adapters/hook/Cargo.toml",
 			"family": "umbel",
 			"layer": "endpoint",
@@ -463,6 +469,7 @@
 			"assign": [
 				{ "match": "umbel", "sublayer": "host" },
 				{ "match": "umbel-first-party", "sublayer": "bundle" },
+				{ "match": "loam-os-host", "sublayer": "bundle" },
 				{ "match": "umbel-todo", "sublayer": "bundle" },
 				{ "match": "umbel-hook", "sublayer": "adapter" },
 				{ "match": "umbel-testkit-idp", "sublayer": "fixture" },

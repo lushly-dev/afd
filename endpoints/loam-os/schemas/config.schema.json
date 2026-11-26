@@ -1,0 +1,157 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"description": "The operator's configuration of a Loam OS host: everything a caller may ask for. A caller chooses among these names and can add none. Semantic rules a schema cannot state (references between entries, capacity bounds, the runtime answering) are the plugin's own check in workspace-doctor (plugins.config_checks)",
+	"type": "object",
+	"properties": {
+		"runtime": {
+			"type": "object",
+			"description": "The container runtime the host drives through its command line",
+			"properties": {
+				"kind": {
+					"type": "string",
+					"enum": ["docker", "podman"],
+					"default": "docker",
+					"description": "Which runtime's command line it speaks; both take the same arguments for what the host runs"
+				},
+				"command": {
+					"type": "string",
+					"minLength": 1,
+					"description": "The runtime's program, a name looked up on PATH or an absolute path. Defaults to the kind's name"
+				},
+				"timeout_ms": {
+					"type": "integer",
+					"minimum": 100,
+					"maximum": 60000,
+					"default": 5000,
+					"description": "How long one call to the runtime may take before the host treats it as unreachable"
+				}
+			},
+			"additionalProperties": false,
+			"default": {}
+		},
+		"images": {
+			"type": "object",
+			"description": "Session images by name. Each is pinned by digest and used only after pnpm verify --all on the base branch has passed in it",
+			"propertyNames": { "pattern": "^[a-z][a-z0-9-]{0,62}$" },
+			"additionalProperties": {
+				"type": "object",
+				"properties": {
+					"reference": {
+						"type": "string",
+						"minLength": 1,
+						"description": "The image by digest: <name>@sha256:<64 hex>, never a tag alone"
+					},
+					"toolchain": {
+						"type": "object",
+						"description": "The tool versions the image carries, by tool name, as host-status lists them for a lane to check a branch's pins against",
+						"additionalProperties": { "type": "string", "minLength": 1 }
+					}
+				},
+				"required": ["reference"],
+				"additionalProperties": false
+			},
+			"default": {}
+		},
+		"sizes": {
+			"type": "object",
+			"description": "Machine sizes by name: processors, memory and disk",
+			"propertyNames": { "pattern": "^[a-z][a-z0-9-]{0,62}$" },
+			"additionalProperties": {
+				"type": "object",
+				"properties": {
+					"cpus": { "type": "number", "exclusiveMinimum": 0 },
+					"memory_gb": { "type": "number", "exclusiveMinimum": 0 },
+					"disk_gb": { "type": "number", "exclusiveMinimum": 0 }
+				},
+				"required": ["cpus", "memory_gb", "disk_gb"],
+				"additionalProperties": false
+			},
+			"default": {}
+		},
+		"policies": {
+			"type": "object",
+			"description": "Network policies by name: the hosts the proxy lets a step reach. A policy with no hosts is no network at all",
+			"propertyNames": { "pattern": "^[a-z][a-z0-9-]{0,62}$" },
+			"additionalProperties": {
+				"type": "object",
+				"properties": {
+					"hosts": {
+						"type": "array",
+						"items": {
+							"type": "string",
+							"pattern": "^(\\*\\.)?[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$"
+						},
+						"uniqueItems": true,
+						"default": []
+					}
+				},
+				"additionalProperties": false
+			},
+			"default": {}
+		},
+		"repositories": {
+			"type": "object",
+			"description": "Repositories by name: where their commits come from, their base branch and the image and size their machines use",
+			"propertyNames": { "pattern": "^[a-z][a-z0-9-]{0,62}$" },
+			"additionalProperties": {
+				"type": "object",
+				"properties": {
+					"source": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Where the host fetches commits from into its own mirror: in M1 the lane's own repository on the same computer"
+					},
+					"base": { "type": "string", "minLength": 1, "default": "main" },
+					"image": { "type": "string", "description": "A name under images" },
+					"size": {
+						"type": "string",
+						"description": "The size a machine gets when the caller names none: a name under sizes"
+					},
+					"checkpoint_steps": {
+						"type": "array",
+						"description": "The steps a checkpoint is made from (M2), by label",
+						"items": { "type": "string", "minLength": 1 }
+					}
+				},
+				"required": ["source", "image", "size"],
+				"additionalProperties": false
+			},
+			"default": {}
+		},
+		"capacity": {
+			"type": "object",
+			"properties": {
+				"machines": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 1000,
+					"default": 1,
+					"description": "The most machines alive at once: a lane needs its slots plus one for a cell's own runs"
+				},
+				"disk_gb": {
+					"type": "number",
+					"exclusiveMinimum": 0,
+					"description": "The disk the host's machines may use in all"
+				},
+				"min_free_disk_gb": {
+					"type": "number",
+					"minimum": 0,
+					"default": 20,
+					"description": "Below this much free disk the host refuses a new machine with HOST_FULL"
+				}
+			},
+			"additionalProperties": false,
+			"default": {}
+		},
+		"retention": {
+			"type": "object",
+			"properties": {
+				"records_days": { "type": "integer", "minimum": 1, "maximum": 3650, "default": 30 },
+				"logs_days": { "type": "integer", "minimum": 1, "maximum": 3650, "default": 7 }
+			},
+			"additionalProperties": false,
+			"default": {}
+		}
+	},
+	"additionalProperties": false
+}

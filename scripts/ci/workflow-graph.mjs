@@ -59,6 +59,7 @@ export const GROUPS = {
 	health: ['endpoints/health/**'],
 	healthDashboard: ['endpoints/health-dashboard/**'],
 	umbel: ['endpoints/umbel/**', '!endpoints/umbel/docs/**'],
+	loamOs: ['endpoints/loam-os/**', '!endpoints/loam-os/image/**'],
 	loamCore: ['endpoints/loam/**', '!endpoints/loam/docs/**', '!endpoints/loam/plugins/**'],
 	loamWithScenarios: [
 		'endpoints/loam/**',
@@ -329,6 +330,7 @@ export const WORKFLOW_GRAPH = {
 		usesSetupAction: true,
 		groups: [
 			'umbel',
+			'loamOs',
 			'rust',
 			'todoExample',
 			'afdCli',

@@ -129,27 +129,99 @@ and ejects a branch the image cannot serve, as it does for `node-missing` today 
 
 ## Install the host as a service
 
-To be completed with [#2617](https://github.com/lushly-dev/afd/issues/2617), which builds the host
-binary. What is already known from the proposal's [host](../features/active/loam-os/loam-os.proposal.md#the-host):
+The host is the `loam-os` binary ([`endpoints/loam-os`](../../endpoints/loam-os/README.md)):
+Umbel's command line with the `loamos` plugin compiled in. It serves MCP over HTTP on loopback, on
+port 7420 here so it does not take Umbel's default 7410 from an Umbel server on the same computer.
+Callers present the bearer token Umbel keeps in the workspace's state (`state/keys/http.token`,
+mode 0600). In M0 its command line opens the workspace itself, as Umbel's does; forwarding each
+call to the running host is M1's ([The host](../features/active/loam-os/loam-os.proposal.md#the-host)).
 
-- The host is a binary with its own `main`, built on Umbel's host library. It serves its commands
-  over HTTP on loopback only, and the operator's command line forwards to the running host rather
-  than opening a second copy.
-- Callers present the bearer token Umbel keeps in the host's state directory.
-- Machine and run records live with the host, outside the runtime, on space reserved apart from
-  the journal's ([The record](../features/active/loam-os/loam-os.proposal.md#the-record)). When
-  it starts, and when the runtime comes back, the host compares its records with what the runtime
-  has, and a restart rebuilds from them and the runtime.
-- The operator's configuration names the repositories, images by digest, sizes, network
-  policies, the number of machines, their disk and how long records are kept. Umbel validates it
-  against the plugin's schema, and `workspace-doctor` (or `host-status`) runs the semantic checks.
-- M0's exit is that `host-status` answers on the lane host (reporting Umbel's default journal
-  mode until M1) and names this image by digest, and that `pnpm verify --all` on `main` passes in
-  a container started from that image, with its duration recorded.
+Run it as an ordinary account that can reach the container runtime, never as root, and never with
+the runtime's socket mounted into a machine. That account is only as unprivileged as the runtime
+lets it be: on Linux, membership of the `docker` group for rootful Docker is equivalent to root, so
+use rootless Podman or rootless Docker where the boundary matters. On macOS, Docker Desktop's
+runtime runs in its own virtual machine.
 
-Expected here, though the proposal does not say it: the service runs as an ordinary account that
-can reach the container runtime (a `launchd` agent on the lane host `random`, a `systemd` unit on
-Linux), starts after the runtime, and restarts on failure.
+The service files below have not been run yet, neither on the lane host nor on Linux. Only
+`serve --http --bind 127.0.0.1:7420` has been run (on Windows, 2026-11-26). Record the first
+install's result in the [Loam OS status](../features/active/loam-os/STATUS.md).
 
-The unit file or plist, the configuration's path and the install and upgrade commands are added
-here with #2617.
+### Build and configure
+
+```sh
+cd endpoints/loam-os
+cargo install --path . --locked --root ~/.local   # installs ~/.local/bin/loam-os
+mkdir -p ~/loam-os && cp examples/umbel.toml ~/loam-os/umbel.toml
+```
+
+In `~/loam-os/umbel.toml`, set the image's `reference` to the digest pinned above, each repository's
+`source`, the sizes, the policies and `capacity`. Under `[plugins.loamos.config.runtime]`, set
+`kind = "podman"` on a Podman host (the default is `docker`), and set `command` to the runtime's
+absolute path so the service does not depend on its `PATH` (Docker Desktop's per-user install puts
+it in `~/.docker/bin`). Then check it:
+
+```sh
+loam-os --workspace ~/loam-os call workspace-doctor   # plugins.config_checks must pass
+loam-os --workspace ~/loam-os call host-status        # runtime.reachable: true, the image by digest
+```
+
+### macOS (the lane host): a launchd agent
+
+`~/Library/LaunchAgents/dev.lushly.loam-os.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>dev.lushly.loam-os</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/OPERATOR/.local/bin/loam-os</string>
+    <string>--workspace</string><string>/Users/OPERATOR/loam-os</string>
+    <string>serve</string><string>--http</string>
+    <string>--bind</string><string>127.0.0.1:7420</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardErrorPath</key><string>/Users/OPERATOR/loam-os/host.log</string>
+</dict>
+</plist>
+```
+
+Replace `OPERATOR`, and make sure `PATH` reaches the runtime's `docker` or `podman`. Then
+`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.lushly.loam-os.plist`. Docker Desktop
+must start at login before the agent's first call. Until it does, `host-status` answers
+`reachable: false`, and the doctor warns.
+
+### Linux: a systemd user unit
+
+`~/.config/systemd/user/loam-os.service`:
+
+```ini
+[Unit]
+Description=Loam OS host
+# The runtime may start after the host: host-status answers `reachable: false` until it does.
+After=podman.socket
+
+[Service]
+ExecStart=%h/.local/bin/loam-os --workspace %h/loam-os serve --http --bind 127.0.0.1:7420
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+Run `systemctl --user daemon-reload && systemctl --user enable --now loam-os`, and
+`loginctl enable-linger <account>` so the unit runs without a session.
+
+### Upgrade
+
+Build and install the new binary as above, restart the service (`launchctl kickstart -k
+gui/$(id -u)/dev.lushly.loam-os`, or `systemctl --user restart loam-os`), then run
+`workspace-doctor` and `host-status` again. M0 keeps no records of machines, so a restart loses
+nothing. From M1 a restart rebuilds from the host's records and the runtime
+([The record](../features/active/loam-os/loam-os.proposal.md#the-record)).

@@ -1,0 +1,47 @@
+# A Loam OS host's workspace configuration: one repository on one pinned image. The host reads
+# only [plugins.loamos.config]; the rest is Umbel's (endpoints/umbel/README.md). Replace the
+# digest with the one `docker buildx build` printed for the image that passed `pnpm verify --all`
+# (docs/operations/loam-os-image.md).
+config_version = 7
+default_space = "main"
+
+[spaces.main]
+
+[plugins]
+enabled = ["loamos"]
+
+[plugins.loamos]
+source = "compiled:loamos"
+
+[plugins.loamos.config.runtime]
+kind = "docker"
+
+[plugins.loamos.config.images.session]
+reference = "loam-os-session@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+toolchain = { node = "26.13.1", pnpm = "12.22.0", rust = "1.100.0" }
+
+[plugins.loamos.config.sizes.lane]
+cpus = 8
+memory_gb = 16
+disk_gb = 60
+
+[plugins.loamos.config.policies.none]
+hosts = []
+
+[plugins.loamos.config.policies.registries]
+hosts = ["registry.npmjs.org", "index.crates.io", "static.crates.io", "pypi.org", "files.pythonhosted.org", "cdn.playwright.dev"]
+
+[plugins.loamos.config.repositories.afd]
+source = "/srv/factory/afd"
+base = "main"
+image = "session"
+size = "lane"
+
+[plugins.loamos.config.capacity]
+machines = 3
+disk_gb = 400
+min_free_disk_gb = 50
+
+[plugins.loamos.config.retention]
+records_days = 30
+logs_days = 7

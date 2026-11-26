@@ -688,39 +688,66 @@ export const SUITES = [
 				"run": "cargo test --no-fail-fast --locked -p umbel-store -p umbel-store-embedded"
 			},
 			{
+				"gate": "loamos",
+				"cwd": "endpoints/loam-os",
+				"run": "cargo fmt --all --check"
+			},
+			{
+				"gate": "loamos",
+				"cwd": "endpoints/loam-os",
+				"run": "cargo clippy --locked --all-targets -- -D warnings"
+			},
+			{
+				"gate": "loamos",
+				"cwd": "endpoints/loam-os",
+				"run": "cargo test --no-fail-fast --locked"
+			},
+			{
+				"gate": "conformance",
 				"run": "pnpm -F \"@lushly-dev/afd-cli...\" build"
 			},
 			{
+				"gate": "conformance",
 				"run": "pnpm --filter @afd/example-todo test:conformance:umbel"
 			},
 			{
+				"gate": "conformance",
 				"run": "pnpm --filter @afd/example-todo test:conformance:umbel --mode modern"
 			},
 			{
+				"gate": "conformance",
 				"run": "pnpm --filter @afd/example-todo test:conformance:umbel --suite confirmations --mode modern"
 			},
 			{
+				"gate": "conformance",
 				"run": "pnpm --filter @afd/example-todo test:conformance:umbel --suite approvals"
 			},
 			{
+				"gate": "conformance",
 				"run": "pnpm --filter @afd/example-todo test:conformance:umbel --suite approvals --mode modern"
 			},
 			{
+				"gate": "conformance",
 				"run": "pnpm --filter @afd/example-todo test:conformance:umbel-mounted"
 			},
 			{
+				"gate": "conformance",
 				"run": "pnpm --filter @afd/example-todo test:conformance:umbel-mounted --mode modern"
 			},
 			{
+				"gate": "conformance",
 				"run": "pnpm --filter @afd/example-todo test:conformance:umbel-mounted --suite confirmations --mode modern"
 			},
 			{
+				"gate": "conformance",
 				"run": "pnpm --filter @afd/example-todo test:conformance:umbel-mounted --suite approvals"
 			},
 			{
+				"gate": "conformance",
 				"run": "pnpm --filter @afd/example-todo test:conformance:umbel-mounted --suite approvals --mode modern"
 			},
 			{
+				"gate": "conformance",
 				"run": "bash endpoints/umbel/tests/scripts/external-clients.sh"
 			}
 		]

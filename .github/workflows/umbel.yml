@@ -6,6 +6,8 @@ on:
     paths:
       - 'endpoints/umbel/**'
       - '!endpoints/umbel/docs/**'
+      - 'endpoints/loam-os/**'
+      - '!endpoints/loam-os/image/**'
       - 'packages/rust/**'
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
@@ -32,6 +34,8 @@ on:
     paths:
       - 'endpoints/umbel/**'
       - '!endpoints/umbel/docs/**'
+      - 'endpoints/loam-os/**'
+      - '!endpoints/loam-os/image/**'
       - 'packages/rust/**'
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
@@ -86,6 +90,8 @@ jobs:
     timeout-minutes: 5
     outputs:
       host: ${{ steps.host.outputs.run }}
+      loamos: ${{ steps.loamos.outputs.run }}
+      conformance: ${{ steps.conformance.outputs.run }}
     env:
       AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
       AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'merge_group') && 'affected' || 'all' }}
@@ -96,6 +102,14 @@ jobs:
           filter: blob:none
       - id: host
         run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path packages/examples/todo/backends/rust/ --path foundations/specimen/defaults/pack/ --path foundations/specimen/fixtures/pack/ --path foundations/specimen/schema/pack/ --path foundations/specimen/docs/pack-format.md --path foundations/fast-af/packages/violet-elements/pack/ --path foundations/fast-af/packages/violet-elements/specimen.config.json --path foundations/fast-af/packages/violet-elements/package.json --path .cargo/config.toml --path architecture.json --path .github/workflows/umbel.yml
+      # The conformance job checks Umbel against AFD's clients; the Loam OS host is downstream of
+      # Umbel and changes nothing it runs. These are the workflow's own paths without it.
+      - id: conformance
+        run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path packages/examples/todo/ --path packages/cli/ --path packages/client/ --path packages/core/ --path packages/server/ --path packages/testing/ --path .cargo/config.toml --path foundations/specimen/defaults/pack/ --path foundations/specimen/fixtures/pack/ --path foundations/specimen/schema/pack/ --path foundations/specimen/docs/pack-format.md --path foundations/fast-af/packages/violet-elements/pack/ --path foundations/fast-af/packages/violet-elements/specimen.config.json --path foundations/fast-af/packages/violet-elements/package.json --path architecture.json --path .github/workflows/umbel.yml --path .github/workflows/queue.yml --path .github/actions/setup-node-pnpm/
+      # The Loam OS host builds on Umbel's crates and the afd crate, so a change to either checks it
+      # too; its session image (endpoints/loam-os/image/) is no Rust and runs nothing here.
+      - id: loamos
+        run: node scripts/affected.mjs gate --path endpoints/loam-os/ --except endpoints/loam-os/image/ --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/umbel.yml
 
   check:
     name: Umbel (fmt, clippy, test)
@@ -154,6 +168,33 @@ jobs:
       # results of the binaries after it.
       - name: Test
         run: cargo test --locked --no-fail-fast --workspace --exclude umbel-store-embedded --exclude umbel-okf --exclude umbel-scan --exclude umbel-plugin-sources-filesystem --exclude umbel-plugin-knowledge --exclude umbel-plugin-memory --exclude umbel-plugin-context --exclude umbel-plugin-components --exclude umbel-plugin-ideas --exclude umbel-plugin-curator --exclude umbel-first-party --exclude umbel-hook
+
+  loam-os:
+    name: Loam OS host (fmt, clippy, test)
+    needs: scope
+    if: needs.scope.outputs.loamos == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: endpoints/loam-os
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: endpoints/loam-os
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --no-fail-fast --locked
 
   msrv:
     name: Umbel (MSRV 1.97)
@@ -329,8 +370,8 @@ jobs:
   # section 13, exit runs 3 and 4 and the external client check).
   conformance:
     name: Umbel (todo conformance, mounted run, AFD clients)
-    needs: queue
-    if: needs.queue.outputs.run == 'true'
+    needs: scope
+    if: needs.scope.outputs.conformance == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
