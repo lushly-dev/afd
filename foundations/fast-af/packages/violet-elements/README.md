@@ -41,9 +41,7 @@ Those belong in the product repo.
 
 ## Direction
 
-This package is the preferred destination for new reusable components.
-
-The older `packages/components` package remains available as a Fluent-era legacy/reference layer, but it is not the golden path for new platform work.
+This package is the destination for reusable Violet components; the upstream legacy reference components were not imported into AFD.
 
 ## Package Entry Points
 

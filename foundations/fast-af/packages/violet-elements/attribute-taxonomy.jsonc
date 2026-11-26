@@ -4,7 +4,7 @@
   "purpose": [
     "Keep attribute names stable across components.",
     "Prevent the same name from drifting into multiple meanings.",
-    "Prefer native HTML and Fluent-familiar naming when it reduces surprise.",
+    "Prefer native HTML names, and names users of common component libraries already know, when that reduces surprise.",
     "Provide structured input for component linting and contract validation."
   ],
   "rules": [
