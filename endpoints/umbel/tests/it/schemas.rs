@@ -26,7 +26,7 @@ use umbel::plugins::{Manifest, PackManifest};
 use umbel::provenance::Envelope;
 use umbel::workspace::ConfigFile;
 
-const STEMS: [&str; 52] = [
+const STEMS: [&str; 54] = [
     "workspace-config.v1",
     "workspace-config.v2",
     "workspace-config.v3",
@@ -79,6 +79,8 @@ const STEMS: [&str; 52] = [
     "person-decision.v2",
     "provenance-envelope.v4",
     "plugin-manifest.v7",
+    "store-backup.v1",
+    "workspace-backup.v1",
 ];
 
 fn schemas_dir() -> PathBuf {
@@ -109,7 +111,7 @@ impl Retrieve for Siblings {
     }
 }
 
-fn validator(stem: &str) -> Validator {
+pub(crate) fn validator(stem: &str) -> Validator {
     let siblings = STEMS
         .iter()
         .map(|stem| {

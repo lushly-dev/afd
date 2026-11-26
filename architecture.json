@@ -324,7 +324,9 @@
 				"event-view-1",
 				"protected-resource-1",
 				"record-probes-1",
-				"record-eval-report-1"
+				"record-eval-report-1",
+				"store-backup-1",
+				"workspace-backup-1"
 			]
 		},
 		{

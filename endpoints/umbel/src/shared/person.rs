@@ -718,32 +718,6 @@ fn json_text(value: &impl serde::Serialize) -> Result<String, SharedError> {
     serde_json::to_string(value).map_err(|error| failed(&error))
 }
 
-/// Migrate a version 1 store to version 2 under the write lock, reading the version again inside
-/// it: of two processes that open a version 1 file at once, the second finds it migrated.
-fn migrate_from_1(connection: &Connection) -> rusqlite::Result<()> {
-    connection.execute_batch("BEGIN IMMEDIATE")?;
-    let migrated = (|| {
-        let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        if version == 1 {
-            connection.execute_batch(&format!(
-                "ALTER TABLE decisions ADD COLUMN pages_total INTEGER;
-                 ALTER TABLE decisions ADD COLUMN pages TEXT NOT NULL DEFAULT '[]';
-                 ALTER TABLE decisions ADD COLUMN excluded TEXT NOT NULL DEFAULT '[]';
-                 ALTER TABLE logins ADD COLUMN namespace TEXT;
-                 PRAGMA user_version = {SCHEMA_VERSION};"
-            ))?;
-        }
-        Ok(())
-    })();
-    match migrated {
-        Ok(()) => connection.execute_batch("COMMIT"),
-        Err(error) => {
-            let _ = connection.execute_batch("ROLLBACK");
-            Err(error)
-        }
-    }
-}
-
 impl SqlitePerson {
     /// The store at `path`, waiting up to `lock_timeout_ms` for another process's write. Nothing
     /// is opened until the first use.
@@ -850,7 +824,8 @@ impl SqlitePerson {
                 .execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))
                 .map_err(|error| unwritable(&error))?,
             // Version 1 had no pages and no list logins: its rows read as having rendered none.
-            1 => migrate_from_1(&connection).map_err(|error| unwritable(&error))?,
+            1 => super::person_migration::migrate_from_1(&connection, path, SCHEMA_VERSION)
+                .map_err(|error| unwritable(&error))?,
             SCHEMA_VERSION => {}
             other => {
                 return Err(unwritable(&format!(
@@ -2029,6 +2004,21 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
+        // The copy taken before the migration (D214) is the version 1 store with its row.
+        let copy = Connection::open(
+            dir.path()
+                .join("shared")
+                .join("person.sqlite3.v1.pre-migration"),
+        )
+        .unwrap();
+        let (version, rows): (i64, i64) = copy
+            .query_row(
+                "SELECT (SELECT user_version FROM pragma_user_version), count(*) FROM decisions",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((version, rows), (1, 1));
     }
 
     #[test]

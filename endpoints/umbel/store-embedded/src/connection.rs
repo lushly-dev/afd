@@ -55,7 +55,7 @@ impl Pool {
         let timeout = Duration::from_millis(options.lock_timeout_ms);
         let turn = crate::limit::enter(limit.as_ref(), timeout)?;
         let mut conn = connect(&path, timeout).map_err(StoreError::from)?;
-        initialise(&mut conn, space, timeout).map_err(StoreError::from)?;
+        initialise(&mut conn, &path, space, timeout).map_err(StoreError::from)?;
         drop(turn);
         Ok(Self {
             path,
@@ -138,7 +138,14 @@ fn connect(path: &Path, timeout: Duration) -> Result<Connection, Fail> {
 
 /// Switch to WAL, then create, migrate or check the schema under a write transaction, so two
 /// processes opening a fresh store, or one at an earlier version, at once do not both write it.
-fn initialise(conn: &mut Connection, space: &str, timeout: Duration) -> Result<(), Fail> {
+/// A store at an earlier version is copied beside itself under that lock before it is migrated
+/// (D214); when the copy fails, nothing is migrated and the open fails.
+fn initialise(
+    conn: &mut Connection,
+    path: &Path,
+    space: &str,
+    timeout: Duration,
+) -> Result<(), Fail> {
     let deadline = Instant::now() + timeout;
     loop {
         // `journal_mode` is persistent; switching needs a brief exclusive lock, which another
@@ -170,6 +177,9 @@ fn initialise(conn: &mut Connection, space: &str, timeout: Duration) -> Result<(
                 supported: SCHEMA_VERSION,
             }
             .into());
+        }
+        if version > 0 && version < SCHEMA_VERSION {
+            crate::migration_copy::copy_before_migration(path, version)?;
         }
         if version == 0 {
             tx.execute_batch(SCHEMA)?;

@@ -75,7 +75,7 @@ fn missing_from_journal(
     Ok(missing)
 }
 
-fn run(
+pub(super) fn run(
     workspace: &Workspace,
     stores: &Hub,
     space: &str,

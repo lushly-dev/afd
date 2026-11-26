@@ -1,0 +1,86 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/workspace-backup.v1.json",
+	"title": "Umbel workspace backup manifest, version 1",
+	"description": "manifest.json of a directory workspace-backup writes (D214): every file the host keeps in state/ but its key files, each with its kind, size and SHA-256, and each key file named with what is lost without it. workspace-restore reads it.",
+	"type": "object",
+	"required": ["version", "scope", "createdAt", "config", "spaces", "files", "keys", "derived"],
+	"additionalProperties": false,
+	"properties": {
+		"version": { "const": 1 },
+		"scope": { "const": "workspace" },
+		"createdAt": { "type": "string", "minLength": 1, "description": "ISO 8601" },
+		"config": {
+			"type": "object",
+			"required": ["sha256"],
+			"additionalProperties": false,
+			"properties": {
+				"sha256": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"description": "umbel.toml as the backup was taken; it is not copied"
+				}
+			}
+		},
+		"spaces": {
+			"type": "array",
+			"description": "The declared spaces whose stores are in the backup, under spaces/<space>/ as a store backup lays them out",
+			"items": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" }
+		},
+		"files": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": ["path", "kind", "bytes", "sha256"],
+				"additionalProperties": false,
+				"properties": {
+					"path": {
+						"type": "string",
+						"pattern": "^(state|spaces)/[^.][^\\\\]*$",
+						"description": "Relative to the backup directory: state/<path> goes back to the same path in the workspace, spaces/<space>/<file> to that space's stores"
+					},
+					"kind": {
+						"enum": [
+							"journal",
+							"pending",
+							"events",
+							"cursors",
+							"shared",
+							"usage",
+							"state",
+							"store",
+							"memory",
+							"index"
+						],
+						"description": "journal, pending, events and cursors are copied as one cut under the workspace lock; shared, usage and every *.sqlite3 file with VACUUM INTO; store, memory and index as store-backup copies a space"
+					},
+					"bytes": { "type": "integer", "minimum": 0 },
+					"sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+				}
+			}
+		},
+		"keys": {
+			"type": "array",
+			"description": "Every key file in state/keys/ and each space's memory.keys: never copied",
+			"items": {
+				"type": "object",
+				"required": ["path", "handling", "effect"],
+				"additionalProperties": false,
+				"properties": {
+					"path": { "type": "string", "pattern": "^state/" },
+					"handling": { "const": "excluded" },
+					"effect": {
+						"type": "string",
+						"minLength": 1,
+						"description": "What is lost when the key file is"
+					}
+				}
+			}
+		},
+		"derived": {
+			"type": "array",
+			"description": "What a backup leaves out because the host rebuilds it",
+			"items": { "type": "string", "minLength": 1 }
+		}
+	}
+}

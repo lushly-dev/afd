@@ -440,6 +440,18 @@ impl HostBuilder {
                 Arc::clone(&workspace),
                 Arc::clone(&stores),
             ));
+            builtins.push(commands::store_restore(
+                Arc::clone(&workspace),
+                Arc::clone(&stores),
+            ));
+            builtins.push(commands::workspace_backup(
+                Arc::clone(&workspace),
+                Arc::clone(&stores),
+            ));
+            builtins.push(commands::workspace_restore(
+                Arc::clone(&workspace),
+                Arc::clone(&stores),
+            ));
             builtins.push(commands::store_records_reindex(
                 Arc::clone(&workspace),
                 Arc::clone(&stores),

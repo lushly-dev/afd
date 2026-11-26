@@ -280,6 +280,9 @@ async fn store_backup_copies_the_stores_with_a_manifest_of_digests() {
     let backup = dir.path().join("backups/one");
     let manifest: Value =
         serde_json::from_slice(&std::fs::read(backup.join("manifest.json")).unwrap()).unwrap();
+    if let Err(error) = crate::schemas::validator("store-backup.v1").validate(&manifest) {
+        panic!("{error}: {manifest}");
+    }
     assert_eq!(manifest["version"], 1);
     assert_eq!(manifest["space"], "main");
     let files = manifest["files"].as_array().unwrap();
@@ -318,6 +321,196 @@ async fn store_backup_copies_the_stores_with_a_manifest_of_digests() {
         .query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
         .unwrap();
     assert_eq!(documents, 2);
+}
+
+/// What a reader sees of `main`: the documents, the changes, a search and the stores' state.
+async fn reads(host: &Host) -> Value {
+    let mut seen = serde_json::Map::new();
+    for (op, args) in [
+        ("doc-list", json!({})),
+        ("doc-changes", json!({})),
+        ("index-search", json!({"text": "alpha"})),
+        ("index-applied", json!({})),
+        ("graph-applied", json!({})),
+    ] {
+        let outcome = call(
+            host,
+            agent("reader"),
+            "sp-read",
+            json!({"op": op, "args": args}),
+        )
+        .await;
+        assert!(outcome.success, "{op}: {outcome:?}");
+        seen.insert(op.to_owned(), outcome.data.unwrap()["result"].clone());
+    }
+    let shown = call(host, human(), "store-show", json!({})).await;
+    let shown = shown.data.unwrap();
+    for key in ["head", "counts", "index", "graph"] {
+        let mut value = shown[key].clone();
+        if let Some(index) = value.as_object_mut() {
+            // Sizes and segment layout are the copy's own; what they hold is compared above.
+            index.retain(|k, _| !k.ends_with("Bytes") && k != "segments");
+        }
+        seen.insert(format!("store-show.{key}"), value);
+    }
+    Value::Object(seen)
+}
+
+#[tokio::test]
+async fn store_restore_puts_a_backup_back_and_reads_the_same() {
+    let dir = workspace();
+    let host = seeded(dir.path(), T0).await;
+    let before = reads(&host).await;
+    let backup = call(
+        &host,
+        human(),
+        "store-backup",
+        json!({"path": "backups/one"}),
+    )
+    .await;
+    assert!(backup.success, "{backup:?}");
+    // A restore over the live stores is refused, and writes nothing.
+    let refused = call(
+        &host,
+        human(),
+        "store-restore",
+        json!({"path": "backups/one"}),
+    )
+    .await;
+    assert_eq!(refused.error.unwrap().code, "STORE_RESTORE_NOT_EMPTY");
+    drop(host);
+    // The space is lost.
+    let space = dir.path().join("state/spaces/main");
+    std::fs::remove_dir_all(space.join("store")).unwrap();
+    std::fs::remove_dir_all(space.join("index")).unwrap();
+    let host = host_at(dir.path(), T0, StoreProbe::new());
+    let restored = call(
+        &host,
+        human(),
+        "store-restore",
+        json!({"path": "backups/one"}),
+    )
+    .await;
+    assert!(restored.success, "{restored:?}");
+    let data = restored.data.clone().unwrap();
+    assert_eq!(data["healthy"], true, "{data}");
+    assert_eq!(data["memory"], false);
+    assert_eq!(data["memoryKeys"], "none");
+    assert_eq!(reads(&host).await, before);
+    assert!(!space.join(".restore-staging").exists());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(space.join("store/store.sqlite3"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o077, 0, "the restored store is private");
+    }
+    // It writes after the restore as before it.
+    put(&host, "notes/c", json!(["space"])).await;
+    // It is a mutation that is not projected into an event.
+    assert!(
+        support::events(dir.path(), "main")
+            .iter()
+            .all(|e| e["command"] != "store-restore")
+    );
+}
+
+#[tokio::test]
+async fn store_restore_refuses_a_damaged_backup_and_writes_nothing() {
+    let dir = workspace();
+    let host = seeded(dir.path(), T0).await;
+    let backup = call(
+        &host,
+        human(),
+        "store-backup",
+        json!({"path": "backups/one"}),
+    )
+    .await;
+    assert!(backup.success, "{backup:?}");
+    drop(host);
+    let space = dir.path().join("state/spaces/main");
+    std::fs::remove_dir_all(space.join("store")).unwrap();
+    std::fs::remove_dir_all(space.join("index")).unwrap();
+    let copy = dir.path().join("backups/one");
+    let manifest_path = copy.join("manifest.json");
+    let manifest = std::fs::read(&manifest_path).unwrap();
+    let host = host_at(dir.path(), T0, StoreProbe::new());
+    let restore = |path: &'static str| {
+        let host = &host;
+        async move { call(host, human(), "store-restore", json!({"path": path})).await }
+    };
+    let code = |outcome: CommandResult<Value>| outcome.error.unwrap().code;
+    // A byte changed in an index file: its digest fails, and nothing is left behind.
+    let index_file = std::fs::read_dir(copy.join("index/v2"))
+        .unwrap()
+        .flatten()
+        .find(|entry| entry.path().extension().is_some_and(|ext| ext == "idx"))
+        .unwrap()
+        .path();
+    let original = std::fs::read(&index_file).unwrap();
+    let mut changed = original.clone();
+    changed[0] ^= 0xff;
+    std::fs::write(&index_file, &changed).unwrap();
+    assert_eq!(code(restore("backups/one").await), "STORE_BACKUP_DAMAGED");
+    assert!(!space.join("store/store.sqlite3").exists());
+    assert!(
+        std::fs::read_dir(space.join("index/v2"))
+            .map(|mut dir| dir.next().is_none())
+            .unwrap_or(true)
+    );
+    std::fs::write(&index_file, &original).unwrap();
+    // The same bytes behind a link: a restore reads only regular files inside the backup.
+    #[cfg(unix)]
+    {
+        let outside = dir.path().join("outside.idx");
+        std::fs::write(&outside, &original).unwrap();
+        std::fs::remove_file(&index_file).unwrap();
+        std::os::unix::fs::symlink(&outside, &index_file).unwrap();
+        assert_eq!(code(restore("backups/one").await), "STORE_BACKUP_DAMAGED");
+        std::fs::remove_file(&index_file).unwrap();
+        std::fs::write(&index_file, &original).unwrap();
+    }
+    // A rollback journal left from the database that was there would be applied over the copy.
+    std::fs::create_dir_all(space.join("store")).unwrap();
+    let stale = space.join("store/store.sqlite3-journal");
+    std::fs::write(&stale, b"stale").unwrap();
+    assert_eq!(
+        code(restore("backups/one").await),
+        "STORE_RESTORE_NOT_EMPTY"
+    );
+    std::fs::remove_file(&stale).unwrap();
+    // A manifest that names a file outside the backup, of another space, or of another version.
+    let edited = |edit: &dyn Fn(&mut Value)| {
+        let mut value: Value = serde_json::from_slice(&manifest).unwrap();
+        edit(&mut value);
+        std::fs::write(&manifest_path, serde_json::to_vec(&value).unwrap()).unwrap();
+    };
+    edited(&|m| m["files"][0]["path"] = json!("../../umbel.toml"));
+    assert_eq!(code(restore("backups/one").await), "STORE_BACKUP_DAMAGED");
+    edited(&|m| m["files"][0]["path"] = json!("state.json"));
+    assert_eq!(code(restore("backups/one").await), "STORE_BACKUP_DAMAGED");
+    edited(&|m| m["space"] = json!("other"));
+    assert_eq!(
+        code(restore("backups/one").await),
+        "STORE_RESTORE_SPACE_MISMATCH"
+    );
+    edited(&|m| m["version"] = json!(2));
+    assert_eq!(
+        code(restore("backups/one").await),
+        "STORE_BACKUP_UNSUPPORTED"
+    );
+    // A path outside the workspace, in state/ or absent.
+    for path in ["../elsewhere", "state/spaces", "backups/none"] {
+        let refused = call(&host, human(), "store-restore", json!({"path": path})).await;
+        assert_eq!(refused.error.unwrap().code, "VALIDATION_ERROR", "{path}");
+    }
+    assert!(!space.join("store/store.sqlite3").exists());
+    // As written, it restores.
+    std::fs::write(&manifest_path, &manifest).unwrap();
+    let restored = restore("backups/one").await;
+    assert!(restored.success, "{restored:?}");
 }
 
 #[tokio::test]
@@ -566,6 +759,353 @@ mod memory {
             "{}",
             run.stdout
         );
+    }
+
+    async fn show(host: &Host, id: String) -> Value {
+        let outcome = call(
+            host,
+            ada(),
+            "mem-read",
+            json!({ "space": "main", "args": { "op": "show", "id": id } }),
+        )
+        .await;
+        assert!(outcome.success, "{outcome:?}");
+        outcome.data.unwrap()["result"].clone()
+    }
+
+    #[tokio::test]
+    async fn store_restore_puts_memory_back_and_reads_it_with_the_key_file_kept_apart() {
+        let dir = support::workspace(&memory_config("", ""));
+        let host = memory_host(dir.path());
+        let first = remember(&host, 1).await;
+        let second = remember(&host, 2).await;
+        let before = (
+            show(&host, first.clone()).await,
+            show(&host, second.clone()).await,
+        );
+        drop(host);
+        let run = store_cli(dir.path(), &["store", "backup", "path=backups/one"]).await;
+        assert_eq!(run.code, 0, "{}", run.stdout);
+        // The space is lost but for the key file, which the deployer keeps apart (D82).
+        let store = store_dir(dir.path());
+        let keys = std::fs::read(store.join("memory.keys")).unwrap();
+        std::fs::remove_dir_all(&store).unwrap();
+        std::fs::remove_dir_all(dir.path().join("state/spaces/main/index")).unwrap();
+        // Restored without it, memory is in place and the result says what is missing.
+        let run = store_cli(dir.path(), &["store", "restore", "path=backups/one"]).await;
+        let value = run.json();
+        assert_eq!(value["data"]["memory"], true, "{value}");
+        assert_eq!(value["data"]["memoryKeys"], "missing", "{value}");
+        assert!(
+            value["warnings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|w| w["code"] == "MEMORY_KEYS_MISSING"),
+            "{value}"
+        );
+        // With the key file back, memory reads as before, its index rebuilt on open.
+        std::fs::write(store.join("memory.keys"), &keys).unwrap();
+        let healthy = store_cli(dir.path(), &["store", "check"]).await;
+        assert_eq!(healthy.code, 0, "{}", healthy.stdout);
+        let host = memory_host(dir.path());
+        assert_eq!(
+            (show(&host, first).await, show(&host, second).await),
+            before
+        );
+    }
+
+    /// Every file under `dir`, by its path relative to it.
+    fn files_under(dir: &Path) -> Vec<String> {
+        let mut found = Vec::new();
+        let mut stack = vec![dir.to_path_buf()];
+        while let Some(next) = stack.pop() {
+            for entry in std::fs::read_dir(&next).into_iter().flatten().flatten() {
+                if entry.path().is_dir() {
+                    stack.push(entry.path());
+                } else {
+                    let relative = entry.path().strip_prefix(dir).unwrap().to_path_buf();
+                    found.push(relative.to_string_lossy().replace('\\', "/"));
+                }
+            }
+        }
+        found.sort();
+        found
+    }
+
+    #[tokio::test]
+    async fn workspace_restore_puts_a_workspace_backup_back_into_a_new_workspace() {
+        let dir = support::workspace(&memory_config("", ""));
+        let host = memory_host(dir.path());
+        let first = remember(&host, 1).await;
+        let second = remember(&host, 2).await;
+        let before = (
+            show(&host, first.clone()).await,
+            show(&host, second.clone()).await,
+        );
+        drop(host);
+        let events_before = support::events(dir.path(), "main");
+        assert!(!events_before.is_empty());
+        // As `umbel init` leaves it, with a cursor temporary a reader left mid-write.
+        std::fs::write(dir.path().join("state/.gitignore"), "*\n").unwrap();
+        let cursors = dir.path().join("state/spaces/main/cursors");
+        std::fs::create_dir_all(&cursors).unwrap();
+        std::fs::write(cursors.join(".abc.1.t.tmp"), b"{").unwrap();
+        let run = store_cli(dir.path(), &["workspace", "backup", "path=backups/w"]).await;
+        assert_eq!(run.code, 0, "{}", run.stdout);
+        let value = run.json();
+        assert_eq!(
+            value["warnings"][0]["code"], "MEMORY_KEYS_NOT_BACKED_UP",
+            "{value}"
+        );
+        let backup = dir.path().join("backups/w");
+        let manifest: Value =
+            serde_json::from_slice(&std::fs::read(backup.join("manifest.json")).unwrap()).unwrap();
+        if let Err(error) = crate::schemas::validator("workspace-backup.v1").validate(&manifest) {
+            panic!("{error}: {manifest}");
+        }
+        // The journal, the events, the stores and memory are in it; no key file is.
+        let kinds: Vec<&str> = manifest["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| f["kind"].as_str().unwrap())
+            .collect();
+        for kind in ["journal", "events", "store", "memory", "index"] {
+            assert!(kinds.contains(&kind), "{kind}: {manifest}");
+        }
+        let copied = files_under(&backup);
+        for name in &copied {
+            assert!(
+                !name.starts_with("state/keys") && !name.ends_with("memory.keys"),
+                "{name} is a key file"
+            );
+            assert!(!name.contains("/."), "{name} is a hidden file");
+        }
+        let keys: Vec<&str> = manifest["keys"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|k| k["path"].as_str().unwrap())
+            .collect();
+        assert!(
+            keys.contains(&"state/spaces/main/store/memory.keys"),
+            "{keys:?}"
+        );
+        assert!(keys.contains(&"state/keys/approval.key"), "{keys:?}");
+        // Every listed file is there with its digest.
+        for file in manifest["files"].as_array().unwrap() {
+            let bytes = std::fs::read(backup.join(file["path"].as_str().unwrap())).unwrap();
+            assert_eq!(
+                file["sha256"],
+                umbel_store::ContentHash::of(&bytes).to_string()
+            );
+        }
+        // Over the workspace it was taken from, a restore is refused.
+        let refused = store_cli(dir.path(), &["workspace", "restore", "path=backups/w"]).await;
+        assert_eq!(
+            refused.json()["error"]["code"],
+            "STORE_RESTORE_NOT_EMPTY",
+            "{}",
+            refused.stdout
+        );
+        // A store backup restore refuses a workspace backup.
+        let refused = store_cli(dir.path(), &["store", "restore", "path=backups/w"]).await;
+        assert_eq!(
+            refused.json()["error"]["code"],
+            "STORE_BACKUP_UNSUPPORTED",
+            "{}",
+            refused.stdout
+        );
+
+        // A new workspace as `umbel init` leaves it, the same configuration, and the key files the
+        // deployer kept apart.
+        let fresh = support::workspace(&memory_config("", ""));
+        std::fs::create_dir_all(fresh.path().join("state")).unwrap();
+        std::fs::write(fresh.path().join("state/.gitignore"), "*\n").unwrap();
+        let copy_tree = |from: &Path, to: &Path| {
+            for name in files_under(from) {
+                let target = to.join(&name);
+                std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+                std::fs::copy(from.join(&name), target).unwrap();
+            }
+        };
+        // A first attempt, before the backup is there, fails and is journaled.
+        let early = store_cli(fresh.path(), &["workspace", "restore", "path=backups/w"]).await;
+        assert_eq!(
+            early.json()["error"]["code"],
+            "VALIDATION_ERROR",
+            "{}",
+            early.stdout
+        );
+        let journaled_first =
+            std::fs::read_to_string(fresh.path().join("state/journal.jsonl")).unwrap_or_default();
+        assert!(
+            !journaled_first.is_empty(),
+            "the failed attempt is journaled"
+        );
+        // And a line cut short by a crash mid-append, which the merge drops.
+        let mut torn = std::fs::OpenOptions::new()
+            .append(true)
+            .open(fresh.path().join("state/journal.jsonl"))
+            .unwrap();
+        std::io::Write::write_all(&mut torn, b"{\"seq\":").unwrap();
+        drop(torn);
+        copy_tree(&backup, &fresh.path().join("backups/w"));
+        copy_tree(
+            &dir.path().join("state/keys"),
+            &fresh.path().join("state/keys"),
+        );
+        let keys_file = fresh.path().join("state/spaces/main/store/memory.keys");
+        std::fs::create_dir_all(keys_file.parent().unwrap()).unwrap();
+        std::fs::copy(store_dir(dir.path()).join("memory.keys"), &keys_file).unwrap();
+        let run = store_cli(fresh.path(), &["workspace", "restore", "path=backups/w"]).await;
+        assert_eq!(run.code, 0, "{}", run.stdout);
+        let value = run.json();
+        assert_eq!(value["data"]["spaces"][0]["healthy"], true, "{value}");
+        assert_eq!(
+            value["data"]["spaces"][0]["memoryKeys"], "present",
+            "{value}"
+        );
+        assert_eq!(
+            value["data"]["keysMissing"].as_array().unwrap().len(),
+            0,
+            "{value}"
+        );
+        // The journal and events read as they did, and so does memory.
+        let journal = std::fs::read_to_string(fresh.path().join("state/journal.jsonl")).unwrap();
+        let backed_up = std::fs::read_to_string(backup.join("state/journal.jsonl")).unwrap();
+        // The backup's journal, then what the new workspace journaled before the restore, then
+        // the restore's own entry.
+        let without_seq = |text: &str| -> Vec<Value> {
+            text.lines()
+                .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+                .map(|mut entry| {
+                    entry.as_object_mut().unwrap().remove("seq");
+                    entry
+                })
+                .collect()
+        };
+        assert!(journal.starts_with(&backed_up));
+        let after = without_seq(&journal[backed_up.len()..]);
+        let earlier = without_seq(&journaled_first);
+        assert_eq!(after[..earlier.len()], earlier[..]);
+        assert_eq!(
+            after.len(),
+            earlier.len() + 1,
+            "and the restore's own entry"
+        );
+        assert_eq!(support::events(fresh.path(), "main"), events_before);
+        let host = memory_host(fresh.path());
+        assert_eq!(
+            (show(&host, first).await, show(&host, second).await),
+            before
+        );
+        // The journal's numbers run on from the backup's, so a write after the restore is
+        // projected into the restored stream like any other.
+        let seqs: Vec<u64> = journal
+            .lines()
+            .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+            .filter_map(|entry| entry["seq"].as_u64())
+            .collect();
+        assert!(seqs.windows(2).all(|pair| pair[0] < pair[1]), "{seqs:?}");
+        remember(&host, 3).await;
+        assert_eq!(
+            support::events(fresh.path(), "main").len(),
+            events_before.len() + 1
+        );
+    }
+
+    #[tokio::test]
+    async fn workspace_restore_refuses_a_manifest_that_reaches_past_what_a_backup_holds() {
+        let dir = support::workspace(&memory_config("", ""));
+        let host = memory_host(dir.path());
+        remember(&host, 1).await;
+        drop(host);
+        let run = store_cli(dir.path(), &["workspace", "backup", "path=backups/w"]).await;
+        assert_eq!(run.code, 0, "{}", run.stdout);
+        let backup = dir.path().join("backups/w");
+        let manifest_path = backup.join("manifest.json");
+        let manifest: Value =
+            serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
+        let fresh = support::workspace(&memory_config("", ""));
+        let target = fresh.path().join("backups/w");
+        let edited = |edit: &dyn Fn(&mut Value)| {
+            for name in files_under(&backup) {
+                let to = target.join(&name);
+                std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+                std::fs::copy(backup.join(&name), to).unwrap();
+            }
+            let mut value = manifest.clone();
+            edit(&mut value);
+            std::fs::write(
+                target.join("manifest.json"),
+                serde_json::to_vec(&value).unwrap(),
+            )
+            .unwrap();
+        };
+        let journal = |m: &mut Value| {
+            m["files"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|f| f["kind"] == "journal")
+                .unwrap()
+                .clone()
+        };
+        let restore = || async {
+            let run = store_cli(fresh.path(), &["workspace", "restore", "path=backups/w"]).await;
+            run.json()["error"]["code"]
+                .as_str()
+                .unwrap_or("none")
+                .to_owned()
+        };
+        // A key file under another case, the lock, a derived file, another kind, a duplicate.
+        for (path, kind) in [
+            ("state/Keys/http.token", "state"),
+            ("state/keys/http.token", "state"),
+            ("state/lock", "state"),
+            ("state/spaces/main/events.idx", "state"),
+            ("state/journal.jsonl", "state"),
+        ] {
+            edited(&|m| {
+                let mut entry = journal(m);
+                entry["path"] = json!(path);
+                entry["kind"] = json!(kind);
+                m["files"].as_array_mut().unwrap().push(entry);
+            });
+            assert_eq!(restore().await, "STORE_BACKUP_DAMAGED", "{path}");
+        }
+        edited(&|m| {
+            let entry = journal(m);
+            m["files"].as_array_mut().unwrap().push(entry);
+        });
+        assert_eq!(restore().await, "STORE_BACKUP_DAMAGED", "a duplicate");
+        // Events of a space this workspace does not declare.
+        edited(&|m| {
+            let mut entry = journal(m);
+            entry["path"] = json!("state/spaces/other/events.jsonl");
+            entry["kind"] = json!("events");
+            m["files"].as_array_mut().unwrap().push(entry);
+        });
+        assert_eq!(restore().await, "STORE_RESTORE_SPACE_MISMATCH");
+        // A digest that does not match.
+        edited(&|m| {
+            let files = m["files"].as_array_mut().unwrap();
+            let entry = files.iter_mut().find(|f| f["kind"] == "journal").unwrap();
+            entry["sha256"] = json!(format!("sha256:{}", "0".repeat(64)));
+        });
+        assert_eq!(restore().await, "STORE_BACKUP_DAMAGED");
+        // None of it left anything behind: as written, it restores.
+        assert!(!fresh.path().join("state/spaces/main/events.jsonl").exists());
+        assert!(
+            !fresh
+                .path()
+                .join("state/spaces/main/store/store.sqlite3")
+                .exists()
+        );
+        edited(&|_| {});
+        assert_eq!(restore().await, "none");
     }
 
     #[tokio::test]

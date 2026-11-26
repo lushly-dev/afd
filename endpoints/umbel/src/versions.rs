@@ -88,6 +88,12 @@ pub const PROTECTED_RESOURCE_VERSION: u32 = 1;
 pub const RECORD_PROBES_VERSION: u32 = 1;
 /// A record lane's eval report, version 1 (`schemas/record-eval-report.v1.json`).
 pub const RECORD_EVAL_REPORT_VERSION: u32 = 1;
+/// A `store-backup` directory's manifest, version 1 (`schemas/store-backup.v1.json`), which
+/// `store-restore` reads (D214).
+pub(crate) const STORE_BACKUP_VERSION: u32 = 1;
+/// A `workspace-backup` directory's manifest, version 1 (`schemas/workspace-backup.v1.json`), which
+/// `workspace-restore` reads (D214).
+pub(crate) const WORKSPACE_BACKUP_VERSION: u32 = 1;
 
 /// Every schema-versioned shape the host reads or writes, as the stem of its schema files
 /// (`schemas/<stem>.v<version>.json`) and the versions a deployment reads side by side. Each
@@ -117,6 +123,8 @@ pub const SCHEMA_SURFACES: &[(&str, &[u32])] = &[
     ("protected-resource", &[PROTECTED_RESOURCE_VERSION]),
     ("record-probes", &[RECORD_PROBES_VERSION]),
     ("record-eval-report", &[RECORD_EVAL_REPORT_VERSION]),
+    ("store-backup", &[STORE_BACKUP_VERSION]),
+    ("workspace-backup", &[WORKSPACE_BACKUP_VERSION]),
 ];
 
 /// Schema files in `schemas/` that are not the host's surfaces, with the reason. Every other file

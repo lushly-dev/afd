@@ -97,6 +97,25 @@ pub mod codes {
     pub const STORE_UNAVAILABLE: &str = "STORE_UNAVAILABLE";
     /// A destination that must not exist already does.
     pub const STORE_BACKUP_EXISTS: &str = "STORE_BACKUP_EXISTS";
+    /// A backup's file is missing, unreadable, or not the size or digest its manifest gives, or
+    /// the manifest names what the backup could not hold (D214).
+    pub const STORE_BACKUP_DAMAGED: &str = "STORE_BACKUP_DAMAGED";
+    /// A backup's manifest version is one this build does not restore.
+    pub const STORE_BACKUP_UNSUPPORTED: &str = "STORE_BACKUP_UNSUPPORTED";
+    /// A restore's target already holds a file it would write.
+    pub const STORE_RESTORE_NOT_EMPTY: &str = "STORE_RESTORE_NOT_EMPTY";
+    /// A store backup is of another space than the restore names.
+    pub const STORE_RESTORE_SPACE_MISMATCH: &str = "STORE_RESTORE_SPACE_MISMATCH";
+    /// A check of the restored stores did not pass (a warning).
+    pub const STORE_RESTORE_CHECK: &str = "STORE_RESTORE_CHECK";
+    /// A restored backup's index is of a retired schema and was left out (a warning).
+    pub const STORE_RESTORE_INDEX_RETIRED: &str = "STORE_RESTORE_INDEX_RETIRED";
+    /// A workspace restore ran under another `umbel.toml` than its backup was taken under (a
+    /// warning).
+    pub const WORKSPACE_RESTORE_CONFIG_CHANGED: &str = "WORKSPACE_RESTORE_CONFIG_CHANGED";
+    /// A space directory with stores that `umbel.toml` no longer declares was left out of a
+    /// workspace backup (a warning).
+    pub const WORKSPACE_BACKUP_UNDECLARED: &str = "WORKSPACE_BACKUP_UNDECLARED";
     /// A memory write met its quota (phase 3 section 8.11).
     pub const MEMORY_QUOTA_EXCEEDED: &str = "MEMORY_QUOTA_EXCEEDED";
     /// The memory key file does not exist (phase 3 section 5.4).

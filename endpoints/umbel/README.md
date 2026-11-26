@@ -507,6 +507,20 @@ every live record's text in clear in its index. On macOS both files are kept out
 unless `store.exclude_memory_from_machine_backup = false`. Before phase 5 all of this, like access
 above, is exact only for embedders and tests, and local same-user processes can read everything.
 
+**Backups and restores** (CLI only, operator; [D214](docs/decisions.md)). `umbel store backup
+path=<dir>` copies one space's stores and `umbel store restore path=<dir>` puts them back into a
+space whose stores are gone. `umbel workspace backup path=<dir>` copies everything in `state/`
+except the key files: the journal, events and cursors as one cut, the shared and usage stores, and
+every space's stores. `umbel workspace restore path=<dir>` puts that into a workspace that holds none
+of it, keeping that workspace's own journal after the backup's. Stop the workspace's servers before
+a restore. A restore checks every file against the manifest's SHA-256 digest, never overwrites a
+file or reads through a link, refuses a `-wal` or `-journal` left beside a database it would write,
+and then runs `store-check`. No backup holds a key file. The workspace manifest names each one
+(`state/keys/*` and each space's `memory.keys`) with what is lost without it, so keep those files
+apart and put them back first. Before the host migrates a SQLite store at open (`store.sqlite3`,
+`person.sqlite3`), it copies the store beside itself as `<file>.v<old>.pre-migration`, or a numbered
+name when one is there already. Those copies are yours to delete once the new version has served.
+
 ## Documents
 
 Read [STATUS.md](docs/STATUS.md) first: it says exactly what is done, what
