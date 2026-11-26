@@ -70,7 +70,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const REPOSITORY = 'lushly-dev/afd';
@@ -721,7 +721,9 @@ export const P6_MINIMUMS_FILE = 'loam-exit-check.p6.minimums.json';
 /** Phase 5's, in phase 6's shape, by milestone: `{ "minimums": { "a": { "A1": { "kernelUnits": n } } } }`. */
 export const P5_MINIMUMS_FILE = 'loam-exit-check.p5.minimums.json';
 function readMinimumsFile(file) {
-	return JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), file), 'utf8'));
+	// Named from this folder; an absolute name is read as it is, which is what `path.relative`
+	// gives for a file on another Windows drive (#2624).
+	return JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), file), 'utf8'));
 }
 export function readMinimums(file = MINIMUMS_FILE) {
 	return readMinimumsFile(file).minimums;

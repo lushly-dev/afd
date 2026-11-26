@@ -1382,9 +1382,13 @@ test('Milestone A: the committed minimums are placeholders, and the check fails 
 	// A file may list the milestones still placeholders: one listed is, another set from its runs is not.
 	const written = join(mkdtempSync(join(tmpdir(), 'loam-exit-p5-')), 'minimums.json');
 	writeFileSync(written, JSON.stringify({ placeholder: ['b'], minimums: { a: {}, b: {} } }));
-	// A minimums file is named from this folder, as the phases' entries name theirs.
+	// A minimums file is named from this folder, as the phases' entries name theirs, or absolute,
+	// as `relative` gives for a file on another Windows drive (#2624).
 	const listed = relative(import.meta.dirname, written);
 	assert.equal(minimumsArePlaceholders(listed, 'b'), true);
+	// Absolute as written, so every system checks the cross-drive case.
+	assert.equal(minimumsArePlaceholders(written, 'b'), true);
+	assert.equal(minimumsArePlaceholders(written, 'a'), false);
 	assert.equal(minimumsArePlaceholders(listed, 'a'), false);
 	assert.equal(minimumsArePlaceholders(listed), false);
 	// A malformed field fails safe, whatever the milestone.
