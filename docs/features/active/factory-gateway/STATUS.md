@@ -288,6 +288,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 2026-11-15 | Interactive sessions hand their branches to the lane through the gateway (the `/session` route's queue push, in G1) instead of merging them themselves; documentation-only pull requests may still merge directly. Prompted by `main` moving under running validations in Lushly |
 | 2026-11-15 | The lane runs on `random` beside the gateway: the Mac is not always on. `gateway-status` reports the lane |
 | 2026-11-21 | Factory merges keep the owner as the commit's author by rebase: the gateway rebase-merges one commit he authored, in both repositories, after a squash by the App credited the bot (lushly#2707). He accepted that rebase merging is allowed in both repositories and that AFD's merge queue then rebases every pull request, a session's included, so a branch of several commits is squashed to one before it is queued. Tested in Lushly before anything changed in AFD ([#1809](https://github.com/lushly-dev/afd/issues/1809)) |
+| 2026-11-26 | The gateway sets an issue's type and parent in G1 ([#2515](https://github.com/lushly-dev/afd/issues/2515)): `type` and `parent` on `issue-create`, and `issue-set` to change or clear them, so the foreman's and owner's epic writes in `references/epics.md` move with G1's other triage writes; a session that opens an epic stays on `gh` until G5, by the rule of 2026-11-15. Drafted in the proposal; implementation and its job in [#2729](https://github.com/lushly-dev/afd/issues/2729) |
 | Open | The six questions in [For the owner](factory-gateway.proposal.md#for-the-owner), the ranking of the jobs first |
 
 ## Session log
@@ -544,6 +545,17 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   every pull request read now asks for on every repository, and call `enqueuePullRequest`,
   without another permission. Not done, as before: nothing releases a
   queued or auto-merged pull request's claims when it merges (`pr-merged` is only an event).
+
+- 2026-11-26: issue types and sub-issues added to G1 by the owner's decision on
+  [#2515](https://github.com/lushly-dev/afd/issues/2515): the proposal drafts `type` and `parent`
+  on `issue-create` and a new `issue-set` (foreman and owner; the lane's `issue-create` takes the
+  fields too), with their retry rules and `type`, `parent` and `subIssues` on `issue-get`, and
+  names them in G1's builds and process. `process.json` lists `epics.md` among G1's files and moves
+  its exemption to G5, for sessions. Checked with `node scripts/check-process.mjs`. Two reviewers
+  (Opus 5.5 high, Gemini 4 Neon high) walked triage's epic path; their blockers (retry of a filing
+  with a parent, and no route for a session) are fixed in the same pull request. Not built: the commands, their job and the App adapter are
+  [#2729](https://github.com/lushly-dev/afd/issues/2729). Lushly's copy of the triage skill moves
+  with G1's Lushly process work ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392)).
 
 ## Follow-ups not yet issues
 

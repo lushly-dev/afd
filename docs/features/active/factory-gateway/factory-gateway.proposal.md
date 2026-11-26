@@ -51,6 +51,12 @@ The owner's answers of 2026-11-15.
 | Where the lane runs | `random`, beside the gateway, instead of the Mac, which is not always on | `gateway-status` reports the lane (`lanes[] { repo, host, running, stale, queued, lastMergeAt, reportedAt, otherHosts[]? }`, one per repository), so a stopped lane is seen rather than stalling every handoff; the lane's validation checkouts need space on `random`'s dev drive |
 | Other people | Nothing is set up for other people until there are other people; G4 stays the last milestone | G4's separate operating-system users are for the agents and validation on the owner's machines, not for other people, and need no second GitHub account |
 
+The owner's answer of 2026-11-26.
+
+| Question | Decision | What it changes |
+|---|---|---|
+| Issue types and sub-issues ([#2515](https://github.com/lushly-dev/afd/issues/2515)) | The gateway sets an issue's type and its parent in G1, rather than leaving triage's epic writes on `gh` until a later milestone | `issue-create` takes `type?` and `parent?`, and `issue-set` changes or clears either on an existing issue. Triage's epic writes (`addSubIssue`, `removeSubIssue` and `updateIssueIssueType` through `gh api graphql`, in `triage-issues`' `references/epics.md`) move to the gateway with G1's other triage writes, so the foreman and the owner make them through the gateway from G1. A session that opens an epic keeps them on the owner's `gh` sign-in until G5, as its other writes (the decision of 2026-11-15), so `epics.md`'s exemption runs to G5 for that path |
+
 ## The problem
 
 Factory agents use GitHub as their shared memory, through one person's `gh` sign-in. Lushly,
@@ -161,7 +167,7 @@ route (five at first; `/heartbeat` added 2026-11-24):
 |---|---|---|---|
 | `/cell` | `gateway-cell` | Cells | Read; push its head to `refs/factory/queue/<branch>`; record its review (G2) |
 | `/session` | `gateway-session` | Interactive sessions outside a fleet (`start-session` in both repositories) | Read; claim and release their own issues; push their head to `refs/factory/queue/<branch>` to hand it to the lane (from G1, by the owner's decision of 2026-11-15). Everything else stays on the owner's `gh` sign-in until G5 |
-| `/foreman` | `gateway-foreman` | The foreman, and the factory commands it calls (`cell-register`, `cell-park`, `lane-drop`) | Read; claim and release; label, comment and file issues; open revert pull requests; set the lane-host variable; read the audit; wait for events |
+| `/foreman` | `gateway-foreman` | The foreman, the factory commands it calls (`cell-register`, `cell-park`, `lane-drop`) and its triage passes (`triage-issues`) | Read; claim and release; label, comment and file issues, and set an issue's type and parent; open revert pull requests; set the lane-host variable; read the audit; wait for events |
 | `/lane` | `gateway-lane` | The lane process | Read; claim, renew and release; push branches; open pull requests; record validation; merge; revert; file flakes; wait for events |
 | `/owner` | `gateway-owner` | The owner's CLI | Everything, and the overrides only he has (`issue-release` with `force`) |
 | `/heartbeat` | `gateway-heartbeat` | A lane's loop, reporting its health | `gateway-status` and `lane-heartbeat` for the host its token names; no uploads |
@@ -226,7 +232,12 @@ Every write is idempotent, so a caller that times out or meets `GITHUB_UNAVAILAB
 same call:
 
 - `issue-create` and `issue-comment` take a `dedupe_key`; the gateway writes it into a marker in
-  the text and finds it again.
+  the text and finds it again. A filing with a `type` or `parent` is more than one GitHub write, so
+  an `issue-create` its key matches sets whichever of them the issue still lacks before it answers
+  `created: false`: a retry after a failed attach finishes the attach.
+- `issue-create` checks its labels, `type` and `parent` before it files anything, so a refusal
+  leaves no issue behind. `issue-set` reports `changed: false` when the type and parent are already
+  as asked, a detached issue detached again included.
 - `pr-open` returns the open pull request for the branch if there is one (`created: false`), and
   updates its title, body and closing lines when they changed (`updated: true`);
   `pr-revert` returns the open revert of a merged pull request; `branch-push` and `pr-merge` report
@@ -373,15 +384,16 @@ lane's loop can hold without its queued branches' code being able to merge).
 | Command | Routes | Input | Result `data` | Refusals | From |
 |---|---|---|---|---|---|
 | `gateway-status` | all | — | `host`, `writes[]` (this route's write commands), `identity`, `app`, `repos[]`, `rateLimit { remaining, resetAt, graphql? { remaining, resetAt } }`, `ages { appKey, token, readOnlyToken? }` (`appKey`: seconds since the key file was modified; `token`: seconds left on the current installation token; `readOnlyToken` enters with the cells' read-only token in G1), `journal { bytes, oldest }`, `lastEvent?`, `lanes[] { repo, host, running, stale, queued, lastMergeAt, reportedAt, otherHosts[]? }` (G1; one per repository, each lane's own `lane-heartbeat`, `running` false once the report is `laneStaleMinutes` old) | — | G0 |
-| `issue-get` | C S F L O | `number` | `state`, `title`, `labels[]`, `assignees[]`, `claim?`, `author { login, association }`, `body { trust, text }`, `linkedPrs[]` | `NOT_FOUND` | G1 |
+| `issue-get` | C S F L O | `number` | `state`, `title`, `labels[]`, `type?`, `parent?`, `subIssues { total }` (G1, with `issue-set`), `assignees[]`, `claim?`, `author { login, association }`, `body { trust, text }`, `linkedPrs[]` | `NOT_FOUND` | G1 |
 | `comment-list` | C S F L O | `number`, `limit?`, `cursor?` | `comments[] { id, author, association, trust, text, at }`, `nextCursor?` | `NOT_FOUND` | G1 |
 | `claim-list` | C S F L O | `stale?` | `claims[] { number, holder { branch, machine }, leaseUntil, stale, legacy, labelMatches }` | — | G1 |
 | `pr-status` | C S F L O | `number` | `state`, `head`, `mergedAt?`, `mergeable`, `settled`, `retryAfterMs?`, `requiredCheck { name, state, stalledMinutes?, cause? }`, `checks[]`, `autoMerge`, `closes[]` | `NOT_FOUND` | G1 |
 | `issue-claim` | S F L O | `numbers[]`, `holder`, `lease_hours?` | `claims[] { number, holder, leaseUntil, renewed, previousHolder? }`, `record { label, commentAuthor }` | `ALREADY_CLAIMED`, `ISSUE_CLOSED`, `NOT_FOUND`; none is claimed if any is refused | G1 |
 | `issue-release` | S F L O | `number`, `holder`, `reason`, `force?` (owner only) | `released`, `changed`, `record { label }` | `NOT_CLAIMED`, `NOT_HOLDER`, `SECRET_IN_BODY` | G1 |
 | `issue-label` | F O | `number`, `add?`, `remove?` | `labels[]`, `previous[]` | `LABEL_UNKNOWN`, `NOT_FOUND` | G1 |
+| `issue-set` | F O | `number`, `type?` (`null` clears it), `parent?` (`null` detaches it; a new parent replaces the old); a field left out is unchanged, and at least one is given | `type`, `parent`, `previous { type, parent }`, `changed` | `TYPE_UNKNOWN`, `PARENT_NOT_FOUND`, `NOT_FOUND` | G1 |
 | `issue-comment` | F L O | `number`, `body`, `dedupe_key?` | `url`, `deduplicated` | `NOT_FOUND`, `SECRET_IN_BODY` | G1 |
-| `issue-create` | F L O | `title`, `body`, `labels[]`, `dedupe_key?` | `number`, `created` | `LABEL_UNKNOWN`, `SECRET_IN_BODY` | G1 |
+| `issue-create` | F L O | `title`, `body`, `labels[]`, `type?`, `parent?` (the new issue is filed as that issue's sub-issue), `dedupe_key?` | `number`, `created`, `type`, `parent`; a call its `dedupe_key` matches files nothing and completes a missing `type` or `parent` ([Writes that can be retried](#writes-that-can-be-retried)) | `LABEL_UNKNOWN`, `TYPE_UNKNOWN`, `PARENT_NOT_FOUND`, `SECRET_IN_BODY` | G1 |
 | `branch-push` | C S L O | `ref`, `head`, `bundle` | `ref`, `head`, `changed`, `by`, `checksPublished[]` (G2) | `PROTECTED_REF`, `REF_NOT_ALLOWED`, `HEAD_NOT_IN_BUNDLE`, `NOT_FAST_FORWARD`, `COMMIT_AUTHOR_NOT_OWNER` (a commit the push adds, not already on `main`, authored by someone other than the owner), `UPLOAD_INCOMPLETE` (the upload does not list the commits leading to `head`) | G1 |
 | `pr-open` | L O | `branch`, `title`, `body`, `closes[]` | `number`, `created`, `updated`, `closes[]`, `author`: opens the pull request for the branch, or updates the open one's title, body and closing lines, which the gateway writes | `NO_BRANCH`, `CLAIM_LOST`, `SECRET_IN_BODY` | G1 |
 | `verification-record` | L O | `head`, `result` (`passed` or `failed`), `summary` | `check { name, conclusion }` | `NOT_FOUND` (head not on GitHub), `SECRET_IN_BODY` | G1 |
@@ -396,8 +408,20 @@ lane's loop can hold without its queued branches' code being able to merge).
 
 Every write can also be refused with `WRITE_BUDGET_EXCEEDED`.
 
+**Issue types and parents.** `type` is the type's name as the organization lists it (`Epic`, not
+a node id); `TYPE_UNKNOWN`'s suggestion lists the organization's types. `parent` is an issue's
+number in the same repository, open or closed; `PARENT_NOT_FOUND` when there is none. GitHub's own
+limits (an issue as its own parent, a cycle, 100 sub-issues) come back as `GITHUB_REFUSED`. The
+gateway does not enforce triage's two levels; that stays the skill's rule.
+
 **Why `variable-set` has no job of its own.** It exists for the factory's `lane-host-set`, whose
 job (the factory's job 02, "move the lane to another machine") covers it.
+
+**Why `issue-set` and the new `issue-create` fields have no job yet.** The owner added them to G1
+on 2026-11-26 ([#2515](https://github.com/lushly-dev/afd/issues/2515)), after G1's command
+skeleton was built. Their job, filing an epic and attaching its parts, lands with their
+implementation ([#2729](https://github.com/lushly-dev/afd/issues/2729)), since every scenario in
+`scenarios/` runs against the plugin.
 
 **Not drafted.** No command deletes anything, changes branch protection, reruns or cancels a
 workflow, dispatches a workflow, publishes a release or approves a pull request. Those stay with
@@ -429,16 +453,22 @@ must pass, the process it changes and its exit.
   the cutover rule; the cells' read-only token and the hooks. By the owner's decisions of
   2026-11-15: the `/session` route's queue push and sessions handing off to the lane by default;
   the lane on `random`, reported in `gateway-status`; `COMMIT_AUTHOR_NOT_OWNER` and each
-  repository's merge method.
-- **Jobs:** `mvp` (01 to 11, 15 and 16).
+  repository's merge method. By the owner's decision of 2026-11-26, issue types and sub-issues:
+  `type` and `parent` on `issue-create`, and `issue-set`
+  ([#2515](https://github.com/lushly-dev/afd/issues/2515)). A session that opens an epic does not
+  get them until G5: `/session` makes no issue writes other than claims until then.
+- **Jobs:** `mvp` (01 to 11, 15 and 16, and the job for issue types and parents that
+  [#2729](https://github.com/lushly-dev/afd/issues/2729) adds).
 - **Process** (the manifest's G1 entry):
   - AFD: `AGENTS.md` (factory agents reach GitHub through the gateway, never `gh` writes);
-    `triage-issues`; `prepare-pr` lane mode, the default for sessions; the factory's `run-fleet`; botcore's `factory` docs
+    `triage-issues` (its `references/epics.md` files epics and attaches their parts through
+    `issue-create` and `issue-set` on the foreman's and owner's routes, and keeps `gh` for a
+    session until G5); `prepare-pr` lane mode, the default for sessions; the factory's `run-fleet`; botcore's `factory` docs
     topic and catalog descriptions; the cell hook and its Codex equivalent; the MCP configuration
     that registers the gateway's routes.
   - Lushly: `AGENTS.md`'s "Claim an issue before starting it" line; `INIT.md`'s claiming section;
     `start-session` (sessions claim on `/session`), `prepare-pr` (sessions hand off to the
-    lane by default), `triage-issues`, `run-fleet`, `end-session`;
+    lane by default), `triage-issues` (epics through `issue-create` and `issue-set`, and `gh` for a session until G5), `run-fleet`, `end-session`;
     `Docs/operations/merge-lane.md`; the scripts above (`issue-claim.mjs`, `merge-lane-worker.mjs`,
     `merge-lane-operations.mjs`, `merge-lane-ci.mjs`, `final-validation-flakes.mjs`); its MCP and
     hook configuration; a `skill-seed --update` for any seeded Botcore skill that changed.

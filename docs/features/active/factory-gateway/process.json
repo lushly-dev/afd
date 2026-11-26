@@ -28,6 +28,10 @@
 					"names": ["issue-label", "issue-comment"]
 				},
 				{
+					"path": ".claude/skills/triage-issues/references/epics.md",
+					"names": ["issue-create", "issue-set"]
+				},
+				{
 					"path": ".claude/skills/prepare-pr/SKILL.md",
 					"names": ["branch-push"]
 				},
@@ -105,7 +109,7 @@
 		}
 	},
 	"door": {
-		"$comment": "GitHub writes the gateway serves (issue-claim, issue-release, issue-label, issue-comment, issue-create, pr-open, verification-record, pr-merge, pr-revert, variable-set; git push, which branch-push serves, is left to the hooks of G1 and G5). scripts/check-process.mjs holds the patterns that find them and refuses them in this repository's door.scope: instruction files, skills, runbooks, scripts (text and argument lists), hooks, MCP configuration and the agent tooling's code, comments aside. Out of scope (door.scope does not reach them): GitHub Actions workflows and Alfred, which write as GITHUB_TOKEN or their own App, not as an agent. door.exclude names, with a reason, what the scope reaches but the door does not read: tests, and the gateway itself, which is the door. Each allowed file may keep its writes until the named milestone lands; after that, or once it holds none or is gone, the check fails on it. Each names why and the issue that removes it.",
+		"$comment": "GitHub writes the gateway serves (issue-claim, issue-release, issue-label, issue-set, issue-comment, issue-create, pr-open, verification-record, pr-merge, pr-revert, variable-set; git push, which branch-push serves, is left to the hooks of G1 and G5). scripts/check-process.mjs holds the patterns that find them and refuses them in this repository's door.scope: instruction files, skills, runbooks, scripts (text and argument lists), hooks, MCP configuration and the agent tooling's code, comments aside. Out of scope (door.scope does not reach them): GitHub Actions workflows and Alfred, which write as GITHUB_TOKEN or their own App, not as an agent. door.exclude names, with a reason, what the scope reaches but the door does not read: tests, and the gateway itself, which is the door. Each allowed file may keep its writes until the named milestone lands; after that, or once it holds none or is gone, the check fails on it. Each names why and the issue that removes it.",
 		"scope": [
 			"**/AGENTS.md",
 			"**/SETUP.md",
@@ -135,8 +139,8 @@
 		"allow": [
 			{
 				"path": ".claude/skills/triage-issues/references/epics.md",
-				"until": "G1",
-				"reason": "Tells triage to file and edit epics with gh issue create and edit; G1's issue-create and issue-label replace them.",
+				"until": "G5",
+				"reason": "Tells triage to set an epic's type and attach or detach its sub-issues with gh api graphql (addSubIssue, removeSubIssue, updateIssueIssueType); G1's issue-create (type, parent) and issue-set replace them for the foreman and owner (#2515), but a session that opens an epic keeps gh until G5, when /session gains its other writes.",
 				"issue": "https://github.com/lushly-dev/afd/issues/1550"
 			},
 			{
