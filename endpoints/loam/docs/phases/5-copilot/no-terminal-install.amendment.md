@@ -59,7 +59,7 @@ The owner's condition on Q2 (D148, 2026-11-17) and decisions D165–D168 (2026-1
 | --- | --- | --- |
 | Phase 5 `spec.md` | 2, 4.2, 7.4, 14, 15, 18, 19, Q2, Q6 | Incorporates this amendment's units, no-terminal key/plugin/pairing flows, `loam-desktop plugin` dev CLI, error codes, T21–T28, jobs J-NT1 to J-NT4, and tests P5-S9-1 to P5-S9-7 |
 | Phase 6 `spec.md` | 10.2, 10.3, 10.4, 10.6, 13, 17, P6-D4, D106, D108 | Adds `loam-host` protocol and `capabilities/host-setup.json` for `host-setup` window; `setup_open` on `main` (7 commands total); Rust-managed deployment materialization in 10.3; `bearer_keychain` and `proof_key` in `mounts.json` (10.4); `Plugins…` and `Copilot Models…` native menu items (10.6); cross-window origin/ACL pins in P6-D4 |
-| Phase 1 `spec.md` | Section 2 | Registers `loam-plugin.toml` / `plugin-manifest.json` (`loam-plugin.v1.json`) beside `app-manifest.v1/v2.json` |
+| Phase 1 `spec.md` | Section 2 | Registers `loam-plugin.toml` / `plugin-manifest.json` (`loam-plugin.v1.json`) beside `app-manifest.v1/v2.json`. **Applied by step 9a** (2.1, 2026-11-26) |
 | `decisions.md` | D56, D63, D106, D108, D143, D148, D165–D168 | D165–D168 recorded on 2026-11-22; D56/D63/D106/D108 amendments applied when step 9 lands |
 | Mail `plugin.spec.md` | Section 14 | Links section 5's `pair` / `unpair` / `/health` proof contract for Mail's step 9 packaging follow-up |
 
@@ -243,6 +243,17 @@ Both `loam plugin check` (TypeScript) and `loam-desktop` Phase 1 Inspect (Rust, 
    - Every command name and `preview.command` in `engine.mount.commands` must start with `<mount.prefix>-` (belonging to the mounted app's prefix domain).
    - `engine.mount.expose` admits only `agent` and `palette` booleans (`mcp`, `cli`, and `apps` at instance level are refused, matching `deployment.v4.json`).
    - `engine.artifacts.<target>.sha256` must be exactly 64 lowercase hexadecimal characters and must equal the SHA-256 computed over the exact staged artifact bytes.
+
+### 4.5 Settled by step 9a (2026-11-26)
+
+Step 9a found these choices open in 4.1 to 4.4 and 9.3 and settled each the smallest way; 9b and 9c hold the same:
+
+1. **Required keys and defaults.** `engine.auth` (with `mode`) and `engine.mount` (with `audience = "person"`) are required when `[engine]` is present; `mount.labels` defaults to `"whole"` and `mount.approvals` to `"none"`. A command's `expose` admits `agent`, `palette` and `apps` only.
+2. **Codes for item 3's artifact rules.** An artifact path not under `engines/<target>/`, or whose last segment breaks the target's name rule, is `PLUGIN_MANIFEST_INVALID` (a field to fix), not `PLUGIN_PATH_ESCAPE`; the name rule applies to the last segment, and a POSIX name ending `.bat`, `.cmd` or `.sh` is refused. A Windows reserved name is matched against a segment's stem before its first `.`, in any case (`aux.json` is refused).
+3. **Paths that collide.** Besides item 3's duplicates and case collisions, a path inside another file's path collides (`PLUGIN_PATH_ESCAPE`), and so do two `apps[].path` values where one is the other or inside it, or an app path that is `engines/`, inside it or holds it, all compared without case.
+4. **Mounted apps.** Every bundled app whose manifest says `kind = "mounted"` must be `engine.mount_app`, so a plugin without `[engine]` bundles native and view apps only (`PLUGIN_MANIFEST_INVALID`). Item 2's shell domains are `SHELL_DOMAINS_V1` in `endpoints/loam/packages/manifest/src/catalogs.ts` (not `read-deployment.ts`, which lists none).
+5. **Packing.** `loam plugin pack` writes `plugin-manifest.json` with each `apps[].path` rewritten to `apps/<id>` (4.1's layout), copies each app package without the `.loam-output` mark `loam app pack` leaves, keeps each artifact at its path, and checks what it will write as a packed bundle before writing it. `--out` ending `.loam-plugin` writes a zip (deflated regular files, sorted by path, fixed timestamps, so the same source packs to the same bytes); any other `--out` is a folder that must be absent or empty. A folder `--out` that holds files, or any `--out` inside what is packed, is `PLUGIN_PACK_OUT_INVALID`. An archive Loam cannot read (no end record, ZIP64, encryption, a method other than stored or deflate, a CRC-32 or size mismatch) is `PLUGIN_MANIFEST_INVALID`.
+6. **The golden fixture (9.3).** It holds the installed state, not a deployment file: `workspace`, `inbound`, each plugin's packed `manifest`, `files` and `install.port`, and `copilot`; its `$comment` states the mapping to instance entries. `labels` and `approvals` are written explicitly with their defaults, and a mounted entry's `expose` and `commands` keep `plugin-manifest.json`'s key order (the Rust side reads JSON preserving order). `deployment.json` and `frame-src` are pinned per platform family, since the sandbox origin differs on Windows; `mounts.json` is compared without its credential. `loam deployment write` puts no `generation` in `models.json` or `mounts.json`, and the fixture pins their bytes so; 9.2's matching generation is recorded in `.loam-generation` and `desktop-state.json`.
 
 ---
 
@@ -548,6 +559,7 @@ Every `host-setup` error returns `{ code, suggestion }` in Loam's own fixed word
 | `PLUGIN_MANIFEST_INVALID` | Bundle inspect / `loam plugin check` | No | Fix the listed field in `loam-plugin.toml` and repack with `loam plugin pack` |
 | `PLUGIN_PATH_ESCAPE` | Bundle inspect / `loam plugin check` | No | Remove symbolic links, duplicate or colliding paths, and paths outside the plugin root, then repack |
 | `PLUGIN_BUNDLE_TOO_LARGE` | Bundle inspect | No | Keep the plugin bundle under 256 MiB and 2,000 files |
+| `PLUGIN_PACK_OUT_INVALID` | `loam plugin pack` (4.5) | No | Write the bundle to a new `.loam-plugin` file or an empty folder, outside the apps and engines it packs |
 | `PLUGIN_TARGET_UNSUPPORTED` | Bundle inspect | No | This plugin does not include an engine binary for your operating system and architecture |
 | `PLUGIN_HASH_MISMATCH` | Bundle inspect / confirm | No | The plugin bundle or engine binary does not match its SHA-256 digest; download the bundle again |
 | `PLUGIN_ALREADY_INSTALLED` | Bundle inspect | No | This exact version of the plugin is already installed |

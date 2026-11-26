@@ -1,0 +1,221 @@
+{
+	"$comment": [
+		"Loam phase 5's no-terminal amendment, 9.3 and P5-S9-6: the shared golden projection. @lushly-dev/loam-cli's golden.test.ts writes it through `loam deployment write`, and loam-desktop's Rust materializer (step 9b) must write the same bytes from the same installed state.",
+		"Input, as the desktop holds it: `workspace`; `inbound`; `plugins`, each a packed bundle's `manifest` (plugin-manifest.json), its `files` (an object value is a .json file written as JSON.stringify(value, null, '\\t') + '\\n', a string is the file's text) and, for an engine, `install.port`; and `copilot`, the providers with their key references.",
+		"Instance entries (amendment 9.2): plugins in `plugin.id` order and each plugin's apps in `apps[].id` order; instance = `apps[].id`, app = its app-manifest.json's `plugin.id`. The engine's `mount_app` also gets transport `http`, url `http://127.0.0.1:<port>/mcp`, the mount's audience, `labels` (default `whole`) and `approvals` (default `none`) written explicitly, and `expose` and `commands` when the manifest names them, each object keeping plugin-manifest.json's key order (so Rust reads it order-preserving; this fixture puts a command's scalar keys before its tables, which the CLI's TOML round trip keeps); an engine whose `auth.mode` is not `none` has a bearer.",
+		"Expected: `deployment.json` and the CSP's `frame-src` value for each platform family (linux for macOS and Linux, win32 for Windows, whose sandbox origin differs), `models.json`, and `mounts`, mounts.json without its credential: the CLI writes `bearer` (the text of `bearer`, below, a placeholder that is no credential) where the Rust host writes `bearer_keychain` and `proof_key`.",
+		"Regenerate only deliberately, with LOAM_GOLDEN_UPDATE=1 on golden.test.ts: the Rust side must change with it."
+	],
+	"workspace": {
+		"id": "personal",
+		"name": "Personal"
+	},
+	"inbound": true,
+	"plugins": [
+		{
+			"manifest": {
+				"plugin_manifest_version": 1,
+				"plugin": {
+					"id": "courier",
+					"title": "Courier",
+					"version": "0.1.0",
+					"description": "A Mail-shaped plugin: a native app and an authenticated engine with shell approvals."
+				},
+				"apps": [
+					{
+						"id": "courier",
+						"path": "apps/courier"
+					},
+					{
+						"id": "courierapp",
+						"path": "apps/courierapp"
+					}
+				],
+				"engine": {
+					"id": "courier-engine",
+					"kind": "http-service",
+					"mount_app": "courier",
+					"service_mode": "login",
+					"artifacts": {
+						"linux-x64": {
+							"path": "engines/linux-x64/courier-engine",
+							"sha256": "d7564aae973a97275d0aed8856538e80d66011f40bbb9219648a6c14625a3b76"
+						}
+					},
+					"auth": {
+						"mode": "approver"
+					},
+					"mount": {
+						"audience": "person",
+						"labels": "per-part",
+						"approvals": "shell",
+						"expose": {
+							"agent": true,
+							"palette": true
+						},
+						"commands": {
+							"courier-draft-send": {
+								"expose": {
+									"agent": true,
+									"apps": true
+								},
+								"preview": {
+									"command": "courier-draft-show",
+									"input": ["draft", "revision"]
+								}
+							},
+							"courier-folder-empty": {
+								"effects": ["plugin-state"],
+								"destructive": true,
+								"expose": {
+									"agent": false
+								}
+							}
+						}
+					}
+				}
+			},
+			"files": {
+				"apps/courier/app-manifest.json": {
+					"manifest_version": 1,
+					"protocol": 1,
+					"plugin": {
+						"version": "0.1.0",
+						"description": "A golden fixture app: the projection Loam writes for it is pinned.",
+						"id": "courier",
+						"title": "Courier engine",
+						"kind": "mounted",
+						"domains": ["courier"]
+					},
+					"mount": {
+						"prefix": "courier",
+						"transport": "http"
+					}
+				},
+				"apps/courierapp/app-manifest.json": {
+					"manifest_version": 2,
+					"protocol": 1,
+					"plugin": {
+						"version": "0.1.0",
+						"description": "A golden fixture app: the projection Loam writes for it is pinned.",
+						"id": "courierapp",
+						"title": "Courier",
+						"kind": "native",
+						"domains": ["courierapp"]
+					},
+					"app": {
+						"scope_levels": ["workspace", "project"]
+					},
+					"native": {
+						"entry": "dist/native.js"
+					},
+					"ui": {
+						"layout": {
+							"panel": {
+								"open": true
+							}
+						},
+						"surfaces": {
+							"rail": {
+								"label": "Courier",
+								"icon": "system/checkmark",
+								"order": 30
+							},
+							"main": {
+								"element": "courier-main"
+							},
+							"panel": {
+								"views": [
+									{
+										"id": "outbox",
+										"title": "Outbox",
+										"element": "courier-outbox"
+									}
+								]
+							}
+						}
+					}
+				},
+				"apps/courierapp/dist/native.js": "export default {};\n",
+				"engines/linux-x64/courier-engine": "Not an engine: the golden fixture stands in for one and never runs it.\n"
+			},
+			"install": {
+				"port": 17400
+			}
+		},
+		{
+			"manifest": {
+				"plugin_manifest_version": 1,
+				"plugin": {
+					"id": "sketch",
+					"title": "Sketch",
+					"version": "1.0.0",
+					"description": "A pure-app plugin: one view, no engine."
+				},
+				"apps": [
+					{
+						"id": "sketch",
+						"path": "apps/sketch"
+					}
+				]
+			},
+			"files": {
+				"apps/sketch/app-manifest.json": {
+					"manifest_version": 1,
+					"protocol": 1,
+					"plugin": {
+						"version": "0.1.0",
+						"description": "A golden fixture app: the projection Loam writes for it is pinned.",
+						"id": "sketch",
+						"title": "Sketch",
+						"kind": "view",
+						"domains": ["sketch"]
+					},
+					"view": {}
+				},
+				"apps/sketch/index.html": "<!doctype html><title>Sketch</title>\n"
+			}
+		}
+	],
+	"copilot": {
+		"default": "claude",
+		"providers": [
+			{
+				"id": "claude",
+				"kind": "anthropic",
+				"model": "claude-sonnet-5-5",
+				"key": {
+					"keychain": "loam-copilot",
+					"account": "claude"
+				}
+			},
+			{
+				"id": "local",
+				"kind": "openai-compatible",
+				"model": "llama3",
+				"endpoint": "http://127.0.0.1:11434/v1"
+			}
+		]
+	},
+	"bearer": "golden-fixture-placeholder-not-a-credential",
+	"expected": {
+		"linux": {
+			"deployment.json": "{\n\t\"deployment_version\": 4,\n\t\"generation\": \"sha256-92e8175b2c70ec90fa34251cd40fefe42f701194ae2d48c99aa17840a81b4d6d\",\n\t\"workspace\": {\n\t\t\"id\": \"personal\",\n\t\t\"name\": \"Personal\"\n\t},\n\t\"sandbox_origin\": \"loam-sandbox://localhost\",\n\t\"host\": {\n\t\t\"kind\": \"desktop\"\n\t},\n\t\"copilot\": {\n\t\t\"default\": \"claude\",\n\t\t\"providers\": [\n\t\t\t{\n\t\t\t\t\"id\": \"claude\",\n\t\t\t\t\"kind\": \"anthropic\",\n\t\t\t\t\"model\": \"claude-sonnet-5-5\"\n\t\t\t},\n\t\t\t{\n\t\t\t\t\"id\": \"local\",\n\t\t\t\t\"kind\": \"openai-compatible\",\n\t\t\t\t\"model\": \"llama3\"\n\t\t\t}\n\t\t]\n\t},\n\t\"apps\": [\n\t\t{\n\t\t\t\"instance\": \"courier\",\n\t\t\t\"app\": \"courier\",\n\t\t\t\"package\": \"apps/courier/\",\n\t\t\t\"prefix\": \"courier\",\n\t\t\t\"audience\": \"person\",\n\t\t\t\"transport\": \"http\",\n\t\t\t\"route\": \"mounts/courier/mcp\",\n\t\t\t\"labels\": \"per-part\",\n\t\t\t\"approvals\": \"shell\",\n\t\t\t\"expose\": {\n\t\t\t\t\"agent\": true,\n\t\t\t\t\"palette\": true\n\t\t\t},\n\t\t\t\"commands\": {\n\t\t\t\t\"courier-draft-send\": {\n\t\t\t\t\t\"expose\": {\n\t\t\t\t\t\t\"agent\": true,\n\t\t\t\t\t\t\"apps\": true\n\t\t\t\t\t},\n\t\t\t\t\t\"preview\": {\n\t\t\t\t\t\t\"command\": \"courier-draft-show\",\n\t\t\t\t\t\t\"input\": [\n\t\t\t\t\t\t\t\"draft\",\n\t\t\t\t\t\t\t\"revision\"\n\t\t\t\t\t\t]\n\t\t\t\t\t}\n\t\t\t\t},\n\t\t\t\t\"courier-folder-empty\": {\n\t\t\t\t\t\"effects\": [\n\t\t\t\t\t\t\"plugin-state\"\n\t\t\t\t\t],\n\t\t\t\t\t\"destructive\": true,\n\t\t\t\t\t\"expose\": {\n\t\t\t\t\t\t\"agent\": false\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t},\n\t\t\t\"boot\": {\n\t\t\t\t\"title\": \"Courier engine\",\n\t\t\t\t\"kind\": \"mounted\",\n\t\t\t\t\"icon\": \"system/folder\",\n\t\t\t\t\"order\": 100,\n\t\t\t\t\"scope_levels\": [\n\t\t\t\t\t\"workspace\"\n\t\t\t\t],\n\t\t\t\t\"rail\": true,\n\t\t\t\t\"parts\": [],\n\t\t\t\t\"layout\": {},\n\t\t\t\t\"refusal\": null\n\t\t\t}\n\t\t},\n\t\t{\n\t\t\t\"instance\": \"courierapp\",\n\t\t\t\"app\": \"courierapp\",\n\t\t\t\"package\": \"apps/courierapp/\",\n\t\t\t\"boot\": {\n\t\t\t\t\"title\": \"Courier\",\n\t\t\t\t\"kind\": \"native\",\n\t\t\t\t\"icon\": \"system/checkmark\",\n\t\t\t\t\"order\": 30,\n\t\t\t\t\"scope_levels\": [\n\t\t\t\t\t\"workspace\",\n\t\t\t\t\t\"project\"\n\t\t\t\t],\n\t\t\t\t\"rail\": true,\n\t\t\t\t\"parts\": [\n\t\t\t\t\t\"panel\"\n\t\t\t\t],\n\t\t\t\t\"layout\": {\n\t\t\t\t\t\"panel\": {\n\t\t\t\t\t\t\"open\": true\n\t\t\t\t\t}\n\t\t\t\t},\n\t\t\t\t\"refusal\": null\n\t\t\t}\n\t\t},\n\t\t{\n\t\t\t\"instance\": \"sketch\",\n\t\t\t\"app\": \"sketch\",\n\t\t\t\"package\": \"apps/sketch/\",\n\t\t\t\"boot\": {\n\t\t\t\t\"title\": \"Sketch\",\n\t\t\t\t\"kind\": \"view\",\n\t\t\t\t\"icon\": \"system/folder\",\n\t\t\t\t\"order\": 100,\n\t\t\t\t\"scope_levels\": [\n\t\t\t\t\t\"workspace\"\n\t\t\t\t],\n\t\t\t\t\"rail\": true,\n\t\t\t\t\"parts\": [],\n\t\t\t\t\"layout\": {},\n\t\t\t\t\"refusal\": null\n\t\t\t}\n\t\t}\n\t]\n}\n",
+			"frame-src": "loam-sandbox://localhost"
+		},
+		"win32": {
+			"deployment.json": "{\n\t\"deployment_version\": 4,\n\t\"generation\": \"sha256-92e8175b2c70ec90fa34251cd40fefe42f701194ae2d48c99aa17840a81b4d6d\",\n\t\"workspace\": {\n\t\t\"id\": \"personal\",\n\t\t\"name\": \"Personal\"\n\t},\n\t\"sandbox_origin\": \"http://loam-sandbox.localhost\",\n\t\"host\": {\n\t\t\"kind\": \"desktop\"\n\t},\n\t\"copilot\": {\n\t\t\"default\": \"claude\",\n\t\t\"providers\": [\n\t\t\t{\n\t\t\t\t\"id\": \"claude\",\n\t\t\t\t\"kind\": \"anthropic\",\n\t\t\t\t\"model\": \"claude-sonnet-5-5\"\n\t\t\t},\n\t\t\t{\n\t\t\t\t\"id\": \"local\",\n\t\t\t\t\"kind\": \"openai-compatible\",\n\t\t\t\t\"model\": \"llama3\"\n\t\t\t}\n\t\t]\n\t},\n\t\"apps\": [\n\t\t{\n\t\t\t\"instance\": \"courier\",\n\t\t\t\"app\": \"courier\",\n\t\t\t\"package\": \"apps/courier/\",\n\t\t\t\"prefix\": \"courier\",\n\t\t\t\"audience\": \"person\",\n\t\t\t\"transport\": \"http\",\n\t\t\t\"route\": \"mounts/courier/mcp\",\n\t\t\t\"labels\": \"per-part\",\n\t\t\t\"approvals\": \"shell\",\n\t\t\t\"expose\": {\n\t\t\t\t\"agent\": true,\n\t\t\t\t\"palette\": true\n\t\t\t},\n\t\t\t\"commands\": {\n\t\t\t\t\"courier-draft-send\": {\n\t\t\t\t\t\"expose\": {\n\t\t\t\t\t\t\"agent\": true,\n\t\t\t\t\t\t\"apps\": true\n\t\t\t\t\t},\n\t\t\t\t\t\"preview\": {\n\t\t\t\t\t\t\"command\": \"courier-draft-show\",\n\t\t\t\t\t\t\"input\": [\n\t\t\t\t\t\t\t\"draft\",\n\t\t\t\t\t\t\t\"revision\"\n\t\t\t\t\t\t]\n\t\t\t\t\t}\n\t\t\t\t},\n\t\t\t\t\"courier-folder-empty\": {\n\t\t\t\t\t\"effects\": [\n\t\t\t\t\t\t\"plugin-state\"\n\t\t\t\t\t],\n\t\t\t\t\t\"destructive\": true,\n\t\t\t\t\t\"expose\": {\n\t\t\t\t\t\t\"agent\": false\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t},\n\t\t\t\"boot\": {\n\t\t\t\t\"title\": \"Courier engine\",\n\t\t\t\t\"kind\": \"mounted\",\n\t\t\t\t\"icon\": \"system/folder\",\n\t\t\t\t\"order\": 100,\n\t\t\t\t\"scope_levels\": [\n\t\t\t\t\t\"workspace\"\n\t\t\t\t],\n\t\t\t\t\"rail\": true,\n\t\t\t\t\"parts\": [],\n\t\t\t\t\"layout\": {},\n\t\t\t\t\"refusal\": null\n\t\t\t}\n\t\t},\n\t\t{\n\t\t\t\"instance\": \"courierapp\",\n\t\t\t\"app\": \"courierapp\",\n\t\t\t\"package\": \"apps/courierapp/\",\n\t\t\t\"boot\": {\n\t\t\t\t\"title\": \"Courier\",\n\t\t\t\t\"kind\": \"native\",\n\t\t\t\t\"icon\": \"system/checkmark\",\n\t\t\t\t\"order\": 30,\n\t\t\t\t\"scope_levels\": [\n\t\t\t\t\t\"workspace\",\n\t\t\t\t\t\"project\"\n\t\t\t\t],\n\t\t\t\t\"rail\": true,\n\t\t\t\t\"parts\": [\n\t\t\t\t\t\"panel\"\n\t\t\t\t],\n\t\t\t\t\"layout\": {\n\t\t\t\t\t\"panel\": {\n\t\t\t\t\t\t\"open\": true\n\t\t\t\t\t}\n\t\t\t\t},\n\t\t\t\t\"refusal\": null\n\t\t\t}\n\t\t},\n\t\t{\n\t\t\t\"instance\": \"sketch\",\n\t\t\t\"app\": \"sketch\",\n\t\t\t\"package\": \"apps/sketch/\",\n\t\t\t\"boot\": {\n\t\t\t\t\"title\": \"Sketch\",\n\t\t\t\t\"kind\": \"view\",\n\t\t\t\t\"icon\": \"system/folder\",\n\t\t\t\t\"order\": 100,\n\t\t\t\t\"scope_levels\": [\n\t\t\t\t\t\"workspace\"\n\t\t\t\t],\n\t\t\t\t\"rail\": true,\n\t\t\t\t\"parts\": [],\n\t\t\t\t\"layout\": {},\n\t\t\t\t\"refusal\": null\n\t\t\t}\n\t\t}\n\t]\n}\n",
+			"frame-src": "http://loam-sandbox.localhost"
+		},
+		"models.json": "{\n\t\"providers\": [\n\t\t{\n\t\t\t\"id\": \"claude\",\n\t\t\t\"kind\": \"anthropic\",\n\t\t\t\"model\": \"claude-sonnet-5-5\",\n\t\t\t\"key\": {\n\t\t\t\t\"keychain\": \"loam-copilot\",\n\t\t\t\t\"account\": \"claude\"\n\t\t\t}\n\t\t},\n\t\t{\n\t\t\t\"id\": \"local\",\n\t\t\t\"kind\": \"openai-compatible\",\n\t\t\t\"model\": \"llama3\",\n\t\t\t\"endpoint\": \"http://127.0.0.1:11434/v1\"\n\t\t}\n\t]\n}\n",
+		"mounts": {
+			"mounts": [
+				{
+					"instance": "courier",
+					"url": "http://127.0.0.1:17400/mcp"
+				}
+			],
+			"inbound": true
+		}
+	}
+}

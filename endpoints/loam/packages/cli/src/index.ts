@@ -9,3 +9,14 @@ export { type AppNewOptions, type AppNewResult, appNew } from './app-new.js';
 export { type AppPackOptions, type AppPackResult, appPack } from './app-pack.js';
 export type { AppCheckReport, Finding, Trust } from './check.js';
 export { type CliIO, runCli } from './cli.js';
+export {
+	checkPluginBundle,
+	type PackPluginOptions,
+	type PackPluginResult,
+	PLUGIN_ARCHIVE_EXTENSION,
+	type PluginBundleKind,
+	type PluginBundleLimits,
+	type PluginBundleSummary,
+	type PluginCheckReport,
+	packPlugin,
+} from './plugin-bundle.js';

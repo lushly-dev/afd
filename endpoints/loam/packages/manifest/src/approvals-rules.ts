@@ -20,7 +20,10 @@ interface ApprovalsEntry {
 }
 
 type Refuse = (
-	code: DeploymentRefusal['code'],
+	code: Extract<
+		DeploymentRefusal['code'],
+		'DEPLOYMENT_PREVIEW_REQUIRED' | 'DEPLOYMENT_PREVIEW_INVALID'
+	>,
 	pointer: string,
 	message: string,
 	suggestion: string

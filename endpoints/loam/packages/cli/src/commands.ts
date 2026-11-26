@@ -12,6 +12,7 @@ import { appPack } from './app-pack.js';
 import type { AppCheckReport } from './check.js';
 import { type CopilotKeySetDeps, copilotKeySet, systemKeySetDeps } from './copilot-key.js';
 import { analyzeDeployment, type DeploymentFinding, writeDeployment } from './deployment.js';
+import { checkPluginBundle, packPlugin } from './plugin-bundle.js';
 
 /** A CLI command is on no shell surface: there is no shell here to expose it to. */
 const EXPOSE = { cli: true, palette: false, agent: false, mcp: false };
@@ -164,6 +165,48 @@ export const deploymentWriteCommand = defineCommand({
 			},
 			{ reasoning: `Wrote ${written.projection.apps.length} instances.` }
 		);
+	},
+});
+
+/**
+ * `loam plugin check <dir|bundle>` (phase 5's no-terminal amendment, 4.4 and 10): a plugin's source, packed folder or
+ * `.loam-plugin` archive held to the rules `loam-desktop` holds it to before a person is asked, running none of it.
+ */
+export const pluginCheckCommand = defineCommand({
+	name: 'plugin-check',
+	title: 'Check a plugin',
+	description:
+		"Check a plugin's manifest, its packed apps and each engine artifact's SHA-256, in a source, a packed folder or a .loam-plugin archive, running none of it.",
+	input: z.object({ path: z.string().default('.') }),
+	mutation: false,
+	expose: EXPOSE,
+	async handler({ path }) {
+		const report = await checkPluginBundle(path);
+		if (!report.ok) return refused(report.refusals, report.kind ? { kind: report.kind } : {});
+		const { ok: _ok, manifest: _manifest, ...data } = report;
+		return success(data, {
+			reasoning: `No refusal: ${report.apps.length} apps${report.engine ? ` and an engine for ${report.engine.artifacts.length} targets` : ''}, ${report.files} files.`,
+		});
+	},
+});
+
+/**
+ * `loam plugin pack <dir> --out <bundle>` (4.1 and 10): checks a plugin's source, then writes `plugin-manifest.json`, its
+ * packed apps under `apps/<id>/` and its engine artifacts, as a folder or a `.loam-plugin` archive.
+ */
+export const pluginPackCommand = defineCommand({
+	name: 'plugin-pack',
+	title: 'Pack a plugin',
+	description:
+		"Check a plugin's source, then write its bundle: plugin-manifest.json, the packed apps and the engine artifacts, as a folder or a .loam-plugin archive.",
+	input: z.object({ dir: z.string().optional(), out: z.string() }),
+	mutation: true,
+	expose: EXPOSE,
+	async handler(input) {
+		const result = await packPlugin(input);
+		if (!result.ok) return refused(result.refusals, {});
+		const { ok: _ok, ...data } = result;
+		return success(data, { reasoning: `Packed ${result.files} files into a ${result.kind}.` });
 	},
 });
 

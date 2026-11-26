@@ -2,7 +2,7 @@
 	"name": "@lushly-dev/loam-manifest",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Loam's manifest profile, deployment file and browser projection: schemas, generated types, standalone validators, the readers and refusals, the catalogs, and the hosted server's configuration",
+	"description": "Loam's manifest profile, deployment file and browser projection: schemas, generated types, standalone validators, the readers and refusals, the catalogs, the hosted server's configuration and a plugin bundle's manifest",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -22,8 +22,13 @@
 			"types": "./dist/server.d.ts",
 			"import": "./dist/server.js"
 		},
+		"./plugin": {
+			"types": "./dist/plugin.d.ts",
+			"import": "./dist/plugin.js"
+		},
 		"./schemas/app-manifest.v1.json": "./schemas/app-manifest.v1.json",
 		"./schemas/app-manifest.v2.json": "./schemas/app-manifest.v2.json",
+		"./schemas/loam-plugin.v1.json": "./schemas/loam-plugin.v1.json",
 		"./schemas/deployment.v1.json": "./schemas/deployment.v1.json",
 		"./schemas/deployment.v2.json": "./schemas/deployment.v2.json",
 		"./schemas/deployment.v3.json": "./schemas/deployment.v3.json",
@@ -42,6 +47,7 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
+		"@lushly-dev/afd-core": "workspace:*",
 		"ajv": "^8.20.0",
 		"tldts": "7.5.4",
 		"zod": "^4.6.6"

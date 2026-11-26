@@ -1,0 +1,250 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/loam/schemas/loam-plugin.v1.json",
+	"title": "Loam plugin bundle manifest, version 1",
+	"description": "A plugin's loam-plugin.toml, read as JSON, and the plugin-manifest.json that loam plugin pack writes from it (phase 5's no-terminal amendment, 4.1 and 4.2; D166): the packed app packages a plugin bundles and its optional engine, named by hash-pinned artifacts per target. Closed at every depth: it holds no command line, argument, environment, location, port or credential. readPluginManifest checks the rules between the keys (4.4). It does not change spec/plugin-manifest.core.v1.json, which each bundled app-manifest.json follows.",
+	"type": "object",
+	"properties": {
+		"plugin_manifest_version": {
+			"const": 1
+		},
+		"plugin": {
+			"$ref": "#/$defs/plugin"
+		},
+		"apps": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 8,
+			"items": {
+				"$ref": "#/$defs/app"
+			}
+		},
+		"engine": {
+			"$ref": "#/$defs/engine"
+		}
+	},
+	"required": ["plugin_manifest_version", "plugin", "apps"],
+	"additionalProperties": false,
+	"$defs": {
+		"plugin": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,31}$",
+					"not": {
+						"enum": ["afd", "shell", "loam", "p"]
+					}
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"version": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/semver"
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"license": {
+					"type": "string",
+					"description": "An SPDX license expression.",
+					"pattern": "^[A-Za-z0-9().+ -]{1,128}$"
+				},
+				"homepage": {
+					"type": "string",
+					"description": "Display metadata only: Loam never fetches or opens it. An https:// address with no credentials.",
+					"maxLength": 2048,
+					"pattern": "^https://[^\\s/?#@]+(/[^\\s]*)?$"
+				}
+			},
+			"required": ["id", "title", "version", "description"],
+			"additionalProperties": false
+		},
+		"app": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"description": "The instance id the app is installed under; a native or view app's must equal its app-manifest.json's plugin.id.",
+					"pattern": "^[a-z][a-z0-9]{0,31}$",
+					"not": {
+						"enum": ["afd", "shell", "loam", "p"]
+					}
+				},
+				"path": {
+					"$ref": "#/$defs/relativePath"
+				}
+			},
+			"required": ["id", "path"],
+			"additionalProperties": false
+		},
+		"relativePath": {
+			"type": "string",
+			"description": "A path relative to the plugin's root, with / separators and normal segments only; readPluginManifest refuses the rest as PLUGIN_PATH_ESCAPE.",
+			"minLength": 1,
+			"maxLength": 512
+		},
+		"engine": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,31}$"
+				},
+				"kind": {
+					"enum": ["http-service"]
+				},
+				"mount_app": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]{0,31}$"
+				},
+				"service_mode": {
+					"enum": ["login"]
+				},
+				"artifacts": {
+					"type": "object",
+					"minProperties": 1,
+					"properties": {
+						"darwin-arm64": {
+							"$ref": "#/$defs/artifact"
+						},
+						"darwin-x64": {
+							"$ref": "#/$defs/artifact"
+						},
+						"windows-x64": {
+							"$ref": "#/$defs/artifact"
+						},
+						"windows-arm64": {
+							"$ref": "#/$defs/artifact"
+						},
+						"linux-x64": {
+							"$ref": "#/$defs/artifact"
+						},
+						"linux-arm64": {
+							"$ref": "#/$defs/artifact"
+						}
+					},
+					"additionalProperties": false
+				},
+				"auth": {
+					"type": "object",
+					"properties": {
+						"mode": {
+							"enum": ["approver", "agent", "none"]
+						}
+					},
+					"required": ["mode"],
+					"additionalProperties": false
+				},
+				"mount": {
+					"$ref": "#/$defs/mount"
+				}
+			},
+			"required": ["id", "kind", "mount_app", "service_mode", "artifacts", "auth", "mount"],
+			"additionalProperties": false
+		},
+		"artifact": {
+			"type": "object",
+			"properties": {
+				"path": {
+					"$ref": "#/$defs/relativePath"
+				},
+				"sha256": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{64}$"
+				}
+			},
+			"required": ["path", "sha256"],
+			"additionalProperties": false
+		},
+		"mount": {
+			"type": "object",
+			"description": "The mounted instance's policy, which the consent screen shows in full: deployment.v4.json's instance keys a desktop admits, and nothing of its location or credential.",
+			"properties": {
+				"audience": {
+					"const": "person"
+				},
+				"labels": {
+					"enum": ["whole", "per-part"]
+				},
+				"approvals": {
+					"enum": ["none", "shell"]
+				},
+				"expose": {
+					"type": "object",
+					"properties": {
+						"agent": {
+							"type": "boolean"
+						},
+						"palette": {
+							"type": "boolean"
+						}
+					},
+					"additionalProperties": false
+				},
+				"commands": {
+					"type": "object",
+					"propertyNames": {
+						"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
+					},
+					"additionalProperties": {
+						"$ref": "#/$defs/commandOverride"
+					}
+				}
+			},
+			"required": ["audience"],
+			"additionalProperties": false
+		},
+		"commandOverride": {
+			"type": "object",
+			"properties": {
+				"expose": {
+					"type": "object",
+					"properties": {
+						"agent": {
+							"type": "boolean"
+						},
+						"palette": {
+							"type": "boolean"
+						},
+						"apps": {
+							"type": "boolean"
+						}
+					},
+					"additionalProperties": false
+				},
+				"effects": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/effects"
+				},
+				"destructive": {
+					"type": "boolean"
+				},
+				"preview": {
+					"type": "object",
+					"properties": {
+						"command": {
+							"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
+						},
+						"input": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 16,
+							"uniqueItems": true,
+							"items": {
+								"type": "string",
+								"pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+							}
+						}
+					},
+					"required": ["command", "input"],
+					"additionalProperties": false
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

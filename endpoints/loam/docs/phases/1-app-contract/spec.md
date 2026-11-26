@@ -305,6 +305,16 @@ Decides L1.
   "Loam app manifest, version 1 (conforms to plugin manifest core version 1)".
 - **A builder's artifact** (phase 7) writes JSON directly. `app-manifest.json`
   is the only shape it needs.
+- **A plugin bundle's manifest** (amended by phase 5's step 9a, under its
+  [no-terminal amendment](../5-copilot/no-terminal-install.amendment.md#4-the-plugin-bundle-and-loam-plugintoml-profile-version-1)'s
+  section 4 and D166, 2026-11-26): **`loam-plugin.toml`** is what a plugin's author writes at the root of its
+  source, beside its packed apps and its engine's artifacts, and **`plugin-manifest.json`** is what
+  `loam plugin pack` writes from it. Its schema is
+  `endpoints/loam/packages/manifest/schemas/loam-plugin.v1.json`, with `$id`
+  `https://afd.dev/loam/schemas/loam-plugin.v1.json`, beside `app-manifest.v1.json` and `app-manifest.v2.json`;
+  `readPluginManifest` at `@lushly-dev/loam-manifest/plugin` reads it. It lists one to eight packed
+  `app-manifest.json` packages and an optional engine, names no command line, location or credential, and
+  changes neither this profile nor the core: each bundled app is read as this section reads any app.
 
 ### 2.2 The profile
 

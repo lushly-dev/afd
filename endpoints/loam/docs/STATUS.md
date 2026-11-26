@@ -201,7 +201,7 @@ The design review and phases 0, 1, 2 and 4 are done or exited: their detail is a
 
   - 8, milestone A: reached 2026-11-26, the desktop copilot ([its exit run](phases/5-copilot/spec.md#step-8-milestone-a-2026-11-26)); built in [#2619](https://github.com/lushly-dev/afd/pull/2619), [#2621](https://github.com/lushly-dev/afd/pull/2621) and [#2657](https://github.com/lushly-dev/afd/pull/2657).
 
-  - 9, plugin engines: not started.
+  - 9, plugin engines: in progress: 9a in [#2702](https://github.com/lushly-dev/afd/pull/2702).
 
   - 10, the bus (native `calls`, `event-list`, `shell-open`): not started.
 

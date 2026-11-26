@@ -2,7 +2,7 @@
 	"name": "@lushly-dev/loam-cli",
 	"version": "0.1.0",
 	"private": true,
-	"description": "The loam bin: app new, app check, app pack, deployment check and deployment write; checkApp, writeDeployment and the single-file HTML plugin for views",
+	"description": "The loam bin: app new, app check, app pack, deployment check, deployment write, plugin check and plugin pack; checkApp, writeDeployment and the single-file HTML plugin for views",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
