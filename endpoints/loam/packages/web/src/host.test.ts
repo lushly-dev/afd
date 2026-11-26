@@ -1,7 +1,8 @@
 import 'fake-indexeddb/auto';
+import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
-import { createHostKernel, type HostKernelOptions } from './host.js';
+import { createHostKernel, type HostKernelOptions, STORE_NAME } from './host.js';
 
 /** A Web Locks stand-in: one holder per name, `ifAvailable` refuses when held, blocking requests queue (#1634). */
 function fakeLocks(): NonNullable<HostKernelOptions['locks']> {
@@ -55,6 +56,52 @@ function fakeLocks(): NonNullable<HostKernelOptions['locks']> {
 const environment = { matches: () => false, onChange: () => () => {} };
 
 describe('the browser host kernel', () => {
+	it('requests persistence and round-trips all workspace tables through one export file', async () => {
+		const indexedDB = new IDBFactory();
+		const source = new IndexedDbAdapter({ name: STORE_NAME, indexedDB });
+		const restored = new IndexedDbAdapter({ name: 'restored', indexedDB });
+		const rows = [
+			{ table: 'documents', row: { id: 'draft', title: 'A draft' } },
+			{ table: 'loam-settings', row: { id: 'local', appearance: { theme: 'dark' } } },
+			{ table: 'app-notes', row: { id: 'draft', body: 'The draft text' } },
+		];
+		for (const { table, row } of rows) await source.create<Record<string, unknown>>(table, row);
+		let file: { name: string; contents: string } | undefined;
+		const host = await createHostKernel({
+			environment,
+			indexedDB,
+			locks: fakeLocks(),
+			localWorkspace: {
+				storage: { persist: async () => true },
+				saveFile(name, contents) {
+					file = { name, contents };
+				},
+			},
+		});
+		if (host.kind !== 'ready') throw new Error('expected a kernel');
+		try {
+			expect((await host.kernel.call('storage-persistence-get')).data).toEqual({
+				status: 'persistent',
+			});
+			expect((await host.kernel.agent.call('workspace-export')).error?.code).toBe(
+				'COMMAND_NOT_EXPOSED'
+			);
+			const result = await host.kernel.call('workspace-export');
+			expect(result.data).toMatchObject({ filename: 'loam-workspace.json' });
+			expect(file?.name).toBe('loam-workspace.json');
+			const backup = JSON.parse(file?.contents ?? '{}');
+			expect(backup).toMatchObject({ format: 'loam-workspace', version: 1 });
+			expect(backup.records.length).toBeGreaterThanOrEqual(rows.length);
+			for (const { table, row } of backup.records) await restored.create(table, row);
+			expect(await restored.snapshot()).toEqual(await source.snapshot());
+		} finally {
+			await host.kernel.dispose();
+			await host.journal.close();
+			await source.close();
+			await restored.close();
+		}
+	});
+
 	it('persists layout through IndexedDB and journals every call', async () => {
 		const indexedDB = new IDBFactory();
 		const locks = fakeLocks();

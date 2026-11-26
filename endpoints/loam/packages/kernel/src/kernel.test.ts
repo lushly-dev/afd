@@ -10,9 +10,11 @@ import { journalsCommand } from './journal-redact.js';
 import {
 	COMMAND_NAME_SUGGESTION,
 	createKernel,
+	createKernelParts,
 	kernelJournalOptions,
 	redactJournalRecord,
 } from './kernel.js';
+import { SHELL_KEY_ACTIONS } from './keybindings.js';
 import { createDefaultLayout, type LayoutStateV0 } from './layout.js';
 import { SHELL_COMMAND_NAMES } from './shell-command-names.js';
 import { createFixedEnvironment, createSteppingClock } from './testing.js';
@@ -104,9 +106,31 @@ describe('registries and exposure', () => {
 		// afd-auth keeps `auth-sign-in` off the agent surface.
 		expect(k.agent.listCommands().map((summary) => summary.name)).toEqual(
 			SHELL_COMMAND_NAMES.filter(
-				(name) => !(COPILOT_QUERIES as readonly string[]).includes(name) && name !== 'auth-sign-in'
+				(name) =>
+					!(COPILOT_QUERIES as readonly string[]).includes(name) &&
+					!SHELL_KEY_ACTIONS.some((action) => action === name) &&
+					name !== 'auth-sign-in'
 			)
 		);
+	});
+
+	it('keeps shell key actions and local backup commands off MCP', async () => {
+		const parts = await createKernelParts(
+			options({
+				localWorkspace: {
+					persistence: Promise.resolve('persistent'),
+					export: async () => ({ filename: 'loam-workspace.json', records: 0 }),
+				},
+			})
+		);
+		kernels.push(parts.kernel);
+		const palette = parts.kernel.listCommands().map(({ name }) => name);
+		const mcp = parts.mcpOptions()?.commands.map(({ name }) => name);
+		expect(mcp).toBeDefined();
+		for (const name of [...SHELL_KEY_ACTIONS, 'storage-persistence-get', 'workspace-export']) {
+			expect(palette).toContain(name);
+			expect(mcp).not.toContain(name);
+		}
 	});
 
 	it('summarizes needsInput, mutation, title and keybinding', async () => {

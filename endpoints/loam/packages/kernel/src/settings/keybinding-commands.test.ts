@@ -253,22 +253,27 @@ describe('P4-E9: keybinding-list (8.5)', () => {
 		);
 	});
 
-	it('refuses each reserved action’s name as a command, with the keys to press (R1)', async () => {
+	it('only exposes the reserved actions to the local shell and calls its bound action', async () => {
 		const { kernel } = await workspace();
+		const performed: string[] = [];
 		for (const name of [
 			'shell-save',
 			'shell-focus-next',
 			'shell-focus-previous',
 			'shell-project-switcher',
 		]) {
-			const refused = await kernel.call(name, {});
-			expect(refused.error, name).toMatchObject({
-				code: 'KEYBINDING_ACTION_ONLY',
-				suggestion: `Press its keys: keybinding-list { command: '${name}' } names them`,
-			});
+			expect((await kernel.call(name, {})).error?.code).toBe('SHELL_ACTION_UNAVAILABLE');
+			expect((await kernel.agent.call(name, {})).error?.code).toBe('COMMAND_NOT_EXPOSED');
+			expect(kernel.listCommands().some((command) => command.name === name)).toBe(true);
 		}
-		const names = kernel.listCommands().map(({ name }) => name);
-		expect(names.filter((name) => /^shell-(focus|save|project)/.test(name))).toEqual([]);
+		const unbind = kernel.bindShellKeys?.((name) => {
+			performed.push(name);
+			return true;
+		});
+		expect((await kernel.call('shell-save')).data).toEqual({ performed: true });
+		expect(performed).toEqual(['shell-save']);
+		unbind?.();
+		expect((await kernel.call('shell-save')).error?.code).toBe('SHELL_ACTION_UNAVAILABLE');
 	});
 });
 

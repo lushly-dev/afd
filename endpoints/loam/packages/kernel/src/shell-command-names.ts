@@ -149,4 +149,8 @@ export const SHELL_COMMAND_NAMES = [
 	'limit-usage-get',
 	// Phase 4's step 7 (its 8.5): the bindings in force.
 	'keybinding-list',
+	'shell-focus-next',
+	'shell-focus-previous',
+	'shell-save',
+	'shell-project-switcher',
 ] as const;

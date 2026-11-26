@@ -1488,6 +1488,18 @@ Relay re-check 4 of `ce5c82ed` called the specification approvable: no blocker, 
 | Nit: P6-E5's list | `params.inputResponses`, `params.requestState` and `_meta["dev.afd/confirm"]` never reach the instance | 19 |
 | Owner questions | Q1 blocks steps 9 to 12, and Q2 step 10's card, catalog and guide; neither blocks the approval, as in phase 3 | Questions |
 
+## Local workspace backup
+
+The local web host requests persistent storage after taking the IndexedDB writer lock. Settings > Limits reports
+whether the browser granted it, declined it, or could not answer the request. Some browsers ask for permission.
+
+Run **Export local workspace** in the command palette to download `loam-workspace.json`. Version 1 records each
+table name, identifier and row from a single IndexedDB read transaction, including documents, settings and app stores.
+The backup covers the local profile's record store. Its journal is a separate database. The command is exposed to the
+local shell palette and returns the filename and record count. The backup round-trip test restores the rows into
+a new IndexedDB adapter and checks equality. The backup format contains the JSON rows the adapter stores.
+`WORKSPACE_EXPORT_FAILED` suggests retrying the download. [#1777](https://github.com/lushly-dev/afd/issues/1777)
+
 ## Follow-ups
 
 | Date | Raised by | Follow-up | Status |

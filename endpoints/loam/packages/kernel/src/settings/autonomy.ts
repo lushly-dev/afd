@@ -89,6 +89,7 @@ export interface AutonomyDeps {
 	 * shell's, the host's own `KernelOptions.commands` among them.
 	 */
 	commandNames(): readonly string[];
+	agentCommandNames?(): ReadonlySet<string>;
 	/** The commands no caller reaches (`INTERNAL_COMMANDS`, boot's own among them). */
 	internal(name: string): boolean;
 	isMutation(name: string): boolean;
@@ -238,6 +239,11 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 	function shellCommands(): Set<string> {
 		const owners = deps.apps().owners;
 		return new Set(deps.commandNames().filter((name) => !owners.has(name) && !deps.internal(name)));
+	}
+
+	function listedShellCommands(): string[] {
+		const callable = deps.agentCommandNames?.();
+		return [...shellCommands()].filter((name) => !callable || callable.has(name)).sort();
 	}
 
 	/**
@@ -512,6 +518,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 		);
 
 	const listInput = z.strictObject({
+		includeShellCommands: z.optional(z.boolean()),
 		level: z.optional(z.enum(['workspace', 'project'])),
 		project: z.optional(NAME),
 		cursor: z.optional(z.string().check(z.minLength(1), z.maxLength(600))),
@@ -522,6 +529,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 		typeof listInput,
 		{
 			rows: AutonomyRowV1[];
+			shellCommands?: string[];
 			ceiling: AutonomyModeV1 | null;
 			cap: AutonomyModeV1 | null;
 			writable: { workspace: Writable; project?: Writable; cap: Writable };
@@ -539,6 +547,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 		jsonSchema: {
 			type: 'object',
 			properties: {
+				includeShellCommands: { type: 'boolean' },
 				level: { type: 'string', enum: ['workspace', 'project'] },
 				project: NAME_JSON,
 				cursor: { type: 'string', minLength: 1, maxLength: 600 },
@@ -581,6 +590,9 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 					return id === undefined ? undefined : enterable(id, context);
 				})();
 			const head = {
+				...(input.includeShellCommands && !shellTaken()
+					? { shellCommands: listedShellCommands() }
+					: {}),
 				ceiling: general?.ceiling ?? null,
 				cap: ((await capOf(context))?.value as AutonomyModeV1 | undefined) ?? null,
 				// Computed for the caller, as `setting-list`'s `writable` is (3.9), so the section shows only what they may set.

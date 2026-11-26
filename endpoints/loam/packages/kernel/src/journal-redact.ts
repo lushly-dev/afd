@@ -33,6 +33,12 @@ const marked = (value: unknown): boolean =>
  * journaled for agents and apps, #2105.)
  */
 export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze([
+	'shell-focus-next',
+	'shell-focus-previous',
+	'shell-save',
+	'shell-project-switcher',
+	'workspace-export',
+	'storage-persistence-get',
 	'palette-search',
 	'scope-get',
 	'section-get',

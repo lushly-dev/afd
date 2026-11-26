@@ -20,6 +20,7 @@ import {
 	type LayoutPatchV0,
 	type LayoutStateV0,
 	type LoamKernel,
+	type ShellKeyAction,
 } from '@lushly-dev/loam-kernel';
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { afterFirstFrame } from '../first-frame.js';
@@ -427,6 +428,10 @@ export class LoamShell extends FASTElement {
 		// Before a call that waited on stage B goes on, so a palette result finds its row.
 		void kernel.appsReady.then(() => this.#stageBEnded(kernel)).catch(reportError);
 
+		const unbind = kernel.bindShellKeys?.((action) =>
+			this.apps?.modalOpen || this.palette?.isOpen ? false : this.#performShellKey(action)
+		);
+		if (unbind) this.#cleanup.push(unbind);
 		this.#cleanup.push(kernel.subscribe((event) => this.#onEvent(event)));
 		// Each key resolved once, in the capture phase, and done in the bubble phase (phase 4 specification, 8.1).
 		view.addEventListener('keydown', this.#capture, { capture: true });
@@ -1084,7 +1089,8 @@ export class LoamShell extends FASTElement {
 				return;
 			}
 			// With no editor to save, the browser's, as before (documents specification, 5.5).
-			if (this.#saver?.(event.composedPath(), event.repeat)) event.preventDefault();
+			if (this.#performShellKey('shell-save', event.composedPath(), event.repeat))
+				event.preventDefault();
 			return;
 		}
 		this.#resolved = { event, binding: press.binding };
@@ -1113,12 +1119,15 @@ export class LoamShell extends FASTElement {
 			event.preventDefault();
 			if (binding.focus) {
 				// A modal keeps focus; F6 would otherwise leave it for the browser's toolbar.
-				if (!paletteOpen && !this.#drawerOpen()) this.#moveFocus(binding.focus);
+				if (!paletteOpen)
+					this.#performShellKey(
+						binding.focus === 'next' ? 'shell-focus-next' : 'shell-focus-previous'
+					);
 				return;
 			}
 			if (paletteOpen || event.repeat) return;
 			if (binding.command === 'palette-open') void this.openPalette();
-			else if (binding.switcher) this.#pressSwitcher();
+			else if (binding.switcher) this.#performShellKey('shell-project-switcher');
 			else if (binding.toggle) void this.toggle(binding.toggle);
 			// A person's override of `section-open` names its section (8.1's `target`).
 			else if (binding.command === 'section-open' && binding.target)
@@ -1171,16 +1180,28 @@ export class LoamShell extends FASTElement {
 		return { part: part?.dataset.part, editor };
 	}
 
+	#performShellKey(
+		action: ShellKeyAction,
+		path: readonly EventTarget[] = [],
+		repeat = false
+	): boolean {
+		if (action === 'shell-save') return this.#saver?.(path, repeat) ?? false;
+		if (action === 'shell-project-switcher') return this.#pressSwitcher();
+		if (this.#drawerOpen() || this.apps?.modalOpen) return false;
+		return this.#moveFocus(action === 'shell-focus-next' ? 'next' : 'previous');
+	}
+
 	/** Mod+Alt+P (8.4): the project switcher's press, on the rail's or the tab bar's, whichever is shown. */
-	#pressSwitcher(): void {
+	#pressSwitcher(): boolean {
 		for (const variant of ['rail', 'tabbar']) {
 			const nav = this.shadowRoot?.querySelector<HTMLElement>(`loam-${variant}`);
 			const switcher = nav?.shadowRoot?.querySelector<LoamProjectSwitcher>('loam-project-switcher');
 			if (nav && switcher && !nav.closest('[hidden]') && switcher.checkVisibility()) {
 				switcher.press();
-				return;
+				return true;
 			}
 		}
+		return false;
 	}
 
 	#drawerOpen(): boolean {
@@ -1198,7 +1219,7 @@ export class LoamShell extends FASTElement {
 		);
 	}
 
-	#moveFocus(direction: 'next' | 'previous'): void {
+	#moveFocus(direction: 'next' | 'previous'): boolean {
 		let node: Node | null = deepActiveElement(this.ownerDocument);
 		let current: PartName | undefined;
 		while (node) {
@@ -1219,6 +1240,7 @@ export class LoamShell extends FASTElement {
 			? this.shadowRoot?.querySelector<HTMLElement>(`[data-part="${target}"]`)
 			: null;
 		if (element) focusPart(element);
+		return element !== null && element !== undefined;
 	}
 }
 observable(LoamShell.prototype, 'layout');

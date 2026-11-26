@@ -32,6 +32,7 @@ type Writable = { writable: boolean; reason?: string };
 type PanelScope = { workspace: string; project?: string };
 interface Listed {
 	rows: AutonomyRow[];
+	shellCommands?: string[];
 	ceiling: Mode | null;
 	cap: Mode | null;
 	writable: { workspace: Writable; project?: Writable; cap: Writable };
@@ -120,7 +121,8 @@ export class LoamAutonomySection extends SettingsElement {
 	}
 
 	#title = (instance: string): string =>
-		this.apps.find((app) => app.instance === instance)?.title ?? instance;
+		this.apps.find((app) => app.instance === instance)?.title ??
+		(instance === 'shell' ? 'Shell' : instance);
 
 	#call<T>(name: string, input: unknown, scope = this.scope): Promise<Answer<T>> {
 		return (this.kernel?.call(name, input, { scope }) ??
@@ -132,6 +134,7 @@ export class LoamAutonomySection extends SettingsElement {
 		return {
 			...(this.project ? { project: this.project.id } : { level: 'workspace' }),
 			limit: this.pageSize,
+			includeShellCommands: true,
 		};
 	}
 
@@ -384,23 +387,30 @@ export class LoamAutonomySection extends SettingsElement {
 		const prefix = `add-${at.level}`;
 		const app = el('select', { id: `${prefix}-app` }) as HTMLSelectElement;
 		app.append(...this.apps.map(({ instance, title }) => el('option', { value: instance }, title)));
+		if (this.#listed?.shellCommands) app.append(el('option', { value: 'shell' }, 'Shell'));
 		const command = el('select', { id: `${prefix}-command` }) as HTMLSelectElement;
 		const mode = modeSelect('Mode', `${prefix}-mode`, 'ask', 'Choose', off);
 		const fill = async () => {
-			const listed = await this.#call<{ commands: Array<{ name: string; title?: string }> }>(
-				'app-command-list',
-				{ instance: app.value },
-				scope
-			);
+			const instance = app.value;
+			command.replaceChildren();
+			const choices =
+				instance === 'shell' && this.#listed?.shellCommands
+					? this.#listed.shellCommands.map((name) => ({ name, title: name }))
+					: ((
+							await this.#call<{ commands: Array<{ name: string; title?: string }> }>(
+								'app-command-list',
+								{ instance },
+								scope
+							)
+						).data?.commands ?? []);
+			if (app.value !== instance) return;
 			command.replaceChildren(
 				el('option', { value: '' }, 'Every command'),
-				...(listed.data?.commands ?? []).map(({ name, title }) =>
-					el('option', { value: name }, title ?? name)
-				)
+				...choices.map(({ name, title }) => el('option', { value: name }, title ?? name))
 			);
 		};
 		app.addEventListener('change', () => void fill());
-		if (this.apps.length > 0) void fill();
+		if (app.value) void fill();
 		for (const control of [app, command]) control.disabled = off;
 		const form = el(
 			'form',
@@ -412,7 +422,7 @@ export class LoamAutonomySection extends SettingsElement {
 				'Add rule',
 				() => {
 					// Never sent when the caller may not set this level, whatever the button's state says.
-					if (off || !mode.select.value || !app.value) return;
+					if (off || !mode.select.value || command.selectedIndex < 0) return;
 					return this.#set(
 						{
 							...at,

@@ -74,6 +74,7 @@ export {
 	type ResolvedKeybindingsV1,
 	SHELL_KEY_ACTIONS,
 	SHELL_KEYBINDINGS_V0,
+	type ShellKeyAction,
 	type ShellKeybindingV0,
 } from './keybindings.js';
 export {
@@ -153,6 +154,7 @@ export {
 	type KernelPorts,
 	type LinkedCall,
 	type LoamKernel,
+	type LocalWorkspaceBackup,
 	type McpTool,
 	type McpToolCallResult,
 	type MountTransport,

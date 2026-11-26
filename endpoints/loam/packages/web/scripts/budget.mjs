@@ -661,7 +661,7 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #2599 (Violet's redrawn system icons: `folder`, `document`, `close`, `search` and
 	// `warning`, which first paint carries, grow and `settings` shrinks): measured 346,861 with `main` at `7e75987e9`
 	// merged, against 346,795 with main's icons (+66); set to 347,200.
-	jsMinified: 347_200,
+	jsMinified: 348_350, // D115: local workspace export and shell key commands (348,039 on 5ade6c0f4).
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -700,7 +700,7 @@ export const CEILINGS = Object.freeze({
 	// lowering first-paint gzip from 109,973 to 103,971 (-6,002) against `main` at `bd374912`; lowered to 105,000.
 	// #2107 (inject wrapper provenance and `redactWrapped` from `late/journal-wrappers.ts`):
 	// first-paint gzip dropped from 104,118 to 102,691 (-1,427) against `main` at `bd30d790b`; lowered to 103,600.
-	jsGzip: 103_600,
+	jsGzip: 104_050, // D115: local workspace export and shell key commands (103,742 on 5ade6c0f4).
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -805,7 +805,7 @@ export const CEILINGS = Object.freeze({
 	// measured 139,141 against `main` at `804e17cc`; set to 139,700 under D115.
 	// #2107 (moved `journal-provenance.ts` and `redactWrapped` from first paint into `late/journal-wrappers.ts`):
 	// measured 144,170 against `main` at `bd30d790b` (+4,850 moved from first paint); set to 144,700 under D115.
-	lateMinified: 146_900, // D115 (measured 146,399 against cdaf8e1ff): #1508 copilot attachment reader in copilot-wiring.ts
+	lateMinified: 150_050, // D115: reserved chord and workspace backup commands (149,739 on 5ade6c0f4).
 	// #2117 (`recordOrder` calls in `documents.ts`): measured 13,584 against `main` at `804e17cc`; set to 13,800 under D115.
 	lateDocumentsMinified: 13_800,
 	// Bug batch #2113: 17,514 (`closeApp` across persisted scopes with R14 dirty re-check, `document-open` gated refusal, `isTypeGated`, `Editors.projects()`); set to 18,000 under D115.
@@ -961,7 +961,7 @@ export const CEILINGS = Object.freeze({
 	// Phase 5's step 3 merged on top, the combined build: 51,470 (+1,134: approval health beside the autonomy rules); set
 	// to 52,000 under D115.
 	// Bug batch #2097/#2098: 52,214 (separate read counters, `#showing` commit guard, atomic chrome paint, and stale-safe `settingsHashTarget`); set to 52,500 under D115.
-	settingsMinified: 53_200,
+	settingsMinified: 54_000, // D115: shell autonomy rules and storage status (53,660 on 5ade6c0f4).
 	// #1484 (Refined primary/secondary `.action` key styles and transitions in `LoamEditorHeld`):
 	// measured 5,476 against `main` at `a5e79aab`; set to 5,900 under D115.
 	editorMoveMinified: 6_400,

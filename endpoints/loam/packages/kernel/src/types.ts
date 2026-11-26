@@ -56,6 +56,10 @@ export type { IdentityV1, ProjectSummaryV1, ResourceLinkV1, ScopeV1 };
 export const KERNEL_INTERFACE_VERSION = 5;
 
 export interface LoamKernel {
+	/** Bind the local chrome that can perform reserved keyboard actions. */
+	bindShellKeys?(
+		perform: (action: import('./keybindings.js').ShellKeyAction) => boolean
+	): () => void;
 	readonly version: typeof KERNEL_INTERFACE_VERSION;
 	call<T = unknown>(
 		name: string,
@@ -278,7 +282,14 @@ export interface OverlayAnchors {
 	resolve?(owner: { kind: 'shell' | 'app'; id: string }, anchor: OverlayAnchorV1): boolean;
 }
 
+export interface LocalWorkspaceBackup {
+	persistence: Promise<'persistent' | 'best-effort' | 'unavailable'>;
+	export(): Promise<{ filename: string; records: number }>;
+}
+
 export interface KernelOptions {
+	/** Backup and storage status are supplied by the local browser host. */
+	localWorkspace?: LocalWorkspaceBackup;
 	store: DataAdapter;
 	/** `sqlite` is the hosted server's `SqliteAdapter`. */
 	storeKind: 'memory' | 'indexeddb' | 'sqlite';

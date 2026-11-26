@@ -1,0 +1,12 @@
+name: Back up a local workspace
+job: export-local-workspace
+description: When I need a backup of my local workspace, I want its stored records written into one file.
+steps:
+  - command: storage-persistence-get
+    input: {}
+    expect:
+      success: true
+  - command: workspace-export
+    input: {}
+    expect:
+      success: true

@@ -205,6 +205,11 @@ describe('P4-E9: keybindings', () => {
 		await page.keyboard.press('ControlOrMeta+Shift+KeyO');
 		await expect.poll(() => switcher(page).getAttribute('aria-expanded')).toBe('true');
 		await page.keyboard.press('Escape');
+		expect(await kernelCall(page, 'shell-project-switcher', {})).toMatchObject({ success: true });
+		await expect.poll(() => switcher(page).getAttribute('aria-expanded')).toBe('true');
+		await page.keyboard.press('Escape');
+		expect(await kernelCall(page, 'shell-focus-next', {})).toMatchObject({ success: true });
+		await expect.poll(async () => (await focused(page)).part).toBeTruthy();
 		// A layout toggle rebound by its part (R2), and hello's own chord shadowed by the person's while hello is open.
 		await overrides(page, [
 			{ command: 'layout-set', target: 'sidebar', keys: 'Mod+Shift+J' },
@@ -447,6 +452,10 @@ describe("P4-E9: step 7's reviews", () => {
 		// Mod+S alone still saves.
 		await page.keyboard.press('ControlOrMeta+KeyS');
 		await expect.poll(() => stored(page, note), { timeout: 1500 }).not.toBe(before);
+		const saved = await stored(page, note);
+		await typeInto(page, 't1', 'Saved by the command');
+		expect(await kernelCall(page, 'shell-save', {})).toMatchObject({ success: true });
+		await expect.poll(() => stored(page, note), { timeout: 1500 }).not.toBe(saved);
 		await opened.context.close();
 	});
 
@@ -714,6 +723,16 @@ describe("P4-E9: step 7's third round", () => {
 			await settle(page);
 			expect(await paletteOpen(page), key).toBe(true);
 		}
+		await page.close();
+	});
+
+	it('shows a toast when a reserved action cannot run after the palette closes', async () => {
+		const { page } = await openShell(browser, site.origin);
+		await page.keyboard.press('ControlOrMeta+K');
+		await page.locator('loam-palette input').fill('shell-save');
+		await page.locator('loam-palette violet-option[data-command="shell-save"]').click();
+		await expect.poll(() => paletteOpen(page)).toBe(false);
+		await page.getByText('The shell cannot perform this action now').waitFor({ timeout: 5_000 });
 		await page.close();
 	});
 

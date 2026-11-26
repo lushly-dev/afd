@@ -57,6 +57,11 @@ describe('P2-E13: E5: a second app lands with no shell change', () => {
 		const { page } = opened;
 		await openApp(page, 'tally');
 		await page.locator('tally-main violet-button.add').click();
+		expect(
+			await page
+				.locator('tally-main h1')
+				.evaluate((heading) => getComputedStyle(heading).fontFamily)
+		).toMatch(/^"?Space Grotesk"?,/);
 		await expect.poll(() => page.locator('tally-main .total').textContent()).toBe('1');
 		await expect
 			.poll(() => page.locator('loam-statusbar [data-status-item="total"]').textContent())

@@ -118,6 +118,13 @@ describe('P4-E4: the autonomy section', () => {
 			.poll(() => panel.locator(`[data-row="project/${atlas}/tally/tally-add"]`).count())
 			.toBe(1);
 
+		await panel.locator('#add-workspace-app').selectOption('shell');
+		await panel.locator('#add-workspace-command').selectOption('layout-get');
+		await panel.getByRole('button', { name: 'Add rule' }).first().click();
+		await expect
+			.poll(() => panel.locator('[data-row="workspace/-/shell/layout-get"]').count())
+			.toBe(1);
+
 		// The chain: why each command gets its mode here.
 		const explain = async (command: string) => {
 			await panel.locator('#explain-command').fill(command);

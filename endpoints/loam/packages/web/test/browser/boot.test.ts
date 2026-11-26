@@ -57,6 +57,36 @@ describe('the built shell', () => {
 		await context.close();
 	});
 
+	it('shows persistent storage in Limits and downloads a local workspace backup', async () => {
+		const context = await browser.newContext({ acceptDownloads: true });
+		try {
+			await context.addInitScript(() => {
+				StorageManager.prototype.persist = async () => true;
+			});
+			const { page } = await openShell(browser, site.origin, {}, context);
+			await kernelCall(page, 'section-open', { section: 'settings', target: 'loam.limits' });
+			expect(await kernelCall(page, 'storage-persistence-get', {})).toMatchObject({
+				success: true,
+				data: { status: 'persistent' },
+			});
+			await page
+				.getByText('Persistent storage is enabled for this local workspace.')
+				.waitFor({ timeout: 5_000 });
+
+			const [download, result] = await Promise.all([
+				page.waitForEvent('download', { timeout: 5_000 }),
+				kernelCall(page, 'workspace-export', {}),
+			]);
+			expect(result).toMatchObject({ success: true, data: { filename: 'loam-workspace.json' } });
+			expect(download.suggestedFilename()).toBe('loam-workspace.json');
+			const backup = JSON.parse(readFileSync(await download.path(), 'utf8'));
+			expect(backup).toMatchObject({ format: 'loam-workspace', version: 1 });
+			expect(backup.records.length).toBeGreaterThan(0);
+		} finally {
+			await context.close();
+		}
+	});
+
 	it("#663: reads only the journal's last entry at boot, walking back from the end", async () => {
 		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 		// Every cursor opened on the journal's store, from the page's first script.

@@ -108,15 +108,15 @@ export type KeybindingInForceV1 = ShellKeybindingV0 & {
 };
 
 /**
- * The names `keybinding-list` and overrides give the reserved chords that run no command (R1): in the shell's domain,
- * which no app may declare, and refused when called (`KEYBINDING_ACTION_ONLY`), until they are real commands.
+ * The shell commands corresponding to the reserved focus, save and project-switcher chords.
  */
-export const SHELL_KEY_ACTIONS: readonly string[] = Object.freeze([
+export const SHELL_KEY_ACTIONS = Object.freeze([
 	'shell-focus-next',
 	'shell-focus-previous',
 	'shell-save',
 	'shell-project-switcher',
-]);
+] as const);
+export type ShellKeyAction = (typeof SHELL_KEY_ACTIONS)[number];
 
 /** What the kernel knows that a `when` reads (R4): the active app, the active tab's owner and type, the project. */
 export interface KeybindingContextV1 {
