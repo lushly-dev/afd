@@ -99,6 +99,9 @@
 				"default": false,
 				"name": "open-on-focus",
 				"property": "openOnFocus",
+				"rules": [
+					"taxonomy.open-on-focus"
+				],
 				"type": "boolean"
 			},
 			{
@@ -229,6 +232,7 @@
 		"taxonomy.label",
 		"taxonomy.name",
 		"taxonomy.open",
+		"taxonomy.open-on-focus",
 		"taxonomy.placeholder",
 		"taxonomy.required",
 		"taxonomy.supporting-text",

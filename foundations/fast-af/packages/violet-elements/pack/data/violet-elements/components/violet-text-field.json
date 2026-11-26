@@ -202,9 +202,6 @@
 				"description": "Native input type.",
 				"name": "type",
 				"property": "type",
-				"rules": [
-					"taxonomy.type"
-				],
 				"type": "\"text\" | \"search\" | \"email\" | \"url\" | \"password\" | \"tel\" | \"number\" | \"date\"",
 				"values": [
 					{
@@ -387,7 +384,7 @@
 		"taxonomy.required",
 		"taxonomy.step",
 		"taxonomy.supporting-text",
-		"taxonomy.type",
+		"taxonomy.type.violet-button",
 		"taxonomy.value",
 		"theme.install"
 	],

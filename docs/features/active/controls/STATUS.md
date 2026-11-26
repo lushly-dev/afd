@@ -229,7 +229,7 @@ is not, so an agent never has to scan the code to learn what is current.
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
-| 2026-11-24 | The survey for this proposal | `violet-elements`' `attribute-taxonomy.jsonc` lists `violet-date-range-picker` under `name.usedBy`, and the component has no `name` attribute. Checked first-hand | Open |
+| 2026-11-24 | The survey for this proposal | `violet-elements`' `attribute-taxonomy.jsonc` lists `violet-date-range-picker` under `name.usedBy`, and the component has no `name` attribute. Checked first-hand | Fixed in #508's taxonomy check, which removes the entry and fails any such drift in `fast-af.yml` |
 | 2026-11-24 | This proposal | Whether a journal should skip `control-*` commands, whose input is a person's draft, as two recorders skip `auth-*` | Open; the proposal's section 9 |
 | 2026-11-24 | This proposal | The measure in the proposal's section 7: one form filled by a model through these commands, through a workaround and through UI SDK's public benchmark task | Filed as part of [#2490](https://github.com/lushly-dev/afd/issues/2490) |
 | 2026-11-24 | Phase A's review | A read of `NaN` or an infinity, as a value or a limit, is taken as a number and listed as `null`, which the output schema does not allow. Decide it with phase B's binder, which reads an empty number input | Open; for [#2488](https://github.com/lushly-dev/afd/issues/2488) |

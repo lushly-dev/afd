@@ -84,10 +84,10 @@
 		},
 		{
 			"id": "button-type-rule",
-			"question": "Which shared rule governs violet-button's type attribute?",
+			"question": "Which shared rule governs violet-button's native type?",
 			"tag": "violet-button",
 			"section": "rules",
-			"contains": "taxonomy.type"
+			"contains": "taxonomy.type.violet-button"
 		},
 		{
 			"id": "button-import",
@@ -446,11 +446,11 @@
 		},
 		{
 			"id": "rule-type",
-			"question": "What does the shared rule taxonomy.type say?",
+			"question": "What does the shared rule taxonomy.type.violet-button say?",
 			"tag": "violet-button",
 			"section": "ruleText",
 			"match": {
-				"id": "taxonomy.type"
+				"id": "taxonomy.type.violet-button"
 			},
 			"field": "text",
 			"answer": "Passes through the native HTML control type when the component wraps a native form control with standard type semantics. Not for: visual variants; business modes; custom component family names."

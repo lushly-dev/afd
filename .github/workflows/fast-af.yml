@@ -135,6 +135,8 @@ jobs:
           pnpm -F @lushly-dev/violet-elements cem:analyze
           git diff --exit-code -- foundations/fast-af
           test -z "$(git status --porcelain -- foundations/fast-af)"
+      - name: The attribute taxonomy agrees with the custom-elements manifest
+        run: pnpm -F @lushly-dev/violet-elements taxonomy:check
       - run: pnpm -F @lushly-dev/violet-elements lint
       - uses: ./.github/actions/playwright-install
         with:

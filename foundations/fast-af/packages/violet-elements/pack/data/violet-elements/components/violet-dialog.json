@@ -79,9 +79,6 @@
 				"default": "modal",
 				"name": "type",
 				"property": "type",
-				"rules": [
-					"taxonomy.type"
-				],
 				"type": "string"
 			}
 		],
@@ -206,7 +203,8 @@
 		"taxonomy.no-close-button",
 		"taxonomy.open",
 		"taxonomy.padding",
-		"taxonomy.type",
+		"taxonomy.type.violet-dialog",
+		"taxonomy.type.violet-dialog.not-for",
 		"theme.install"
 	],
 	"status": "stable",

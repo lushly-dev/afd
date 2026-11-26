@@ -56,6 +56,10 @@ export const SUITES = [
 			},
 			{
 				"gate": "components",
+				"run": "pnpm -F @lushly-dev/violet-elements taxonomy:check"
+			},
+			{
+				"gate": "components",
 				"run": "pnpm -F @lushly-dev/violet-elements lint"
 			},
 			{
