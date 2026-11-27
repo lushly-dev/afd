@@ -15,7 +15,7 @@ import warnings
 from collections.abc import Awaitable, Callable, Iterator
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, replace
-from pathlib import PureWindowsPath
+from pathlib import Path, PureWindowsPath
 from typing import Any, cast
 
 from afd import Actor, CommandResult, DirectClient, error, system_clock, system_random
@@ -162,6 +162,23 @@ def _name_key(name: str) -> str:
     return "".join(character for character in name.lower() if character.isalnum())
 
 
+@dataclass(frozen=True)
+class HostSkills:
+    """Where a managed host's served skills come from (``botcore.host_skills``).
+
+    ``dirs`` are the folders its plugins register (``PluginRegistry.add_skills_dir``), served
+    after Botcore's bundled skills when ``bundled``. ``include`` and ``skip`` are the
+    workspace's ``[skills]`` filter, and a skill already seeded under ``seeded_dir`` is not
+    served.
+    """
+
+    dirs: tuple[Path, ...] = ()
+    include: tuple[str, ...] | None = None
+    skip: tuple[str, ...] = ()
+    seeded_dir: Path | None = None
+    bundled: bool = True
+
+
 class CommandHost:
     """An isolated catalog/context implementing AFD's DirectRegistry protocol.
 
@@ -180,6 +197,9 @@ class CommandHost:
         self.docs: dict[str, str] = {}
         #: The plugin instances whose commands this host serves (set by ``build_host``).
         self.plugins: dict[str, Any] = {}
+        #: Where the skills its MCP server serves come from (set by ``build_host``); ``None``
+        #: serves none. A host built from another host's commands copies it.
+        self.skills: HostSkills | None = None
 
     async def aclose(self) -> None:
         """Release what the host's plugins hold open, calling each plugin's ``close()``."""
@@ -699,6 +719,13 @@ def build_host(
             _refuse_foreign_policies(plugin_name, registry, *before)
     host = CommandHost(name, context)
     host.plugins = dict(selected)
+    host.skills = HostSkills(
+        dirs=tuple(registry.skills_dirs),
+        include=None if config.skills.include is None else tuple(config.skills.include),
+        skip=tuple(config.skills.skip),
+        # Seeding writes at the worktree's root, whatever folder the host targets.
+        seeded_dir=context.workspace / config.skills.source_dir,
+    )
     host.docs = build_docs(registry)
     host.middleware = registry.middleware
     explicit = policies or {}

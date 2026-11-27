@@ -168,7 +168,7 @@ Language detection is automatic. botcore inspects workspace markers (`Cargo.toml
 | **Research** | `research_query`, `research_stream` | GPT web research with streamed output |
 | **Undo** | `undo_status`, `undo_clear` | Command history and rollback |
 
-### Bundled Skills (11)
+### Bundled Skills (12)
 
 Skills are markdown knowledge packs for agents. botcore bundles only skills whose content is
 specific to botcore or its ecosystem; general engineering guidance that current models already
@@ -177,10 +177,26 @@ locally owned ones.
 
 | Category | Skills |
 |----------|--------|
-| **botcore** | `agent-config`, `botcore-config`, `browser-automation`, `mcp-builder`, `plugin-builder` |
+| **botcore** | `agent-config`, `botcore-config`, `browser-automation`, `disk-hygiene`, `mcp-builder`, `plugin-builder` |
 | **Review and security** | `code-reviewer`, `security-auditor` |
 | **Quality gates** | `bloat-sweeper`, `gate-discipline` (each with Node scripts, shipped in the wheel) |
 | **Documentation** | `docs-manager`, `skill-manager` |
+
+A repository gets these skills in one of two ways:
+
+- **Served over MCP.** The MCP server of a host from `build_host` (`create_host_mcp_server`)
+  serves the bundled skills and the skill folders its plugins register over the Skills
+  extension (`io.modelcontextprotocol/skills`), filtered by the workspace's `[skills]` `include`
+  and `skip`. A client that reads MCP skills, such as an interactive Claude Code session, gets
+  the version the server runs, with nothing copied. A skill the workspace already holds under
+  `[skills] source_dir` (matched by folder or frontmatter name) is not served, so a client that
+  reads both does not list it twice; the seeded copy then wins until `skill-seed --update`. A
+  folder the extension cannot read (a file path with a space, `skill.md` in lower case, no
+  `name`) stops the server, naming the folder. Pass `skills=None` to serve none.
+- **Seeded as files.** `botcore skill-seed` copies them into `.claude/skills/`. Use it for
+  every client that does not read MCP skills: Claude Code does not load them in `claude -p`,
+  the Agent SDK, cloud sessions or GitHub Actions, and Codex does not read them. Factory
+  fleets and other agents therefore still need seeded copies.
 
 ## Plugin System
 
@@ -330,7 +346,7 @@ result = await client.call("skill_seed", {"update": True})
 ### Manage Skills
 
 ```bash
-# Copy the 9 bundled skills into .claude/skills/
+# Copy the bundled skills into .claude/skills/
 botcore skill-seed
 
 # Check for version drift
@@ -485,7 +501,8 @@ serves managed hosts through `afd.server.create_server` (requires the `mcp`
 extra: `afd[server]>=0.13.0`, `mcp>=2.3,<3`), exposing dual-era MCP
 `2026-07-28` `server/discover` and `2025` `initialize`, AFD meta-tools
 (`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`), AFD tool
-strategies, Skills (`io.modelcontextprotocol/skills`), resources, OAuth bearer
+strategies, Skills (`io.modelcontextprotocol/skills`: Botcore's bundled skills and the
+plugins' skill folders by default, see [Bundled Skills](#bundled-skills-12)), resources, OAuth bearer
 auth, `context_hook` and `context_fields`. Host policy and execution profiles
 run as AFD middleware (`create_host_policy_middleware`), `default_timeout_ms`
 defaults to `None` (no cutoff unless configured), `command_tools=True` maps to

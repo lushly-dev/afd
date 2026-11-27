@@ -394,3 +394,11 @@ async def test_native_build_preserves_infrastructure_outcomes(tmp_path, kind, st
         result = await host.execute("dev_build")
     assert result.error.code == code
     assert result.metadata.quality["status"] == status
+
+
+def test_alfred_keeps_the_skill_sources_build_host_reads(tmp_path):
+    # create_host_mcp_server serves host.skills; a copy that drops it would ignore [skills].
+    (tmp_path / "botcore.toml").write_text('[skills]\ninclude = ["plugin-builder"]\n')
+    host = build_alfred_host(tmp_path)
+    assert host.skills is not None
+    assert host.skills.include == ("plugin-builder",)

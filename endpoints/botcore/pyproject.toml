@@ -112,6 +112,7 @@ module = [
     "botcore.host_client",
     "botcore.host_http",
     "botcore.host_inputs",
+    "botcore.host_skills",
     "botcore.host_surfaces",
     "botcore.host_tokens",
     "botcore.commands.disk",
