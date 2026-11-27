@@ -4,7 +4,7 @@ Maintainers can see which skills agents load, how often, on which harness and ma
 whether a skill the repository marks as required was loaded before the work it covers. Nothing
 is added to the skills and no agent is asked to report.
 
-Progress is in [STATUS.md](STATUS.md). Active since 2026-11-21.
+Progress is in [STATUS.md](STATUS.md). Active from 2026-11-21 to 2026-11-27.
 
 ## The problem
 

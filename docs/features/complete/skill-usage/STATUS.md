@@ -1,8 +1,11 @@
 # Skill usage: status
 
-Epic: [#1806](https://github.com/lushly-dev/afd/issues/1806). File new work for this area as its sub-issue.
+Epic: [#1806](https://github.com/lushly-dev/afd/issues/1806), closed 2026-11-27 with every piece merged or deferred.
+The two deferred pieces, [#1891](https://github.com/lushly-dev/afd/issues/1891) and
+[#2738](https://github.com/lushly-dev/afd/issues/2738), are standalone issues now. File new work for this area as a
+standalone issue.
 
-Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-21.
+Read this before the [proposal](skill-usage.proposal.md). Active from 2026-11-21 to 2026-11-27.
 
 ## How to keep this file
 
@@ -327,7 +330,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 ## Later
 
-- Codex session logs as a source (#1891): deferred by the owner on 2026-11-26; 18 of 827 logs on three machines are outside T3 Code.
+- Codex session logs as a source (#1891): deferred by the owner on 2026-11-26; 18 of 827 logs on three machines are outside T3 Code. A standalone issue since the epic closed.
 
 - The same totals whichever machine reads, when checkouts differ (#1904): merged in #2050.
 
@@ -339,7 +342,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - A removed checkout's skills leave the reports (#2123): merged in #2152.
 
-- Whether a loaded skill prevents the mistakes it names (#1829): `skill-usage-effect` over `[[skills.traps]]` (the owner, 2026-11-26), merged in #2795; AFD's first traps wait for #2738.
+- Whether a loaded skill prevents the mistakes it names (#1829): `skill-usage-effect` over `[[skills.traps]]` (the owner, 2026-11-26), merged in #2795; AFD's first traps wait for #2738, a standalone issue since the epic closed.
 
 - Judging a change whose pull request a script opened, as a fleet's merge lane does (#1887): the lane's `Factory-session:` trailer (the owner, 2026-11-26), merged in #2769.
 

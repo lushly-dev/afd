@@ -110,7 +110,7 @@ six hours, so they include queue time and are not billed minutes. Commits:
   checks and tests, durations and counts only.
 - **No new gate on a number**, which would be met by checking less.
 - **No hosted service.** A file on each machine and a shared folder, as [skill
-  usage](../skill-usage/skill-usage.proposal.md) does it.
+  usage](../../complete/skill-usage/skill-usage.proposal.md) does it.
 
 ## Jobs
 
