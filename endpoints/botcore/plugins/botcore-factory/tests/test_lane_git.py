@@ -676,6 +676,32 @@ def test_a_merged_slot_is_folded_into_one_commit_of_its_own_on_the_base(tmp_path
     assert run(["git", "ls-remote", str(remote), "refs/heads/feat"]).split()[0] == again.head
 
 
+def test_a_fold_names_the_cells_threads_and_a_folded_commit_that_does_is_kept(
+    tmp_path, monkeypatch
+):
+    """lushly-dev/afd#1887: the commit the lane validates, pushes and merges names each of the
+    cell's threads in a ``Factory-session:`` trailer; a head that already does is not made
+    again, and one that names fewer is."""
+    from botcore_factory.squash import session_tag
+
+    fixture = FoldRepo(tmp_path, monkeypatch)
+    git, log, main = fixture.git, fixture.log, fixture.main
+    slot = git.prepare_slot("1", "", fixture.newest)
+    assert git.merge_main(slot, main).clean
+    folded = git.fold(slot, main, ["thread-1"])
+    assert log(folded.head, "%B") == (
+        "feat: b\n\n#1809 explains it.\n\n- fix: c\n\nAssisted-by: Codex\n"
+        f"Factory-session: {session_tag('thread-1')}"
+    )
+    assert log(folded.head, "%(trailers:key=Factory-session,valueonly)") == session_tag("thread-1")
+    assert git.fold(slot, main, ["thread-1"]).head == folded.head
+    again = git.fold(slot, main, ["thread-1", "thread-2"])
+    assert again.head != folded.head and log(again.head, "%P") == main
+    assert log(again.head, "%B").endswith(
+        f"Factory-session: {session_tag('thread-1')}\nFactory-session: {session_tag('thread-2')}"
+    )
+
+
 def test_a_fold_is_refused_and_leaves_the_head_when_it_cannot_credit_one_author(
     tmp_path, monkeypatch
 ):

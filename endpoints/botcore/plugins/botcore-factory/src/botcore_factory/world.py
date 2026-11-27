@@ -419,11 +419,12 @@ class Git(Protocol):
         """Abort the open merge, if any."""
         ...
 
-    def fold(self, path: str, base: str) -> FoldOutcome:
+    def fold(self, path: str, base: str, sessions: Sequence[str] = ()) -> FoldOutcome:
         """Make the slot's head, which has merged ``base``, one commit whose parent is ``base``
         and whose tree is the head's: authored and committed as the branch's own commits were,
-        with their messages folded (``squash.fold_message``). A rebase merge drops a branch's
-        merges and lands each of its own commits, so the lane hands it one
+        with their messages folded (``squash.fold_message``) and a ``Factory-session:`` trailer
+        for each of ``sessions``, the cell's threads (``squash.with_sessions``). A rebase merge
+        drops a branch's merges and lands each of its own commits, so the lane hands it one
         (lushly-dev/afd#1809); a squash of one commit is that commit. A head that already is
         such a commit is kept. A refusal (``refused``) leaves the head as it was; a fold that
         failed otherwise raises WorldError, and the head is as it was."""

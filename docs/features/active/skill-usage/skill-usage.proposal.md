@@ -362,7 +362,12 @@ can be opened. Otherwise it is unknown, never a miss:
 - no session on a collected machine is linked to its pull request (`no_session`);
 - no session linked to it is known to have opened it (`opened_elsewhere`): a script, a person
   or a session on a machine not collected did, or its link does not say. A change a fleet's
-  merge lane publishes is one of these two
+  merge lane publishes is judged instead by the sessions its commit names: the lane writes a
+  `Factory-session: sha256:<24 hex>` trailer for each thread that worked on the cell, and the
+  commit's author time stands for when the cell handed it over (a queue that rebases keeps
+  it; one that squashes writes a later one, so a load in between counts as before). One whose
+  trailers name no session on record is `no_session`, and one with a trailer no record holds
+  is never a miss. A cell registered before the lane kept its threads names none
   ([#1887](https://github.com/lushly-dev/afd/issues/1887));
 - the record does not place the opening before the merge (`no_link_time`);
 - the session loaded the skill only after it opened the pull request (`after_opening`): at
@@ -553,7 +558,8 @@ for the schedule.
   loaded. Whether the load came before the change or at its review: both come before the
   pull request is opened, and a reviewer that is a subagent loads for its session. One
   repository's skill from another's of the same name, for a session the harness filed under
-  another project. Any change whose pull request a script opened
+  another project. Any change whose pull request a script opened, unless its commit names the
+  sessions that made it, as a fleet's merge lane does
   ([#1887](https://github.com/lushly-dev/afd/issues/1887)). And who made a change, where the
   session that opened its pull request did not: a miss says that the opener never loaded the
   skill. A session that resumed a parked branch, one that published the work of a thread it

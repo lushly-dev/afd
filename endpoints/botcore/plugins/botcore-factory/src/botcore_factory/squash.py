@@ -10,6 +10,7 @@ given as the body, keep each commit's ``Assisted-by:`` trailer and credit nobody
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Iterable, Sequence
 from typing import Any
@@ -109,3 +110,32 @@ def fold_message(messages: Sequence[str]) -> str:
     if trailers:
         sections.append("\n".join(trailers))
     return clean_message("\n\n".join(sections))
+
+
+#: The trailer that names a session which made a folded change (lushly-dev/afd#1887). The lane
+#: opens the pull request, so no harness records the cell's thread as its opener; botcore's
+#: ``skill-usage-triggers`` reads this trailer from ``main`` instead.
+SESSION_TRAILER = "Factory-session"
+
+
+def session_tag(thread: str) -> str:
+    """A thread's id as the trailer gives it: opaque in public history, and matched by
+    ``skill-usage-triggers`` against the sessions its record holds (``sha256:`` and the first
+    24 hex digits of the id's SHA-256)."""
+    return "sha256:" + hashlib.sha256(thread.encode("utf-8")).hexdigest()[:24]
+
+
+def with_sessions(message: str, threads: Sequence[str]) -> str:
+    """``message`` with one ``Factory-session:`` trailer for each of ``threads`` it does not
+    already carry, after its other trailers. Trailers an earlier fold wrote stay, so a cell
+    repaired by another thread names both."""
+    text, trailers = split_trailers(message)
+    seen = {_trailer_key(trailer) for trailer in trailers}
+    for thread in threads:
+        line = f"{SESSION_TRAILER}: {session_tag(thread)}"
+        if thread.strip() and _trailer_key(line) not in seen:
+            seen.add(_trailer_key(line))
+            trailers.append(line)
+    if not trailers:
+        return clean_message(message)
+    return clean_message(text + "\n\n" + "\n".join(trailers))

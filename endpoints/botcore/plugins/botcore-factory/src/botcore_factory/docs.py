@@ -100,7 +100,10 @@ gives its slot to a front branch that needs one and keeps its validation, its ch
 aside to `kept-<branch>-<hash>` with its record, a `slot-released` record; each merges the
 base branch's origin head in, folds the result into one commit on that head with the same tree,
 authored (with the newest one's author date) and committed as the branch's own commits were,
-their messages folded with no `Co-authored-by:` line (a rebase merge lands each of a branch's
+their messages folded with no `Co-authored-by:` line and with a `Factory-session:` trailer for
+each thread `cell_register` or `cell_attach` recorded (none for a cell registered before they
+were kept), which botcore's `skill_usage_triggers` judges the change by where a queue that
+rebases lands the commit as written (lushly-dev/afd#1887) (a rebase merge lands each of a branch's
 own commits and drops its merges, lushly-dev/afd#1809; a branch with no commit of its own, whose
 own commits have more than one author address, or whose message folds to nothing is ejected as
 `entry-invalid` with a `detail` starting `FOLD_REFUSED`), and validates that commit: it runs the
@@ -243,7 +246,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   session, or any once the lease ran out; otherwise `NOT_FOREMAN`.
 - `event_resolve(id, note)` -> `resolved`. Refuses `NOT_FOUND`.
 - `lane_pause(reason?)`, `lane_resume(reason?)` -> `paused`; resuming answers `lane-error`.
-- `cell_attach(branch, thread)` -> `cell`. Refuses `NOT_FOUND`.
+- `cell_attach(branch, thread)` -> `cell`, whose `threads` lists every thread attached to it.
+  Refuses `NOT_FOUND`.
 - `gate_allow(branch, reason, head, session)` -> `allowed`, `branch`, `head`: a diagnosis found
   the gate edit to be the right repair, for that head only (`GATE_EDIT_IN_REPAIR` names it). A
   later commit needs a new `gate_allow`.

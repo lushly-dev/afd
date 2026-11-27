@@ -24,7 +24,7 @@ from typing import Any
 from botcore_factory.adapter import _slot_clean_path
 from botcore_factory.real_run import Run, make_runner, parse_json, resolve_program, run_process
 from botcore_factory.real_system import LocalMachine, OsProcesses, SystemClock, T3Plans
-from botcore_factory.squash import clean_message, fold_message, squash_body
+from botcore_factory.squash import clean_message, fold_message, squash_body, with_sessions
 from botcore_factory.validation_lock import ValidationLock
 from botcore_factory.world import (
     Comment,
@@ -872,7 +872,7 @@ class CliGit:
             return False
         return True
 
-    def fold(self, path: str, base: str) -> FoldOutcome:
+    def fold(self, path: str, base: str, sessions: Sequence[str] = ()) -> FoldOutcome:
         before = self.head(path)
         onto = self.run(["git", "-C", path, "rev-parse", "--verify", f"{base}^{{commit}}"]).strip()
         if not self._ancestor(path, onto):
@@ -907,6 +907,7 @@ class CliGit:
                 refused="FOLD_REFUSED: its own commits fold to an empty message once "
                 "Co-authored-by: lines are left out: give the branch's commit a message"
             )
+        message = with_sessions(message, sessions)
         parents = self.run(["git", "-C", path, "rev-list", "--parents", "-n", "1", "HEAD"]).split()
         if parents[1:] == [onto] and len(own) == 1 and clean_message(own[0][5]) == message:
             return FoldOutcome(head=before)  # Already one commit of its own on the base.

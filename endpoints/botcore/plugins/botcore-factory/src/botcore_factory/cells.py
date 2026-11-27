@@ -419,6 +419,8 @@ def register(
             "issues": list(issues),
             "route": route,
             "thread": thread,
+            # every thread that works on the cell, for the fold's Factory-session trailers
+            "threads": [thread] if thread and thread.strip() else [],
             "plan": choice.plan.id,
             "state": "registered",
             "ejections": 0,
@@ -452,6 +454,19 @@ def register(
     return cell
 
 
+def threads(cell: dict[str, Any] | None) -> list[str]:
+    """Every T3 Code thread that has worked on a cell, first to last: the lane names each in
+    the commit it folds the branch into (``Factory-session:``, lushly-dev/afd#1887). None for a
+    cell registered before the list was kept, whose earlier threads are not known: naming only
+    its latest could make another thread's change read as a miss."""
+    found = cell.get("threads") if cell else None
+    out: list[str] = []
+    for thread in found if isinstance(found, list) else []:
+        if isinstance(thread, str) and thread.strip() and thread not in out:
+            out.append(thread)
+    return out
+
+
 def find(state: dict[str, Any], branch: str) -> dict[str, Any]:
     cell = next((c for c in state["cells"] if c.get("branch") == branch), None)
     if cell is None:
@@ -476,6 +491,10 @@ def attach(factory: Factory, branch: str, thread: str) -> dict[str, Any]:
     with factory.store.update(f"cell-attach {branch}") as state:
         cell = find(state, branch)
         cell["thread"] = thread
+        # A cell registered before the list was kept may have had other threads: its history
+        # stays unknown, and its fold names nobody rather than only some (lushly-dev/afd#1887).
+        if isinstance(cell.get("threads"), list) and thread not in cell["threads"]:
+            cell["threads"].append(thread)
         if cell.get("state") == "registered":
             cell["state"] = "working"
     return cell

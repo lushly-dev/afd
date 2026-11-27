@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from botcore_factory.squash import fold_message, squash_body
+from botcore_factory.cells import threads
+from botcore_factory.squash import fold_message, session_tag, squash_body, with_sessions
 
 
 def commit(message, parents=1):
@@ -59,3 +60,34 @@ def test_a_fold_credits_no_co_author_and_reads_a_trailer_only_in_the_last_paragr
         "feat: a\n\nNote: this line is body text\nand so is this.\n\n- fix: b\n\n"
         "Assisted-by: Codex\n"
     )
+
+
+# lushly-dev/afd#1887: the fold names the cell's threads, for botcore's skill-usage-triggers.
+
+
+def test_a_session_tag_is_the_one_skill_usage_triggers_matches():
+    from botcore.commands.skill_usage import triggers
+
+    thread = "thread:delegated-task:command%3Amcp%3Aabc"
+    assert session_tag(thread) == triggers.session_tag(thread)
+    assert session_tag(thread).startswith("sha256:") and len(session_tag(thread)) == 31
+    assert thread not in session_tag(thread)
+
+
+def test_the_fold_names_each_thread_once_after_the_other_trailers():
+    one, two = session_tag("t1"), session_tag("t2")
+    assert with_sessions("feat: a\n\nWhy.\n\nAssisted-by: Codex\n", ["t1", "t2", "t1", " "]) == (
+        f"feat: a\n\nWhy.\n\nAssisted-by: Codex\nFactory-session: {one}\nFactory-session: {two}\n"
+    )
+    # A subject alone gets a trailer block of its own; an earlier fold's trailer stays.
+    assert with_sessions("feat: a", ["t1"]) == f"feat: a\n\nFactory-session: {one}\n"
+    folded = with_sessions(f"feat: a\n\nFactory-session: {one}", ["t2"])
+    assert folded == f"feat: a\n\nFactory-session: {one}\nFactory-session: {two}\n"
+    assert with_sessions("feat: a\n", []) == "feat: a\n"
+
+
+def test_a_cells_threads_are_its_list_and_none_for_a_cell_from_before_the_list():
+    assert threads(None) == [] and threads({}) == []
+    # Its earlier threads are not known: naming only the latest could make a miss of a load.
+    assert threads({"thread": "t1"}) == []
+    assert threads({"thread": "t2", "threads": ["t1", "t2", "t1", "", 3]}) == ["t1", "t2"]

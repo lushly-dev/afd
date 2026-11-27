@@ -281,6 +281,16 @@ declared today judges the record as it stands.
   when that session loaded the skill, itself or through a subagent (the record). A session
   that attached itself to a pull request to repair, review or merge it is not judged, and
   neither a session's turns nor its branch tie it to a change.
+- A fleet's merge lane opens its cells' pull requests itself. The commit it folds a cell's
+  branch into names each thread that worked on the cell, `Factory-session: sha256:<24 hex>`
+  (the first 24 hex digits of the thread id's SHA-256), and reaches the default branch as
+  written where the merge queue rebases; a queue that writes its own squash message drops it,
+  and the change stays unknown. A change with such trailers and no session linked as its
+  opener is judged by the sessions they name, as of the commit's author time (when the lane
+  squash-merges itself, the landed commit's, a later moment). Trailers that name no session
+  on record make it `no_session`, and while any one of them is unheld it is never a miss
+  (`incomplete_record`), though a load by another stands. Such a miss also has
+  `commit` (12 hex digits), and its `change` is null when the subject names no pull request.
 - Per rule: `changes`; `loaded` (the session that opened the pull request had loaded the
   skill by then), of which `loaded_by_subagent` only through a subagent, which may be a
   reviewer; `missed` (that session never loaded the skill before the change merged), with
