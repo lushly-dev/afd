@@ -125,7 +125,7 @@ describe('readAppManifest', () => {
 
 	it('throws naming each refusal', async () => {
 		const dir = await scaffolded();
-		await writeFile(join(dir, 'loam-app.toml'), 'manifest_version = 3\n');
+		await writeFile(join(dir, 'loam-app.toml'), 'manifest_version = 4\n');
 		await expect(readAppManifest(dir)).rejects.toThrow(/MANIFEST_VERSION_UNSUPPORTED/);
 	});
 });

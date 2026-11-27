@@ -6,7 +6,7 @@
  */
 
 import type { Finding } from './core-rules.js';
-import type { ManifestRefusalCode, ManifestV2 } from './types.js';
+import type { ManifestRefusalCode, ManifestV3 } from './types.js';
 
 /** Where a value is set (3.1): the person's own, every member's in a project, or every member's in the workspace. */
 export type SettingLevelV1 = 'person' | 'workspace' | 'project';
@@ -171,7 +171,7 @@ type Refuse = (
  * each key a shape of 3.1, its levels within its section's, and a default inside its bounds; a key named like a
  * secret warns.
  */
-export function settingRules(manifest: ManifestV2, refuse: Refuse, warnings: Finding[]): void {
+export function settingRules(manifest: ManifestV3, refuse: Refuse, warnings: Finding[]): void {
 	const sections = (manifest.ui?.settings ?? []) as unknown as SettingSectionV1[];
 	if (sections.length === 0) return;
 	if (manifest.plugin.kind === 'mounted') {

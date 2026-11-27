@@ -1,0 +1,10 @@
+{
+	"$comment": "Milestone B's overlay on p5-base's apps as read (phase 5 specification, 9.4's second amendment), read by Loam's runner, kernel/scenarios/seeds.ts, which names no app itself; p4-base.seed.json stays as phase 4 wrote it. Per instance: `manifest_version` sets the version, `expose_apps` sets `expose.apps` on those commands, and `grants` and `calls` are appended.",
+	"apps": {
+		"tally": { "manifest_version": 3, "expose_apps": ["tally-get"] },
+		"checklist": {
+			"grants": [{ "name": "calls", "reason": "Reads the tally's count beside a checklist." }],
+			"calls": [{ "app": "tally", "commands": ["tally-get"] }]
+		}
+	}
+}

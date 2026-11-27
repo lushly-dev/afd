@@ -13,13 +13,16 @@ export function deriveMutation(effects: readonly string[]): boolean {
 }
 
 function normalizeTool(tool: string): string {
-	return tool
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')
-		.split('-')
-		.map((segment) => (/^[0-9]/.test(segment) ? `n${segment}` : segment))
-		.join('-');
+	return (
+		tool
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, '-')
+			// One hyphen at most at either end, since the line above collapsed each run: linear, with no repetition to backtrack.
+			.replace(/^-|-$/g, '')
+			.split('-')
+			.map((segment) => (/^[0-9]/.test(segment) ? `n${segment}` : segment))
+			.join('-')
+	);
 }
 
 /**

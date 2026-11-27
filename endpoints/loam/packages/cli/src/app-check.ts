@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateCommandSurface } from '@lushly-dev/afd-testing';
-import { isExperimentDate, type ManifestV2 } from '@lushly-dev/loam-manifest';
+import { isExperimentDate, type ManifestV3 } from '@lushly-dev/loam-manifest';
 import {
 	type AppCheckReport,
 	checkApp,
@@ -146,7 +146,7 @@ export async function appCheck(options: AppCheckOptions = {}): Promise<AppCheckR
  * The manifest as `app pack` writes it, for an app's own tests. Throws when it is refused, naming each
  * refusal.
  */
-export async function readAppManifest(dir: string, manifest?: string): Promise<ManifestV2> {
+export async function readAppManifest(dir: string, manifest?: string): Promise<ManifestV3> {
 	const { files, symlinks } = await readAppTree(resolve(dir));
 	const report = checkApp(files, { symlinks, ...(manifest ? { manifest } : {}) });
 	if (!report.manifest || !report.ok) {

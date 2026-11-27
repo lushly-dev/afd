@@ -1,6 +1,7 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import type { JournalEntry } from '@lushly-dev/afd-core';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
+import { callNotGranted } from '@lushly-dev/afd-core/internal/app-calls';
 import type { ManifestV1 } from '@lushly-dev/loam-manifest';
 import type { OverlayRefV1, OverlayV1 } from '@lushly-dev/loam-sdk';
 import { defineApp } from '@lushly-dev/loam-sdk';
@@ -79,13 +80,11 @@ describe('a call the port refuses (5.3, D68)', () => {
 		const valid = await probe.call('sums-add', { by: 1 });
 		const invalid = await probe.call('sums-add', { nope: true });
 		const missing = await probe.call('sums-nothing');
+		// AFD's fixed refusal (phase 5 specification, 9.1; P5-B1): the same bytes whatever the name or input, naming neither.
 		for (const result of [valid, invalid, missing]) {
-			expect(result.error?.code).toBe('CALL_NOT_GRANTED');
-			expect(result.error?.suggestion).toContain('phase 5');
+			expect(result.success).toBe(false);
+			expect(result.error).toEqual(callNotGranted());
 		}
-		expect(valid.error?.message.replace('sums-add', 'x')).toBe(
-			missing.error?.message.replace('sums-nothing', 'x')
-		);
 		// Stage B's own first, then the refusals.
 		const entries = (await journal.read()).slice(1);
 		expect(entries.map((recorded) => recorded.command)).toEqual([

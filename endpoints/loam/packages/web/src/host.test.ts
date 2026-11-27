@@ -182,7 +182,7 @@ describe('the two stages (phase 2 specification, 2.2)', () => {
 		});
 		if (host.kind !== 'ready') throw new Error('expected a kernel');
 		// Kernel interface version 5 (phase 5 specification, 3.2).
-		expect(host.kernel.version).toBe(5);
+		expect(host.kernel.version).toBe(6);
 		expect(host.kernel.listCommands().map((row) => row.name)).toEqual([
 			'layout-get',
 			'appearance-get',

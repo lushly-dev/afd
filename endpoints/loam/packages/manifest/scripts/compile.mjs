@@ -13,7 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 export const packageRoot = resolve(here, '..');
 const repositoryRoot = resolve(packageRoot, '../../../..');
 
-const CORE_PATH = resolve(repositoryRoot, 'spec/plugin-manifest.core.v1.json');
+const corePath = (version) => resolve(repositoryRoot, `spec/plugin-manifest.core.v${version}.json`);
 const VERSION_PATH = resolve(repositoryRoot, 'spec/VERSION');
 const json = (path) => JSON.parse(readFileSync(path, 'utf8'));
 const schemaPath = (name) => resolve(packageRoot, `schemas/${name}.json`);
@@ -24,7 +24,8 @@ const schemaPath = (name) => resolve(packageRoot, `schemas/${name}.json`);
  */
 export const AJV_OPTIONS = { strict: true, allErrors: true, inlineRefs: false };
 
-export const readCore = () => json(CORE_PATH);
+/** The core's definitions: version 1, which profile versions 1 and 2 conform to, or version 2, which version 3 does. */
+export const readCore = (version = 1) => json(corePath(version));
 export const readSchema = (name, version = 1) => json(schemaPath(`${name}.v${version}`));
 export const readShapeSchema = () => json(schemaPath('json-schema-shape'));
 
@@ -34,14 +35,17 @@ function createAjv(options = {}) {
 }
 
 /**
- * An Ajv instance with the core and the schemas added. The manifest is version 2, the one
- * schema that reads both versions (phase 2 specification, 8.1); `app-manifest.v1.json` stays
- * committed and is added by the test that holds every valid version 1 case valid under 2.
+ * An Ajv instance with the cores and the schemas added. The manifest is version 3, the one
+ * schema that reads all three versions (phase 2 specification, 8.1; phase 5 specification, 9.1),
+ * on core version 2; version 2 stays added for the projection's layout, and `app-manifest.v1.json`
+ * stays committed and is added by the test that holds every valid version 1 case valid.
  */
 export function schemaAjv(options = {}) {
 	const ajv = createAjv(options);
 	ajv.addSchema(readCore());
+	ajv.addSchema(readCore(2));
 	ajv.addSchema(readSchema('app-manifest', 2));
+	ajv.addSchema(readSchema('app-manifest', 3));
 	for (const name of ['deployment', 'projection']) ajv.addSchema(readSchema(name));
 	// Version 2 of the deployment file and the projection (phase 2 specification, 2.2 and 4.2).
 	for (const name of ['deployment', 'projection']) ajv.addSchema(readSchema(name, 2));
@@ -108,7 +112,7 @@ export function compileValidators() {
 	return {
 		'validate.generated.js': toModule(
 			standalone(schemaAjv({ code }), {
-				validateManifest: readSchema('app-manifest', 2).$id,
+				validateManifest: readSchema('app-manifest', 3).$id,
 				// Version 2's: `readProjection` reads a version 3 projection's `identity` and a version 4 one's
 				// `host` by hand, as stage A does, and the rest with this (phase 3 specification, 2.2 and 13; phase 6
 				// specification, 14). `dist` and its projection are written together.
@@ -138,13 +142,22 @@ export function compileValidators() {
 	};
 }
 
-/** Follows a reference within the core or a schema document. */
+/** Follows a reference within either core or a schema document. */
 function resolveRef(ref, document, core) {
 	const [id, fragment = ''] = ref.split('#');
 	// A version 2 projection's boot record holds a manifest's layout (phase 2 specification, 2.2).
 	const manifest = readSchema('app-manifest', 2);
+	const coreV2 = readCore(2);
 	const from =
-		id === core.$id ? core : id === '' ? document : id === manifest.$id ? manifest : undefined;
+		id === core.$id
+			? core
+			: id === coreV2.$id
+				? coreV2
+				: id === ''
+					? document
+					: id === manifest.$id
+						? manifest
+						: undefined;
 	if (!from) throw new Error(`Unresolved $ref ${ref}`);
 	const target = fragment
 		.split('/')
@@ -261,6 +274,7 @@ export async function generateTypes() {
 	for (const [schema, version, name] of [
 		['app-manifest', 1, 'ManifestV1'],
 		['app-manifest', 2, 'ManifestV2'],
+		['app-manifest', 3, 'ManifestV3'],
 		['deployment', 1, 'DeploymentV1'],
 		['projection', 1, 'ProjectionV1'],
 		['deployment', 2, 'DeploymentV2'],
@@ -304,7 +318,7 @@ export function generateFacts() {
 	const version = readFileSync(VERSION_PATH, 'utf8').trim();
 	const admitted = {};
 	for (const [schema, schemaVersion, name] of [
-		['app-manifest', 2, 'manifest'],
+		['app-manifest', 3, 'manifest'],
 		['deployment', 1, 'deployment'],
 		// Version 3's keys are version 2's and `identity`'s, which `readDeployment` reports itself, so the
 		// page's `apps` row carries no table of them (phase 3 specification, 13).

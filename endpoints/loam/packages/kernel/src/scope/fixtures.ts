@@ -6,7 +6,7 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { IdentityV1, ManifestV2, ProjectionV3 } from '@lushly-dev/loam-manifest';
+import type { IdentityV1, ManifestV3, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, failure, success } from '@lushly-dev/loam-sdk';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { createKernelParts, type KernelParts, type KernelPartsInternals } from '../kernel.js';
@@ -29,7 +29,7 @@ function manifestOf(
 	levels: Array<'workspace' | 'project'> | undefined,
 	commands: Array<{ name: string; effects: string[]; input: object }>,
 	extra: Record<string, unknown> = {}
-): ManifestV2 {
+): ManifestV3 {
 	return {
 		manifest_version: 2,
 		protocol: 1,
@@ -60,11 +60,11 @@ function manifestOf(
 				...(id === 'dual' ? { status: { items: [{ id: 'count', label: 'Count' }] } } : {}),
 			},
 		},
-	} as unknown as ManifestV2;
+	} as unknown as ManifestV3;
 }
 
 /** A project-only app whose `tasks-complete` names its store key in `task` (3.5). */
-export const TASKS_MANIFEST: ManifestV2 = manifestOf(
+export const TASKS_MANIFEST: ManifestV3 = manifestOf(
 	'tasks',
 	['project'],
 	[
@@ -76,7 +76,7 @@ export const TASKS_MANIFEST: ManifestV2 = manifestOf(
 );
 
 /** A dual-scope app: a value at each level, a query that tries to write, and its call's scope. */
-export const DUAL_MANIFEST: ManifestV2 = manifestOf(
+export const DUAL_MANIFEST: ManifestV3 = manifestOf(
 	'dual',
 	['workspace', 'project'],
 	[
@@ -93,7 +93,7 @@ export const DUAL_MANIFEST: ManifestV2 = manifestOf(
 );
 
 /** A workspace-only app: no levels, so `["workspace"]`. */
-export const SOLO_MANIFEST: ManifestV2 = manifestOf('solo', undefined, [
+export const SOLO_MANIFEST: ManifestV3 = manifestOf('solo', undefined, [
 	{ name: 'solo-put', effects: ['store-write'], input: keyed('key', 'value') },
 	{ name: 'solo-where', effects: ['inspect'], input: EMPTY },
 ]);

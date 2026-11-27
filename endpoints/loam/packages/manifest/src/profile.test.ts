@@ -263,6 +263,10 @@ describe("Loam's profile", () => {
 				) ||
 				// Phase 4's step 7: a keybinding's sequence and `when` are version 2's (its 12.1).
 				versionTwoKeybindings(document).length > 0 ||
+				// Phase 5's step 10: `expose.apps` is version 3's (its 9.1), which `manifest-version-keys` refuses below it.
+				((valueAt(document, '/commands') as unknown[] | undefined) ?? []).some(
+					(command) => valueAt(command, '/expose/apps') !== undefined
+				) ||
 				valueAt(document, '/ui/surfaces/sidebar/shape') === 'tree';
 			if (holdsVersionTwo) continue;
 			expect(v2).toBe(false);

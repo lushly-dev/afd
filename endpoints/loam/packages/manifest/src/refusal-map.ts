@@ -73,10 +73,6 @@ const KEY_ROWS: Readonly<Record<string, Row>> = {
 		'`commands[].scopes` is reserved for per-command authorization.',
 		'Remove `scopes` from the command.'
 	),
-	'/commands/*/expose/apps': reserved(
-		'`expose.apps` is reserved until core version 2.',
-		'Remove `apps` from `expose`.'
-	),
 	'/commands/*/mutation': reserved(
 		'`mutation` is never declared: the host derives it from `effects`.',
 		'Remove `mutation`, and declare `effects`.'
@@ -261,7 +257,7 @@ function refusalFor(pointer: string, error: ValidatorError, document: unknown): 
 			return {
 				code: 'MANIFEST_VERSION_UNSUPPORTED',
 				message: said,
-				suggestion: 'This shell reads `manifest_version = 1` or `manifest_version = 2`.',
+				suggestion: 'This shell reads `manifest_version` 1, 2 or 3.',
 			};
 		case '/commands/*/effects/*':
 		case '/mount/tools/*/effects/*':

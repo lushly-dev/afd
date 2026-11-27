@@ -918,7 +918,7 @@
 			"suggestion": "targets"
 		},
 		{
-			"id": "reserved-expose-apps",
+			"id": "version-one-expose-apps",
 			"base": "native",
 			"set": {
 				"/commands/0/expose": {
@@ -926,9 +926,34 @@
 				}
 			},
 			"accepted": false,
-			"code": "MANIFEST_RESERVED_KEY",
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
 			"key": "commands[0].expose.apps",
-			"suggestion": "apps"
+			"suggestion": "manifest_version = 3"
+		},
+		{
+			"id": "version-two-expose-apps",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/0/expose": {
+					"apps": true
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "commands[0].expose.apps",
+			"suggestion": "manifest_version = 3"
+		},
+		{
+			"id": "version-three-expose-apps",
+			"base": "native",
+			"set": {
+				"/manifest_version": 3,
+				"/commands/0/expose": {
+					"apps": true
+				}
+			},
+			"accepted": true
 		},
 		{
 			"id": "reserved-mount-url",
@@ -1008,15 +1033,15 @@
 			"suggestion": "bind_space"
 		},
 		{
-			"id": "version-three",
+			"id": "version-four",
 			"base": "native",
 			"set": {
-				"/manifest_version": 3
+				"/manifest_version": 4
 			},
 			"accepted": false,
 			"code": "MANIFEST_VERSION_UNSUPPORTED",
 			"key": "manifest_version",
-			"suggestion": "manifest_version = 2"
+			"suggestion": "1, 2 or 3"
 		},
 		{
 			"id": "version-two-native",

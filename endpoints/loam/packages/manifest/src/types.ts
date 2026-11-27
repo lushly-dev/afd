@@ -10,6 +10,7 @@ import type {
 	DeploymentV4,
 	ManifestV1,
 	ManifestV2,
+	ManifestV3,
 	ProjectionV1,
 	ProjectionV2,
 	ProjectionV3,
@@ -24,6 +25,7 @@ export type {
 	DeploymentV4,
 	ManifestV1,
 	ManifestV2,
+	ManifestV3,
 	ProjectionV1,
 	ProjectionV2,
 	ProjectionV3,
@@ -162,7 +164,7 @@ export type ManifestRefusal = Refusal<ManifestRefusalCode>;
 export type DeploymentRefusal = Refusal<DeploymentRefusalCode>;
 
 export type ManifestRead =
-	| { ok: true; manifest: ManifestV2; warnings: ManifestRefusal[] }
+	| { ok: true; manifest: ManifestV3; warnings: ManifestRefusal[] }
 	| { ok: false; refusals: ManifestRefusal[]; warnings: ManifestRefusal[] };
 
 /** A deployment's workspace (phase 2 specification, 4.2). */

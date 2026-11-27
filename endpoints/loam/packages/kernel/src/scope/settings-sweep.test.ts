@@ -20,7 +20,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import type { IdentityV1, ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { IdentityV1, ManifestV3 } from '@lushly-dev/loam-manifest';
 import { defineApp, success } from '@lushly-dev/loam-sdk';
 import { afterEach, describe, expect, expectTypeOf, it } from 'vitest';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
@@ -74,7 +74,7 @@ const DATA_EXEMPT: ReadonlySet<string> = new Set([
 ]);
 
 /** An app that declares a section at workspace and project level, and one command that reads nothing of it. */
-const PREFS: ManifestV2 = {
+const PREFS: ManifestV3 = {
 	manifest_version: 2,
 	protocol: 1,
 	plugin: {
@@ -131,10 +131,10 @@ const PREFS: ManifestV2 = {
 			},
 		],
 	},
-} as unknown as ManifestV2;
+} as unknown as ManifestV3;
 
 /** Step 9's (P4-E2): an app held out whole by its own experiment, on in one twin, so its commands are exempt entirely. */
-const GATED: ManifestV2 = {
+const GATED: ManifestV3 = {
 	...PREFS,
 	plugin: { ...PREFS.plugin, id: 'gated', title: 'Gated', domains: ['gated'] },
 	app: { scope_levels: ['workspace', 'project'], requires_experiment: 'gated.on' },
@@ -146,7 +146,7 @@ const GATED: ManifestV2 = {
 			{ id: 'on', title: 'Gated', changes: 'Shows the app.', ends: '2027-03-01', stage: 'visible' },
 		],
 	},
-} as unknown as ManifestV2;
+} as unknown as ManifestV3;
 
 const sweepDeployment = () => {
 	const base = documentsDeployment();

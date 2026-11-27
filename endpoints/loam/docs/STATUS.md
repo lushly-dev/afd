@@ -228,7 +228,7 @@ The design review and phases 0, 1, 2 and 4 are done or exited: their detail is a
     - 9d, the `host-setup` window, `setup_*`, the Models and Plugins screens, P5-S9-1 to P5-S9-7, and the amendment's deferred changes to phases 1 and 6 and D56, D63, D106 and D108: not started.
     - Mail's `loam-plugin.toml`, `pair`, `unpair` and `/health` (in Mail's folder): not started.
 
-  - 10, the bus (native `calls`, `event-list`, `shell-open`): not started.
+  - 10, the bus (native `calls`, `event-list`, `shell-open`): in progress, a stack of three; the first, native `calls`, in [#2714](https://github.com/lushly-dev/afd/pull/2714).
 
   - B0b, milestone B's remaining amendment (section 9.5's exact tables, scenarios and P5-B5 onward, before step 11): not started.
 

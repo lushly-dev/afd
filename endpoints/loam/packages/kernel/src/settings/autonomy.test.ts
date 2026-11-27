@@ -9,7 +9,7 @@ import { defineCommand, type ZodCommandDefinition } from '@lushly-dev/afd-server
 import type {
 	IdentityV1,
 	ManifestV1,
-	ManifestV2,
+	ManifestV3,
 	ProjectionV3,
 	ProjectionV4,
 } from '@lushly-dev/loam-manifest';
@@ -684,12 +684,12 @@ describe('P4-E17: section 13: a hosted provider deployment refuses autonomy-set 
 });
 
 describe('P4-E4: orphans (4.2): flagged at the manifest’s apply', () => {
-	const DROPPED: ManifestV2 = {
+	const DROPPED: ManifestV3 = {
 		...DUAL_MANIFEST,
 		commands: (DUAL_MANIFEST.commands ?? []).filter(({ name }) => name !== 'dual-put'),
-	} as ManifestV2;
+	} as ManifestV3;
 
-	const boot = (store: DataAdapter, dual: ManifestV2, withSolo = true) => {
+	const boot = (store: DataAdapter, dual: ManifestV3, withSolo = true) => {
 		const deployment = scopedDeployment();
 		return workspace({
 			store,
@@ -1112,7 +1112,7 @@ describe('P4-E15: autonomy replays', () => {
 describe("the orphan notice in provider mode (step 5's wiring; the coordinator's ruling)", () => {
 	it('flags the rows and sends no notice until the owner roster is a server record', async () => {
 		const store = new MemoryAdapter();
-		const ports = (dual: ManifestV2) =>
+		const ports = (dual: ManifestV3) =>
 			createFixturePorts({
 				...scopedPackages(),
 				'fixtures/dual/': { manifest: dual, definition: DUAL_DEFINITION },
@@ -1139,7 +1139,7 @@ describe("the orphan notice in provider mode (step 5's wiring; the coordinator's
 		const dropped = {
 			...DUAL_MANIFEST,
 			commands: (DUAL_MANIFEST.commands ?? []).filter(({ name }) => name !== 'dual-put'),
-		} as ManifestV2;
+		} as ManifestV3;
 		const second = await workspace({
 			store,
 			identity: PROVIDER,

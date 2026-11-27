@@ -21,7 +21,7 @@
  */
 
 import type { ApprovalRequest, McpServer } from '@lushly-dev/afd-server';
-import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3 } from '@lushly-dev/loam-manifest';
 import type { AppDefinitionV1 } from '@lushly-dev/loam-sdk';
 import { defineApp, success } from '@lushly-dev/loam-sdk';
 import type { McpToolCallResult, MountTransport } from '../src/types.js';
@@ -40,7 +40,7 @@ export const MAILFIX_MANIFEST = {
 		domains: ['mailfix'],
 	},
 	mount: { prefix: 'mailfix', transport: 'http' },
-} as unknown as ManifestV2;
+} as unknown as ManifestV3;
 
 /** The commands `mailfix`'s entry names under `commands`: its mutations, each as a deployer chose to expose it. */
 export const MAILFIX_NAMED: Readonly<Record<string, { agent: boolean; apps?: true }>> =
@@ -270,7 +270,7 @@ export const MAILFIXAPP_MANIFEST = {
 			},
 		},
 	],
-} as unknown as ManifestV2;
+} as unknown as ManifestV3;
 
 /** What a thread's first message says, with its label dropped. */
 const textOf = (data: unknown): string =>

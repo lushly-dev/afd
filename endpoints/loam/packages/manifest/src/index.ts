@@ -70,6 +70,7 @@ export type {
 	ManifestRefusalCode,
 	ManifestV1,
 	ManifestV2,
+	ManifestV3,
 	ProjectionAppV1,
 	ProjectionAppV2,
 	ProjectionAppV4,

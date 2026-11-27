@@ -5,7 +5,7 @@
  * section and a project-only one. The step 1 commands are in `settings.test.ts`.
  */
 
-import type { ManifestV2, ProjectionV3 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, success } from '@lushly-dev/loam-sdk';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { PaletteItem } from '../palette-index.js';
@@ -25,7 +25,7 @@ const keys = (properties: Record<string, unknown>) => ({
 	additionalProperties: false,
 });
 
-const GREET: ManifestV2 = {
+const GREET: ManifestV3 = {
 	manifest_version: 2,
 	protocol: 1,
 	plugin: {
@@ -73,7 +73,7 @@ const GREET: ManifestV2 = {
 			},
 		],
 	},
-} as unknown as ManifestV2;
+} as unknown as ManifestV3;
 
 const GREET_DEFINITION = defineApp({
 	sdk: 1,

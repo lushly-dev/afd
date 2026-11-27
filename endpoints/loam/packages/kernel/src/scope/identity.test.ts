@@ -355,7 +355,7 @@ describe("P3-E7: line 0, the gate's lists and the actor on every path (step 1)",
 		// The signed-out commands run with no session.
 		expect((await kernel.call('scope-get', {})).success).toBe(true);
 		expect((await kernel.call('shell-info-get', {})).data).toMatchObject({
-			kernelInterface: 5,
+			kernelInterface: 6,
 			identity: { mode: 'provider', organization: 'acme' },
 		});
 		// Signed out, `workspace-get` names the workspace and no person: its `updatedBy` would (review I7).
@@ -736,10 +736,11 @@ describe("P3-E7: every command phase 3 adds is refused through a port (phase 2's
 				'CALL_NOT_GRANTED'
 			);
 		}
+		// Boot-only through a port: AFD's fixed refusal, as any name the app may not call (phase 5's 9.1).
 		for (const name of settles) {
-			expect((await port.call(name, {})).error?.code, `port ${name}`).toBe('COMMAND_NOT_FOUND');
+			expect((await port.call(name, {})).error?.code, `port ${name}`).toBe('CALL_NOT_GRANTED');
 			expect((await surface.call(name, {})).error?.code, `surface ${name}`).toBe(
-				'COMMAND_NOT_FOUND'
+				'CALL_NOT_GRANTED'
 			);
 		}
 	});

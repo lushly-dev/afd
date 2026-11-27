@@ -37,7 +37,7 @@ import {
 } from '@lushly-dev/loam-identity';
 import type { KernelEnvironment, KernelPorts } from '@lushly-dev/loam-kernel';
 import type { ProjectV1, WorkspaceAppV1 } from '@lushly-dev/loam-kernel/mounted';
-import type { IdentityV1, ManifestV2, ProjectionV4 } from '@lushly-dev/loam-manifest';
+import type { IdentityV1, ManifestV3, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import type { ServerLimitsV1 } from '@lushly-dev/loam-manifest/server';
 import { readManifest } from '@lushly-dev/loam-manifest/validate';
 import { SqliteAdapter } from '@lushly-dev/local-db/sqlite';
@@ -497,7 +497,7 @@ function openRelay(options: {
 				entry,
 				url: mount.url,
 				...(mount.bearer !== undefined ? { bearer: mount.bearer } : {}),
-				async manifest(): Promise<ManifestV2> {
+				async manifest(): Promise<ManifestV3> {
 					const url = new URL('app-manifest.json', new URL(entry.package, baseUrl)).href;
 					const read = readManifest(await ports.fetchJson(url));
 					if (!read.ok) throw new Error(`The manifest of ${entry.instance} is refused`);

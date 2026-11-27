@@ -30,6 +30,10 @@
  * - from step 5, `mailfix`'s `approvals = "shell"`, with `mailfix-draft-show` as the send's preview, its transport playing
  *   AFD's approver carrier (7.2). The `mailfix` server itself is `mailfix.ts`.
  *
+ * - from milestone B's step 10, its overlay on the apps as read (9.4's second amendment), from
+ *   `docs/phases/5-copilot/scenarios/p5-base.overlay.json`, leaving `p4-base`'s file alone: one app's command other apps
+ *   may call, at manifest version 3, and another's `calls` grant naming it (9.1).
+ *
  * `p5-two-mounts` is `p5-base` with a second `mailfix`, `mailfixb`, whose entry says `labels = "whole"` (P5-A4).
  *
  * `p5-no-provider` is `p5-base` with no `[copilot]` table.
@@ -41,7 +45,7 @@ import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
 import { createInProcessLauncher } from '@lushly-dev/loam-copilot';
 import type { ModelScriptV1, TestProviderV1 } from '@lushly-dev/loam-copilot/test-provider';
-import type { ManifestV2, ProjectionV4 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { type CopilotHostV1, createCopilotHost } from '../src/copilot/host.js';
 import type { CopilotOptionsV1, CopilotProviderV1 } from '../src/copilot/types.js';
@@ -134,7 +138,7 @@ export const P4_SEED: SeedFileV1 = JSON.parse(
  */
 function documentWrites(
 	document: SeedFileV1['documents'][number],
-	manifests: Record<string, ManifestV2>
+	manifests: Record<string, ManifestV3>
 ): Array<{ method: 'PUT'; path: string; body: unknown }> {
 	const manifest = manifests[document.instance];
 	const type = (manifest?.ui?.documents ?? []).find((declared) => declared.id === document.type);
@@ -198,13 +202,19 @@ async function p4Base(
 		mailfixb?: ReturnType<typeof mountedMailfix>;
 		/** Keys over `mailfix`'s entry, for a test of another `approvals` or preview (7.2). */
 		mailfixEntry?: Record<string, unknown>;
+		/** Changes to the apps' manifests as read, by instance: `p5-base`'s milestone B overlay. */
+		overlay?: Readonly<Record<string, (manifest: ManifestV3) => ManifestV3>>;
 	} = {}
 ): Promise<SeededKernel> {
 	const { mailfix, mailfixb } = extra;
-	const served = await seedApps(P4_SEED.apps, {
-		...(mailfix ? MAILFIX_PACKAGES : {}),
-		...(mailfixb ? { 'apps/mailfixb/': { manifest: MAILFIX_MANIFEST } } : {}),
-	});
+	const served = await seedApps(
+		P4_SEED.apps,
+		{
+			...(mailfix ? MAILFIX_PACKAGES : {}),
+			...(mailfixb ? { 'apps/mailfixb/': { manifest: MAILFIX_MANIFEST } } : {}),
+		},
+		extra.overlay
+	);
 	const mounts: Record<string, ReturnType<typeof mountedMailfix> | undefined> = {
 		mailfix,
 		mailfixb,
@@ -285,6 +295,54 @@ async function p4Base(
 	};
 }
 
+/** One instance's change in milestone B's overlay file: its version, commands others may call, grants and calls. */
+interface OverlayV1 {
+	manifest_version?: 3;
+	expose_apps?: string[];
+	grants?: NonNullable<ManifestV3['grants']>;
+	calls?: NonNullable<ManifestV3['calls']>;
+}
+
+/** Milestone B's overlay file, beside phase 5's scenarios, which names the apps (9.4's second amendment). */
+const P5_OVERLAY_FILE: { apps: Record<string, OverlayV1> } = JSON.parse(
+	readFileSync(join(LOAM, 'docs/phases/5-copilot/scenarios/p5-base.overlay.json'), 'utf8')
+);
+
+/** The overlay's change of one manifest: generic, so this file names no app. */
+const overlaid =
+	(change: OverlayV1) =>
+	(manifest: ManifestV3): ManifestV3 => ({
+		...manifest,
+		...(change.manifest_version !== undefined ? { manifest_version: change.manifest_version } : {}),
+		commands: (manifest.commands ?? []).map((command) =>
+			change.expose_apps?.includes(command.name)
+				? { ...command, expose: { ...command.expose, apps: true } }
+				: command
+		),
+		...(change.grants ? { grants: [...(manifest.grants ?? []), ...change.grants] } : {}),
+		...(change.calls ? { calls: [...(manifest.calls ?? []), ...change.calls] } : {}),
+	});
+
+/**
+ * Milestone B's overlay on `p5-base`'s apps (phase 5 specification, 9.4's second amendment), from its file: one app at
+ * manifest version 3 letting other apps call a command (`expose.apps`), and another's `calls` grant naming it (9.1).
+ */
+export const P5_OVERLAY: Readonly<Record<string, (manifest: ManifestV3) => ManifestV3>> =
+	Object.freeze(
+		Object.fromEntries(
+			Object.entries(P5_OVERLAY_FILE.apps).map(([instance, change]) => [instance, overlaid(change)])
+		)
+	);
+
+/** The instance the overlay gives a `calls` grant, and the commands it names, for a test that names no app. */
+export const P5_CALLER: { instance: string; app: string; commands: string[] } = (() => {
+	const [instance, change] = Object.entries(P5_OVERLAY_FILE.apps).find(
+		([, each]) => each.calls !== undefined
+	) as [string, OverlayV1];
+	const [call] = change.calls ?? [];
+	return { instance, app: call?.app ?? '', commands: [...(call?.commands ?? [])] };
+})();
+
 /** `mailfix`'s and `mailfixapp`'s packages, as the fixture ports serve them. */
 const MAILFIX_PACKAGES = {
 	'apps/mailfix/': { manifest: MAILFIX_MANIFEST },
@@ -311,6 +369,8 @@ export async function p5Base(options: {
 	mailfix?: ReturnType<typeof mountedMailfix>;
 	/** Keys over `mailfix`'s entry, for a test of another `approvals` or preview (7.2). */
 	mailfixEntry?: Record<string, unknown>;
+	/** A test's own changes to the apps' manifests as read, after milestone B's overlay. */
+	overlay?: Readonly<Record<string, (manifest: ManifestV3) => ManifestV3>>;
 }): Promise<SeededKernel> {
 	const provider = createScenarioProvider({
 		...(options.scripts ? { extra: options.scripts } : {}),
@@ -324,7 +384,17 @@ export async function p5Base(options: {
 			},
 		},
 	});
+	const extra = options.overlay ?? {};
 	const seeded = await p4Base({
+		overlay: Object.fromEntries(
+			[...new Set([...Object.keys(P5_OVERLAY), ...Object.keys(extra)])].map((instance) => [
+				instance,
+				(manifest: ManifestV3) => {
+					const first = P5_OVERLAY[instance]?.(manifest) ?? manifest;
+					return extra[instance]?.(first) ?? first;
+				},
+			])
+		),
 		mailfix: options.mailfix ?? mountedMailfix(),
 		...(options.mailfixEntry ? { mailfixEntry: options.mailfixEntry } : {}),
 		...(options.mailfixb ? { mailfixb: mountedMailfix() } : {}),

@@ -6,7 +6,7 @@
  */
 
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
-import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3 } from '@lushly-dev/loam-manifest';
 import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import type { BatchOperation, DataAdapter } from '@lushly-dev/local-db';
 import type { StoreQuota } from '../apps/store.js';
@@ -36,7 +36,7 @@ export const documentContentKey = (document: string): string => `doc/${document}
  */
 export const DOCUMENT_INPUT_MAX_BYTES = 256 * 1024;
 
-type ManifestType = NonNullable<NonNullable<ManifestV2['ui']>['documents']>[number];
+type ManifestType = NonNullable<NonNullable<ManifestV3['ui']>['documents']>[number];
 
 /** A registered type: what `document-type-list` shows, and what only the kernel reads. */
 export interface RegisteredTypeV1 extends DocumentTypeV1 {
@@ -55,7 +55,7 @@ export interface TypedApp {
 	instance: string;
 	app: string;
 	kind: 'native' | 'view' | 'mounted';
-	manifest?: ManifestV2;
+	manifest?: ManifestV3;
 }
 
 /**
@@ -215,7 +215,7 @@ export function markOversized(scope: ScopeRuntime, call: CommandContext): void {
 }
 
 /** An instance's manifest, or undefined for one with no port: refused, or not deployed. */
-function manifestOf(apps: AppsRuntime, instance: string): ManifestV2 | undefined {
+function manifestOf(apps: AppsRuntime, instance: string): ManifestV3 | undefined {
 	try {
 		return apps.port(instance).manifest;
 	} catch {

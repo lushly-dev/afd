@@ -6,7 +6,7 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { ManifestV2, ProjectionV3 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -28,7 +28,7 @@ function manifestOf(
 	summary = true,
 	effects = ['inspect'],
 	toolMeta?: object
-): ManifestV2 {
+): ManifestV3 {
 	return {
 		manifest_version: 2,
 		protocol: 1,
@@ -60,7 +60,7 @@ function manifestOf(
 				main: { element: `${id}-main` },
 			},
 		},
-	} as unknown as ManifestV2;
+	} as unknown as ManifestV3;
 }
 
 const HOSTILE = '<img src=x onerror="globalThis.hit=1">';

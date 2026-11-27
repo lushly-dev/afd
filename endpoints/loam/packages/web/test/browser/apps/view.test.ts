@@ -1046,8 +1046,8 @@ describe('P2-E13: E2: the host context', () => {
 		);
 		const parsed = McpUiInitializeResultSchema.parse(result);
 		expect(parsed.protocolVersion).toBe('2026-01-26');
-		// `"<kernel interface>"` (phase 1 specification, 6.2): interface 3 from phase 3's step 1.
-		expect(parsed.hostInfo).toEqual({ name: 'loam', version: '5' });
+		// `"<kernel interface>"` (phase 1 specification, 6.2): interface 6 from phase 5's step 10.
+		expect(parsed.hostInfo).toEqual({ name: 'loam', version: '6' });
 		expect(parsed.hostCapabilities).toEqual({
 			serverTools: {},
 			serverResources: {},

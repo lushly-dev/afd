@@ -14,7 +14,7 @@
 
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3 } from '@lushly-dev/loam-manifest';
 import type { AppDefinitionV1 } from '@lushly-dev/loam-sdk';
 import { defineApp, success } from '@lushly-dev/loam-sdk';
 import { createFixturePorts, type FixturePorts } from '../src/testing.js';
@@ -40,7 +40,7 @@ export type SeedAppV1 =
  * app nor the active tab's owner. No app package is named console, so it is a native app with one query and no
  * surface of its own, which the shell renders with the console (phase 1 specification, 7.7).
  */
-export const CONSOLE_MANIFEST: ManifestV2 = {
+export const CONSOLE_MANIFEST: ManifestV3 = {
 	manifest_version: 2,
 	protocol: 1,
 	plugin: {
@@ -62,7 +62,7 @@ export const CONSOLE_MANIFEST: ManifestV2 = {
 			input_schema: { type: 'object', properties: {}, additionalProperties: false },
 		},
 	],
-} as unknown as ManifestV2;
+} as unknown as ManifestV3;
 
 const CONSOLE_DEFINITION: AppDefinitionV1 = defineApp({
 	sdk: 1,
@@ -73,19 +73,21 @@ const CONSOLE_DEFINITION: AppDefinitionV1 = defineApp({
 export interface SeedDeployment {
 	apps: Array<{ instance: string; app: string; package: string; order: number }>;
 	ports: FixturePorts;
-	manifests: Record<string, ManifestV2>;
+	manifests: Record<string, ManifestV3>;
 }
 
 /** Read each app's manifest and import its definition, then serve them all, in the listed order. */
 export async function seedApps(
 	listed: readonly SeedAppV1[],
-	extra: Parameters<typeof createFixturePorts>[0] = {}
+	extra: Parameters<typeof createFixturePorts>[0] = {},
+	/** A seed's own change to an app's manifest as read, by instance: `p5-base`'s milestone B overlay (`seeds.ts`). */
+	overlay: Readonly<Record<string, (manifest: ManifestV3) => ManifestV3>> = {}
 ): Promise<SeedDeployment> {
 	const { readAppManifest } = await load<{
-		readAppManifest(dir: string, manifest?: string): Promise<ManifestV2>;
+		readAppManifest(dir: string, manifest?: string): Promise<ManifestV3>;
 	}>('packages/cli/src/app-check.ts');
 	const packages: Parameters<typeof createFixturePorts>[0] = { ...extra };
-	const manifests: Record<string, ManifestV2> = {};
+	const manifests: Record<string, ManifestV3> = {};
 	const apps: SeedDeployment['apps'] = [];
 	for (const [index, app] of listed.entries()) {
 		const directory = `apps/${app.instance}/`;
@@ -93,7 +95,8 @@ export async function seedApps(
 			packages[directory] = { manifest: CONSOLE_MANIFEST, definition: CONSOLE_DEFINITION };
 			manifests[app.instance] = CONSOLE_MANIFEST;
 		} else {
-			const manifest = await readAppManifest(join(LOAM, app.dir), app.manifest);
+			const read = await readAppManifest(join(LOAM, app.dir), app.manifest);
+			const manifest = overlay[app.instance]?.(structuredClone(read)) ?? read;
 			const definition = (await load<{ default: AppDefinitionV1 }>(`${app.dir}/${app.module}`))
 				.default;
 			const files = Object.fromEntries(
@@ -109,7 +112,7 @@ export async function seedApps(
 		}
 		apps.push({
 			instance: app.instance,
-			app: (manifests[app.instance] as ManifestV2).plugin.id,
+			app: (manifests[app.instance] as ManifestV3).plugin.id,
 			package: directory,
 			order: (index + 1) * 10,
 		});

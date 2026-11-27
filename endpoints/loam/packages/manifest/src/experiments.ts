@@ -5,7 +5,7 @@
  */
 
 import type { Finding } from './core-rules.js';
-import type { ManifestRefusalCode, ManifestV2 } from './types.js';
+import type { ManifestRefusalCode, ManifestV3 } from './types.js';
 
 /** An experiment's lifecycle stage, its author's (5.1). */
 export type ExperimentStageV1 = 'hidden' | 'visible' | 'graduated' | 'removed';
@@ -51,7 +51,7 @@ export function isExperimentDate(ends: string): boolean {
 
 /** Every gate a manifest declares, by where it sits: `app`, a surface's name, or `settings:<section id>`. */
 export function gatesOf(
-	manifest: ManifestV2
+	manifest: ManifestV3
 ): Array<{ place: string; pointer: string; experiment: string }> {
 	const gates: Array<{ place: string; pointer: string; experiment: string }> = [];
 	const named = (value: unknown): value is string => typeof value === 'string';
@@ -96,7 +96,7 @@ type Refuse = (
  * eight; each id once; `ends` a real day; display text plain; and each gate naming one of this app's own experiments,
  * by its full id, since a gate decides what this app shows and no other app's author may decide it.
  */
-export function experimentRules(manifest: ManifestV2, refuse: Refuse, _warnings: Finding[]): void {
+export function experimentRules(manifest: ManifestV3, refuse: Refuse, _warnings: Finding[]): void {
 	const experiments = (manifest.ui?.experiments ?? []) as ExperimentV1[];
 	const gates = gatesOf(manifest);
 	if (experiments.length === 0 && gates.length === 0) return;

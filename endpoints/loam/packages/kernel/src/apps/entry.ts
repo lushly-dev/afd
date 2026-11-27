@@ -7,7 +7,7 @@ import type { CommandError } from '@lushly-dev/afd-core';
 import {
 	type ManifestRefusal,
 	type ManifestRefusalCode,
-	type ManifestV2,
+	type ManifestV3,
 	type ProjectionAppV1,
 	SERVED_GRANTS_V2,
 	TRUST_LINES_V1,
@@ -56,7 +56,7 @@ export const errorOf = (
 /** What fixes a record's shape: the manifest, when one was read, else only the entry. */
 export function baseRecord(
 	entry: ProjectionAppV1,
-	manifest: ManifestV2 | undefined,
+	manifest: ManifestV3 | undefined,
 	rawKind: unknown
 ): AppRecord {
 	const rail = manifest?.ui?.surfaces?.rail;
@@ -115,7 +115,7 @@ export function refusalError(refusals: readonly ManifestRefusal[]): CommandError
 /** Each kind's own refusal of an entry, as `loam deployment check` names them. */
 export function kindRefusal(
 	entry: ProjectionAppV1,
-	manifest: ManifestV2
+	manifest: ManifestV3
 ): CommandError | undefined {
 	if (manifest.plugin.id !== entry.app) {
 		return errorOf(
@@ -153,12 +153,12 @@ export function kindRefusal(
 	return undefined;
 }
 
-export const transportOf = (entry: ProjectionAppV1, manifest: ManifestV2): 'http' | 'stdio' =>
+export const transportOf = (entry: ProjectionAppV1, manifest: ManifestV3): 'http' | 'stdio' =>
 	entry.transport ?? manifest.mount?.transport ?? 'http';
 
 export function parseAppConfig(
 	entry: ProjectionAppV1,
-	manifest: ManifestV2
+	manifest: ManifestV3
 ): { ok: true; config: Readonly<Record<string, unknown>> } | { ok: false; error: CommandError } {
 	const suggestion = "Match the manifest's `config.schema`.";
 	const schema = manifest.config?.schema;
@@ -206,20 +206,20 @@ export function parseAppConfig(
 
 export function configRefusal(
 	entry: ProjectionAppV1,
-	manifest: ManifestV2
+	manifest: ManifestV3
 ): CommandError | undefined {
 	const result = parseAppConfig(entry, manifest);
 	return result.ok ? undefined : result.error;
 }
 
 /** The parts a manifest's surfaces declare, which a boot record's `parts` says too. */
-export function declaredPartsOf(manifest: ManifestV2 | undefined): LayoutPart[] {
+export function declaredPartsOf(manifest: ManifestV3 | undefined): LayoutPart[] {
 	const surfaces = manifest?.ui?.surfaces ?? {};
 	return PARTS.filter((part) => surfaces[part] !== undefined);
 }
 
 /** An instance's first layout: the defaults, undeclared parts closed, with the preset over them (4.5). */
-export function firstLayout(manifest: ManifestV2 | undefined): {
+export function firstLayout(manifest: ManifestV3 | undefined): {
 	initial: LayoutStateV0;
 	declared: Set<LayoutPart>;
 } {
@@ -232,7 +232,7 @@ export function firstLayout(manifest: ManifestV2 | undefined): {
  */
 export function scopeLevelsOf(
 	entry: ProjectionAppV1,
-	manifest: ManifestV2 | undefined,
+	manifest: ManifestV3 | undefined,
 	mounted: boolean
 ): Array<'workspace' | 'project'> {
 	if (mounted && entry.projects !== undefined) return ['project'];
@@ -240,7 +240,7 @@ export function scopeLevelsOf(
 }
 
 /** `false` for a rail-less plugin: `ui.documents` with no rail, sidebar or main (8.3). */
-export function railOf(manifest: ManifestV2 | undefined): boolean {
+export function railOf(manifest: ManifestV3 | undefined): boolean {
 	const surfaces = manifest?.ui?.surfaces ?? {};
 	const documents = (manifest?.ui as { documents?: unknown } | undefined)?.documents !== undefined;
 	return !(documents && !surfaces.rail && !surfaces.sidebar && !surfaces.main);
@@ -269,7 +269,7 @@ export class DomainHolders {
 	}
 
 	/** Claim a mounted instance's prefix, as `deployment check` does (3.1). */
-	claimPrefix(entry: ProjectionAppV1, manifest: ManifestV2 | undefined): CommandError | undefined {
+	claimPrefix(entry: ProjectionAppV1, manifest: ManifestV3 | undefined): CommandError | undefined {
 		const { instance, app } = entry;
 		const named = entry.prefix !== undefined;
 		const first = !this.appsSeen.has(app);

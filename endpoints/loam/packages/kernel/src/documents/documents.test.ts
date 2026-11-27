@@ -986,7 +986,7 @@ describe.each(adapters)('P2-D4: the trash expires (%s)', (_name, adapterOf) => {
 		);
 	});
 
-	it('is no caller’s to run: a person, an agent and an app all get COMMAND_NOT_FOUND', async () => {
+	it('is no caller’s to run: a person and an agent get COMMAND_NOT_FOUND, an app AFD’s CALL_NOT_GRANTED', async () => {
 		const { kernel } = await documents();
 		const input = { before: Number.MAX_SAFE_INTEGER };
 		expect((await kernel.call('document-trash-expire', input)).error?.code).toBe(
@@ -996,7 +996,7 @@ describe.each(adapters)('P2-D4: the trash expires (%s)', (_name, adapterOf) => {
 			'COMMAND_NOT_FOUND'
 		);
 		expect((await kernel.appPort('probe').call('document-trash-expire', input)).error?.code).toBe(
-			'COMMAND_NOT_FOUND'
+			'CALL_NOT_GRANTED'
 		);
 	});
 });

@@ -7,7 +7,7 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { IdentityV1, ManifestV2, ProjectionV3 } from '@lushly-dev/loam-manifest';
+import type { IdentityV1, ManifestV3, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, success } from '@lushly-dev/loam-sdk';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -27,7 +27,7 @@ afterEach(async () => {
 
 const NO_INPUT = { type: 'object', properties: {}, additionalProperties: false };
 
-const KEYS: ManifestV2 = {
+const KEYS: ManifestV3 = {
 	manifest_version: 2,
 	protocol: 1,
 	plugin: {
@@ -72,7 +72,7 @@ const KEYS: ManifestV2 = {
 			],
 		},
 	},
-} as unknown as ManifestV2;
+} as unknown as ManifestV3;
 
 const KEYS_DEFINITION = defineApp({
 	sdk: 1,

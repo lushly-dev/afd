@@ -25,12 +25,7 @@ import {
 } from '@lushly-dev/afd-server/direct';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { type BootProjectionV2, type IdentityV1, readBoot } from '@lushly-dev/loam-manifest';
-import {
-	appCallTwins,
-	createTraces,
-	type KernelRegistries,
-	registryFor,
-} from './app-call-registry.js';
+import { createTraces, type KernelRegistries } from './app-call-registry.js';
 import { appearanceFrom } from './appearance.js';
 import {
 	type AppsRuntime,
@@ -41,6 +36,7 @@ import {
 	runtimeUnavailable,
 } from './apps-runtime.js';
 import { createBootCommands, takesProject } from './boot-commands.js';
+import type { AdmissionV1 } from './call-grant.js';
 import { INTERNAL_COMMANDS, type InboundParts, inboundCache, SHELL_EXPOSE } from './commands.js';
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
 import { LoamKernelError } from './errors.js';
@@ -88,8 +84,11 @@ import type {
 	LoamKernel,
 } from './types.js';
 
-/** The kernel's two interfaces, one registry each. */
-export type KernelInterface = 'palette' | 'agent';
+/**
+ * The kernel's interfaces, one registry each: the person's, the agent's, and an app's call to another app's command
+ * (phase 5 specification, 9.1), which runs on AFD's `createAppCallRegistry`.
+ */
+export type KernelInterface = 'palette' | 'agent' | 'apps';
 
 /** Suggestion for a refused name (phase 0 specification, 6.1). */
 export const COMMAND_NAME_SUGGESTION = 'Rename it domain-action, e.g. reports-create';
@@ -242,7 +241,8 @@ export interface KernelParts extends InboundParts {
 	kernel: LoamKernel;
 	/**
 	 * The current registries; {@link KernelParts.setAppCommands} replaces them. `boot` holds `BOOT_ONLY`'s
-	 * commands alone, which only `BOOT_FIELDS` and a replay reach (phase 2 specification, 2.2).
+	 * commands alone, which only `BOOT_FIELDS` and a replay reach (phase 2 specification, 2.2); `apps`, AFD's
+	 * `createAppCallRegistry`, an app's call to another app's command (phase 5 specification, 9.1).
 	 */
 	readonly registries: KernelRegistries;
 	/**
@@ -557,7 +557,7 @@ export async function createKernelParts(
 		];
 	};
 	const build = (
-		iface: KernelInterface,
+		iface: Exclude<KernelInterface, 'apps'>,
 		held: readonly ZodCommandDefinition[],
 		middleware = chain(held)
 	) =>
@@ -586,17 +586,32 @@ export async function createKernelParts(
 			[...commands, ...bootOnly].map((command) => [command.name, command.mutation === true])
 		);
 		const middleware = chain([...commands, ...bootOnly]);
-		// The app-call registry (phase 5's 7.5), reached by an app port's call alone (`app-call-registry.ts`).
-		const twins = appCallTwins(commands);
+		// The `apps` registry (phase 5's 9.1) is built again from these on the next app-to-app call (`appsRegistry`).
 		registries = {
 			palette: build('palette', commands, middleware),
 			agent: build('agent', commands, middleware),
 			boot: build('palette', bootOnly, middleware),
-			...(twins ? { apps: build('palette', twins, middleware) } : {}),
 		};
 		current = { commands, middleware };
 		if (lateParts) lateInstalled = true;
 		commandSet += 1;
+	}
+
+	/**
+	 * The `apps` registry over the current commands (phase 5 specification, 9.1): AFD's `createAppCallRegistry`, from the
+	 * `apps` chunk, whose grant check is `call-grant.ts`'s rule. Built on the first app-to-app call after a change of
+	 * commands, so first paint holds none of it; undefined before the apps have loaded, when no app can call.
+	 */
+	function appsRegistry(): KernelRegistries['apps'] {
+		if (registries.apps === undefined && apps.appCallRegistry) {
+			registries.apps = apps.appCallRegistry([...current.commands], {
+				middleware: current.middleware,
+				contextFields,
+				...(clock ? { clock } : {}),
+				...(random ? { random } : {}),
+			});
+		}
+		return registries.apps;
 	}
 
 	let lateFailure: CommandError | undefined;
@@ -815,6 +830,9 @@ export async function createKernelParts(
 					unqueued
 						? execute('palette', name, input, callOptions ?? {}, fields)
 						: run('palette', name, input, callOptions, fields),
+				// An app's call to another app's command (phase 5's 9.1): queued as the person's, on the `apps` registry.
+				runApps: (name, input, callOptions, fields) =>
+					run('apps', name, input, callOptions, fields),
 				clock: () => options.clock?.() ?? Date.now(),
 				scope,
 				limits,
@@ -963,13 +981,23 @@ export async function createKernelParts(
 		}
 		if (lateFailure && !mutations.has(name)) return failure(lateFailure);
 		// Only a call the caller's interface may make: one it is not exposed to runs, and is refused as it was live, so a
-		// replay never answers it from an entry its handler could not have reached (#859).
-		const runsOn = registryFor(registries, iface, fields.caller);
+		// replay never answers it from an entry its handler could not have reached (#859). An app's call to another app's
+		// command, on the `apps` registry, which the `apps` chunk builds: none before the apps load, when nothing runs.
+		const runsOn = iface === 'apps' ? appsRegistry() : registries[iface];
+		if (runsOn === undefined) return failure(runtimeUnavailable('no app has loaded yet'));
 		let rerun: NestedRerunV1['rerun'] | undefined;
 		if (fields.parent !== undefined && runsOn.hasCommand(name)) {
 			const answered = internals.answerNested?.(fields.parent, name, input ?? {}, current.commands);
 			if (answered && 'rerun' in answered) rerun = answered.rerun;
-			else if (answered) return answered as CommandResult<T>;
+			else if (answered) {
+				// A replay's answer from an entry of this name: an `apps` call has one only once its grant admitted it (9.1).
+				// `call-grant.ts`'s `ADMISSION`, by `Symbol.for`, so first paint imports nothing of it.
+				const admission = (fields as Record<symbol, AdmissionV1 | undefined>)[
+					Symbol.for('dev.loam/admission')
+				];
+				if (iface === 'apps' && admission) admission.admitted = true;
+				return answered as CommandResult<T>;
+			}
 		}
 		// The agent interface runs as an agent, the session's person in its `onBehalfOf` (phase 3
 		// specification, 3.1), named by `late/`, which has loaded since its calls wait for stage B; a port's or
@@ -1183,7 +1211,7 @@ export async function createKernelParts(
 	);
 
 	const kernel: LoamKernel = {
-		version: 5,
+		version: 6,
 		bindShellKeys(perform) {
 			performShellKey = perform;
 			return () => {
@@ -1228,7 +1256,9 @@ export async function createKernelParts(
 	};
 	return {
 		kernel,
+		// With the `apps` registry once the apps have loaded, so a replay runs an `apps` entry where it ran (9.1).
 		get registries() {
+			appsRegistry();
 			return registries;
 		},
 		setAppCommands,

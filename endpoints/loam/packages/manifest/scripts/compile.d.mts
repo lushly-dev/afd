@@ -1,6 +1,6 @@
 export const packageRoot: string;
 export const AJV_OPTIONS: { strict: boolean; allErrors: boolean; inlineRefs: boolean };
-export function readCore(): { $id: string; $defs: Record<string, unknown> };
+export function readCore(version?: 1 | 2): { $id: string; $defs: Record<string, unknown> };
 export function readSchema(
 	name: 'app-manifest' | 'deployment' | 'projection' | 'server' | 'loam-plugin',
 	version?: number

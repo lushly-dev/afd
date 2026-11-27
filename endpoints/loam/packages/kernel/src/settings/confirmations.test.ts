@@ -15,7 +15,7 @@ import {
 	type AppCallContextV1,
 	defineApp,
 	failure,
-	type ManifestV2,
+	type ManifestV3,
 	type NotificationV1,
 	type OverlayRefV1,
 	type OverlayV1,
@@ -139,7 +139,7 @@ const KEEPER_MANIFEST = {
 		},
 	],
 	ui: { surfaces: { main: { element: 'keeper-main' } } },
-} as unknown as ManifestV2;
+} as unknown as ManifestV3;
 
 /** While set, `keeper-bump` refuses, and says so in `bumpRefused`: a confirmed run that fails (#1672). */
 let bumpRefuses = false;
@@ -1686,7 +1686,7 @@ const CONFIRMED_PROBE = {
 	commands: (PROBE_DOCUMENTS_MANIFEST.commands as Array<{ name: string }>).map((each) =>
 		each.name === 'probe-content-set' ? { ...each, confirm_prompt: 'Replace the text?' } : each
 	),
-} as unknown as ManifestV2;
+} as unknown as ManifestV3;
 const probeDeployment = () => {
 	const held = deployment();
 	return {
@@ -2110,7 +2110,7 @@ describe('the third round', () => {
 				},
 			],
 			ui: { surfaces: { main: { element: 'broken-main' } } },
-		} as unknown as ManifestV2;
+		} as unknown as ManifestV3;
 		const brokenDeployment = () => {
 			const held = deployment();
 			return {
@@ -2428,7 +2428,7 @@ describe('the fourth round', () => {
 			commands: (CONFIRMED_PROBE.commands as Array<{ name: string }>).map((each) =>
 				each.name === 'probe-export' ? { ...each, confirm_prompt: 'Export it?' } : each
 			),
-		} as unknown as ManifestV2;
+		} as unknown as ManifestV3;
 		const { kernel } = await createScopedWorkspace({
 			deployment: probeDeployment(),
 			ports: createFixturePorts({

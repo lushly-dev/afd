@@ -6,7 +6,7 @@
  */
 
 import { defaultExpose } from '@lushly-dev/afd-server/define';
-import { type ManifestV2, NOTICES_V1, TRUST_LINES_V1 } from '@lushly-dev/loam-manifest';
+import { type ManifestV3, NOTICES_V1, TRUST_LINES_V1 } from '@lushly-dev/loam-manifest';
 import { fromJsonSchema, keyOf, readManifest } from '@lushly-dev/loam-manifest/validate';
 import { parse as parseToml } from 'smol-toml';
 import type { z } from 'zod';
@@ -33,7 +33,7 @@ export interface Trust {
  * as the reader reads the schema (documents specification, 2.1): `DOCUMENT_TEMPLATE_INVALID`. The kernel
  * reads no content, so this is `app check`'s and `app pack`'s alone.
  */
-function templateFindings(manifest: ManifestV2): Finding[] {
+function templateFindings(manifest: ManifestV3): Finding[] {
 	return (manifest.ui?.documents ?? []).flatMap((type, index) => {
 		let schema: z.ZodType;
 		try {
@@ -85,7 +85,7 @@ const ONE_DAY_MS = 86_400_000;
  * phase 4 specification 5.1, #2110). Matches `kernel/src/late/experiment-rules.ts`'s UTC-day boundary:
  * overdue starting the UTC day after `ends`.
  */
-function overdueExperimentFindings(manifest: ManifestV2, now: number): Finding[] {
+function overdueExperimentFindings(manifest: ManifestV3, now: number): Finding[] {
 	if (!Number.isFinite(now)) return [];
 	return (manifest.ui?.experiments ?? []).flatMap((experiment, index) => {
 		if (experiment.stage === 'graduated' || experiment.stage === 'removed') return [];
@@ -116,7 +116,7 @@ export interface AppCheckReport {
 	ok: boolean;
 	kind?: 'native' | 'view' | 'mounted';
 	/** The manifest with its schemas inlined, when it was read. */
-	manifest?: ManifestV2;
+	manifest?: ManifestV3;
 	refusals: Finding[];
 	warnings: Finding[];
 	/** The effective flags of each command, a flag left out taking AFD's default (L3). */
@@ -157,7 +157,7 @@ function kindOf(raw: Record<string, unknown>): AppCheckReport['kind'] {
 	return kind === 'native' || kind === 'view' || kind === 'mounted' ? kind : undefined;
 }
 
-function exposureOf(manifest: ManifestV2): AppCheckReport['exposure'] {
+function exposureOf(manifest: ManifestV3): AppCheckReport['exposure'] {
 	return Object.fromEntries(
 		(manifest.commands ?? []).map((command) => [
 			command.name,
@@ -168,7 +168,7 @@ function exposureOf(manifest: ManifestV2): AppCheckReport['exposure'] {
 
 /** Surface findings warn, but for an injection finding in a description, which fails. */
 function surfaceFindings(
-	manifest: ManifestV2,
+	manifest: ManifestV3,
 	surface: SurfaceCheck
 ): { refusals: Finding[]; warnings: Finding[] } {
 	const commands = manifest.commands ?? [];
@@ -255,7 +255,7 @@ export function checkApp(
 	const warnings: Finding[] = [...read.warnings, ...built.warnings.map(asFinding)];
 	const kind = kindOf(raw);
 	const trust = trustOf(kind);
-	const report = (manifest?: ManifestV2): AppCheckReport => ({
+	const report = (manifest?: ManifestV3): AppCheckReport => ({
 		ok: refusals.length === 0,
 		...(kind ? { kind } : {}),
 		...(manifest ? { manifest } : {}),

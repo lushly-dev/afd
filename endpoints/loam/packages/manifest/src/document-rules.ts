@@ -5,7 +5,7 @@
  */
 
 import { inputSchemaProblem } from './core-rules.js';
-import type { ManifestRefusalCode, ManifestV2 } from './types.js';
+import type { ManifestRefusalCode, ManifestV3 } from './types.js';
 
 type Refuse = (
 	code: ManifestRefusalCode,
@@ -31,7 +31,7 @@ function takes(command: { input_schema?: unknown } | undefined, names: string[])
 
 /** `ui.documents`' rules, for a manifest that passed the schema. `element` checks a custom element name. */
 export function documentRules(
-	manifest: ManifestV2,
+	manifest: ManifestV3,
 	refuse: Refuse,
 	element: (name: string | undefined, pointer: string) => void
 ): void {
