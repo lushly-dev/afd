@@ -1327,11 +1327,11 @@
       "path": "packages/botcore-memory/tests/conftest.py",
       "upstream_sha256": "7c3346f23711f45f9af333634a69fabb676d28fb4c13721923f8281fb9e7b829",
       "staged_sha256": "7c3346f23711f45f9af333634a69fabb676d28fb4c13721923f8281fb9e7b829",
-      "current_import_sha256": "e4fa5afba5f44cecc7a1885a3dcd3acfde3c92bc53480705525a6dd6eae2fc58",
+      "current_import_sha256": "67bc6b83520cbfe527919c96ca2e6b08bff8a74ecae120cc3b6debca8ed4d947",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Keep principals lowercase so case-only id differences never share a store file; require Botcore 0.8.0 and refuse unnamed managed calls; keep agent_name descriptive inside named host calls; add a verified, backed-up move of default memory; refuse trailing newlines in scope ids and keys"
+      "import_reason": "Imported exact frozen staged-input bytes; Keep principals lowercase so case-only id differences never share a store file; require Botcore 0.8.0 and refuse unnamed managed calls; keep agent_name descriptive inside named host calls; add a verified, backed-up move of default memory; refuse trailing newlines in scope ids and keys; Share the Windows tmp_path fallback with Botcore's core and memory suites (#2713)"
     },
     {
       "path": "packages/botcore-memory/tests/test_access.py",
@@ -1405,6 +1405,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Key botcore-memory agent memory on the caller a host verified and refuse host calls that name no one; carry the LLM session's agent name as the tool caller's id; document callers and moving default memories; Keep principals lowercase so case-only id differences never share a store file; require Botcore 0.8.0 and refuse unnamed managed calls; keep agent_name descriptive inside named host calls; add a verified, backed-up move of default memory; refuse trailing newlines in scope ids and keys"
+    },
+    {
+      "path": "packages/botcore-memory/tests/test_temp_hook.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "a8011ad48bda49125ae102896c1188f487d519edb67fd579ac67bb78393c4ee6",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Share the Windows tmp_path fallback with Botcore's core and memory suites (#2713)"
     },
     {
       "path": "plugins/botcore-factory/pyproject.toml",
@@ -1973,10 +1984,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "0f7f80af2ea89999bcdb9a93377d3f012a823d06dabf8f52987629576125f789",
+      "current_import_sha256": "c9d94f51055819e034f6c58621d373eae896affc79a3e7f7473576881169b515",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Factory gate exemptions need the live foreman; the lane rechecks repair gate edits; Gateway tests move tmp_path off a %TEMP% the Windows token store refuses (#2696)"
+      "import_reason": "Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Factory gate exemptions need the live foreman; the lane rechecks repair gate edits; Gateway tests move tmp_path off a %TEMP% the Windows token store refuses (#2696); Share the Windows tmp_path fallback with Botcore's core and memory suites (#2713)"
     },
     {
       "path": "plugins/botcore-factory/tests/private_temp.py",
@@ -1984,10 +1995,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "74af640a79b252f565d20927c3a3b4d87e0ed21498b09e3ad62dc7434b891baf",
+      "current_import_sha256": null,
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Gateway tests move tmp_path off a %TEMP% the Windows token store refuses (#2696)"
+      "import_reason": "Gateway tests move tmp_path off a %TEMP% the Windows token store refuses (#2696); Share the Windows tmp_path fallback with Botcore's core and memory suites (#2713)"
     },
     {
       "path": "plugins/botcore-factory/tests/small_worlds.py",
@@ -2259,10 +2270,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "dbff05cc1c50a633f2fbf7166f323c2830366f6afb1ab46a4aa606106369e32d",
+      "current_import_sha256": null,
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Gateway tests move tmp_path off a %TEMP% the Windows token store refuses (#2696)"
+      "import_reason": "Gateway tests move tmp_path off a %TEMP% the Windows token store refuses (#2696); Share the Windows tmp_path fallback with Botcore's core and memory suites (#2713)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_queue.py",
@@ -2698,6 +2709,17 @@
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
       "import_reason": "Adapt SDK 1/2 imports without eagerly requiring MCP in base installs; Format Botcore, add mypy type checking and py.typed marker (#1757)"
+    },
+    {
+      "path": "src/botcore/_test_temp.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "f0e4fbf7b73770be3865e0487f4652adefeaed85e064a570920babc60b33c860",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Share the Windows tmp_path fallback with Botcore's core and memory suites (#2713)"
     },
     {
       "path": "src/botcore/_windows_security.py",
@@ -6923,11 +6945,11 @@
       "path": "tests/conftest.py",
       "upstream_sha256": "b89f851cf4cf0868f38cf73db9b014a09c42088cc7f27ca2461521780cbf3a3c",
       "staged_sha256": "b89f851cf4cf0868f38cf73db9b014a09c42088cc7f27ca2461521780cbf3a3c",
-      "current_import_sha256": "c959a17f63c64a4a214e91cd3c2f8c2256cfb6877d661a571e1bd5f1993d23ec",
+      "current_import_sha256": "060835be35050214ebb306bb999c7df28e31afac1ad395472c27f8216ee8b3ed",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Clear inherited Git routing for child fixtures without changing caller state; Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Format Botcore, add mypy type checking and py.typed marker (#1757); Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Track skill sizes, aliases and quiet list for skills outside default project folders (lushly-dev/afd#1830); Track external skill directories, sizes, aliases, and quiet list for skill usage (#1830)"
+      "import_reason": "Clear inherited Git routing for child fixtures without changing caller state; Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Format Botcore, add mypy type checking and py.typed marker (#1757); Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Track skill sizes, aliases and quiet list for skills outside default project folders (lushly-dev/afd#1830); Track external skill directories, sizes, aliases, and quiet list for skill usage (#1830); Share the Windows tmp_path fallback with Botcore's core and memory suites (#2713)"
     },
     {
       "path": "tests/integration/__init__.py",
@@ -7749,6 +7771,17 @@
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "unchanged-staged",
       "import_reason": "Imported exact frozen staged-input bytes"
+    },
+    {
+      "path": "tests/test_test_temp.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "3590302232d3fcb1535fee5891ce3bf26aec33c27619bed141d3858705db94bb",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Share the Windows tmp_path fallback with Botcore's core and memory suites (#2713)"
     },
     {
       "path": "tests/test_undo.py",

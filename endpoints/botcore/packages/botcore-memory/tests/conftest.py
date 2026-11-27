@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from botcore._test_temp import configure_pytest_temp
 
 from botcore_memory.access import current_agent
 from botcore_memory.commands import configure, reset
@@ -82,3 +83,8 @@ def no_direct_caller():
     token = current_agent.set("")
     yield
     current_agent.reset(token)
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """On Windows, move ``tmp_path`` off a ``%TEMP%`` the token store refuses (#2713)."""
+    configure_pytest_temp(config)
