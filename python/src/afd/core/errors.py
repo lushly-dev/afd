@@ -374,7 +374,7 @@ ERROR_CODE_CATALOG: tuple[ErrorCodeInfo, ...] = (
     ErrorCodeInfo(ErrorCodes.STREAM_ERROR, "varies", "streaming"),
     ErrorCodeInfo(ErrorCodes.STREAM_ENDED_UNEXPECTEDLY, True, "streaming"),
     ErrorCodeInfo(ErrorCodes.COMMAND_FAILED, False, "streaming"),
-    ErrorCodeInfo(ErrorCodes.CONFIRMATION_REQUIRED, False, "confirmations"),
+    ErrorCodeInfo(ErrorCodes.CONFIRMATION_REQUIRED, "varies", "confirmations"),
     ErrorCodeInfo(ErrorCodes.CONFIRMATION_DECLINED, False, "confirmations"),
     ErrorCodeInfo(ErrorCodes.APPROVAL_REQUIRED, False, "approvals"),
     ErrorCodeInfo(ErrorCodes.APPROVAL_UNAVAILABLE, False, "approvals"),

@@ -165,6 +165,8 @@ HumanRelay
     resume(state, call) -> Approved { decisionId } | Declined | Pending(RelayPrompt) | Invalid
 RelayCall { command, inputDigest, actor, credentials?, clientCapabilities, input, context }
     approvedContext(decisionId, call) -> extra fields   (optional; default none)
+    pendingList(call) -> Approved { decisionId } | Declined | Pending { decision, url, list }
+                       | CommandError | none   (optional; default none)
 ```
 
 A relay is given the validated `input` its `inputDigest` names, so it can keep what its person must be
@@ -197,7 +199,7 @@ A call goes through these steps:
    unpadded base64url SHA-256 of the URL, so a pending decision keeps one id. The `requestState` is
    the relay's `state`. The server never sends this to a request whose client capabilities do not
    declare URL-mode elicitation: if `begin` returns a prompt for one, the call fails with
-   `CONFIRMATION_REQUIRED`.
+   `CONFIRMATION_REQUIRED`, unless the relay keeps a [pending list](#the-pending-list).
 4. **The retry.** A retry carrying `inputResponses.relay` and a `requestState`:
    - `decline` or `cancel` fails with `CONFIRMATION_DECLINED`, without asking the relay.
    - `accept` means only that the user agreed to open the link (MCP: URL mode is out of band, and
@@ -215,10 +217,76 @@ What a relay guarantees:
   command, `inputDigest` and the call's principal binding (#532). `resume` returns `Invalid` for a
   state that does not verify, has expired, or was issued to another command, input or principal.
 - **`Approved`** is returned at most once per decision, and only for a decision the person made
-  after `begin`.
+  after `begin`. Its `decisionId` is 1 to 128 ASCII letters, digits, `_` and `-`; the server
+  answers any other with an internal error and runs nothing.
 - **The URL** is an absolute `https` URL that holds no identity and is not pre-authenticated; the
   host verifies who opens it and that it is the person the call is for (MCP 2026-07-28,
-  elicitation, URL mode).
+  elicitation, URL mode). Its host is DNS labels of ASCII letters, digits and `-`, or a bracketed
+  IPv6 address, with an optional port from 1 to 65535 and no user information; the server answers
+  any other prompt with an internal error. Rust enforces this host and port rule and the decision-id rule
+  above; TypeScript ([#2722](https://github.com/lushly-dev/afd/issues/2722)) and Python
+  ([#2723](https://github.com/lushly-dev/afd/issues/2723)) check only for an `https` URL without
+  user information and a non-empty id until they do.
+
+### The pending list
+
+A client that does not declare URL-mode elicitation is never sent the relay's prompt. By default its
+call fails with `CONFIRMATION_REQUIRED`, as step 3 says. A relay may instead keep a list of the
+person's pending decisions, on its own page, and opt in to `pendingList`; a host offers it per
+deployment, off by default (#2010). On such a call, after validation (step 2), a `decline` or
+`cancel` answer still ends it with `CONFIRMATION_DECLINED` without asking the relay (step 4).
+Otherwise the server calls `pendingList` before `begin` or `resume`, and calls neither when it
+answers:
+
+- **`Pending`**: a live, undecided decision bound to the call's principal binding, command and
+  `inputDigest`, or a new one the relay began for it when none is live. A live approved or declined
+  decision bound to the call is answered first, so a newer pending decision never hides it. The
+  call fails with:
+
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "CONFIRMATION_REQUIRED",
+      "message": "'memory-erase' needs a person's confirmation through the host",
+      "suggestion": "Ask the person to open their pending decisions at https://person.example.com/d/ (or this one at https://person.example.com/d/d-1), check that it is decision d-1 for 'memory-erase', and decide there; then send this same call again.",
+      "retryable": true,
+      "recovery": { "kind": "external" },
+      "details": {
+        "commands": ["memory-erase"],
+        "reason": "pending-list",
+        "decision": "d-1",
+        "url": "https://person.example.com/d/d-1",
+        "list": "https://person.example.com/d/"
+      }
+    }
+  }
+  ```
+
+  `decision` is 1 to 128 ASCII letters, digits, `_` and `-`, and `url` and `list` are URLs as the
+  guarantees above require, with a valid host and a port from 1 to 65535; anything else is an
+  internal error. The suggestion names the list first, because it is a fixed address the person
+  can learn and check. In this refusal it also arrives through the agent, so it protects only a
+  person who already knows the address.
+- **`Approved`**: such a decision the person approved after it began, which the relay spends
+  atomically, so of identical calls exactly one gets it. Its `decisionId` follows the same rule as
+  `decision`. The command runs as after `resume`'s
+  `Approved`: with relay evidence and `approvedContext`.
+- **`Declined`**: `CONFIRMATION_DECLINED`, not retryable; the relay answers it once.
+- **A `CommandError`** is the call's result. **None** keeps the default refusal.
+
+No `requestState` travels: the relay's lookup binds what the state binds, and the guarantees above
+apply to it. The person still decides on the relay's page, proven as the URL guarantee requires,
+so the assurance a decision records is unchanged. What the list trades is the link's provenance:
+in URL mode the client shows the server's URL itself, and here the agent relays it, so a
+prompt-injected agent could hand the person another link, the list's included. The relay's page
+therefore names the command, what the person is shown of the input and the decision id the
+refusal names, and the person signs in there as the URL guarantee requires, so another link can
+lead the person astray but cannot decide for them. The cases are in
+[`vectors/human-relay.json`](./vectors/human-relay.json). Rust
+(`HumanRelay::pending_list`) implements this; TypeScript
+([#2722](https://github.com/lushly-dev/afd/issues/2722)) and Python
+([#2723](https://github.com/lushly-dev/afd/issues/2723)) are planned.
 
 ## Approvals
 

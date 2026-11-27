@@ -6,6 +6,7 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Changed
 
+- **`CONFIRMATION_REQUIRED` is listed with `retryable` unset (varies)** in the error catalog, instead of `false`, matching `spec/error-codes.md` ([#2010](https://github.com/lushly-dev/afd/issues/2010)). A relay's pending-list refusal is retryable; `afd::mcp_stdio` has no relay, so no C++ code path changes.
 - **Breaking (ABI):** `CommandError` and `ErrorOptions` gained `recovery`, between `retryable` and `details`. Designated initializers are unaffected; positional aggregate initialization that sets `details` must add the new field.
 - **Breaking (behaviour): the journal honours `secret`, which changes what it records** ([`spec/journal.md`](../../spec/journal.md)): a `DirectClient`'s own journal middleware, which cannot read the declaration, now records no call without `redact`, and an unrecorded secret call inside a recorded one leaves the parent's tape marked `truncated`.
 - **Breaking (ABI):** `CommandDefinition` gained `secret`, between `handoff_protocol` and `examples`, and `JournalMiddlewareOptions::redact` is now an `afd::JournalRedact` instead of a `std::function`, and `Clock` and `RandomSource` gained an internal virtual `journal_tape()` (do not override it). Designated initializers and a one-argument `redact` lambda or `std::function` compile unchanged, and `options.redact != nullptr` and `bool(options.redact)` still test it; binary consumers must rebuild. `secret` is an `afd::StrictBool`, which accepts only a `bool`.

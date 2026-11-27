@@ -122,6 +122,7 @@ async fn verified(
             input_digest: &digest,
             context: &context,
             surface: Surface::Cli,
+            binding: None,
         })
         .await
     {

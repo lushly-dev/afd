@@ -14,12 +14,24 @@
 //!   the same URL and a fresh state; declined is `Declined`; approved is spent once as
 //!   `person:<id>` and is `Approved`, so of two retries carrying one state, in any processes,
 //!   exactly one runs.
+//! - **The pending list** (`person.pending_list`, off by default; #2010). For a client without
+//!   URL-mode elicitation, instead of `url-elicitation-required`: the live decisions for this
+//!   `for` (namespace, subject, actor, issuer and client id), command and input digest, begun by
+//!   this relay for the same principal binding (its MAC under `person.key`, kept with the
+//!   decision), are found with no state. An approved one, newest first, is spent once as
+//!   `person:<id>`, as on resume, and runs; a declined one is answered once, spent as it is
+//!   answered. Otherwise the newest pending one is `CONFIRMATION_REQUIRED` naming it, its page and
+//!   the list (`/d/`), and with none a new one is begun. A decision begun before the binding was
+//!   kept, or at the CLI, is never found. The person decides on the same page, with
+//!   the same login, so the decision is `verified` as in URL mode.
 //! - **The approved call's fields** ([`super::PERSON_DECISION_KEY`] and `humanPresent`), for the
 //!   plugin gate and the handler.
 
 use std::sync::Arc;
 
-use afd::server::{HumanRelay, RelayCall, RelayOutcome, RelayPrompt};
+use afd::server::{
+    HumanRelay, PendingListOutcome, RelayCall, RelayOutcome, RelayPending, RelayPrompt,
+};
 use afd::{CommandError, error_codes};
 use async_trait::async_trait;
 use serde_json::{Map, Value, json};
@@ -58,6 +70,92 @@ impl UmbelRelay {
             self.service.url(&decision.id),
             message,
             state,
+        ))
+    }
+
+    /// Who the call is for, in a namespace that serves verified commands now (7.2, step 1).
+    fn who(&self, call: &RelayCall) -> Result<super::DecisionFor, CommandError> {
+        let who = for_of_mcp(&call.context).map_err(|reason| {
+            tracing::info!(target: "umbel::person", reason, "no person can be proven for a call");
+            unavailable(
+                &call.command,
+                "this caller acts for no person in a namespace with a person login",
+            )
+        })?;
+        if !self.service.served(&who.namespace) {
+            return Err(unavailable(
+                &call.command,
+                "the caller's namespace's person login cannot be used now",
+            ));
+        }
+        Ok(who)
+    }
+
+    /// The pending list's answer for `call` (see the module's rules).
+    async fn list_answer(&self, call: &RelayCall) -> Result<PendingListOutcome, CommandError> {
+        let who = self.who(call)?;
+        // AFD never asks about credentials that cannot be bound (M8), so this is a broken store.
+        let binding = self
+            .service
+            .binding_of(call)
+            .ok_or_else(crate::shared::read_limit::store_failed)?;
+        let now = self.service.now();
+        let found: Vec<_> = self
+            .service
+            .for_call(&call.command, &call.input_digest)
+            .await?
+            .into_iter()
+            .filter(|decision| {
+                decision.for_ == who
+                    && decision.binding.as_deref() == Some(binding.as_str())
+                    && decision.live(now)
+            })
+            .collect();
+        // A decided decision first, newest first, so a newer pending one never hides it. Spent
+        // already (an identical call won it, here or on another process): look further.
+        for decision in &found {
+            let answer = match decision.status {
+                Status::Approved => PendingListOutcome::Approved {
+                    decision_id: decision.id.clone(),
+                },
+                Status::Declined => PendingListOutcome::Declined,
+                Status::Pending => continue,
+            };
+            let spent = self
+                .service
+                .spend(&decision.id)
+                .await
+                .map_err(|error| super::service::store_failure(&error))?;
+            if spent {
+                return Ok(answer);
+            }
+        }
+        if let Some(decision) = found
+            .iter()
+            .find(|decision| decision.status == Status::Pending)
+        {
+            return Ok(self.pending(&decision.id));
+        }
+        let decision = self
+            .service
+            .begin(BeginRequest {
+                who,
+                command: &call.command,
+                input: &call.input,
+                input_digest: &call.input_digest,
+                context: &call.context,
+                surface: Surface::Mcp,
+                binding: Some(binding),
+            })
+            .await?;
+        Ok(self.pending(&decision.id))
+    }
+
+    fn pending(&self, id: &str) -> PendingListOutcome {
+        PendingListOutcome::Pending(RelayPending::new(
+            id,
+            self.service.url(id),
+            self.service.list_url(),
         ))
     }
 }
@@ -114,19 +212,7 @@ impl HumanRelay for UmbelRelay {
         if !call.supports_url_elicitation() {
             return Err(url_elicitation_required(&call.command));
         }
-        let who = for_of_mcp(&call.context).map_err(|reason| {
-            tracing::info!(target: "umbel::person", reason, "no person can be proven for a call");
-            unavailable(
-                &call.command,
-                "this caller acts for no person in a namespace with a person login",
-            )
-        })?;
-        if !self.service.served(&who.namespace) {
-            return Err(unavailable(
-                &call.command,
-                "the caller's namespace's person login cannot be used now",
-            ));
-        }
+        let who = self.who(call)?;
         let decision = self
             .service
             .begin(BeginRequest {
@@ -136,6 +222,7 @@ impl HumanRelay for UmbelRelay {
                 input_digest: &call.input_digest,
                 context: &call.context,
                 surface: Surface::Mcp,
+                binding: self.service.binding_of(call),
             })
             .await?;
         self.prompt(&decision, call)
@@ -178,6 +265,16 @@ impl HumanRelay for UmbelRelay {
                 Ok(false) | Err(_) => RelayOutcome::Invalid,
             },
         }
+    }
+
+    async fn pending_list(
+        &self,
+        call: &RelayCall,
+    ) -> Option<Result<PendingListOutcome, CommandError>> {
+        if !self.service.pending_list() || call.supports_url_elicitation() {
+            return None;
+        }
+        Some(self.list_answer(call).await)
     }
 
     async fn approved_context(&self, decision_id: &str, call: &RelayCall) -> Map<String, Value> {

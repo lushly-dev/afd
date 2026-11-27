@@ -277,7 +277,7 @@ td {
 
 /* A command's name and the two times stay on one line: their hyphens would otherwise break them
  * where the columns share a wide page. A phone lets them break (below). */
-td:nth-child(n + 3),
+td:nth-child(n + 4),
 td code {
 	white-space: nowrap;
 }
@@ -452,7 +452,7 @@ ul.items input[type="checkbox"]:focus-visible {
 		table-layout: fixed;
 	}
 
-	td:nth-child(n + 3),
+	td:nth-child(n + 4),
 	td code {
 		white-space: normal;
 	}

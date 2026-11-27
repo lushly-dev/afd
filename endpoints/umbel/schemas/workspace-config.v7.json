@@ -482,6 +482,10 @@
 					"minimum": 60,
 					"maximum": 86400
 				},
+				"pending_list": {
+					"description": "Whether an MCP client without URL-mode elicitation is refused with the decision's address and the person's list of pending decisions (CONFIRMATION_REQUIRED, details.reason pending-list), and the same call sent again runs once the person approves there. The person signs in on the same page, so the decision is still verified; the link reaches them through the agent instead of the client. Only in auth.mode oauth or gateway: the host refuses it in mode none. Default false.",
+					"type": "boolean"
+				},
 				"local": {
 					"description": "The local person page: served by umbel person page-serve on a loopback address, with no login, for a workspace in auth.mode none. A decision made there records the level local, which shows that something on the machine posted the form, not that a person clicked.",
 					"type": "object",

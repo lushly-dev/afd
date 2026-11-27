@@ -51,6 +51,7 @@ export const VECTOR_MANIFEST = Object.freeze({
 	'dispatch.json': { kind: 'authored' },
 	'error-codes.json': { kind: 'authored' },
 	'execution-controls.json': { kind: 'authored' },
+	'human-relay.json': { kind: 'authored' },
 	'idempotency.json': { kind: 'authored' },
 	'journal-context-cap.json': {
 		kind: 'format-generated',

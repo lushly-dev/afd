@@ -343,6 +343,10 @@
 			"label": "Host-verified confirmation mode, `HumanRelay` and relay evidence ([`spec/command-metadata.md`](../spec/command-metadata.md#host-verified-confirmation))"
 		},
 		{
+			"id": "mcp.host-verified-pending-list",
+			"label": "`HumanRelay` pending-list fallback for clients without URL-mode elicitation ([#2010](https://github.com/lushly-dev/afd/issues/2010); [`spec/command-metadata.md`](../spec/command-metadata.md#the-pending-list))"
+		},
+		{
 			"id": "mcp.tasks",
 			"label": "MCP Tasks ([`spec/command-metadata.md`](../spec/command-metadata.md#tasks)): `task`, `TaskStore`, `tasks/get`, `tasks/update` and `tasks/cancel` with an owner check"
 		},
@@ -761,6 +765,9 @@
 				},
 				{
 					"capability": "mcp.host-verified-confirmation"
+				},
+				{
+					"capability": "mcp.host-verified-pending-list"
 				},
 				{
 					"capability": "mcp.tasks"

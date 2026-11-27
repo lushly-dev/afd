@@ -145,7 +145,10 @@ use confirmations::Gate;
 pub use confirmations::{ConfirmationMode, AFD_CONFIRM_META_KEY};
 use context_hook::ContextHook;
 pub use context_hook::ContextHookRequest;
-pub use human_relay::{HumanRelay, RelayCall, RelayOutcome, RelayPrompt, RELAY_INPUT_KEY};
+pub use human_relay::{
+    HumanRelay, PendingListOutcome, RelayCall, RelayOutcome, RelayPending, RelayPrompt,
+    RELAY_INPUT_KEY,
+};
 pub use instance_state::ServerInstances;
 pub use resources::{
     ResourceCaller, ResourceContents, ResourceEntry, ResourceProvider, ResourceReadError,

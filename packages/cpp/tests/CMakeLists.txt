@@ -18,6 +18,7 @@ add_executable(
     dispatch_vectors_test.cpp
     execution_controls_vectors_test.cpp
     handoff_test.cpp
+    human_relay_vectors_test.cpp
     helpers_test.cpp
     idempotency_keys_test.cpp
     idempotency_vectors_test.cpp

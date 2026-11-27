@@ -540,6 +540,11 @@
 				"packages/rust/tests/server_confirmations.rs"
 			]
 		},
+		"mcp.host-verified-pending-list": {
+			"status": "yes",
+			"note": "([#2010](https://github.com/lushly-dev/afd/issues/2010)): `HumanRelay::pending_list`, `PendingListOutcome`, `RelayPending`; asked only for a client without URL-mode elicitation, before `begin`",
+			"evidence": ["packages/rust/tests/server_human_relay.rs"]
+		},
 		"mcp.tasks": {
 			"status": "yes",
 			"note": "(Umbel phase 5 step 0e): `CommandDefinition::with_task(TaskSupport)`, `afd::server::tasks` (`TaskStore`, `InMemoryTaskStore`, `TaskOptions`), principal-binding owner checks, caller guard, `TASK_TOKEN_EXPIRED`, `report_progress` and `cancellation`, todo `--suite tasks`",

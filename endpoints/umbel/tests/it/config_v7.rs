@@ -96,6 +96,7 @@ fn the_specifications_example_opens_with_every_key() {
     let config = workspace.config();
     assert_eq!(config.version, 7);
     assert_eq!(config.person.decision_ttl_s, 3600);
+    assert!(!config.person.pending_list);
     assert!(config.person.local.enabled);
     assert_eq!(config.person.local.bind.to_string(), "127.0.0.1:7421");
     assert_eq!(
@@ -133,6 +134,31 @@ fn every_key_has_a_default_and_earlier_versions_read_with_them() {
         DEFAULT_VERIFIED_LEVELS.map(AssuranceLevel::as_str),
         ["terminal", "verified"]
     );
+}
+
+#[test]
+#[cfg(feature = "auth")]
+fn the_pending_list_is_off_unless_turned_on() {
+    let on = open(&oauth("\n[person]\npending_list = true\n")).unwrap();
+    assert!(on.config().person.pending_list);
+    let off = open(&oauth("")).unwrap();
+    assert!(!off.config().person.pending_list);
+    // Not through `invalid`, which prints the file it opens: a hosted file names its issuers.
+    let not_a_boolean = open(&oauth("\n[person]\npending_list = 1\n"))
+        .err()
+        .map(|error| (error.code().to_owned(), error.key().map(str::to_owned)));
+    assert_eq!(
+        not_a_boolean,
+        Some((
+            "WORKSPACE_CONFIG_INVALID".to_owned(),
+            Some("person.pending_list".to_owned())
+        ))
+    );
+    let error = invalid(
+        "config_version = 7\n[person]\npending_list = true\n",
+        "person.pending_list",
+    );
+    assert!(error.message().contains("auth.mode"), "{error}");
 }
 
 #[test]
@@ -393,6 +419,7 @@ fn the_schema_refuses_what_the_host_refuses() {
         edited(&base, |c| c["person"]["decision_ttl_s"] = json!(59)),
         edited(&base, |c| c["person"]["decision_ttl_s"] = json!(86_401)),
         edited(&base, |c| c["person"]["decision_ttl_s"] = json!("1h")),
+        edited(&base, |c| c["person"]["pending_list"] = json!("yes")),
         edited(&base, |c| c["person"]["ttl"] = json!(60)),
         edited(&base, |c| {
             c["person"]["local"]["bind"] = json!("0.0.0.0:7421")

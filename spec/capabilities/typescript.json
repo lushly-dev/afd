@@ -576,6 +576,11 @@
 				"packages/server/src/authorization-cases.test.ts"
 			]
 		},
+		"mcp.host-verified-pending-list": {
+			"status": "planned",
+			"note": "([#2722](https://github.com/lushly-dev/afd/issues/2722))",
+			"evidence": ["packages/server/src/human-relay.ts"]
+		},
 		"mcp.tasks": {
 			"status": "yes",
 			"note": "([#1971](https://github.com/lushly-dev/afd/issues/1971)): `task?: TaskSupport`, `TaskStore`, `InMemoryTaskStore`, `TaskOptions`, `tasks/*`, `McpClient({ tasks: true })`, todo `--suite tasks`",

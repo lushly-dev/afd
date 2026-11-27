@@ -266,7 +266,7 @@ inline constexpr std::array<ErrorCodeInfo, 53> error_code_catalog = {{
     {error_codes::STREAM_ERROR, std::nullopt, "streaming"},
     {error_codes::STREAM_ENDED_UNEXPECTEDLY, true, "streaming"},
     {error_codes::COMMAND_FAILED, false, "streaming"},
-    {error_codes::CONFIRMATION_REQUIRED, false, "confirmations"},
+    {error_codes::CONFIRMATION_REQUIRED, std::nullopt, "confirmations"},
     {error_codes::CONFIRMATION_DECLINED, false, "confirmations"},
     {error_codes::APPROVAL_REQUIRED, false, "approvals"},
     {error_codes::APPROVAL_UNAVAILABLE, false, "approvals"},
