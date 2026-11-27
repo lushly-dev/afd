@@ -38,15 +38,22 @@ export const RECORDED_COMMANDS = Object.keys(CHANGED_IDS);
 
 /**
  * Record each successful todo change that touched at least one todo. Place it inside the
- * approval middleware, so a held call, which never runs, is never recorded.
+ * approval middleware, so a held call, which never runs, is never recorded. A repeat answered
+ * without running again changed nothing, so it is not recorded either: one the server's
+ * idempotency step answered (`metadata.idempotentReplay`), or one a handler answered with the
+ * result it gave the first time (todo-create-batch does, for a repeated key). That second check
+ * relies on every real change returning fresh data, which the stores' commands do.
  */
 export function createHistoryMiddleware(): CommandMiddleware {
+	const recorded = new WeakSet<object>();
 	return async (commandName, _input, context, next) => {
 		const result = await next();
 		const changed = CHANGED_IDS[commandName];
 		if (!result.success || !changed || typeof result.data !== 'object' || result.data === null) {
 			return result;
 		}
+		if (result.metadata?.idempotentReplay === true || recorded.has(result.data)) return result;
+		recorded.add(result.data);
 		const touched = changed(result.data as Data);
 		if (touched.length === 0) {
 			return result;

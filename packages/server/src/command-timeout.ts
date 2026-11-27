@@ -1,5 +1,6 @@
 import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
 import { failure, truncateName } from '@lushly-dev/afd-core';
+import { idempotencyStepActed } from './approval-admission.js';
 
 /** Normative server-level default per-command deadline in milliseconds (`spec/execution-controls.md`). */
 export const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
@@ -63,13 +64,18 @@ async function withCommandTimeout(
 		timer = setTimeout(
 			() => {
 				// Settle the deadline first, so a handler completing on abort cannot win the race.
+				// Where the idempotency step holds the call's key, a repeat with that key is answered
+				// from its store, so it is safe (spec/idempotency.md, R3); anywhere else it is not.
+				const keyed = idempotencyStepActed(context);
 				resolve(
 					failure({
 						code: 'TIMEOUT',
 						message: `Command '${truncateName(name)}' timed out after ${effectiveTimeout}ms`,
-						suggestion:
-							'Retry with a larger timeout. The command was signalled to abort but may have completed, so check its effect before retrying a mutation.',
+						suggestion: keyed
+							? 'Repeat the call with the same idempotency key and input: this server answers it from the first call, so the change is not applied twice.'
+							: 'Retry with a larger timeout. The command was signalled to abort but may have completed, so check its effect before retrying a mutation.',
 						retryable: true,
+						...(keyed && { recovery: { kind: 'retry' as const } }),
 						details: { command: name, timeoutMs: effectiveTimeout },
 					})
 				);

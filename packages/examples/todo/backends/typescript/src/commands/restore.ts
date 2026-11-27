@@ -51,6 +51,7 @@ export const restoreTodos = defineCommand<typeof inputSchema, RestoreResult>({
 	expose: { mcp: true },
 	tags: ['todo', 'restore', 'write', 'batch', 'undo'],
 	mutation: true,
+	idempotency: 'natural',
 	undoable: true,
 	approval: 'not-required',
 	version: '1.0.0',

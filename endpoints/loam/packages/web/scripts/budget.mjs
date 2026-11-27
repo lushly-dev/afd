@@ -661,7 +661,7 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #2599 (Violet's redrawn system icons: `folder`, `document`, `close`, `search` and
 	// `warning`, which first paint carries, grow and `settings` shrinks): measured 346,861 with `main` at `7e75987e9`
 	// merged, against 346,795 with main's icons (+66); set to 347,200.
-	jsMinified: 349_700, // D115: shell keys (348,039, 5ade6c0f4); #2645 (348,354, 871c1a98a); step 10's 9.1; its 9.2, 348,711; #2846's journal seams, 349,276 (55548acc8).
+	jsMinified: 353_000, // D115: shell keys (348,039, 5ade6c0f4); #2645 (348,354, 871c1a98a); step 10's 9.1; its 9.2, 348,711; #2846's journal seams, 349,276 (55548acc8); #2675's idempotency keys, 352,572 (7f994c7e4).
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -700,7 +700,7 @@ export const CEILINGS = Object.freeze({
 	// lowering first-paint gzip from 109,973 to 103,971 (-6,002) against `main` at `bd374912`; lowered to 105,000.
 	// #2107 (inject wrapper provenance and `redactWrapped` from `late/journal-wrappers.ts`):
 	// first-paint gzip dropped from 104,118 to 102,691 (-1,427) against `main` at `bd30d790b`; lowered to 103,600.
-	jsGzip: 104_500, // D115: local workspace export and shell key commands (103,742 on 5ade6c0f4); #2846's journal seams, 104,017 to 104,223 (55548acc8).
+	jsGzip: 105_700, // D115: local workspace export and shell key commands (103,742 on 5ade6c0f4); #2846's journal seams, 104,017 to 104,223 (55548acc8); #2675's idempotency keys, 105,362 (7f994c7e4).
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -774,7 +774,7 @@ export const CEILINGS = Object.freeze({
 	// `main` at `8b3123580` plus #2648; set to 161,500.
 	// Raised under D115 by #2652 (#1743: afd-server's host-state token and one admission pipeline): measured 161,182
 	// on `main` at `5ade6c0f4`, 161,304 with #2648 merged (`main` at `e0dbde691`); set to 161,600.
-	kernelMinified: 161_600,
+	kernelMinified: 165_300, // D115: #2675's idempotency keys through the direct registry (164,943, 7f994c7e4).
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -932,7 +932,7 @@ export const CEILINGS = Object.freeze({
 	// measured 41,977 against `main` at `4da8efebe`); raised 41,500 → 42,500 under D115.
 	// #2652 (#1743: router outcome, lane acknowledgement, host-state token): 42,572 at `5ade6c0f4`, 42,500 → 43,000;
 	// #1746 (the router's name map and lazy groups): 43,015 at `5e33124bc`; raised 43,000 → 43,500 under D115.
-	inboundMinified: 43_500,
+	inboundMinified: 44_300, // D115: #2675's idempotency keys in the router and engine (43,977, 7f994c7e4).
 	mountMinified: 238_268,
 	switcherMinified: 12_100,
 	switcherColdMinified: 45_163,

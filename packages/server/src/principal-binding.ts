@@ -7,7 +7,7 @@
  */
 
 import type { Actor } from '@lushly-dev/afd-core';
-import { canonicalJson } from './approval-crypto.js';
+import { canonicalJson } from '@lushly-dev/afd-core/internal/canonical-json';
 
 /**
  * The identity of a call's verified credentials (`spec/authorization.md`, M4): the token's issuer,

@@ -153,6 +153,23 @@ export {
 	type RelayOutcome,
 	type RelayPrompt,
 } from './human-relay.js';
+export {
+	createIdempotencyStep,
+	DEFAULT_IDEMPOTENCY_LEASE_MS,
+	DEFAULT_IDEMPOTENCY_TTL_MS,
+	type IdempotencyOptions,
+	type IdempotencyStep,
+	type IdempotencyStepDeps,
+} from './idempotency-step.js';
+export {
+	type IdempotencyRecord,
+	type IdempotencyReservationRequest,
+	type IdempotencyReserveOutcome,
+	type IdempotencySettlement,
+	type IdempotencyStore,
+	InMemoryIdempotencyStore,
+	type InMemoryIdempotencyStoreOptions,
+} from './idempotency-store.js';
 // Command journal: recording middleware and replay
 export {
 	createJournalMiddleware,

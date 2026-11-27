@@ -3,7 +3,7 @@
  */
 
 import { Writable } from 'node:stream';
-import type { CommandResult } from '@lushly-dev/afd-core';
+import { type CommandResult, isIdempotencyKey } from '@lushly-dev/afd-core';
 import { createDirectApprovalExchange } from '@lushly-dev/afd-core/internal/direct-approval';
 import chalk from 'chalk';
 import type { Command } from 'commander';
@@ -31,6 +31,7 @@ interface CallOptions extends ConnectFlags {
 	module?: string;
 	export: string;
 	approve?: boolean;
+	idempotencyKey?: string;
 }
 
 /**
@@ -63,6 +64,10 @@ export function registerCallCommand(program: Command): void {
 			'--approve',
 			'Approve without asking when the call is held for approval (needs --module)'
 		)
+		.option(
+			'--idempotency-key <key>',
+			'Send the call with this idempotency key (1 to 200 of A-Z a-z 0-9 . _ ~ -). Repeat a call whose outcome you do not know with the same key: a server that keeps keys answers it without applying it twice'
+		)
 		.addHelpText(
 			'after',
 			`
@@ -83,6 +88,13 @@ it, and MCP has no trusted channel for it yet. The result is printed unchanged.`
 				parsedArgs = parseToolArgs(args);
 			} catch (error) {
 				printError(describeArgsError(error));
+				return process.exit(1);
+			}
+
+			if (options.idempotencyKey !== undefined && !isIdempotencyKey(options.idempotencyKey)) {
+				printError(
+					'--idempotency-key must be 1 to 200 characters, each one of A-Z a-z 0-9 . _ ~ -'
+				);
 				return process.exit(1);
 			}
 
@@ -117,7 +129,15 @@ it, and MCP has no trusted channel for it yet. The result is printed unchanged.`
 			const spinner = ora(`Calling ${terminalText(name)}...`).start();
 
 			try {
-				const result = await callWithOAuthRetry(client, name, parsedArgs);
+				const result = await callWithOAuthRetry(
+					client,
+					name,
+					parsedArgs,
+					undefined,
+					options.idempotencyKey !== undefined
+						? { idempotencyKey: options.idempotencyKey }
+						: undefined
+				);
 				spinner.stop();
 
 				printResult(result, {
@@ -176,6 +196,7 @@ async function callInProcess(
 					input,
 					exchange.bind({
 						interface: 'cli',
+						...(options.idempotencyKey !== undefined && { idempotencyKey: options.idempotencyKey }),
 						...(approval !== undefined ? { approval } : {}),
 					})
 				),

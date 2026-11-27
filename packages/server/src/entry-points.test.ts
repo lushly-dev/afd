@@ -355,6 +355,14 @@ const HOST_IMPORTS =
  *   `approvalId` on each held call's request. Measured on `main` at `dec3cfc50` 52,466 / 68,511 /
  *   92,596 / 121,533 bytes and 52,907 / 69,556 / 93,037 / 122,744 after, with esbuild 0.28.2;
  *   raised to 53,000, 69,700, 93,200 and 123,000.
+ *   Idempotency keys (#2675): the engine validates and delivers `context.idempotencyKey` on
+ *   every call and derives batch and pipeline keys (`spec/idempotency.md`, K1 to K6), the retry
+ *   middleware reads `idempotency` (R1), and `/direct` exports the opt-in step
+ *   (`createIdempotencyStep`, `InMemoryIdempotencyStore`), which a direct registry takes built, so
+ *   a host that does not use it does not bundle it. Host, approval, tool-surface and every-export
+ *   measure 52,907 / 69,556 / 93,037 / 122,744 bytes with #2846 (journal seams) on `main` at
+ *   `7f994c7e4` and 56,137 / 72,918 / 97,121 / 135,110 after, with esbuild 0.28.2; raised to
+ *   56,500, 73,300, 97,500 and 135,500.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -367,19 +375,19 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 53_000,
+		bytes: 56_500,
 	},
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 69_700,
+		bytes: 73_300,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 93_200,
+		bytes: 97_500,
 	},
-	{ what: 'every export', imports: undefined, bytes: 123_000 },
+	{ what: 'every export', imports: undefined, bytes: 135_500 },
 ];
 
 /** The modules only the tool surface needs. */
@@ -454,9 +462,11 @@ describe('@lushly-dev/afd-server/direct', () => {
 					},
 				});
 
-			const [hostBundle, surfaceBundle] = await Promise.all([
+			const [hostBundle, surfaceBundle, approvalBundle, stepBundle] = await Promise.all([
 				bundle(HOST_IMPORTS),
 				bundle(`${HOST_IMPORTS}, createDirectToolSurface`),
+				bundle(`${HOST_IMPORTS}, createApprovalMiddleware`),
+				bundle(`${HOST_IMPORTS}, createIdempotencyStep`),
 			]);
 			expect(hostBundle.errors.map((message) => message.text)).toEqual([]);
 			const host = modulesInOutput(hostBundle);
@@ -464,6 +474,16 @@ describe('@lushly-dev/afd-server/direct', () => {
 			expect(host.filter((path) => TOOL_SURFACE_MODULES.test(path))).toEqual([]);
 			// App-to-app calls (spec/command-metadata.md) cost a host only when it imports their registry.
 			expect(host.filter((path) => /src\/app-call(s|-registry)\.(ts|js)$/.test(path))).toEqual([]);
+			// The idempotency step (spec/idempotency.md) costs a host only when it imports
+			// createIdempotencyStep; the engine and the router take it as a type.
+			const IDEMPOTENCY_STEP = /src\/idempotency-(step|store)\.ts$/;
+			expect(host.filter((path) => IDEMPOTENCY_STEP.test(path))).toEqual([]);
+			expect(approvalBundle.errors.map((message) => message.text)).toEqual([]);
+			expect(modulesInOutput(approvalBundle).filter((path) => IDEMPOTENCY_STEP.test(path))).toEqual(
+				[]
+			);
+			expect(stepBundle.errors.map((message) => message.text)).toEqual([]);
+			expect(modulesInOutput(stepBundle).some((path) => IDEMPOTENCY_STEP.test(path))).toBe(true);
 
 			// The router and the tool list load no Node.js built-in since the confirmation gate moved
 			// out of confirmations.ts, so the surface bundles for the browser too.
@@ -472,6 +492,7 @@ describe('@lushly-dev/afd-server/direct', () => {
 			expect(surface.some((path) => path.endsWith('src/tool-router.ts'))).toBe(true);
 			expect(surface.some((path) => path.endsWith('src/tools.ts'))).toBe(true);
 			expect(surface.filter((path) => /^node:|modelcontextprotocol/.test(path))).toEqual([]);
+			expect(surface.filter((path) => IDEMPOTENCY_STEP.test(path))).toEqual([]);
 		},
 		BUNDLE_TIMEOUT_MS
 	);

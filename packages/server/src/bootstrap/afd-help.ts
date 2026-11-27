@@ -4,7 +4,7 @@
  * List all available commands with tags and grouping.
  */
 
-import type { CommandExample, OutputBudget } from '@lushly-dev/afd-core';
+import type { CommandExample, IdempotencySupport, OutputBudget } from '@lushly-dev/afd-core';
 import { AFD_CONTRACT_VERSION, success } from '@lushly-dev/afd-core';
 import { z } from 'zod';
 import type { ContextField } from '../context-fields.js';
@@ -26,6 +26,8 @@ interface CommandInfo {
 	category?: string;
 	tags?: string[];
 	mutation?: boolean;
+	/** What the command declares about repeats (`spec/idempotency.md`, D3), when set. */
+	idempotency?: IdempotencySupport;
 	destructive?: boolean;
 	undoable?: boolean;
 	requires?: string[];
@@ -128,6 +130,7 @@ export function createAfdHelpCommand(
 					// Empty lists are omitted (spec/command-metadata.md, "Reporting rules"; #1480).
 					if (cmd.tags?.length) info.tags = cmd.tags;
 					info.mutation = cmd.mutation;
+					if (cmd.idempotency !== undefined) info.idempotency = cmd.idempotency;
 					info.destructive = cmd.destructive;
 					info.undoable = cmd.undoable;
 					if (cmd.examples?.length) info.examples = cmd.examples;

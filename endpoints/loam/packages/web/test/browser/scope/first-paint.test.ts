@@ -213,8 +213,9 @@ describe('P2-E1: one first paint', () => {
 		// `7e75987e9`), then by the local workspace backup and shell commands (348,039 on `5ade6c0f4`), by #2645 (Zod
 		// shape detection by `_zod.def.type` in `afd-server`; 348,354 with `main` at `871c1a98a`), by phase 5's step
 		// 10 (9.1's `apps` interface, measured in its specification's record), by #2846 (journal seams in TypeScript:
-		// the dispatch id and the approval summary; 348,711 to 349,276 with `main` at `55548acc8`), and by #2444
-		// (stage-B ordering and disconnect guards in `loam-shell`).
+		// the dispatch id and the approval summary; 348,711 to 349,276 with `main` at `55548acc8`), by #2444
+		// (stage-B ordering and disconnect guards in `loam-shell`), and by #2675 (idempotency keys in `afd-core` and
+		// `afd-server`, recorded in `budget.mjs`).
 		expect(javascript).toBeLessThanOrEqual(budgetJsMinifiedCeiling());
 		expect(javascript).toBe(budgetRow());
 		// Stage B still runs in every deployment: `late` loads after the mark, on the empty shell too.

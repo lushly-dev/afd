@@ -239,7 +239,7 @@ All four languages implement these names and the behavior on this page.
 
 `OUTPUT_BUDGET_EXCEEDED` (`retryable: false`, `profile: "output-budgets"`) is emitted by the
 engine (B5) as a failure for a read and as a warning for a mutation. It is part of the shared
-50-code catalog in [`error-codes.md`](./error-codes.md) and
+53-code catalog in [`error-codes.md`](./error-codes.md) and
 [`vectors/error-codes.json`](./vectors/error-codes.json), with constants in all four languages.
 
 ## Conformance

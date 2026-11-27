@@ -28,6 +28,10 @@
 			"types": "./dist/direct-approval.d.ts",
 			"import": "./dist/direct-approval.js"
 		},
+		"./internal/idempotency": {
+			"types": "./dist/idempotency-keys.d.ts",
+			"import": "./dist/idempotency-keys.js"
+		},
 		"./internal/canonical-json": {
 			"types": "./dist/canonical-json.d.ts",
 			"import": "./dist/canonical-json.js"

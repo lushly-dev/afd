@@ -36,6 +36,7 @@
  */
 
 import type { Actor, CommandContext, CommandError } from '@lushly-dev/afd-core';
+import { AFD_IDEMPOTENCY_KEY_META_KEY } from '@lushly-dev/afd-core';
 import {
 	type ApproverCall,
 	type ApproverPredicate,
@@ -46,6 +47,8 @@ import {
 import type { ContextState } from './bootstrap/afd-context.js';
 import { type ContextField, contextFieldValues } from './context-fields.js';
 import { bindContextState } from './context-scope.js';
+import { withHostState } from './host-state.js';
+import type { IdempotencyCaller } from './idempotency-step.js';
 import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
 import { withMetaOutputBudget } from './output-budget.js';
 import { bindScopeView, type ScopeView } from './scope-view.js';
@@ -95,6 +98,13 @@ export interface DecodedCall {
 	/** Aborts the call (the client went away). */
 	readonly signal?: AbortSignal;
 	/**
+	 * How the lane tells callers apart, for the idempotency step (`spec/idempotency.md`, S3):
+	 * `http` for an HTTP request, or the connection a stdio call arrived on. Absent: in process.
+	 */
+	readonly transport?:
+		| { readonly kind: 'http' }
+		| { readonly kind: 'connection'; readonly connection: object };
+	/**
 	 * Bind what this request can carry (confirmation and relay channels, the approval relay, task
 	 * dispatch) to the call's context, once its principal is known.
 	 */
@@ -115,6 +125,12 @@ export interface AdmissionDeps {
 	approver?: ApproverPredicate;
 	/** The actor of a call whose context has none (the server's `actor` option). */
 	actor?: Actor;
+	/**
+	 * Whether the server can tell apart the HTTP caller with `credentials` (S3): it has `auth` and
+	 * the request carries credentials, or `createContext` is declared to identify every caller.
+	 * Default: it cannot.
+	 */
+	identifiesHttpCaller?: (credentials: unknown) => boolean;
 }
 
 export interface AdmissionPipeline {
@@ -129,6 +145,13 @@ export interface AdmissionPipeline {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** `_meta["dev.afd/idempotencyKey"]` as `idempotencyKey`, or nothing for an absent or null key. */
+function idempotencyKeyOf(meta: unknown): { idempotencyKey?: string } {
+	if (!isRecord(meta)) return {};
+	const key = meta[AFD_IDEMPOTENCY_KEY_META_KEY];
+	return key === undefined || key === null ? {} : { idempotencyKey: key as string };
 }
 
 /** A shallow copy of a plain object; anything else as it is. */
@@ -154,7 +177,13 @@ export function createAdmission(deps: AdmissionDeps): AdmissionPipeline {
 		const state = call.state(lifted.meta);
 		const values = await call.values();
 		const callValues: CommandContext = withMetaOutputBudget(
-			{ ...contextFieldValues(deps.contextFields, lifted.meta), ...values },
+			{
+				...contextFieldValues(deps.contextFields, lifted.meta),
+				// The idempotency key, as sent: the engine checks its form between the context check and
+				// validation (spec/idempotency.md, K2). A value `createContext` sets wins (K1).
+				...idempotencyKeyOf(lifted.meta),
+				...values,
+			},
 			lifted.meta,
 			values
 		);
@@ -185,11 +214,32 @@ export function createAdmission(deps: AdmissionDeps): AdmissionPipeline {
 			state === undefined ? values5 : bindContextState(values5, state),
 			call.view
 		);
+		const caller = idempotencyCaller(call, callValues.actor as Actor | undefined, credentials);
+		if (caller) context = withHostState(context, { idempotencyCaller: caller });
 		if (carrier.approver) context = bindApprover(context, carrier.approver);
 		if (call.channels) {
 			context = call.channels(context, { actor, credentials, approver: carrier.approver });
 		}
 		return { kind: 'admitted', tool: call.tool, args: lifted.args ?? {}, context };
+	}
+
+	/**
+	 * Who the lane says the caller is (S3): an HTTP caller, identified or not; or, on a connection
+	 * lane, the connection, for a caller with neither an actor nor credentials of its own.
+	 */
+	function idempotencyCaller(
+		call: DecodedCall,
+		ownActor: Actor | undefined,
+		credentials: unknown
+	): IdempotencyCaller | undefined {
+		const transport = call.transport;
+		if (!transport) return undefined;
+		if (transport.kind === 'http') {
+			return { kind: 'http', identified: deps.identifiesHttpCaller?.(credentials) === true };
+		}
+		return ownActor === undefined && (credentials === undefined || credentials === null)
+			? { kind: 'connection', connection: transport.connection }
+			: undefined;
 	}
 
 	return {

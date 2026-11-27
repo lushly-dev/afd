@@ -8,7 +8,7 @@ import { allCommands } from '../index.js';
 
 const schema = JSON.parse(
 	readFileSync(new URL('../../../../../spec/commands.schema.json', import.meta.url), 'utf-8')
-) as { commands: Record<string, { metadata: Metadata }> };
+) as { commands: Record<string, { metadata: Metadata; idempotency?: string }> };
 
 /** What each command declares, the same in every backend. */
 interface Metadata {
@@ -37,6 +37,13 @@ describe('spec/commands.schema.json', () => {
 				...expected,
 				contexts: [...(expected?.contexts ?? [])].sort(),
 			});
+		}
+	});
+
+	it('declares the idempotency the spec gives each command, and every mutation declares one', () => {
+		for (const command of allCommands) {
+			expect(command.idempotency, command.name).toBe(schema.commands[command.name]?.idempotency);
+			if (command.mutation) expect(command.idempotency, command.name).toBeDefined();
 		}
 	});
 

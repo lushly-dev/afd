@@ -96,6 +96,7 @@ export const clearCompleted = defineCommand<typeof inputSchema, ClearResult>({
 	expose: { mcp: true },
 	tags: ['todo', 'clear', 'write', 'batch', 'destructive'],
 	mutation: true,
+	idempotency: 'natural',
 	destructive: true,
 	// Enforced when the server runs with CONFIRMATIONS=enforce (spec/confirmation-cases.json).
 	confirmPrompt: 'Delete these todos? This cannot be undone.',

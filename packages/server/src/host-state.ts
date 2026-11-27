@@ -33,6 +33,7 @@ import type { ApproverCall } from './approver.js';
 import type { ContextState } from './bootstrap/afd-context.js';
 import type { ConfirmationChannel } from './confirmations.js';
 import type { HumanRelayChannel } from './human-relay.js';
+import type { IdempotencyCaller } from './idempotency-step.js';
 import type { ScopeView } from './scope-view.js';
 import type { TaskDispatch } from './task-dispatch.js';
 
@@ -57,6 +58,10 @@ export interface HostState {
 	readonly humanRelayChannel?: HumanRelayChannel;
 	/** MCP Tasks dispatch for the call. */
 	readonly taskDispatch?: TaskDispatch;
+	/** Who the lane says the caller is, for the idempotency step (`spec/idempotency.md`, S3). */
+	readonly idempotencyCaller?: IdempotencyCaller;
+	/** Set on a call that runs as an MCP task, on which the idempotency step never acts (S11). */
+	readonly taskRun?: true;
 	/** A direct registry call's `allow` predicate, combined with any it was nested in. */
 	readonly commandAllow?: DirectAllow;
 	/** Set on the state of a token this module did not mint. */

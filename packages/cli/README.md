@@ -379,6 +379,7 @@ comparison.
 | `-m, --module <path>` | Run the command in-process on the registry this module exports, instead of over MCP |
 | `--export <name>` | Export to use from `--module`. Default: `default` |
 | `--approve` | Approve a call held for approval without asking (needs `--module`) |
+| `--idempotency-key <key>` | Send the call with this idempotency key (`spec/idempotency.md`); repeat a call whose outcome you do not know with the same key |
 
 ### validate
 

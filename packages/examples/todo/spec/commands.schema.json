@@ -84,6 +84,7 @@
 	},
 	"commands": {
 		"todo-create": {
+			"idempotency": "keyed",
 			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
@@ -187,6 +188,7 @@
 			}
 		},
 		"todo-update": {
+			"idempotency": "keyed",
 			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
@@ -211,6 +213,7 @@
 			}
 		},
 		"todo-toggle": {
+			"idempotency": "keyed",
 			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
@@ -231,6 +234,7 @@
 			}
 		},
 		"todo-delete": {
+			"idempotency": "natural",
 			"metadata": { "mutation": true, "destructive": true, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
@@ -258,6 +262,7 @@
 			}
 		},
 		"todo-clear": {
+			"idempotency": "natural",
 			"metadata": {
 				"mutation": true,
 				"destructive": true,
@@ -332,6 +337,7 @@
 			}
 		},
 		"todo-create-batch": {
+			"idempotency": "keyed",
 			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
@@ -384,6 +390,7 @@
 			}
 		},
 		"todo-delete-batch": {
+			"idempotency": "natural",
 			"metadata": { "mutation": true, "destructive": true, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
@@ -423,6 +430,7 @@
 			}
 		},
 		"todo-toggle-batch": {
+			"idempotency": "keyed",
 			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
@@ -474,6 +482,7 @@
 			}
 		},
 		"todo-restore": {
+			"idempotency": "natural",
 			"metadata": {
 				"mutation": true,
 				"destructive": false,

@@ -8,7 +8,7 @@ Epic: [#2672](https://github.com/lushly-dev/afd/issues/2672).
 
 | Field | Value |
 |---|---|
-| Status | Approved 2026-11-26: the owner accepted decisions I1 to I9 as recommended. No code yet; progress is in [STATUS.md](./STATUS.md). |
+| Status | Approved 2026-11-26: the owner accepted decisions I1 to I9 as recommended. TypeScript merged in #2864; progress is in [STATUS.md](./STATUS.md). |
 | Author | jasfalk (drafted with Claude) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `packages/cli`, `python/`, `packages/rust`, `packages/cpp` |
 | Related | [`spec/execution-controls.md`](../../../../spec/execution-controls.md), [`spec/error-codes.md`](../../../../spec/error-codes.md), [`spec/recovery.md`](../../../../spec/recovery.md), [authorization, M8](../../../../spec/authorization.md#m8-the-principal-binding), [Factory Gateway](../factory-gateway/factory-gateway.proposal.md), [journal seams](../journal-seams/journal-seams.proposal.md) |

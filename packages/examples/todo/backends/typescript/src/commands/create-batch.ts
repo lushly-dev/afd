@@ -5,8 +5,14 @@
  * Creates multiple todos at once, reporting success/failure for each item.
  */
 
-import type { CommandError } from '@lushly-dev/afd-core';
-import { defineCommand, success } from '@lushly-dev/afd-server';
+import {
+	AFD_IDEMPOTENCY_KEY_META_KEY,
+	type CommandContext,
+	type CommandError,
+	type CommandResult,
+	systemClock,
+} from '@lushly-dev/afd-core';
+import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 import { TODO_EDIT_CONTEXTS } from '../contexts.js';
 import { BatchSummarySchema, FailedCreateSchema, TodoSchema } from '../schemas.js';
@@ -67,6 +73,7 @@ export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>(
 	expose: { mcp: true },
 	tags: ['todo', 'create', 'write', 'batch'],
 	mutation: true,
+	idempotency: 'keyed',
 	undoable: true,
 	approval: 'not-required',
 	task: 'optional',
@@ -87,7 +94,87 @@ export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>(
 			},
 		},
 	],
-	async handler(input, context) {
+	// Keyed in its handler, not by the server's idempotency step: it may run as an MCP task, on
+	// which the step does not act (spec/idempotency.md, D5 and S11).
+	handler(input, context) {
+		const key = context.idempotencyKey;
+		if (key === undefined) return createAll(input, context);
+		const now = (context.clock ?? systemClock).now();
+		const answers = answersOf(store, now);
+		// The key's scope is the caller (its kind, id and whom it acts for) and the key (K5).
+		const actor = context.actor;
+		const scope = JSON.stringify([
+			actor?.kind ?? null,
+			actor?.id ?? null,
+			actor?.onBehalfOf ?? null,
+			key,
+		]);
+		const digest = JSON.stringify(input);
+		const held = answers.get(scope);
+		if (held) {
+			return held.digest === digest
+				? held.result
+				: Promise.resolve(
+						failure({
+							code: 'IDEMPOTENCY_KEY_REUSED',
+							message: 'This idempotency key is already held for a batch with other todos',
+							suggestion:
+								'Use a new idempotency key for a different batch. Reuse a key only to repeat the same batch.',
+							retryable: false,
+							recovery: { kind: 'stop' },
+							details: { meta: AFD_IDEMPOTENCY_KEY_META_KEY },
+						})
+					);
+		}
+		// Kept before it settles, so a repeat that arrives while it runs waits for the same answer;
+		// dropped if it fails, so a repeat after a failure runs again.
+		const result = createAll(input, context);
+		answers.set(scope, { digest, result, expiresAt: now + ANSWER_TTL_MS });
+		void result.then(
+			(settled) => {
+				if (!settled.success) answers.delete(scope);
+			},
+			() => answers.delete(scope)
+		);
+		return result;
+	},
+});
+
+/** How long a keyed batch's answer is kept: a day, as the server's idempotency step keeps one. */
+const ANSWER_TTL_MS = 86_400_000;
+
+interface Answer {
+	digest: string;
+	result: Promise<CommandResult<BatchCreateResult>>;
+	expiresAt: number;
+}
+
+/**
+ * The answers of keyed batches, kept per store so a new store starts with none, and for this
+ * process only. A store that persists todos across restarts would commit the key with the todos in
+ * one transaction instead, which is what lets a handler promise a batch is created once
+ * (spec/idempotency.md, "Two tiers"); this example's promise ends with the process, as the
+ * server's default idempotency store's does (S13).
+ */
+const answersByStore = new WeakMap<object, Map<string, Answer>>();
+
+/** The answers kept for `owner`, without those expired at `now`. */
+function answersOf(owner: object, now: number): Map<string, Answer> {
+	let answers = answersByStore.get(owner);
+	if (!answers) {
+		answers = new Map();
+		answersByStore.set(owner, answers);
+	}
+	for (const [scope, answer] of answers) if (now > answer.expiresAt) answers.delete(scope);
+	return answers;
+}
+
+/** Create every todo of the batch. */
+async function createAll(
+	input: z.output<typeof inputSchema>,
+	context: CommandContext
+): Promise<CommandResult<BatchCreateResult>> {
+	{
 		const stamp = stampFrom(context);
 		const succeeded: Todo[] = [];
 		const failed: FailedItem[] = [];
@@ -180,5 +267,5 @@ export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>(
 				}),
 			}
 		);
-	},
-});
+	}
+}

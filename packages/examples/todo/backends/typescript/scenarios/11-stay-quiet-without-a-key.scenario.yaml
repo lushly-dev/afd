@@ -1,0 +1,38 @@
+# Job 8 of the idempotency keys proposal (docs/features/active/idempotency-keys): a call without a
+# key behaves as it always did, even to a command that declares idempotency: keyed.
+name: A call without an idempotency key runs as before
+description: >-
+  When a call carries no key, I want it to behave as today, so that declaring a command keyed
+  changes nothing for callers who never send one.
+job: stay-quiet-without-a-key
+tags: [idempotency]
+steps:
+  - description: Add a todo
+    command: todo-create
+    input: { title: Stake the runner beans }
+    expect:
+      success: true
+  - description: The same call again adds a second todo, since it carries no key
+    command: todo-create
+    input: { title: Stake the runner beans }
+    expect:
+      success: true
+  - description: Both are there
+    command: todo-list
+    input: { search: Stake the runner beans }
+    expect:
+      success: true
+      data:
+        total: { gte: 2 }
+  - description: Clean up the first
+    command: todo-delete
+    input:
+      id: ${{ steps[0].data.id }}
+    expect:
+      success: true
+  - description: Clean up the second
+    command: todo-delete
+    input:
+      id: ${{ steps[1].data.id }}
+    expect:
+      success: true

@@ -26,9 +26,17 @@
  */
 
 import type { CommandContext, ExposeOptions } from '@lushly-dev/afd-core';
-import { AFD_OUTPUT_BUDGET_META_KEY, isMcpExposed } from '@lushly-dev/afd-core';
+import {
+	AFD_IDEMPOTENCY_KEY_META_KEY,
+	AFD_OUTPUT_BUDGET_META_KEY,
+	isMcpExposed,
+} from '@lushly-dev/afd-core';
 import type { OutputBudgetAsk } from '@lushly-dev/afd-core/commands';
 import { directAllows } from '@lushly-dev/afd-core/internal/direct-allow';
+import {
+	resolveIdempotencyKey,
+	withEngineIdempotencyKey,
+} from '@lushly-dev/afd-core/internal/idempotency';
 import { createContextCommands, getBootstrapCommands } from './bootstrap/registry.js';
 import { filterAllowed } from './command-allow.js';
 import { assertValidCommandNames, assertValidFirstClassTools } from './command-names.js';
@@ -190,8 +198,19 @@ export function createDirectToolSurface(options: DirectToolSurfaceOptions = {}):
 					return {
 						ok: true,
 						input: lifted.args,
-						// Values the caller set on the context are trusted code's, and win.
-						context: { ...contextFieldValues(host.contextFields, meta), ...context },
+						// Values the caller set on the context are trusted code's, and win. A key an outer
+						// handler was given is not one (K6): it is dropped, so the key this call's own
+						// `meta` sends applies.
+						context: {
+							...contextFieldValues(host.contextFields, meta),
+							...(meta[AFD_IDEMPOTENCY_KEY_META_KEY] !== undefined &&
+								meta[AFD_IDEMPOTENCY_KEY_META_KEY] !== null && {
+									idempotencyKey: meta[AFD_IDEMPOTENCY_KEY_META_KEY] as string,
+								}),
+							...(context.idempotencyKey !== null && resolveIdempotencyKey(context).kind === 'none'
+								? withEngineIdempotencyKey(context, undefined)
+								: context),
+						},
 						activeContext:
 							requested === undefined
 								? activeContext

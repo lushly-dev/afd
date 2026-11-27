@@ -11,12 +11,12 @@ The codes fall into four groups:
 - **The core catalog (33 codes).** Codes every AFD core implementation shares (validation,
   resources, application auth, rate limiting, network/service, internal, commands, routing/access,
   and batch/pipeline).
-- **Profile catalogs (17 codes).** Codes belonging to optional contract profiles (`contexts`,
+- **Profile catalogs (20 codes).** Codes belonging to optional contract profiles (`contexts`,
   `streaming`, `confirmations`, `approvals`, `output-budgets`, `authorization`, `tasks`,
-  `app-calls`). Together with the core catalog, these form the 50-code shared catalog in
+  `app-calls`, `idempotency`). Together with the core catalog, these form the 53-code shared catalog in
   [`vectors/error-codes.json`](./vectors/error-codes.json). Each entry carries
   `{ "code", "retryable", "profile" }`, where `retryable` is `true`, `false` or `"varies"` and
-  `profile` is `"core"` or one of the profile names above. Every language defines all 50 constants
+  `profile` is `"core"` or one of the profile names above. Every language defines all 53 constants
   in catalog order (`TypeScript` `ErrorCodes`, `Python` `ErrorCodes`, `Rust` `error_codes`, `C++`
   `error_codes`) together with their metadata (`ERROR_CODE_CATALOG` / `error_code_catalog`), and
   each language's test suite checks `code`, `retryable` and `profile` against that file.
@@ -126,9 +126,9 @@ construction ([H2](./tool-strategies.md#h2-validation-at-construction)), so
 
 ## The shared catalog
 
-50 codes in [`vectors/error-codes.json`](./vectors/error-codes.json): **33 core codes** (`profile: "core"`)
-and **17 profile codes** across eight optional profiles (`contexts`, `streaming`, `confirmations`,
-`approvals`, `output-budgets`, `authorization`, `tasks`, `app-calls`).
+53 codes in [`vectors/error-codes.json`](./vectors/error-codes.json): **33 core codes** (`profile: "core"`)
+and **20 profile codes** across nine optional profiles (`contexts`, `streaming`, `confirmations`,
+`approvals`, `output-budgets`, `authorization`, `tasks`, `app-calls`, `idempotency`).
 
 ### Core catalog (`profile: "core"`)
 
@@ -290,6 +290,19 @@ Emitted by a registry for a call with the `apps` interface; see
 | --- | --- | --- | --- |
 | `CALL_NOT_GRANTED` | An app's call to a command it may not call: the command does not exist, does not set `expose.apps`, or the host's `callGrant` does not grant it to the caller. One fixed message and suggestion for every case, before lookup and validation, so the caller cannot tell them apart | No | Core executors (registry), server engine (`createAppCallRegistry`) |
 
+#### Idempotency keys (`profile: "idempotency"`)
+
+Emitted by the engine's idempotency step ([idempotency](./idempotency.md#errors)) for a call that
+carries a key to a `keyed` command, in place of running the handler. Every language defines the
+three constants; TypeScript's engine sends them so far
+([#2676](https://github.com/lushly-dev/afd/issues/2676) for the others).
+
+| Code | Meaning | Retryable | Layers |
+| --- | --- | --- | --- |
+| `IDEMPOTENCY_KEY_REUSED` | The idempotency key is already held for a call with another input or declared context. `details.meta` names the `_meta` key | No | Server engine (the idempotency step) |
+| `IDEMPOTENCY_IN_PROGRESS` | An earlier call with the same idempotency key and input is still running, within its lease | Yes | Server engine (the idempotency step) |
+| `OUTCOME_UNKNOWN` | An earlier call with the same idempotency key and input started, and nobody can say whether it was applied: its handler returned `TIMEOUT` or threw, or its lease ran out unsettled. A client sends the same code for a lost answer ([MCP client](#mcp-client)) | No | Server engine (the idempotency step); TypeScript and Python clients |
+
 ## Host-defined error codes
 
 The prefix `HOST_` (`HOST_ERROR_CODE_PREFIX` / `host_error_code_prefix`, recorded as `hostPrefix` in
@@ -313,19 +326,10 @@ Engine codes a `spec/` page defines before any language emits them. Each joins
 [`vectors/error-codes.json`](./vectors/error-codes.json), in the first pull request that implements
 it ([Changing this page](#changing-this-page)). `OUTPUT_BUDGET_EXCEEDED` joined the catalog this way
 in Umbel phase 2 step 0b, `INSUFFICIENT_SCOPE` in Umbel phase 5 step 0b and `TASK_TOKEN_EXPIRED` in
-Umbel phase 5 step 0e, and the catalog stands at 50 codes, `APPROVAL_UNAVAILABLE` the latest
-(declared approval policies held without the approval middleware). Two are waiting, both from
-[idempotency](./idempotency.md#errors) and both for a new `idempotency` profile:
-
-| Code | Meaning | Retryable |
-| --- | --- | --- |
-| `IDEMPOTENCY_KEY_REUSED` | The idempotency key is already held for a call with another input | No |
-| `IDEMPOTENCY_IN_PROGRESS` | An earlier call with the same idempotency key and input is still running | Yes |
-
-The same step also sends `OUTCOME_UNKNOWN`, today a client's code
-([transport-specific codes](#transport-specific-codes)), when an earlier call with the key started
-and nobody can say whether it was applied. It joins the profile with the other two, since an
-engine in any language will then emit it.
+Umbel phase 5 step 0e, `APPROVAL_UNAVAILABLE` (declared approval policies held without the
+approval middleware), and the `idempotency` profile's three codes with TypeScript's idempotency
+keys ([#2675](https://github.com/lushly-dev/afd/issues/2675)), `OUTCOME_UNKNOWN` among them, which
+had been a client's code only. The catalog stands at 53 codes, and none is waiting.
 
 A refused token is not an error code: it is an HTTP 401 whose body names the existing
 `UNAUTHORIZED`, with a rule code (`audience`, `expired`, `scopes-too-many` and so on) that is logged
@@ -364,7 +368,7 @@ does not define them.
 | `SESSION_LIMIT_REACHED` | HTTP 503 whose JSON-RPC `-32000` error carries `data.code: "SESSION_LIMIT_REACHED"`: the server refused `initialize` because its session store is full and the caller holds no session. Neither a bare `-32000` nor `-32002` is read as this | Yes (retry after `Retry-After`) | TypeScript |
 | `MISSING_CLIENT_CAPABILITY` | JSON-RPC `-32021`: the server requires a client capability (such as `io.modelcontextprotocol/tasks`) the request did not declare | No | TypeScript, Python |
 | `JSON_RPC_ERROR` | Any other JSON-RPC error code | No | TypeScript |
-| `OUTCOME_UNKNOWN` | A call (not positively marked read-only), batch or pipeline request got no result after it may have reached the server, so the command or commands may have run. A server may send it too, for a command it stopped waiting for that may still run: Umbel does for a compiled-plugin call past its deadline | No | TypeScript, Python (`call()`, `afd batch`); Umbel (server, compiled-plugin calls) |
+| `OUTCOME_UNKNOWN` | A call (not positively marked read-only), batch or pipeline request got no result after it may have reached the server, so the command or commands may have run. A server may send it too, for a command it stopped waiting for that may still run: Umbel does for a compiled-plugin call past its deadline. Also in the shared catalog, in the `idempotency` profile, as the idempotency step's code | No | TypeScript, Python (`call()`, `afd batch`); Umbel (server, compiled-plugin calls) |
 | `TOOL_ERROR` | The tool failed and its content is not a `CommandResult` | No | TypeScript, Python |
 | `BATCH_ERROR`, `PIPELINE_ERROR` | `afd-batch` or `afd-pipe` failed and its content is not a result | No | TypeScript |
 | `STREAM_CANCELLED` | The caller, `disconnect()` or the transport cancelled the stream | No | TypeScript |

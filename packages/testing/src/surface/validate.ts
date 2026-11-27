@@ -12,6 +12,7 @@ import {
 	checkDescriptionQuality,
 	checkMissingCategory,
 	checkMissingContext,
+	checkMissingIdempotency,
 	checkMissingOutputSchema,
 	checkNamingCollision,
 	checkNamingConvention,
@@ -73,6 +74,8 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 				examples?: SurfaceCommand['examples'];
 				outputJsonSchema?: Record<string, unknown>;
 				contexts?: string[];
+				mutation?: boolean;
+				idempotency?: string;
 			};
 			return {
 				name: zod.name,
@@ -83,6 +86,8 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 				examples: zod.examples,
 				outputJsonSchema: zod.outputJsonSchema as SurfaceCommand['outputJsonSchema'],
 				contexts: zod.contexts,
+				mutation: zod.mutation,
+				idempotency: zod.idempotency,
 			};
 		}
 
@@ -95,6 +100,8 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 				requires: cmd.requires,
 				examples: cmd.examples,
 				contexts: cmd.contexts,
+				mutation: cmd.mutation,
+				idempotency: cmd.idempotency,
 			};
 		}
 
@@ -107,6 +114,8 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 			requires: generic.requires as string[] | undefined,
 			examples: generic.examples as SurfaceCommand['examples'],
 			contexts: generic.contexts as string[] | undefined,
+			mutation: typeof generic.mutation === 'boolean' ? generic.mutation : undefined,
+			idempotency: typeof generic.idempotency === 'string' ? generic.idempotency : undefined,
 		};
 	});
 }
@@ -274,6 +283,10 @@ export function validateCommandSurface(
 	// Always run: missing-output-schema
 	rulesEvaluated.push('missing-output-schema');
 	append(allFindings, checkMissingOutputSchema(normalized));
+
+	// Always run: missing-idempotency (spec/idempotency.md, D4)
+	rulesEvaluated.push('missing-idempotency');
+	append(allFindings, checkMissingIdempotency(normalized));
 
 	// Missing context (only when contexts are configured)
 	if (configuredContexts.length > 0) {

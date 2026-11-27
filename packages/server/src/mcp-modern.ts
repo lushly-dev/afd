@@ -37,7 +37,7 @@ import {
 	type Transport,
 } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
-import { createAdmission } from './admission.js';
+import { createAdmission, type DecodedCall } from './admission.js';
 import {
 	APPROVAL_INPUT_KEY,
 	APPROVAL_REQUESTED_SCHEMA,
@@ -135,6 +135,11 @@ export interface ModernMcpDeps {
 	 * client"): the server's `approver` option.
 	 */
 	approver?: ApproverPredicate;
+	/**
+	 * Whether the server tells apart the HTTP caller with `credentials`, for the idempotency step
+	 * (`spec/idempotency.md`, S3). Default: it cannot.
+	 */
+	identifiesHttpCaller?: (credentials: unknown) => boolean;
 	/**
 	 * Resources, skills and the Skills extension (`spec/mcp-resources.md`), when the server was
 	 * given a `resources` provider or a `skills` catalog.
@@ -347,7 +352,15 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 		contextFields: deps.contextFields,
 		approver: deps.approver,
 		actor: deps.actor,
+		identifiesHttpCaller: deps.identifiesHttpCaller,
 	});
+	/**
+	 * How this lane tells callers apart (`spec/idempotency.md`, S3): over HTTP, by what the server
+	 * knows of each request; over stdio, by this connection, which each factory serves alone.
+	 */
+	const transport = (
+		options.requestValues !== undefined ? { kind: 'http' } : { kind: 'connection', connection: {} }
+	) as NonNullable<DecodedCall['transport']>;
 
 	function scoped(context: CommandContext, state: ContextState | null | undefined) {
 		return state === undefined ? context : bindContextState(context, state);
@@ -679,6 +692,7 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 					values: options.requestValues ?? (() => ({})),
 					view,
 					signal: ctx.mcpReq.signal,
+					transport,
 					channels(context, principal) {
 						// The principal binding of the elicitations' `requestState`: who is calling, as
 						// the call starts. It is checked and bound only when a state is read or minted,

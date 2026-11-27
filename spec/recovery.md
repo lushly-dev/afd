@@ -154,8 +154,9 @@ on this surface, which means:
 - it is admitted by any `allow` list;
 - it is visible under the server's authorization (rule 2).
 
-The idempotency step's errors, and the `retry` a `TIMEOUT` carries for a keyed call, are in
-[idempotency](./idempotency.md#errors) and join this table with the first implementation.
+The idempotency step's rows ([idempotency](./idempotency.md#errors)) are TypeScript's so far;
+Python, Rust and C++ join them with their implementation
+([#2676](https://github.com/lushly-dev/afd/issues/2676)).
 
 A meta-tool such as `afd-discover` is called as its own tool, not through `afd-call`, whose
 lookup holds only commands. Where the table says *none*, the engine sets no recovery: the step is
@@ -186,6 +187,10 @@ pipeline.
 | `APPROVAL_REQUIRED` | Every other case: a person must approve, the approval is pending or unanswered, a token was rejected, or a DirectClient's `onApprovalNeeded` failed (threw, rejected or gave no answer), which is not a decline | `{ "kind": "external" }` |
 | `APPROVAL_UNAVAILABLE` | `no-approval-step` or `admission-mismatch`: the operator fixes the approval setup | `{ "kind": "external" }` |
 | `APPROVAL_UNAVAILABLE` | `input-not-canonical`: the caller sends the input in a form canonical JSON accepts | none |
+| `IDEMPOTENCY_KEY_REUSED` | Every case: the key is held for a call with another input, so the caller uses a new key for a different call | `{ "kind": "stop" }` |
+| `IDEMPOTENCY_IN_PROGRESS` | Every case: an earlier call with the key and input is still running | `{ "kind": "retry", "afterMs": 1000 }` |
+| `OUTCOME_UNKNOWN` | From the idempotency step: an earlier call with the key started and nobody can say whether it was applied, so the caller checks the effect | `{ "kind": "external" }` |
+| `TIMEOUT` | The engine's deadline, on a call the idempotency step acted on: a repeat with the same key is answered from the store (R3) | `{ "kind": "retry" }` |
 
 Each `retry` row's error is already `retryable: true`, and each `stop` row's is not, as the kinds
 require. Engines fix any suggestion that names a command the caller cannot call (rule 2) in the

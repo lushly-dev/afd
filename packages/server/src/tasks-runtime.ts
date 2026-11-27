@@ -23,6 +23,7 @@ import {
 } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { bindContextState, resolveContextState } from './context-scope.js';
+import { withHostState } from './host-state.js';
 import { JsonRpcError } from './json-rpc.js';
 import { bindOutputBudgetAsk, OUTPUT_BUDGET_ASK } from './output-budget.js';
 import { type PrincipalCredentials, principalBinding } from './principal-binding.js';
@@ -407,7 +408,9 @@ function cloneTaskContext(
 			(context as Record<symbol, unknown>)[OUTPUT_BUDGET_ASK]
 		);
 	}
-	return taskContext;
+	// The idempotency step never acts on a task run, and the retry middleware counts it as carrying
+	// no key (spec/idempotency.md, S11).
+	return withHostState(taskContext, { taskRun: true });
 }
 
 const taskIdParamsSchema = z.object({ taskId: z.string() });

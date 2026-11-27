@@ -120,6 +120,9 @@ TEST_CASE("error_codes is the shared catalog in spec/vectors/error-codes.json") 
         afd::error_codes::INSUFFICIENT_SCOPE,
         afd::error_codes::TASK_TOKEN_EXPIRED,
         afd::error_codes::CALL_NOT_GRANTED,
+        afd::error_codes::IDEMPOTENCY_KEY_REUSED,
+        afd::error_codes::IDEMPOTENCY_IN_PROGRESS,
+        afd::error_codes::OUTCOME_UNKNOWN,
     };
     const afd::Json vectors = load_vectors("error-codes.json");
     const auto& entries = vectors.at("codes");

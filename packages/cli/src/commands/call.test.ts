@@ -48,6 +48,32 @@ describe('afd call invocation', () => {
 		expect(call).toHaveBeenCalledWith('todo-create', { title: 'From scenario' });
 	});
 
+	it('sends --idempotency-key in the call options', async () => {
+		const call = vi.fn().mockResolvedValue({ success: true, data: {} });
+		mocks.requireClient.mockResolvedValue({ call } as unknown as McpClient);
+		vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+		await createCli().parseAsync(
+			['call', 'todo-create', '{"title":"x"}', '--idempotency-key', 'order-1', '--format', 'json'],
+			{ from: 'user' }
+		);
+
+		expect(call).toHaveBeenCalledWith('todo-create', { title: 'x' }, { idempotencyKey: 'order-1' });
+	});
+
+	it('refuses a malformed --idempotency-key before connecting', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+		mocks.requireClient.mockClear();
+
+		await createCli().parseAsync(['call', 'todo-create', '{}', '--idempotency-key', 'a:b'], {
+			from: 'user',
+		});
+
+		expect(process.exit).toHaveBeenCalledWith(1);
+		expect(mocks.requireClient).not.toHaveBeenCalled();
+	});
+
 	it('rejects malformed arguments before connecting', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => undefined);
 		vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);

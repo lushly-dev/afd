@@ -19,6 +19,7 @@ import {
 	journalActor,
 	seededRandom,
 } from '@lushly-dev/afd-core';
+import { IDEMPOTENCY_KEY_SET_BY_ENGINE } from '@lushly-dev/afd-core/internal/idempotency';
 import {
 	JOURNAL_REPLAY,
 	JOURNAL_RESULT_UNSERIALIZABLE,
@@ -355,6 +356,12 @@ export async function replayJournal(
 				},
 			};
 			(context as Record<symbol, unknown>)[JOURNAL_REPLAY] = marker;
+			// The recorded key, restored as the engine's own (spec/journal.md, "Replay"), so a derived
+			// key (K4) is not refused as a caller's. A key `options.context` sets is a caller's.
+			if (entry.idempotencyKey !== undefined && extra?.idempotencyKey === undefined) {
+				context.idempotencyKey = entry.idempotencyKey;
+				(context as Record<symbol, unknown>)[IDEMPOTENCY_KEY_SET_BY_ENGINE] = entry.idempotencyKey;
+			}
 			// B8: restore the recorded effective budget as the call's ask (a trusted override on
 			// `options.context.outputBudget` still wins in `applyOutputBudget`). A recorded passing
 			// result with an effective budget and no `dev.afd/outputBudget` report came from a

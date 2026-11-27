@@ -214,8 +214,9 @@ export interface CommandError {
  *
  * Use these for consistency across AFD applications. This is the shared
  * catalog from `spec/error-codes.md`: Python, Rust and C++ define the same
- * codes. Transport-specific codes, such as `HTTP_<status>` and the client's
- * `OUTCOME_UNKNOWN`, are listed in the spec but not here.
+ * codes. Transport-specific codes, such as `HTTP_<status>`, are listed in the spec but not here.
+ * `OUTCOME_UNKNOWN`, which a client also sends for a lost answer, is here as the idempotency
+ * step's code.
  */
 export const ErrorCodes = {
 	// Validation Errors (4xx range)
@@ -301,6 +302,11 @@ export const ErrorCodes = {
 
 	// App calls (spec/command-metadata.md, "App-to-app calls")
 	CALL_NOT_GRANTED: 'CALL_NOT_GRANTED',
+
+	// Idempotency keys (spec/idempotency.md, "Errors")
+	IDEMPOTENCY_KEY_REUSED: 'IDEMPOTENCY_KEY_REUSED',
+	IDEMPOTENCY_IN_PROGRESS: 'IDEMPOTENCY_IN_PROGRESS',
+	OUTCOME_UNKNOWN: 'OUTCOME_UNKNOWN',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

@@ -46,6 +46,7 @@ import { bindCommandAllow, filterAllowed, isCommandAllowed } from './command-all
 import { type ContextField, checkContextFields } from './context-fields.js';
 import { bindContextState, type ContextState, createContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
+import type { IdempotencyStep } from './idempotency-step.js';
 import type { McpToolDefinition } from './meta-tools.js';
 import { bindOutputBudgetAsk, SKIP_OUTPUT_BUDGET } from './output-budget.js';
 import type { ZodCommandDefinition } from './schema.js';
@@ -91,6 +92,15 @@ export interface DirectRegistryOptions {
 
 	/** `context.clock` when the caller sets none. Default: `systemClock`. */
 	clock?: Clock;
+
+	/**
+	 * The engine's idempotency step (`spec/idempotency.md`, S1 to S13), built with
+	 * `createIdempotencyStep(options, { clock })`: answers a repeat of a call that carries an
+	 * idempotency key (`context.idempotencyKey`) to a command declaring `idempotency: 'keyed'` from
+	 * a store, instead of running the handler again. Off when unset: keys are still validated and
+	 * delivered (K1 to K6). A step is taken, not options, so a host without one does not bundle it.
+	 */
+	idempotency?: IdempotencyStep;
 
 	/** `context.random` when the caller sets none. Default: `systemRandom`. */
 	random?: RandomSource;
@@ -352,6 +362,21 @@ function unknownContext(name: unknown, contexts: readonly ContextConfig[]) {
 	};
 }
 
+/** The `idempotency` option, checked to be a step `createIdempotencyStep` built. */
+function checkStep(step: IdempotencyStep): IdempotencyStep {
+	if (
+		!step ||
+		typeof step !== 'object' ||
+		typeof step.begin !== 'function' ||
+		typeof step.principal !== 'function'
+	) {
+		throw new TypeError(
+			'idempotency must be a step built with createIdempotencyStep(options, { clock })'
+		);
+	}
+	return step;
+}
+
 /**
  * Create a validating in-process registry for `DirectClient`.
  *
@@ -449,6 +474,7 @@ export function createDirectRegistry(
 		contextFields,
 		// Refusals name afd-discover and the context tools only where the surface serves them.
 		metaTools: tools !== undefined,
+		...(options.idempotency !== undefined && { idempotency: checkStep(options.idempotency) }),
 		maxBatchSize: options.maxBatchSize,
 		maxBatchParallelism: options.maxBatchParallelism,
 		maxValidationIssues,

@@ -27,7 +27,7 @@ Keys are camelCase. Optional fields that are not set are omitted, never `null`.
 | `seq` | integer ≥ 1 | yes | Position in the journal |
 | `timestamp` | string | yes | When the call started, ISO 8601, from `context.clock` |
 | `traceId` | string | no | `context.traceId` |
-| `idempotencyKey` | string | no | The call's idempotency key ([idempotency](./idempotency.md#the-journal)). Specified and in no language yet |
+| `idempotencyKey` | string | no | The call's idempotency key ([idempotency](./idempotency.md#the-journal)), a derived one as derived. TypeScript records it so far |
 | `command` | string | yes | The command name |
 | `input` | JSON | yes | The validated input the handler received |
 | `actor` | object | no | The caller: `kind` (`human`, `agent`, `service`, `script` or `test`), and `id`, `label` and `onBehalfOf` when set. No other actor field is kept |

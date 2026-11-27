@@ -69,6 +69,7 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 	tags: ['todo', 'toggle', 'write', 'batch'],
 	requires: ['todo-list'],
 	mutation: true,
+	idempotency: 'keyed',
 	undoable: true,
 	approval: 'not-required',
 	version: '1.0.0',

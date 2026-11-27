@@ -31,6 +31,7 @@ export const RESERVED_CONTEXT_NAMES = new Set([
 	'clock',
 	'credentials',
 	'dispatchId',
+	'idempotencyKey',
 	'interface',
 	'outputBudget',
 	'random',

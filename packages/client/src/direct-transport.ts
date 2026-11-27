@@ -9,7 +9,9 @@
 
 import type { McpRequest, McpResponse, McpTool } from '@lushly-dev/afd-core';
 import {
+	AFD_IDEMPOTENCY_KEY_META_KEY,
 	type BatchRequest,
+	type CommandContext,
 	type CommandExecutor,
 	executeBatch,
 	executePipeline,
@@ -27,6 +29,7 @@ import { unknownToolFailure } from './unknown-tool.js';
 interface ToolCallParams {
 	name: string;
 	arguments?: Record<string, unknown>;
+	_meta?: Record<string, unknown>;
 }
 
 function isToolCallParams(value: unknown): value is ToolCallParams {
@@ -250,7 +253,16 @@ export class DirectTransport implements Transport {
 		params: ToolCallParams,
 		signal: AbortSignal
 	): Promise<McpResponse> {
-		const { payload, isError } = await this.runTool(params.name, params.arguments ?? {}, signal);
+		// The call's idempotency key, as a server reads it from `_meta` (spec/idempotency.md, K1); the
+		// registry validates it. A batch or pipeline derives its items' keys from it (K4).
+		const key = params._meta?.[AFD_IDEMPOTENCY_KEY_META_KEY];
+		const base = key === undefined || key === null ? {} : { idempotencyKey: key as string };
+		const { payload, isError } = await this.runTool(
+			params.name,
+			params.arguments ?? {},
+			signal,
+			base
+		);
 		const response: McpResponse = {
 			jsonrpc: '2.0',
 			id: requestId,
@@ -267,7 +279,8 @@ export class DirectTransport implements Transport {
 	private async runTool(
 		name: string,
 		args: Record<string, unknown>,
-		signal: AbortSignal
+		signal: AbortSignal,
+		base: CommandContext = {}
 	): Promise<{ payload: unknown; isError: boolean }> {
 		const execute: CommandExecutor = async (command, input, context) => {
 			try {
@@ -286,7 +299,7 @@ export class DirectTransport implements Transport {
 		};
 
 		if (this.registry.hasCommand(name)) {
-			const result = await execute(name, args, { signal });
+			const result = await execute(name, args, { ...base, signal });
 			const isError =
 				name === 'afd-pipe' && isPipelineResult(result)
 					? result.steps.some((step) => step.status === 'failure')
@@ -295,12 +308,16 @@ export class DirectTransport implements Transport {
 		}
 		if (name === 'afd-batch') {
 			// SAFETY: executeBatch validates the whole envelope with isBatchRequest() before running.
-			const batch = await executeBatch(args as unknown as BatchRequest, execute, { signal });
+			const batch = await executeBatch(args as unknown as BatchRequest, execute, {
+				...base,
+				signal,
+			});
 			return { payload: batch, isError: !batch.success };
 		}
 		if (name === 'afd-pipe') {
 			// SAFETY: executePipeline validates the whole envelope before running any step.
 			const pipeline = await executePipeline(args as unknown as PipelineRequest, execute, {
+				...base,
 				signal,
 			});
 			return {

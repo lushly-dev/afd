@@ -9,6 +9,7 @@ import {
 	JsonRpcResponseError,
 	type McpClient,
 	NotConnectedError,
+	type RequestOptions,
 	RequestTimeoutError,
 	SessionLimitError,
 } from '@lushly-dev/afd-client';
@@ -476,15 +477,18 @@ export async function callWithOAuthRetry(
 	client: McpClient,
 	name: string,
 	args: Record<string, unknown>,
-	onReconnect?: (next: { client: McpClient; usedOAuth: boolean; hasRefreshToken: boolean }) => void
+	onReconnect?: (next: { client: McpClient; usedOAuth: boolean; hasRefreshToken: boolean }) => void,
+	request?: RequestOptions
 ): Promise<CommandResult> {
 	const authCtx = activeClient === client ? activeClientAuth : null;
 	if (!authCtx?.usedOAuth || !authCtx.hasRefreshToken || typeof client.callTool !== 'function') {
-		return client.call(name, args);
+		return request ? client.call(name, args, request) : client.call(name, args);
 	}
 
 	try {
-		const raw = await client.callTool(name, args);
+		const raw = await (request
+			? client.callTool(name, args, request)
+			: client.callTool(name, args));
 		return parseToolCallResult(raw);
 	} catch (error) {
 		if (!isUnauthorizedError(error)) {
@@ -516,7 +520,10 @@ export async function callWithOAuthRetry(
 			usedOAuth: reconnected.usedOAuth,
 			hasRefreshToken: reconnected.hasRefreshToken,
 		});
-		return reconnected.client.call(name, args);
+		// The same call again, its idempotency key included.
+		return request
+			? reconnected.client.call(name, args, request)
+			: reconnected.client.call(name, args);
 	}
 }
 

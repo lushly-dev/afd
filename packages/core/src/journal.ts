@@ -63,6 +63,12 @@ export interface JournalEntry {
 	timestamp: string;
 	/** `context.traceId`, when the call had one. */
 	traceId?: string;
+	/**
+	 * The call's idempotency key (`spec/idempotency.md`, "The journal"), when it had one. A key a
+	 * batch item or pipeline step derived (K4) is recorded as derived. Replay restores it as the
+	 * engine's own key, never as a caller's.
+	 */
+	idempotencyKey?: string;
 	/** The command name. */
 	command: string;
 	/** The validated input the handler received. */
@@ -259,10 +265,14 @@ export async function createContextDigest(
 		context.outputBudget >= 1
 			? context.outputBudget
 			: undefined;
+	// The key is hashed as a member, and its name leaves `keys` (`spec/journal.md`).
+	const idempotencyKey =
+		typeof context.idempotencyKey === 'string' ? context.idempotencyKey : undefined;
 	const recorded = new Set([
 		...Object.keys(journaled.context ?? {}),
 		...(journaled.contextOmitted ?? []),
 		...(outputBudget !== undefined ? ['outputBudget'] : []),
+		...(idempotencyKey !== undefined ? ['idempotencyKey'] : []),
 	]);
 	const keys = Object.keys(context)
 		.filter((key) => !ALLOWLISTED_KEYS.has(key) && !recorded.has(key) && context[key] !== undefined)
@@ -272,6 +282,7 @@ export async function createContextDigest(
 			actor: actor ?? null,
 			...(journaled.context ? { context: journaled.context } : {}),
 			...(journaled.contextOmitted ? { contextOmitted: journaled.contextOmitted } : {}),
+			...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
 			interface: iface ?? null,
 			keys,
 			...(outputBudget !== undefined ? { outputBudget } : {}),
@@ -310,6 +321,7 @@ export function isJournalEntry(value: unknown): value is JournalEntry {
 		(entry.seq as number) >= 1 &&
 		typeof entry.timestamp === 'string' &&
 		(entry.traceId === undefined || typeof entry.traceId === 'string') &&
+		(entry.idempotencyKey === undefined || typeof entry.idempotencyKey === 'string') &&
 		typeof entry.command === 'string' &&
 		'input' in entry &&
 		(entry.actor === undefined || isActor(entry.actor)) &&

@@ -187,6 +187,17 @@ export interface DirectCallContext {
 	outputBudget?: OutputBudgetAsk;
 
 	/**
+	 * The call's idempotency key (`spec/idempotency.md`, K1): 1 to 200 characters of
+	 * `A-Z a-z 0-9 . _ ~ -`, standing for `_meta["dev.afd/idempotencyKey"]`. It reaches the
+	 * registry on the command context, where an AFD engine validates it before middleware runs and
+	 * delivers it to the handler; a registry given the idempotency step answers a repeat of a
+	 * `keyed` command from its store. Every attempt of this call (an approval retry, a retry
+	 * middleware) carries the same key. `pipe()` runs each step under the key derived from it
+	 * (`<key>:step:<i>`, K4).
+	 */
+	idempotencyKey?: string;
+
+	/**
 	 * Additional custom context values. `approval` is reserved and stripped at runtime.
 	 */
 	[key: string]: unknown;

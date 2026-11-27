@@ -21,6 +21,7 @@ import type {
 	StreamOptions,
 } from '@lushly-dev/afd-core';
 import {
+	AFD_IDEMPOTENCY_KEY_META_KEY,
 	createMcpRequest,
 	failure,
 	isCompleteChunk,
@@ -93,6 +94,13 @@ export interface RequestOptions {
 	signal?: AbortSignal;
 	/** Called when a task started by `callTool()` / `call()` changes status or `statusMessage`. */
 	onTaskProgress?: (task: TaskInfo) => void;
+	/**
+	 * The call's idempotency key (`spec/idempotency.md`, K1), sent in
+	 * `_meta["dev.afd/idempotencyKey"]` on `tools/call`. A server with the idempotency step answers
+	 * a repeat of a `keyed` command with the same key and input from its store. Send the same key
+	 * when you repeat a call whose outcome you do not know.
+	 */
+	idempotencyKey?: string;
 }
 
 const SUPPORTED_TRANSPORTS: ReadonlySet<string> = new Set<McpTransportType>([
@@ -344,6 +352,9 @@ export class McpClient extends McpClientEventEmitter {
 		const params = {
 			name,
 			arguments: args,
+			...(options?.idempotencyKey !== undefined && {
+				_meta: { [AFD_IDEMPOTENCY_KEY_META_KEY]: options.idempotencyKey },
+			}),
 		};
 
 		const raw = await this.request<McpToolCallResult | (TaskInfo & { resultType: 'task' })>(

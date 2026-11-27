@@ -13,7 +13,7 @@ import type {
 	TelemetrySink,
 } from '@lushly-dev/afd-core';
 import { createTelemetryEvent, failure, isActorKind, systemClock } from '@lushly-dev/afd-core';
-import { inheritEngineNext, liveMutation } from './approval-admission.js';
+import { inheritEngineNext, liveRepeatDeclaration } from './approval-admission.js';
 import { carryApprovalProcessState } from './approval-process-state.js';
 import { carryAuthMiddlewareMark } from './auth-middleware-check.js';
 
@@ -276,11 +276,14 @@ export interface RetryOptions {
 	shouldRetry?: (errorCode: string) => boolean;
 
 	/**
-	 * Retry a command that declares `mutation: true` too (default: false). A failed mutation,
-	 * such as one whose handler returned `TIMEOUT` after a downstream write, may already have
-	 * applied its change, so retrying it can apply it twice. Set this only when every mutation
-	 * the middleware wraps is safe to repeat. Where the middleware cannot read the declaration
-	 * (it runs outside the execution engine), the call counts as a mutation.
+	 * Retry every command, whatever it declares (default: false; `spec/idempotency.md`, R2).
+	 * Without it, a command is retried only when it declares `idempotency: 'natural'`, declares
+	 * `idempotency: 'keyed'` and the call carries an idempotency key, or does not declare
+	 * `mutation: true` (R1). A failed mutation, such as one whose handler returned `TIMEOUT` after
+	 * a downstream write, may already have applied its change, so retrying it can apply it twice.
+	 * Set this only when every command the middleware wraps is safe to repeat. Where the middleware
+	 * cannot read the declaration (it runs outside the execution engine), the call counts as a
+	 * mutation that declares nothing.
 	 */
 	retryMutations?: boolean;
 }
@@ -295,14 +298,28 @@ function retryWait(retry: number, baseMs: number, maxMs: number, jitter: boolean
 }
 
 /**
+ * Whether a call may be repeated, from its command's declaration (`spec/idempotency.md`, R1), in
+ * this order: a `natural` command is; a `keyed` one only when the call carries a key (and is not a
+ * task run); any other unless it declares `mutation: true`. A declaration the middleware cannot
+ * read counts as a mutation that declares nothing.
+ */
+function mayRepeat(declaration: ReturnType<typeof liveRepeatDeclaration>): boolean {
+	if (!declaration) return false;
+	if (declaration.idempotency === 'natural') return true;
+	if (declaration.idempotency === 'keyed') return declaration.carriesKey;
+	return !declaration.mutation;
+}
+
+/**
  * Create a retry middleware for transient failures.
  *
  * A failure whose error code passes `shouldRetry` is retried up to
  * `maxRetries` times with capped exponential backoff and jitter (see
- * {@link RetryOptions}). A command that declares `mutation: true` is never
- * retried unless `retryMutations` is set: the middleware reads the declaration
- * from the command the engine runs, never from its name, and a call whose
- * declaration it cannot read (outside the engine) counts as a mutation. The wait ends early when `context.signal` aborts:
+ * {@link RetryOptions}). What it repeats follows the command's declaration
+ * (`spec/idempotency.md`, R1): a `natural` command, a `keyed` one whose call carries an
+ * idempotency key, and any other that does not declare `mutation: true`, unless `retryMutations`
+ * is set. It reads the declaration from the command the engine runs, never from its name, and a
+ * call whose declaration it cannot read (outside the engine) counts as a mutation. The wait ends early when `context.signal` aborts:
  * the middleware then stops retrying and returns the last failure.
  *
  * @example
@@ -337,7 +354,7 @@ export function createRetryMiddleware(options: RetryOptions = {}): CommandMiddle
 
 	return async (_commandName, _input, context, next) => {
 		// Read before the first attempt: the engine's record of the call is its own.
-		const repeatable = retryMutations || liveMutation(context, next) === false;
+		const repeatable = retryMutations || mayRepeat(liveRepeatDeclaration(context, next));
 		let result = await next();
 		if (!repeatable) return result;
 		for (let retry = 1; retry <= maxRetries; retry++) {

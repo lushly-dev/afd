@@ -110,6 +110,11 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	 * `_meta["dev.afd/approval"]` there is refused, and its held results carry the token.
 	 */
 	approver?: ApproverPredicate;
+	/**
+	 * Whether the server tells apart the HTTP caller with `credentials`, for the idempotency step
+	 * (`spec/idempotency.md`, S3). Default: it cannot.
+	 */
+	identifiesHttpCaller?: (credentials: unknown) => boolean;
 	/** The actor of a call whose context has none (the server's `actor` option). */
 	actor?: Actor;
 	/** MCP Tasks runtime for refusing `task: 'required'` on the 2025 `/message` lane. */
@@ -171,7 +176,12 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 	} = deps;
 	// One admission pipeline (`admission.ts`): the MCP router for `/message`, the HTTP routes' own
 	// router for `/rpc`, `/batch` and `/stream`. The lanes below only decode and encode.
-	const admissionDeps = { contextFields, approver: deps.approver, actor: deps.actor };
+	const admissionDeps = {
+		contextFields,
+		approver: deps.approver,
+		actor: deps.actor,
+		identifiesHttpCaller: deps.identifiesHttpCaller,
+	};
 	const mcpAdmission = createAdmission({
 		...admissionDeps,
 		router: asToolRouter(deps.routeToolCall),
@@ -267,6 +277,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			view: auth?.viewFor(req),
 			signal: controller.signal,
 			channels: call.channels,
+			transport: { kind: 'http' },
 		};
 	}
 

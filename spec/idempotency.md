@@ -7,9 +7,9 @@ key, what a command declares about repeats, an optional engine step that answers
 store, and the rule that keeps a retry from repeating a change nobody declared safe.
 
 Proposal and status: [`docs/features/active/idempotency-keys/`](../docs/features/active/idempotency-keys/idempotency-keys.proposal.md).
-No implementation has any of this yet. Every language is listed in the `gaps` of
-[`vectors/idempotency.json`](./vectors/idempotency.json), and [Status](#status) says what each
-will do.
+TypeScript implements all of it ([#2675](https://github.com/lushly-dev/afd/issues/2675)). Python,
+Rust and C++ are listed in the `gaps` of [`vectors/idempotency.json`](./vectors/idempotency.json),
+and [Status](#status) says what each does.
 
 Every rule here is normative. **MUST**, **MUST NOT**, **SHOULD** and **MAY** are used as in
 RFC 2119.
@@ -168,7 +168,8 @@ The step is an option of the server or registry (`idempotency`, with `store`, `t
   `leaseMs` to cover them.
 - **S8. How long the store remembers.** A stored result, and a reservation that was never
   settled, answer repeats for `ttlMs` (default `86400000`, one day) from the time the key was
-  reserved. After that the key is new, and a late settlement of the old reservation does nothing.
+  reserved, and so does a reservation still live. After that the key is new whatever the
+  record's state, and a late settlement of the old reservation does nothing.
   `ttlMs` **MUST** be greater than the server's default deadline plus `leaseMs`, and a server
   refuses a configuration where it is not: otherwise a key could become new while the engine is
   still waiting for its first handler. A call given a longer deadline of its own, or none, can
@@ -255,14 +256,14 @@ result depends on state outside the journal.
 <!-- generated:capabilities:spec.idempotency.status:start -->
 |  | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| The `idempotency` field and `idempotentHint` | Planned ([#2675](https://github.com/lushly-dev/afd/issues/2675)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) |
-| The key: delivery, validation, derived keys, the journal member | Planned ([#2675](https://github.com/lushly-dev/afd/issues/2675)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) |
-| The engine's step, the retry rule and the `TIMEOUT` recovery | Planned ([#2675](https://github.com/lushly-dev/afd/issues/2675)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) |
+| The `idempotency` field and `idempotentHint` | Yes | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) |
+| The key: delivery, validation, derived keys, the journal member | Yes | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) |
+| The engine's step, the retry rule and the `TIMEOUT` recovery | Yes | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) |
 <!-- generated:capabilities:spec.idempotency.status:end -->
 
 [`vectors/idempotency.json`](./vectors/idempotency.json) pins the rules its sections name. It
 leaves to each language's own tests the surfaces of D3 beyond the tool's `_meta`, D4, D5, K1's
 rule against HTTP headers, the store's interface (S12), S13 and R4. The retry middleware's first half is implemented in all four languages: it does not repeat a
 command with `mutation: true` without the host's `retryMutations` option
-([#2673](https://github.com/lushly-dev/afd/issues/2673)). R1's order for `natural` and `keyed`
-commands is not.
+([#2673](https://github.com/lushly-dev/afd/issues/2673)). R1's whole order, `natural` and `keyed`
+included, is TypeScript's only so far.

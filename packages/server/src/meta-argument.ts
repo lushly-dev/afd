@@ -4,14 +4,20 @@
  *
  * `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail` take an optional `meta`
  * object for clients that cannot set `_meta`. Its keys are `dev.afd/context`,
- * `dev.afd/outputBudget` and the declared context fields' `_meta` keys, and each surface applies
+ * `dev.afd/outputBudget`, `dev.afd/idempotencyKey` and the declared context fields' `_meta` keys,
+ * and each surface applies
  * them as if the request had sent them in `_meta`, before it reads `_meta`. Other keys are dropped,
  * as undeclared `_meta` keys are, and `null` (for `meta` or a value) is no value. A key sent both
  * ways must agree, or the call fails with `VALIDATION_ERROR`.
  */
 
 import type { CommandContext, CommandError } from '@lushly-dev/afd-core';
-import { AFD_META_TOOL_NAMES, AFD_OUTPUT_BUDGET_META_KEY } from '@lushly-dev/afd-core';
+import {
+	AFD_IDEMPOTENCY_KEY_META_KEY,
+	AFD_META_TOOL_NAMES,
+	AFD_OUTPUT_BUDGET_META_KEY,
+} from '@lushly-dev/afd-core';
+import { resolveIdempotencyKey } from '@lushly-dev/afd-core/internal/idempotency';
 import type { ContextField } from './context-fields.js';
 
 const META_TOOLS = new Set<string>(AFD_META_TOOL_NAMES);
@@ -27,6 +33,7 @@ export function metaArgumentKeys(fields: readonly ContextField[] | undefined): R
 	return new Set([
 		CONTEXT_META_KEY,
 		AFD_OUTPUT_BUDGET_META_KEY,
+		AFD_IDEMPOTENCY_KEY_META_KEY,
 		...(fields ?? []).map((field) => field.meta),
 	]);
 }
@@ -46,6 +53,11 @@ export function inProcessMeta(
 	if (outputBudget !== undefined && outputBudget !== null) {
 		meta[AFD_OUTPUT_BUDGET_META_KEY] = outputBudget;
 	}
+	// Only a caller's own key stands for `_meta`: not one an outer handler was given (K6), nor one
+	// the engine derived, which `_meta` could not carry.
+	const key = resolveIdempotencyKey(context);
+	if (key.kind === 'key' && !key.setByEngine) meta[AFD_IDEMPOTENCY_KEY_META_KEY] = key.key;
+	else if (key.kind === 'invalid') meta[AFD_IDEMPOTENCY_KEY_META_KEY] = context.idempotencyKey;
 	for (const field of fields) {
 		const value = (context as Record<string, unknown>)[field.name];
 		if (value !== undefined && value !== null) meta[field.meta] = value;

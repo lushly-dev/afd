@@ -164,7 +164,9 @@ The tests use `afd.testing`'s assertions, and its scenario runner runs the TypeS
 jobs (`backends/typescript/scenarios`) against this backend in-process on every store. Job 7
 (replaying a journal) is skipped, since this backend records no journal, and job 9 is expected to
 fail until `afd.testing` matches an expected array of objects item by item, as TypeScript's runner
-does; `test_commands.py` covers its history instead.
+does; `test_commands.py` covers its history instead. Job 10 (a command's `idempotency` in
+`afd-help`) is expected to fail until Python reports the field
+([#2676](https://github.com/lushly-dev/afd/issues/2676)).
 
 The conformance runner starts the server with `TODO_STORE_TYPE=memory`, so it never touches
 the data files. CI runs every suite above in `.github/workflows/conformance.yml`.

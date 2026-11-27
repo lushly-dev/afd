@@ -15,6 +15,7 @@ export {
 	checkDescriptionQuality,
 	checkMissingCategory,
 	checkMissingContext,
+	checkMissingIdempotency,
 	checkMissingOutputSchema,
 	checkNamingCollision,
 	checkNamingConvention,

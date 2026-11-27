@@ -23,6 +23,7 @@ export const toggleTodo = defineCommand<typeof inputSchema, Todo>({
 	expose: { mcp: true },
 	tags: ['todo', 'toggle', 'write', 'single'],
 	mutation: true,
+	idempotency: 'keyed',
 	undoable: true,
 	approval: 'not-required',
 	version: '1.0.0',

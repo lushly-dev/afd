@@ -24,7 +24,7 @@
  * not a boundary against code running in the same process or page.
  */
 
-import type { ApprovalPolicy, CommandContext } from '@lushly-dev/afd-core';
+import type { ApprovalPolicy, CommandContext, IdempotencySupport } from '@lushly-dev/afd-core';
 
 /** The command a call runs, as its admission record keeps it. */
 export interface AdmissionCommand {
@@ -35,6 +35,16 @@ export interface AdmissionCommand {
 	secret?: boolean;
 	/** The command's `mutation` declaration, which the retry middleware reads. */
 	mutation?: boolean;
+	/** The command's `idempotency` declaration, which the retry middleware reads. */
+	idempotency?: IdempotencySupport;
+}
+
+/** What the engine knows of a call's idempotency key, for the retry middleware and the deadline. */
+interface KeyRecord {
+	/** Whether the call carries a valid key and does not run as a task (R1, S11). */
+	carriesKey: boolean;
+	/** Whether the idempotency step reserved the call's key (R3). */
+	stepActed?: boolean;
 }
 
 /** The canonical JSON of a value, or undefined when it has none. */
@@ -76,6 +86,8 @@ interface Admission {
 	steps: Set<object>;
 	/** Set once a dispatch took an admission, so a second dispatch reads as a mismatch. */
 	taken?: boolean;
+	/** The call's idempotency key, as the engine decided it. */
+	key?: KeyRecord;
 	/**
 	 * Set by the approval step when the policy its `commands` option lists for the command gates
 	 * it, so the engine takes and checks the admission as it does for the command's own policy.
@@ -144,6 +156,9 @@ export function beginAdmission(context: CommandContext, command: AdmissionComman
 			// Always a boolean in this copy's records, so a record from an older copy of the
 			// package, which never sets it, reads as unknown.
 			mutation: command.mutation === true,
+			...((command.idempotency === 'natural' || command.idempotency === 'keyed') && {
+				idempotency: command.idempotency,
+			}),
 		},
 		admitted: [],
 		steps: new Set(),
@@ -297,4 +312,41 @@ export function liveMutation(context: CommandContext, next: object): boolean | u
 	if (!found?.chain || !weakSetHas.call(found.chain, next)) return undefined;
 	const mutation = found.command.mutation;
 	return typeof mutation === 'boolean' ? mutation : undefined;
+}
+
+/**
+ * The command's declaration and the call's key, for the retry middleware (`spec/idempotency.md`,
+ * R1): for a middleware the engine invoked, and `undefined` for any other caller, as
+ * {@link liveSecret} decides.
+ */
+export function liveRepeatDeclaration(
+	context: CommandContext,
+	next: object
+): { mutation: boolean; idempotency?: IdempotencySupport; carriesKey: boolean } | undefined {
+	const found = record(context);
+	if (!found?.chain || !weakSetHas.call(found.chain, next)) return undefined;
+	const mutation = found.command.mutation;
+	if (typeof mutation !== 'boolean') return undefined;
+	return {
+		mutation,
+		...(found.command.idempotency && { idempotency: found.command.idempotency }),
+		carriesKey: found.key?.carriesKey === true,
+	};
+}
+
+/** Record whether the call of `context` carries a key the retry middleware may count. */
+export function recordCallKey(context: CommandContext, carriesKey: boolean): void {
+	const found = record(context);
+	if (found) found.key = { carriesKey };
+}
+
+/** Record that the idempotency step reserved the key of the call of `context` (R3). */
+export function markIdempotencyStepActed(context: CommandContext): void {
+	const found = record(context);
+	if (found) found.key = { carriesKey: found.key?.carriesKey === true, stepActed: true };
+}
+
+/** Whether the idempotency step reserved the key of the call of `context` (R3). */
+export function idempotencyStepActed(context: CommandContext): boolean {
+	return record(context)?.key?.stepActed === true;
 }
