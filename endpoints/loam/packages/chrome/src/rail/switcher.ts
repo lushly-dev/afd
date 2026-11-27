@@ -70,7 +70,7 @@ const template = html<LoamProjectList>`
 		html<LoamProjectList>`<dialog
 			${ref('dialog')}
 			aria-label="Choose a project"
-			@close="${(x) => x.toggled(false)}"
+			@close="${(x) => x.toggled(x.dialog?.open === true)}"
 			>${rows}</dialog
 		>`
 	)}
@@ -261,18 +261,26 @@ export class LoamProjectList extends FASTElement {
 		this.listbox.focus();
 	}
 
+	/**
+	 * Closed by Escape, a choice, a second press or a change of scope: closed now, and focus returned now, not on the
+	 * close's event, which comes a task later. A focus move made in between, as F6's, stands, and a press right after
+	 * opens it again (#2872).
+	 */
 	hide(): void {
 		if (!this.#open) return;
 		this.#hiding = true;
 		if (this.modal) this.dialog?.close();
 		else this.surface?.hide();
+		this.toggled(false);
 	}
 
+	/** Shown or closed. The close's event, after `hide()`, finds it closed already. */
 	toggled(open: boolean): void {
 		if (open === this.#open) return;
+		const hiding = this.#hiding;
+		this.#hiding = false;
 		this.#open = open;
-		if (!open && !this.#hiding) this.#closedAt = performance.now();
-		if (!open) this.#hiding = false;
+		if (!open && !hiding) this.#closedAt = performance.now();
 		if (this.switcher) this.switcher.expanded = open;
 		// Its tooltip closes: focus moves inside the switcher, which the rail's tooltip cannot hear.
 		if (open) {
@@ -280,7 +288,16 @@ export class LoamProjectList extends FASTElement {
 				new CustomEvent('loam-tip-close', { bubbles: true, composed: true })
 			);
 		}
-		if (!open && this.#returnFocus) this.switcher?.shadowRoot?.querySelector('button')?.focus();
+		// Closed by a light dismiss, heard a task after it: focus returns only from where the close left it, in the
+		// list or nowhere, so a focus move since, as into another popover, stands.
+		if (!open && this.#returnFocus && (hiding || this.#focusLeftHere()))
+			this.switcher?.shadowRoot?.querySelector('button')?.focus();
+	}
+
+	/** Focus is in the list, or on no element, as a hidden popover leaves it. */
+	#focusLeftHere(): boolean {
+		const active = this.ownerDocument.activeElement;
+		return active === null || active === this.ownerDocument.body || this.matches(':focus-within');
 	}
 
 	/**
