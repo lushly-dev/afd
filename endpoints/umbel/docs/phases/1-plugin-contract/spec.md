@@ -509,6 +509,12 @@ the reserved `ui` table. An Umbel host refuses a manifest with `ui` until a
 manifest version defines it; Loam's host accepts it. Field names that both
 use keep Umbel's meaning.
 
+*Superseded 2026-11-27 by D220:* Loam does not reference this schema's
+`$defs`. Loam's profile and Umbel's both conform to the shared plugin
+manifest core ([`spec/plugin-manifest.md`](../../../../../spec/plugin-manifest.md)),
+which `tests/it/manifest_core.rs` holds Umbel's manifests to. The `$defs`
+stay for Umbel's own manifest versions.
+
 ## 3. Plugin protocol versioning
 
 **The plugin protocol version is 1** (D40). It names one compatible set: the

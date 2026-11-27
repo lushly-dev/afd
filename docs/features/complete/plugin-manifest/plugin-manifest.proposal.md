@@ -1169,6 +1169,8 @@ them as D54 to D58.
 ### For Umbel's owner
 
 Each is a question, not an assumption. U1 alone would amend a recorded rule (Umbel D32).
+*Decided 2026-11-26 by Umbel's owner ([#1204](https://github.com/lushly-dev/afd/issues/1204)): every
+recommendation below is taken, recorded as Umbel's [D220](../../../../endpoints/umbel/docs/decisions.md).*
 
 - **U1. CORS.** Should a browser-hosted Loam be able to reach a loopback Umbel directly? It needs
   the `afd` crate's Streamable HTTP service to answer preflights and send `Access-Control-*` headers

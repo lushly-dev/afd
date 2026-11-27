@@ -350,6 +350,9 @@ export const WORKFLOW_GRAPH = {
 			'foundations/fast-af/packages/violet-elements/package.json',
 			// The `umbel` crate's `versions::` tests check its schema surfaces there (Umbel's D213).
 			'architecture.json',
+			// `tests/it/manifest_core.rs` runs the shared plugin manifest's cases on them (Umbel's D220).
+			'spec/plugin-manifest.core.v1.json',
+			'spec/plugin-manifest.json',
 		],
 	},
 	'violet.yml': {

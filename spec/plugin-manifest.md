@@ -364,7 +364,8 @@ cannot forge it.
 
 The cases run on Ajv 8.20's 2020-12 build in Node in `scripts/plugin-manifest.test.mjs`. They were also
 run once, on 2026-11-01, on the Rust `jsonschema` crate 0.60.2; the instances and the results are in
-[the status](../docs/features/complete/plugin-manifest/STATUS.md#step-1-verification). The two agreed on
+[the status](../docs/features/complete/plugin-manifest/STATUS.md#step-1-verification). Since 2026-11-27
+Umbel's `tests/it/manifest_core.rs` runs them on that crate (0.61) on every change to them or to Umbel. The two agreed on
 every answer and on the keys each refusal names, for profiles written as P1 says. What a reader needs
 to know:
 
@@ -426,7 +427,7 @@ version 2 and refused by version 1.
 
 | Reader | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Loads [`plugin-manifest.json`](./plugin-manifest.json) | The cases and a reference check of the rules, in `scripts/plugin-manifest.test.mjs` | No reader ([intended](../docs/language-parity.md#intended-differences)) | Checked once with `jsonschema` 0.60.2 ([status](../docs/features/complete/plugin-manifest/STATUS.md)); a permanent test is Umbel's choice | No reader ([intended](../docs/language-parity.md#intended-differences)) |
+| Loads [`plugin-manifest.json`](./plugin-manifest.json) | The cases and a reference check of the rules, in `scripts/plugin-manifest.test.mjs` | No reader ([intended](../docs/language-parity.md#intended-differences)) | The cases, the rule manifests against the core and the renaming cases, in Umbel's `tests/it/manifest_core.rs` on `jsonschema` 0.61; first checked once on 0.60.2 ([status](../docs/features/complete/plugin-manifest/STATUS.md)) | No reader ([intended](../docs/language-parity.md#intended-differences)) |
 | Reads a profile | Loam's, by `@lushly-dev/loam-manifest` | No | Umbel's, without the core | No |
 
 No AFD package reads a manifest. Umbel's host reads its own profile, and Loam's kernel will read its,

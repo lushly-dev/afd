@@ -15,7 +15,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 ## Status block
 
-- **State:** complete (closed 2026-11-14), approved 2026-11-01; steps 0 to 2 are done, and step 1's `spec/` files are what Loam's
+- **State:** complete (closed 2026-11-14), approved 2026-11-01; steps 0 to 4 are done (except step 3's `$ref` and `ui`); step 1's `spec/` files are what Loam's
   phase 1 specification cites.
   - The owner took every recommendation in
     [For the owner](plugin-manifest.proposal.md#for-the-owner) and confirmed the `spec/` addition;
@@ -23,14 +23,16 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
     log records this as D54 to D58.
   - It was extended at the owner's request of 2026-11-01: Umbel instances join a Loam instance as
     headless mounted apps.
-  - Four questions remain for Umbel's owner (U1 to U4) and ten for Loam's phase 1 specification
-    (L1 to L10), which it answers; see [Resolutions](#resolutions-of-l1-to-l10) and
+  - Four questions for Umbel's owner (U1 to U4), decided 2026-11-26 as recommended (Umbel [D220](../../../../endpoints/umbel/docs/decisions.md)),
+    and ten for Loam's phase 1 specification (L1 to L10), which it answers; see [Resolutions](#resolutions-of-l1-to-l10) and
     [Open questions](plugin-manifest.proposal.md#open-questions).
   - Step 2 is done, with Loam's phase 1, which exited 2026-11-02 ([run 41452945001](https://github.com/lushly-dev/afd/actions/runs/41452945001)): Loam's profile in
     `@lushly-dev/loam-manifest`, `app check` and `app pack` in `@lushly-dev/loam-cli`, the kernel's read, and the
     mounted loader's discovery and instances, proven against a real Umbel through a test-only relay (Loam D64).
-    Steps 3 to 8 are not started. Each is optional or waits on other work, and each is carried by an issue ([Steps](#steps)).
-- **Last verified:** 2026-11-01 against `main` at `d74f1299`, with the results under
+    Step 4 is done (2026-11-18). Step 3 is done (2026-11-27), but a manifest version that `$ref`s the core and `ui`,
+    which wait as Umbel's [D220](../../../../endpoints/umbel/docs/decisions.md) says. Steps 5, 6 and 8 each wait on other work
+    and are carried by an issue; step 7 is not scheduled ([Steps](#steps)).
+- **Last verified:** 2026-11-27 for step 3 (its [session row](#session-log)); otherwise 2026-11-01 against `main` at `d74f1299`, with the results under
   [Step 1 verification](#step-1-verification). The proposal's state was read earlier, at `355aa994`,
   from:
   - Umbel: `endpoints/umbel/schemas/plugin-manifest.v2.json` and the examples in
@@ -75,9 +77,13 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `scripts/plugin-manifest.test.mjs` in the tooling tests. `spec/VERSION` stays `1.0-rc`: the core has
   its own version, and no fixture, vector, wire field or error code changes, as earlier `spec/`
   additions did. No changeset: no publishable package changes.
-- **Not done:** steps 3 to 8 ([Implementation plan](plugin-manifest.proposal.md#implementation-plan)).
-  Loam's profile conforms to the core and Umbel's does not read it yet (step 3), and the Rust check of the cases is not a permanent test. The
-  owner's questions are decided; U1 to U4 are not answered, and L1 to L10 are answered by Loam's phase 1
+- **Done:** step 3, in [#2849](https://github.com/lushly-dev/afd/pull/2849): Umbel's `tests/it/manifest_core.rs` runs the cases, the rule manifests and the
+  renaming cases on `jsonschema` 0.61 and holds Umbel's manifests of every version to the core; D37 and
+  "Room for Loam" are annotated ([D220](../../../../endpoints/umbel/docs/decisions.md)).
+- **Not done:** steps 5, 6 and 8 ([Implementation plan](plugin-manifest.proposal.md#implementation-plan)),
+  each deferred to its own issue, and step 3's later part: an Umbel manifest version that `$ref`s the core, which comes with
+  the next manifest version cut for another reason, and `ui`, when Loam's Umbel app is specified ([D220](../../../../endpoints/umbel/docs/decisions.md)). Step 7 is not scheduled, because U1 was answered no. The
+  owner's questions are decided, U1 to U4 on 2026-11-26, and L1 to L10 are answered by Loam's phase 1
   specification ([Resolutions](#resolutions-of-l1-to-l10)).
 
 ## Steps
@@ -87,11 +93,11 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 0. Proposal | Done 2026-11-01 | Design sub-agent | [#669](https://github.com/lushly-dev/afd/pull/669) |
 | 1. `spec/` core, cases, changelog, parity row | Done 2026-11-01 | Implementation sub-agent | [#677](https://github.com/lushly-dev/afd/pull/677); [Step 1 verification](#step-1-verification) |
 | 2. Loam's profile, reader, `app check`, drift test against Umbel's examples | Done 2026-11-02: Loam's phase 1 exited, including `@lushly-dev/loam-manifest`, `app check`, `app pack` and mounted discovery/instances | Loam's phase 1 agent | [Phase 1 specification](../../../../endpoints/loam/docs/phases/1-app-contract/spec.md); `scripts/plugin-manifest.test.mjs` |
-| 3. Umbel adopts the core (optional) | Deferred, Umbel's choice: [#1205](https://github.com/lushly-dev/afd/issues/1205) | Umbel's owning agent, at its choice | None |
+| 3. Umbel adopts the core (optional) | Done 2026-11-27, but the `$ref`: Umbel's `tests/it/manifest_core.rs` makes the Rust check of the cases permanent, and D37 and "Room for Loam" are annotated. A manifest version that `$ref`s the core waits for the next manifest version ([D220](../../../../endpoints/umbel/docs/decisions.md)) | Umbel | [#1205](https://github.com/lushly-dev/afd/issues/1205), [#2849](https://github.com/lushly-dev/afd/pull/2849) |
 | 4. `expose.apps`, core version 2 | Done 2026-11-18: [`spec/plugin-manifest.core.v2.json`](../../../../spec/plugin-manifest.core.v2.json) with D30's proposal ([apps exposure](../../active/apps-exposure/apps-exposure.proposal.md)); `ExposeOptions.apps` in TypeScript and Rust, Python and C++ in [#1513](https://github.com/lushly-dev/afd/issues/1513); Loam's profile adopts version 2 in its phase 5 step 10 | Loam phase 5 step 0b | [#1591](https://github.com/lushly-dev/afd/pull/1591) |
 | 5. `grants[].targets` | Deferred until a grant needs it: [#1206](https://github.com/lushly-dev/afd/issues/1206) | The first grant that needs it | None |
 | 6. Plugin Discovery revised | Deferred until Plugin Discovery is taken up: [#1207](https://github.com/lushly-dev/afd/issues/1207) | None | None |
-| 7. CORS in the `afd` crate's HTTP service (only if U1 is yes) | Waits on U1: [#1204](https://github.com/lushly-dev/afd/issues/1204) | None | None |
+| 7. CORS in the `afd` crate's HTTP service (only if U1 is yes) | Not scheduled: U1 answered no on 2026-11-26 ([#1204](https://github.com/lushly-dev/afd/issues/1204), [D220](../../../../endpoints/umbel/docs/decisions.md)) | None | None |
 | 8. The first-party `umbel` app in Loam | Deferred until Umbel's phase 2 and Loam's phase 5: [#1208](https://github.com/lushly-dev/afd/issues/1208) | Loam, after Umbel's phase 2 and Loam's phase 5 | None |
 
 ## Step 1 verification
@@ -306,9 +312,9 @@ step 2 of the plan in its steps 1, 2 and 7.
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
-| 2026-11-01 | Proposal | Umbel's D37 and its phase 1 specification ("Room for Loam") say Loam's schema can reference Umbel's `$defs`. The proposal shows why that does not work for `plugin`, `domain`, `command` and `expose`, and replaces it with the core. Umbel's documents may want a pointer to the proposal; its decisions need no change | Open; pointer added to Umbel's follow-ups |
+| 2026-11-01 | Proposal | Umbel's D37 and its phase 1 specification ("Room for Loam") say Loam's schema can reference Umbel's `$defs`. The proposal shows why that does not work for `plugin`, `domain`, `command` and `expose`, and replaces it with the core. Umbel's documents may want a pointer to the proposal; its decisions need no change | Done 2026-11-27: annotated in both ([D220](../../../../endpoints/umbel/docs/decisions.md)) |
 | 2026-11-01 | Proposal | Owner questions 1 to 6: native Loam apps' trust class, Umbel carrying and projecting `ui`, signing before W9, approval authority for a `spec/` addition, a multi-member Loam over a single-principal Umbel, and Loam's stdio instances | Done: the owner took every recommendation ([Status block](#status-block)) |
-| 2026-11-01 | Proposal | Umbel owner questions U1 to U4: CORS, reach beyond loopback, a host description or server card, and scope with space | [#1204](https://github.com/lushly-dev/afd/issues/1204), Umbel's owner |
+| 2026-11-01 | Proposal | Umbel owner questions U1 to U4: CORS, reach beyond loopback, a host description or server card, and scope with space | Decided 2026-11-26 as recommended ([#1204](https://github.com/lushly-dev/afd/issues/1204), [D220](../../../../endpoints/umbel/docs/decisions.md)) |
 | 2026-11-01 | Proposal | Before Loam's phase 6, check how browsers restrict a public-origin page calling a loopback address, in Loam's trajectory refresh | [#1209](https://github.com/lushly-dev/afd/issues/1209) |
 | 2026-11-01 | Proposal | A shared origin key on tools (`dev.afd/origin` beside `dev.umbel/origin`) once a second host emits one | [#1210](https://github.com/lushly-dev/afd/issues/1210) |
 
@@ -320,3 +326,4 @@ step 2 of the plan in its steps 1, 2 and 7.
 | 2026-11-01 | Implementation sub-agent | Step 1: wrote the spec page, the core and the cases, and wired `scripts/plugin-manifest.test.mjs` into the tooling tests. Proved the three unverified claims ([Step 1 verification](#step-1-verification)), corrected the proposal where they were false, and updated the parity row, the changelog and Loam's status |
 | 2026-11-01 | Loam's phase 1, step 1 | Step 2 started: Loam's profile `app-manifest.v1.json` and `@lushly-dev/loam-manifest` conform to the core by `$ref`. `scripts/plugin-manifest.test.mjs` now checks both profiles, its comparison handling `unevaluatedProperties`. It also found a hole in that file's reference check: a mounted manifest's pipeline escaped the rule `command-domain` |
 | 2026-11-01 | Loam's phase 1, step 2 | `@lushly-dev/loam-cli`: `app check` and `app pack` apply `path-inside-root` and `files`, and that page's `rules` cases for both run in its test, over a map of files and over a real disk |
+| 2026-11-27 | Umbel, step 3 ([#1204](https://github.com/lushly-dev/afd/issues/1204), [#1205](https://github.com/lushly-dev/afd/issues/1205)) | Recorded the owner's 2026-11-26 answers to U1 to U4 as Umbel [D220](../../../../endpoints/umbel/docs/decisions.md). Added Umbel's `tests/it/manifest_core.rs`: the cases on `jsonschema` 0.61, naming Ajv's keys, the rule manifests and Umbel's manifests of every version against the core, and the `renaming` cases through `mount_command_name`. Umbel's workflow now runs on a change to the core or the cases. Annotated D37 and "Room for Loam". Verified 2026-11-27 on Windows: `cargo test -p umbel --test it manifest_core` passes 4 of 4, and each test was seen failing on a mutated case, rule, renaming or example; the gates are in the pull request, [#2849](https://github.com/lushly-dev/afd/pull/2849) |
