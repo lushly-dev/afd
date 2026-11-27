@@ -19,7 +19,7 @@ the pull request's number.
 
 - **2. TypeScript** ([#2680](https://github.com/lushly-dev/afd/issues/2680)): merged in #2846. `context.dispatchId` from both engines (`packages/core/src/dispatch-id.ts`), `onApprovalAccepted` and `ApprovalSummary` on `createApprovalMiddleware`, `approvalId` on `ApprovalRequest` and DirectClient's `DirectApprovalRequest`. Every `journal-seams.json` case runs; `wire/journal.jsonl` is unchanged.
 
-- **3. Rust** ([#2681](https://github.com/lushly-dev/afd/issues/2681)): merged in #2865. `CommandContext::dispatch_id`, `ApprovalMiddlewareOptions::with_on_approval_accepted` with `ApprovalSummary`, `ApprovalRequest::approval_id`, `DirectApprovalRequest::approval_id` and `afd::approval_id`; every case of `journal-seams.json` runs and Rust has left its `gaps`. Umbel's D208 middleware does not use the id yet. Loam OS M1 consumes it.
+- **3. Rust** ([#2681](https://github.com/lushly-dev/afd/issues/2681)): merged in #2865. `CommandContext::dispatch_id`, `ApprovalMiddlewareOptions::with_on_approval_accepted` with `ApprovalSummary`, `ApprovalRequest::approval_id`, `DirectApprovalRequest::approval_id` and `afd::approval_id`; every case of `journal-seams.json` runs and Rust has left its `gaps`. Umbel's decision log meets the step's second exit: D221 (2026-11-27) keys D208's intents by the id, for Loam OS M1, its first consumer, to build.
 
 - **4. Python and C++** ([#2682](https://github.com/lushly-dev/afd/issues/2682)): not started. Needs step 2, and comes after step 3 (J6).
 
@@ -43,7 +43,7 @@ for (J2).
 - `onApprovalAccepted` is given the approval summary and the call's `dispatchId`, never a token,
   a nonce or a decision id. The `dispatchId` argument was added while recording J2.
 - While the entry members are held, the journal entry carries no `dispatchId`. A host that keys
-  its own record by it, as Umbel's D208 middleware may, settles each intent in that record after
+  its own record by it, as Umbel's D208 middleware will (D221, 2026-11-27), settles each intent in that record after
   the call returns.
 
 ## How to keep this file
