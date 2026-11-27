@@ -674,8 +674,9 @@ $('[data-gaps]').replaceChildren(
 // ── Fig. 05: status ─────────────────────────────────────────────────────
 
 $('[data-preset-names]').textContent = presets.join(', ');
+// The lead keeps the static label, whose word `pnpm check:maturity` checks against the inventory.
 $('[data-status]').replaceChildren(
-	el('strong', {}, 'In preview, on npm.'),
+	$('[data-status] [data-maturity]'),
 	' ',
 	code(library.library.name),
 	` ${library.library.version} and `,

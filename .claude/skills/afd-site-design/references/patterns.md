@@ -149,7 +149,7 @@ the ink proof band. It isn't a numbered section, so it has no figure label or nu
 		<li>
 			<h4>Specimen</h4>
 			<p>One or two sentences.</p>
-			<span class="mono family-status family-status--out">In preview, on npm</span>
+			<span data-maturity="specimen" class="mono family-status family-status--out">Preview, on npm</span>
 			<a href="specimen/" aria-label="Specimen: compare two captures">Compare two captures <i class="icon icon--right" aria-hidden="true"></i></a>
 		</li>
 	</ul>
@@ -160,12 +160,17 @@ the ink proof band. It isn't a numbered section, so it has no figure label or nu
   band's one statement.
 - `family-status--out` (paper) marks a project people can install; without it the status
   is muted. Mint and red keep their meanings, so neither is used for status.
-- A released preview reads "In preview, on npm". "Preview on npm" reads as an invitation
-  to go and look.
+- A status opens with its word from the one ladder (Stable, Beta, Preview, In development,
+  Internal), then where it is: "Preview, on npm", "Beta, on PyPI", "In development, not
+  released". The words and their meanings are in the README's "What each status means".
+- Every status label (`.family-status`, `.edition`, the `.area-status` lead) carries
+  `data-maturity="<part>"`. `pnpm check:maturity` checks its word against
+  `scripts/release/inventory.json` and refuses a `.family-status` or `.edition` without
+  one; `data-maturity="none"` marks an `.edition` that is not a status ("Open source,
+  MIT"). To change a status, change the unit's `maturity` there, run
+  `pnpm maturity:sync`, and fix what the check then names.
 - On the proposed home pages, a tool with a page links to it on that side, with a link
   that says what you will do there; the rest link out to the repository.
-- Update a status here, in `site/llms.txt`, in the README's family table and in
-  `docs/features/README.md` together.
 
 ## Buttons
 

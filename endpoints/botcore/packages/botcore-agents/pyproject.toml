@@ -7,7 +7,7 @@ license = { text = "MIT" }
 authors = [{ name = "Falkicon" }]
 keywords = ["botcore", "agents", "orchestration", "plugin"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 2 - Pre-Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",

@@ -6,7 +6,7 @@ Contract: 1.0-rc (the shared specification in `spec/`; each package keeps its ow
 License: MIT
 Repository: https://github.com/lushly-dev/afd
 
-The same repository holds the rest of the AFD family: Specimen, FAST-AF, Violet, Umbel, Loam, Botcore and Health. See "The AFD family" below.
+The same repository holds the rest of the AFD family: Violet, FAST-AF, Specimen, Umbel, Loam, Botcore, Alfred and Health. "The AFD family" below maps them with their status.
 
 ## Core ideas
 
@@ -93,15 +93,25 @@ Recommended loop: edit a command handler, `afd call` it, read `error.suggestion`
 
 ## The AFD family
 
-Projects in the same repository that take the method one layer up. Foundations (Specimen, FAST-AF, Violet) have no dependency on AFD; a separate integration package exposes each one's operations as AFD commands. Status is given per project; "in the repository" means it builds and is tested there but is not published.
+Projects in the same repository that take the method one layer up, arranged by what you want to do. Foundations (Specimen, FAST-AF, Violet) have no dependency on AFD; a separate integration package exposes each one's operations as AFD commands. Every status uses the same five words as the README and afd.dev, and the package metadata is checked against them.
 
-- [Specimen](https://github.com/lushly-dev/afd/tree/main/foundations/specimen): a component observation bench. Renders a component in Chromium and records geometry, computed styles, native control state, open shadow DOM and ARIA snapshots, so two renders can be compared. Runs Storybook-format stories without Storybook. Preview on npm: `npm install @lushly-dev/specimen@preview`, with `@lushly-dev/specimen-cli@preview` (the `specimen` JSON CLI), `@lushly-dev/specimen-afd@preview` (`specimen-*` AFD commands) and `@lushly-dev/specimen-fast-af@preview` (FAST-AF plugin).
-- [FAST-AF](https://github.com/lushly-dev/afd/tree/main/foundations/fast-af): a web component runtime, `@lushly-dev/fast-element` (preview on npm: `npm install @lushly-dev/fast-element@preview`), and a component library built on it, `violet-elements` (in the repository). Every component's stories run on Specimen, and each component has a pack record of what an agent writing a page needs to know.
-- [Violet](https://github.com/lushly-dev/afd/tree/main/foundations/violet): a hierarchical design token engine. Nodes inherit tokens from their parents and add, override or remove them; exports CSS, SCSS, TypeScript, JSON, Swift, Kotlin, Dart, Tailwind and Lua. Includes a browser runtime, a `violet` CLI and a `violet-mcp` server. In the repository.
-- [Umbel](https://github.com/lushly-dev/afd/tree/main/endpoints/umbel): an empty Rust host for capability plugins, over MCP (stdio and Streamable HTTP) and as a CLI. Knowledge, memory and context are first-party plugins; one deployment holds several isolated spaces. In development, unpublished. [Status](https://github.com/lushly-dev/afd/blob/main/endpoints/umbel/docs/STATUS.md).
-- [Loam](https://github.com/lushly-dev/afd/tree/main/endpoints/loam): an application shell in TypeScript. Apps land as plugins and share sign-in, projects, documents and a command palette; the shell's own state is commands. Its chrome is FAST-AF components on a Violet theme. In development, unpublished. [Status](https://github.com/lushly-dev/afd/blob/main/endpoints/loam/docs/STATUS.md).
-- [Botcore](https://github.com/lushly-dev/afd/tree/main/endpoints/botcore): shared agent tooling (commands, skills, configuration, plugins) built on AFD. On PyPI as `lushly-botcore`.
-- [Health](https://github.com/lushly-dev/afd/tree/main/endpoints/health): repository health audits with a versioned JSON report, and a static dashboard to read it. In the repository.
+<!-- generated:maturity:map:start -->
+- Build commands: TypeScript (Beta), Python (Beta), Rust (Preview), C++ (Preview)
+- Design for agents: Violet (Preview), FAST-AF (Preview), Specimen (Preview); each one's foundation packages depend on nothing in AFD
+- Run and operate: Umbel (In development), Loam (In development), Botcore (Beta)
+- This repository's tools: Alfred (Internal), Health (Internal)
+
+Status words. Stable: published on the default tag at 1.0 or later, on a final (not release-candidate) AFD contract; breaking changes only in a major version. Beta: published on the registry's default tag; breaking changes only in a major version (below 1.0, the minor is the major). Preview: published, on npm only under the `preview` tag; may change in any release. In development: built and tested here, not published. Internal: this repository's own tooling, not offered for use elsewhere.
+<!-- generated:maturity:map:end -->
+
+- [Violet](https://github.com/lushly-dev/afd/tree/main/foundations/violet): a hierarchical design token engine. Nodes inherit tokens from their parents and add, override or remove them; exports CSS, SCSS, TypeScript, JSON, Swift, Kotlin, Dart, Tailwind and Lua. Includes a browser runtime, a `violet` CLI and a `violet-mcp` server. Status: Preview. `npm install @lushly-dev/violet-core@preview`.
+- [FAST-AF](https://github.com/lushly-dev/afd/tree/main/foundations/fast-af): a web component runtime, `@lushly-dev/fast-element`, and a component library built on it, `@lushly-dev/violet-elements`. Every component's stories run on Specimen, and each component has a pack record of what an agent writing a page needs to know. Status: Preview. `npm install @lushly-dev/violet-elements@preview @lushly-dev/fast-element@preview`.
+- [Specimen](https://github.com/lushly-dev/afd/tree/main/foundations/specimen): a component observation bench. Renders a component in Chromium and records geometry, computed styles, native control state, open shadow DOM and ARIA snapshots, so two renders can be compared. Runs Storybook-format stories without Storybook. Status: Preview. `npm install @lushly-dev/specimen@preview`, with `@lushly-dev/specimen-cli@preview` (the `specimen` JSON CLI), `@lushly-dev/specimen-afd@preview` (`specimen-*` AFD commands) and `@lushly-dev/specimen-fast-af@preview` (FAST-AF plugin).
+- [Umbel](https://github.com/lushly-dev/afd/tree/main/endpoints/umbel): an empty Rust host for capability plugins, over MCP (stdio and Streamable HTTP) and as a CLI. Knowledge, memory and context are first-party plugins; one deployment holds several isolated spaces. Status: In development. [Status file](https://github.com/lushly-dev/afd/blob/main/endpoints/umbel/docs/STATUS.md).
+- [Loam](https://github.com/lushly-dev/afd/tree/main/endpoints/loam): an application shell in TypeScript. Apps land as plugins and share sign-in, projects, documents and a command palette; the shell's own state is commands. Its chrome is FAST-AF components on a Violet theme. Status: In development. [Status file](https://github.com/lushly-dev/afd/blob/main/endpoints/loam/docs/STATUS.md).
+- [Botcore](https://github.com/lushly-dev/afd/tree/main/endpoints/botcore): shared agent tooling (commands, skills, configuration, plugins) built on AFD. Status: Beta. `pip install lushly-botcore`; its plugins are in development.
+- [Alfred](https://github.com/lushly-dev/afd/tree/main/alfred): this repository's own quality bot: architecture lint, cross-language parity and command description quality. Status: Internal.
+- [Health](https://github.com/lushly-dev/afd/tree/main/endpoints/health): repository health audits with a versioned JSON report, and a static dashboard to read it. Status: Internal.
 
 ## Docs
 

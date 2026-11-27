@@ -49,7 +49,8 @@ an individual is officially representing the community in public spaces.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported via GitHub Security Advisories or by opening a private maintainer contact request in Discussions.
+reported privately to the maintainers through GitHub's private vulnerability reporting
+(https://github.com/lushly-dev/afd/security/advisories/new).
 All reports will be reviewed and investigated promptly and fairly.
 
 ## Attribution

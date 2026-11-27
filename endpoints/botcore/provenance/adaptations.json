@@ -789,11 +789,11 @@
       "path": "packages/botcore-agents/pyproject.toml",
       "upstream_sha256": "e8dd2a9d1fa2afe1e84ad789998319b92cf846cfdf722756ca9bd3afb6147c50",
       "staged_sha256": "e8dd2a9d1fa2afe1e84ad789998319b92cf846cfdf722756ca9bd3afb6147c50",
-      "current_import_sha256": "dabf1f9f3ce7ccfdc29760706028c90c4908a0359082ef005ab5182658262607",
+      "current_import_sha256": "00d94027d3a551fcf94530285e5925222934d19dfaf13aabfb0e9c94c6fc6e9a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Declare optional connectors extra for wildcard discovery"
+      "import_reason": "Declare optional connectors extra for wildcard discovery; Unpublished plugins state Development Status 2 - Pre-Alpha, the PyPI classifier of the repository's In development maturity (lushly-dev/afd#2473)"
     },
     {
       "path": "packages/botcore-agents/src/botcore_agents/__init__.py",
@@ -1055,11 +1055,11 @@
       "path": "packages/botcore-llm/pyproject.toml",
       "upstream_sha256": "1eaa81dcbc343ab8c29ffbed106c3a0cb74bb8f3c99508b567e4a3cd49b4d983",
       "staged_sha256": "1eaa81dcbc343ab8c29ffbed106c3a0cb74bb8f3c99508b567e4a3cd49b4d983",
-      "current_import_sha256": "b64cf2d3b507f87fc80faed83da2c8d8cfc80163a10c35f6d7d8c01a6dac253d",
+      "current_import_sha256": "203d290485cd725a08d581d1229afc45c4d8e5e69380b4888d4f226588d6b4c5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Write the moved memory store once under its lock, complete interrupted moves on rerun and always report backups; keep agent_name a label in any host call; require Botcore 0.8.0 in botcore-llm"
+      "import_reason": "Imported exact frozen staged-input bytes; Write the moved memory store once under its lock, complete interrupted moves on rerun and always report backups; keep agent_name a label in any host call; require Botcore 0.8.0 in botcore-llm; Unpublished plugins state Development Status 2 - Pre-Alpha, the PyPI classifier of the repository's In development maturity (lushly-dev/afd#2473)"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/__init__.py",
@@ -1405,6 +1405,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Key botcore-memory agent memory on the caller a host verified and refuse host calls that name no one; carry the LLM session's agent name as the tool caller's id; document callers and moving default memories; Keep principals lowercase so case-only id differences never share a store file; require Botcore 0.8.0 and refuse unnamed managed calls; keep agent_name descriptive inside named host calls; add a verified, backed-up move of default memory; refuse trailing newlines in scope ids and keys"
+    },
+    {
+      "path": "plugins/botcore-factory/pyproject.toml",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "a3fb3c0114b5609721786693e1f6f1ad9273a1fa62f5a754e22027426bf21a2a",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Unpublished plugins state Development Status 2 - Pre-Alpha, the PyPI classifier of the repository's In development maturity (lushly-dev/afd#2473)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/adapter.py",
@@ -2399,11 +2410,11 @@
       "path": "plugins/botcore-teams/pyproject.toml",
       "upstream_sha256": "e84c561a99f99910037bd12dcecd6f6a53548f83ad1db4be8a3aa0dfc17c82a0",
       "staged_sha256": "e84c561a99f99910037bd12dcecd6f6a53548f83ad1db4be8a3aa0dfc17c82a0",
-      "current_import_sha256": "e84c561a99f99910037bd12dcecd6f6a53548f83ad1db4be8a3aa0dfc17c82a0",
+      "current_import_sha256": "505a7b6281466dd2d72084333e7f961ec8bf4b257da90b28ffaf786713e80aa3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Unpublished plugins state Development Status 2 - Pre-Alpha, the PyPI classifier of the repository's In development maturity (lushly-dev/afd#2473)"
     },
     {
       "path": "plugins/botcore-teams/src/botcore_teams/__init__.py",

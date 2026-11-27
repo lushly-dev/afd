@@ -83,11 +83,9 @@ See [Production Considerations](./docs/whitepaper/AFD-Whitepaper.md#11-productio
 **For security vulnerabilities**, please:
 
 1. **Do NOT** open a public GitHub issue
-2. Report privately via GitHub Security Advisories:
-  - https://github.com/lushly-dev/AFD/security/advisories/new
-3. If GitHub advisories are unavailable, open a maintainer contact in Discussions:
-  - https://github.com/lushly-dev/AFD/discussions
-4. Include:
+2. Report privately through GitHub's private vulnerability reporting:
+  - https://github.com/lushly-dev/afd/security/advisories/new
+3. Include:
    - Description of the vulnerability
    - Steps to reproduce
    - Potential impact

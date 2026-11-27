@@ -20,7 +20,7 @@ Someone who lands here knows what the tool is before they scroll. In order:
 
 | Part | Class | Rule |
 |------|-------|------|
-| Crumb and status | `.opening-label` with `.crumb`, `.edition` | The side's home, then the name in `<b>`. Status reads "In preview, on npm", never "Preview on npm". |
+| Crumb and status | `.opening-label` with `.crumb`, `.edition` | The side's home, then the name in `<b>`. The status opens with its ladder word and carries `data-maturity` ([patterns](patterns.md)). |
 | Name | `h1.area-name` | The tool's name, as the display word. Eight letters or more: add `.area-name--long`. |
 | What it is | `p.area-is` | One heavy line naming the kind of thing, then a thin line in a `<span>`. "A design token engine." |
 | Description | `p.area-lead` | 15 to 35 words. What it does and for whom, in plain words. |
@@ -35,7 +35,7 @@ Someone who lands here knows what the tool is before they scroll. In order:
 	<div class="wrap">
 		<div class="opening-label">
 			<span class="crumb"><a href="../">Agent-First Development</a> / <b>Violet</b></span>
-			<span class="edition">In preview, on npm</span>
+			<span data-maturity="violet" class="edition">Preview, on npm</span>
 		</div>
 		<div class="area-hero">
 			<div class="area-hero-text">

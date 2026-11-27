@@ -104,6 +104,10 @@ pre-push-checks:
     capabilities:
       run: node scripts/check-capabilities.mjs
 
+    # One maturity ladder across the README, llms.txt, the site and the package metadata (#2473).
+    maturity:
+      run: node scripts/maturity.mjs
+
     test-configs:
       run: node scripts/check-test-configs.mjs scripts/affected/
 
@@ -176,6 +180,10 @@ check:
 
     capabilities:
       run: node scripts/check-capabilities.mjs
+
+    # One maturity ladder across the README, llms.txt, the site and the package metadata (#2473).
+    maturity:
+      run: node scripts/maturity.mjs
 
     test-configs:
       run: node scripts/check-test-configs.mjs scripts/affected/
