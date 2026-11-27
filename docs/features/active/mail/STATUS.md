@@ -223,6 +223,7 @@ the top of its phase's list, and a phase that starts adds its heading above the 
 
 ### Verified: work outside the plan's steps
 
+- 2026-11-27 UTC for the store lock's fork race ([#2855](https://github.com/lushly-dev/afd/issues/2855)), on Rust 1.100.0 in a container from the Loam OS session image (linux/amd64, 16 processors): before the fix, the two new `home::tests` failed with `InUse`, and 18 of 960 and then 14 of 1920 runs of the `cli` test binary (48 at once beside 16 busy loops) failed at `tests/cli.rs:221` with `STORE_IN_USE`; after it, both tests passed and 0 of 1920 runs failed. The original failure was on linux/arm64 and was not rerun there.
 - 2026-11-16 UTC for Windows portability in [#1318](https://github.com/lushly-dev/afd/pull/1318), on Rust 1.98.0: native fmt and clippy passed, 302 tests passed and five existing measurement/live-account tests stayed ignored.
 
 ## Follow-ups not yet issues
@@ -366,6 +367,7 @@ A session adds its row at the end of its area's table. The last table holds ever
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-27 | The store lock race session ([#2855](https://github.com/lushly-dev/afd/issues/2855)) | `HomeLock` unlocks before its file closes. A child process forked on another thread shares the lock's open file description until it execs, so closing alone left the store locked and the next engine in the process got `STORE_IN_USE`. The CLI test's second call now prints its error |
 
 ### Sessions: to 2026-11-18, every area
 

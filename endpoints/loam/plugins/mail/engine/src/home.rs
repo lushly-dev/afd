@@ -126,7 +126,7 @@ impl Home {
             .truncate(false)
             .open(self.lock_file())?;
         match file.try_lock() {
-            Ok(()) => Ok(HomeLock { _file: file }),
+            Ok(()) => Ok(HomeLock { file }),
             Err(fs::TryLockError::WouldBlock) => Err(HomeError::InUse),
             Err(fs::TryLockError::Error(error)) => Err(HomeError::Io(error)),
         }
@@ -135,9 +135,28 @@ impl Home {
 
 /// The lock on a data directory. The process that holds it owns the store;
 /// dropping it, or the process ending, releases it.
+///
+/// On Linux and macOS, a process that ends without dropping it while a child
+/// of its own is between fork and exec leaves the store locked until that
+/// child execs; and a child forked without an exec that dropped a copy of it
+/// would unlock its parent's store. The engine spawns no processes, so
+/// neither can happen in it.
 #[derive(Debug)]
 pub struct HomeLock {
-    _file: File,
+    file: File,
+}
+
+impl Drop for HomeLock {
+    /// Unlocks before the file closes. On Linux and macOS the lock belongs to
+    /// the open file description, which a child process forked on another
+    /// thread shares until it execs; closing our descriptor alone would leave
+    /// the store locked through that window, and the next engine in this
+    /// process would be refused as if another process owned it (#2855). An
+    /// explicit unlock through any descriptor of the description releases it
+    /// at once.
+    fn drop(&mut self) {
+        let _ = self.file.unlock();
+    }
 }
 
 /// Creates `path` and any missing parents; the directories it creates are
@@ -177,4 +196,48 @@ pub(crate) fn private_file() -> OpenOptions {
         options.mode(0o600);
     }
     options
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Home, HomeError};
+
+    /// A forked child shares the lock's open file description until it
+    /// execs. A second descriptor of the same description stands in for it:
+    /// once the lock is dropped, the store is free though that descriptor is
+    /// still open (#2855).
+    #[test]
+    fn a_shared_descriptor_does_not_keep_a_dropped_lock() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let home = Home::at(directory.path().join("data"));
+        let held = home.lock().expect("the first lock");
+        let shared = held.file.try_clone().expect("a second descriptor");
+        assert!(matches!(home.lock(), Err(HomeError::InUse)));
+        drop(held);
+        let again = home.lock();
+        drop(shared);
+        assert!(again.is_ok(), "{:?}", again.err());
+    }
+
+    /// The same with a real child process that holds the description, as one
+    /// forked on another thread holds it until it execs.
+    #[cfg(unix)]
+    #[test]
+    fn a_child_holding_the_lock_s_description_does_not_keep_a_dropped_lock() {
+        use std::process::{Command, Stdio};
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let home = Home::at(directory.path().join("data"));
+        let held = home.lock().expect("the first lock");
+        let shared = held.file.try_clone().expect("a second descriptor");
+        let mut child = Command::new("sleep")
+            .arg("30")
+            .stdin(Stdio::from(shared))
+            .spawn()
+            .expect("sleep starts");
+        drop(held);
+        let again = home.lock();
+        let _ = child.kill();
+        let _ = child.wait();
+        assert!(again.is_ok(), "{:?}", again.err());
+    }
 }

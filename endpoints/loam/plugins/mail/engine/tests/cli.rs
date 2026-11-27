@@ -217,8 +217,8 @@ fn a_command_runs_and_prints_its_result_as_json() {
     assert_eq!(result["data"]["resumed"], false);
     assert_eq!(result["metadata"]["actorKind"], "script");
     // An empty object is the same as no input.
-    let (status, _, _) = run_in(Some(home), &["mail-rebuild", "{}"]);
-    assert_eq!(status, EXIT_OK);
+    let (status, out, err) = run_in(Some(home), &["mail-rebuild", "{}"]);
+    assert_eq!(status, EXIT_OK, "{out}{err}");
 }
 
 #[test]
