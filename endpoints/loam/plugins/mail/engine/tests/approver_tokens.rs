@@ -426,7 +426,8 @@ fn migration_18_defaults_existing_tokens_to_agent() {
     {
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute_batch(
-            "DROP TABLE replyset_claim_key;
+            "DROP TABLE instance_proof_key;
+             DROP TABLE replyset_claim_key;
              ALTER TABLE draft DROP COLUMN recipient_bases;
              DROP TABLE proposed_story_member;
              DROP TABLE proposed_story;

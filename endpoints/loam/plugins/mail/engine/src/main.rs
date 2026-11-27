@@ -84,6 +84,45 @@ fn main() -> ExitCode {
         engine = engine.with_progress(Arc::new(|line| eprintln!("{line}")));
     }
     let engine = Arc::new(engine);
+    match args.first().map(String::as_str) {
+        Some("pair") => {
+            let mut out = std::io::stdout().lock();
+            let mut err = std::io::stderr().lock();
+            return match loam_mail::pair::run_pair_cli(
+                &args[1..],
+                &engine,
+                home.as_ref(),
+                &mut out,
+                &mut err,
+            ) {
+                Ok(status) => ExitCode::from(status),
+                Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => ExitCode::FAILURE,
+                Err(error) => {
+                    let _ = writeln!(err, "{}: {error}", loam_mail::PROGRAM);
+                    ExitCode::FAILURE
+                }
+            };
+        }
+        Some("unpair") => {
+            let mut out = std::io::stdout().lock();
+            let mut err = std::io::stderr().lock();
+            return match loam_mail::pair::run_unpair_cli(
+                &args[1..],
+                &engine,
+                home.as_ref(),
+                &mut out,
+                &mut err,
+            ) {
+                Ok(status) => ExitCode::from(status),
+                Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => ExitCode::FAILURE,
+                Err(error) => {
+                    let _ = writeln!(err, "{}: {error}", loam_mail::PROGRAM);
+                    ExitCode::FAILURE
+                }
+            };
+        }
+        _ => {}
+    }
     let registry = match loam_mail::registry(&engine) {
         Ok(registry) => registry,
         Err(broken) => {

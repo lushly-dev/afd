@@ -755,6 +755,7 @@ fn a_store_whose_mailboxes_migration_10_listed_late_counts_them_from_its_first_s
              DROP TABLE record;
              DROP TABLE proposed_story_member;
              DROP TABLE proposed_story;
+             DROP TABLE instance_proof_key;
              DROP TABLE replyset_claim_key;
              DROP TABLE replyset_event;
              DROP TABLE replyset_question_reply;

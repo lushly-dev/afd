@@ -1324,7 +1324,8 @@ fn store_upgrades_from_migration_18_to_19() {
     {
         let conn = rusqlite::Connection::open(home.database()).unwrap();
         conn.execute_batch(
-            "DROP TABLE replyset_claim_key;
+            "DROP TABLE instance_proof_key;
+             DROP TABLE replyset_claim_key;
              ALTER TABLE draft DROP COLUMN recipient_bases;
              DROP TABLE proposed_story_member;
              DROP TABLE proposed_story;

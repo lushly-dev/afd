@@ -36,6 +36,17 @@ const MOST_NAME: usize = 64;
 /// never keeps.
 pub const CREATE: &str = "mail-token-create";
 
+/// Encodes `bytes` as lower-case hexadecimal characters.
+#[must_use]
+pub(crate) fn encode_hex(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        let _ = write!(&mut out, "{byte:02x}");
+    }
+    out
+}
+
 /// `n` bytes from the operating system's random source, as lower-case hex.
 ///
 /// # Errors
@@ -43,7 +54,7 @@ pub const CREATE: &str = "mail-token-create";
 pub fn random_hex(n: usize) -> Result<String, String> {
     let mut bytes = vec![0u8; n];
     getrandom::fill(&mut bytes).map_err(|_| "no random source".to_string())?;
-    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+    Ok(encode_hex(&bytes))
 }
 
 /// A token's SHA-256: what the store keeps and the layer compares.
@@ -62,13 +73,9 @@ pub fn same(a: &[u8; 32], b: &[u8; 32]) -> bool {
         == 0
 }
 
-/// A token's name, checked: the person's own words, for display.
-fn name_field(input: &serde_json::Value) -> Result<String, Box<CommandError>> {
-    let name = input
-        .get("name")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or_default()
-        .trim();
+/// Validates a token display name (1 to 64 trimmed characters, no control chars).
+pub(crate) fn validate_name(raw: &str) -> Result<String, Box<CommandError>> {
+    let name = raw.trim();
     if name.is_empty() || name.chars().count() > MOST_NAME || name.chars().any(char::is_control) {
         return Err(Box::new(
             CommandError::new(
@@ -79,6 +86,15 @@ fn name_field(input: &serde_json::Value) -> Result<String, Box<CommandError>> {
         ));
     }
     Ok(name.to_string())
+}
+
+/// A token's name, checked: the person's own words, for display.
+fn name_field(input: &serde_json::Value) -> Result<String, Box<CommandError>> {
+    let raw = input
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    validate_name(raw)
 }
 
 /// A token's role, checked: `"agent"` (the default) or `"approver"`.

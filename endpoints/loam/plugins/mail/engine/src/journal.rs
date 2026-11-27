@@ -34,6 +34,44 @@ pub fn path(home: &Home) -> std::path::PathBuf {
     home.root().join("journal.jsonl")
 }
 
+/// Creates a private file-backed journal sink for `home`. Share one sink per
+/// engine so sequential `seq` numbers stay strictly monotonic across commands
+/// and `pair`/`unpair`.
+#[must_use]
+pub fn sink(home: &Home) -> Arc<dyn JournalSink> {
+    Arc::new(PrivateFile {
+        home: home.clone(),
+        file: FileJournalSink::new(path(home)),
+    })
+}
+
+/// Formats `ms` (milliseconds since the Unix epoch) as UTC RFC 3339
+/// (`YYYY-MM-DDTHH:MM:SS.mmmZ`).
+#[must_use]
+pub fn utc_timestamp_ms(ms: i64) -> String {
+    let secs = ms.div_euclid(1000);
+    let millis = ms.rem_euclid(1000);
+    let days = secs.div_euclid(86_400);
+    let sod = secs.rem_euclid(86_400);
+    let hour = sod / 3600;
+    let minute = (sod % 3600) / 60;
+    let second = sod % 60;
+    // Howard Hinnant's proleptic Gregorian calendar conversion from days since 1970-01-01.
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let mut year = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    if month <= 2 {
+        year += 1;
+    }
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}Z")
+}
+
 /// The crate's JSON Lines file, made private before anything is written to
 /// it.
 struct PrivateFile {
@@ -182,11 +220,8 @@ pub fn recorder(home: &Home, registry: &CommandRegistry, engine: Arc<Engine>) ->
         .filter(|command| command.mutation)
         .map(|command| command.name.clone())
         .collect();
-    let sink = PrivateFile {
-        home: home.clone(),
-        file: FileJournalSink::new(path(home)),
-    };
-    JournalRecorder::new(Arc::new(sink))
+    let sink = engine.journal_sink().unwrap_or_else(|| sink(home));
+    JournalRecorder::new(sink)
         .with_record_failures(true)
         .with_filter(move |command| changes.contains(command))
         // Asked after the call, so a command that opened the store first is

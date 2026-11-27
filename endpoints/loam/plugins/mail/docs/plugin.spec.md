@@ -1016,16 +1016,17 @@ commands = [
 Step 9 adds `loam plugin install` (phase 5's 7.4), and Q2's condition requires an amendment that
 gives it a path with no terminal first. For mail it must provide:
 
-- **The plugin manifest** (`loam-plugin.toml`): the app `mailapp`, the mount package, and the
-  engine: the `loam-mail` artifact and its SHA-256, `kind = "http-service"`. The engine already
-  takes `serve --port <port>`, as 7.4's start line needs.
-- **The entry's declarations,** which the install writes: section 12's `labels`, `approvals`,
-  previews and exposures, declared by the plugin rather than typed by the person.
-- **The approver token with no terminal.** Today only `mail-token-create` at the engine's terminal
-  makes one. The amendment decides how the trusted installer obtains one after the person agrees
-  in the installer's own dialog: for example, a `loam-mail pair --role approver --out <file>`
-  mode the installer runs. That carries the same assurance as the terminal (Umbel's `terminal`;
-  phase 5's T15), and no more. Not specified here.
+- **The plugin manifest** (`loam-plugin.toml`): implemented at `endpoints/loam/plugins/mail/loam-plugin.toml`
+  per [no-terminal-install.amendment.md](../../../docs/phases/5-copilot/no-terminal-install.amendment.md#4-the-plugin-bundle-and-loam-plugintoml-profile-version-1),
+  naming `mail` (`apps/mail`), `mailapp` (`apps/mailapp`), `loam-mail` (`kind = "http-service"`),
+  `auth.mode = "approver"`, `labels = "per-part"`, `approvals = "shell"`, and section 12's previews
+  and exposures.
+- **The approver token with no terminal & pre-bearer `/health` proof:** implemented in the engine
+  per [no-terminal-install.amendment.md](../../../docs/phases/5-copilot/no-terminal-install.amendment.md#5-the-fixed-engine-binary-contract-pre-bearer-proof--keychain-storage):
+  `loam-mail pair --role <approver|agent> --name <name> --accept-consent`,
+  `loam-mail unpair --token-id <tokenId>`, persistent `proofKey` (store migration 25), and
+  unauthenticated `GET /health?nonce=<64-hex>` returning `X-Loam-Proof`. Interactive
+  `mail-token-create` keeps its terminal approval guard.
 - **The service at sign-in** (phase 5's Q2), per operating system.
 - **Windows and Linux.** The engine keeps credentials in the macOS keychain only (its section 2;
   section 12.4's test source is for tests and is never installed),

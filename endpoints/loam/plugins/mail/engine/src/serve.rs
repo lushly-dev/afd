@@ -28,7 +28,7 @@ use axum::extract::{DefaultBodyLimit, Extension, Request, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::middleware::{Next, from_fn_with_state};
 use axum::response::{IntoResponse, Response};
-use axum::routing::post;
+use axum::routing::{get, post};
 use serde_json::json;
 use tower::Service;
 
@@ -45,6 +45,12 @@ pub const MCP_PATH: &str = "/mcp";
 
 /// The command line's route.
 pub const CLI_PATH: &str = "/cli";
+
+/// The pre-bearer identity verification route (amendment 5.2).
+pub const HEALTH_PATH: &str = "/health";
+
+/// The HTTP response header carrying the HMAC-SHA256 `/health` proof.
+pub const PROOF_HEADER: &str = "x-loam-proof";
 
 /// What the server tells agents when they connect.
 const INSTRUCTIONS: &str = "Loam Mail: the person's mail, on their machine. Every value that came \
@@ -135,10 +141,11 @@ fn milliseconds(duration: Duration) -> u64 {
     u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
-/// What the command line's route runs a command with.
+/// What the command line's and `/health` routes run with.
 #[derive(Clone)]
 struct CommandLineRoute {
     registry: Arc<CommandRegistry>,
+    engine: Arc<Engine>,
     call_ms: u64,
 }
 
@@ -219,6 +226,11 @@ async fn check(State(gate): State<Arc<Gate>>, mut request: Request, next: Next) 
             "The server does not answer pages in a browser.",
         );
     }
+    // Pre-bearer `/health` proof (amendment 5.2): bypass bearer authentication
+    // strictly for `GET /health` ONLY, after Host and Origin checks succeed.
+    if request.method() == axum::http::Method::GET && request.uri().path() == HEALTH_PATH {
+        return next.run(request).await;
+    }
     let Some(caller) = gate.caller(headers) else {
         return refuse(
             StatusCode::UNAUTHORIZED,
@@ -293,14 +305,21 @@ async fn command_line(
             "Send {\"command\", \"input\", \"terminal\"} as JSON.",
         );
     };
-    let mut context = crate::cli::command_line_context(call.terminal).with_timeout(route.call_ms);
-    if let Some(approval) = call.approval {
-        context = context.with_approval(approval);
-    }
-    let result = route
-        .registry
-        .execute(&call.command, call.input, Some(context))
-        .await;
+    let result = if let Some(handled) =
+        crate::pair::handle_forwarded(&route.engine, &call.command, call.input.clone()).await
+    {
+        handled
+    } else {
+        let mut context =
+            crate::cli::command_line_context(call.terminal).with_timeout(route.call_ms);
+        if let Some(approval) = call.approval {
+            context = context.with_approval(approval);
+        }
+        route
+            .registry
+            .execute(&call.command, call.input, Some(context))
+            .await
+    };
     match serde_json::to_vec(&result) {
         Ok(body) => {
             let mut response = Response::new(Body::from(body));
@@ -316,6 +335,34 @@ async fn command_line(
             "The result could not be written.",
         ),
     }
+}
+
+/// Unauthenticated `GET /health?nonce=<64-lowercase-hex>` endpoint returning
+/// HTTP `200` + `X-Loam-Proof: <64-hex HMAC-SHA256(proofKey, nonce)>` when the
+/// instance proof key is initialized, or HTTP `400` on invalid/missing nonce
+/// (amendment 5.2).
+async fn health(State(route): State<CommandLineRoute>, uri: axum::http::Uri) -> Response {
+    let Some(nonce) = crate::pair::parse_health_nonce(uri.query()) else {
+        return refuse(
+            StatusCode::BAD_REQUEST,
+            "INVALID_NONCE",
+            "Pass ?nonce=<64 lowercase hex characters>.",
+        );
+    };
+    let mut response = Response::new(Body::empty());
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static("no-store"),
+    );
+    if let Some(key) = route.engine.proof_key()
+        && let Some(proof) = crate::pair::compute_health_proof(&key, nonce)
+        && let Ok(value) = header::HeaderValue::from_str(&proof)
+    {
+        response
+            .headers_mut()
+            .insert(header::HeaderName::from_static(PROOF_HEADER), value);
+    }
+    response
 }
 
 /// The server's routes behind the layer, for a server on `port` that
@@ -351,13 +398,15 @@ pub fn router(
     let gate = Arc::new(Gate {
         hosts,
         cli: tokens::hash(cli_token),
-        engine,
+        engine: Arc::clone(&engine),
     });
     Ok(Router::new()
         .route_service(MCP_PATH, mcp)
         .route(CLI_PATH, post(command_line))
+        .route(HEALTH_PATH, get(health))
         .with_state(CommandLineRoute {
             registry: Arc::clone(registry),
+            engine,
             call_ms: milliseconds(call),
         })
         .layer(DefaultBodyLimit::max(MOST_BODY))
@@ -376,6 +425,10 @@ pub struct ServerEntry {
     /// transports.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transport: Option<String>,
+    /// The server's persistent 64-lowercase-hex non-bearer proof key, verified
+    /// via `/health` before CLI forwarding transmits `cli.token`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proof_key: Option<String>,
 }
 
 /// Removes the server's files when the server stops, however it stops.
@@ -454,6 +507,7 @@ pub async fn serve(
         pid: std::process::id(),
         port,
         transport: Some(engine.transport_tag().to_string()),
+        proof_key: engine.proof_key().map(|key| tokens::encode_hex(&key)),
     };
     let entry = serde_json::to_string(&entry).map_err(|error| error.to_string())?;
     write_private(&server_file(&home), &entry)

@@ -1,0 +1,77 @@
+# Loam Mail plugin bundle manifest (phase 5 no-terminal amendment, section 4; D166).
+# Staging a bundle for `loam plugin pack` packs `mount/` -> `apps/mail`, `app/` -> `apps/mailapp`,
+# places each target's release `loam-mail` binary under `engines/<target>/`, and fills in its SHA-256.
+plugin_manifest_version = 1
+
+[plugin]
+id = "mail"
+title = "Mail"
+version = "0.1.0"
+description = "Local mail sync, search, drafts and reply sets."
+license = "MIT"
+homepage = "https://afd.dev/loam/plugins/mail"
+
+[[apps]]
+id = "mail"
+path = "apps/mail"
+
+[[apps]]
+id = "mailapp"
+path = "apps/mailapp"
+
+[engine]
+id = "loam-mail"
+kind = "http-service"
+mount_app = "mail"
+service_mode = "login"
+
+# Placeholder digest replaced with the built target's SHA-256 when staging a release bundle.
+# Mail currently ships on macOS (`darwin-arm64`) only; `windows-x64` and `linux-x64` join
+# once platform keychains and Windows owner-only file ACLs land (docs/plugin.spec.md §14).
+[engine.artifacts."darwin-arm64"]
+path = "engines/darwin-arm64/loam-mail"
+sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+
+[engine.auth]
+mode = "approver"
+
+[engine.mount]
+audience = "person"
+labels = "per-part"
+approvals = "shell"
+expose = { agent = true, palette = true }
+
+# All four person-approved commands released over MCP (plugin.spec.md sections 5.1 and 12.2):
+[engine.mount.commands."mail-operation-approve"]
+expose = { agent = true, apps = true }
+preview = { command = "mail-operation-show", input = ["operation", "digest"] }
+
+[engine.mount.commands."mail-draft-send"]
+expose = { agent = true, apps = true }
+preview = { command = "mail-draft-show", input = ["draft", "revision"] }
+
+[engine.mount.commands."mail-unsubscribe"]
+expose = { agent = true, apps = true }
+preview = { command = "mail-unsubscribe-show", input = ["message", "digest"] }
+
+[engine.mount.commands."mail-replyset-send"]
+expose = { agent = true, apps = true }
+preview = { command = "mail-replyset-preview", input = ["replyset", "revision"] }
+
+# Fresh-context unit submission (agent-only).
+[engine.mount.commands."mail-replyset-submit"]
+expose = { agent = true }
+
+# Commands the native mail app (`mailapp`) invokes through its `calls` grant
+# (`mail-draft-send` is already exposed to `apps` above).
+[engine.mount.commands."mail-thread-open"]
+expose = { agent = true, palette = true, apps = true }
+
+[engine.mount.commands."mail-draft-show"]
+expose = { agent = true, palette = true, apps = true }
+
+[engine.mount.commands."mail-draft-create"]
+expose = { agent = true, palette = true, apps = true }
+
+[engine.mount.commands."mail-draft-update"]
+expose = { agent = true, palette = true, apps = true }
