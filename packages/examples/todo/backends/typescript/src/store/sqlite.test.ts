@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createMcpServer } from '@lushly-dev/afd-server';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTodoServerOptions } from '../server-options.js';
 import { DEFAULT_SEED_PATH } from './file.js';
 import { createStore, DEFAULT_SQLITE_PATH, setStore } from './index.js';
@@ -28,6 +28,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	// A test that pins the clock restores it here too, even when it timed out mid-run.
+	vi.restoreAllMocks();
 	for (const each of open.splice(0)) each.close();
 	rmSync(dir, { recursive: true, force: true });
 });
@@ -185,15 +187,38 @@ describe('SqliteStore', () => {
 		expect(() => new SqliteStore(join(notADirectory, 'todos.db'))).toThrow();
 	});
 
+	// A row's order is the clock's millisecond times 1000, plus one for each write after the first in
+	// that millisecond. The clock is pinned so more than a thousand writes land in one millisecond and
+	// run past the next millisecond's first order; then it moves on by one millisecond, whose writes
+	// must still come after them. The ids sort in reverse of the writes, so equal orders would come
+	// back by id and fail the comparison. The first 1,002 rows go in through the seed, one synced
+	// commit, and the rest through `create`, one commit each, so the test makes ten disk syncs, not a
+	// thousand (#2799).
 	it('keeps order past a thousand writes in one millisecond', async () => {
-		const db = store();
+		const pinned = Date.parse('2026-11-15T09:00:00.000Z');
+		let clock = pinned;
+		vi.spyOn(Date, 'now').mockImplementation(() => clock);
 		const memory = new TodoStore();
 		const stamp = { now: '2026-11-15T09:00:00.000Z', newId: () => '' };
-		for (let index = 0; index < 1500; index++) {
-			const fixed = { ...stamp, newId: () => `todo-${String(index).padStart(5, '0')}` };
-			memory.create({ title: `Todo ${index}` }, fixed);
-			await db.create({ title: `Todo ${index}` }, fixed);
-		}
+		const at = (index: number) => ({
+			...stamp,
+			newId: () => `todo-${String(9999 - index).padStart(5, '0')}`,
+		});
+		const seedPath = join(dir, 'seed.json');
+		const seed = Array.from({ length: 1002 }, (_, index) =>
+			memory.create({ title: `Todo ${index}` }, at(index))
+		);
+		writeFileSync(seedPath, JSON.stringify(seed));
+		const db = new SqliteStore(join(dir, 'todos.db'), { seedPath });
+		open.push(db);
+		await db.check();
+		const write = async (index: number) => {
+			memory.create({ title: `Todo ${index}` }, at(index));
+			await db.create({ title: `Todo ${index}` }, at(index));
+		};
+		for (let index = 1002; index < 1005; index++) await write(index);
+		clock = pinned + 1;
+		for (let index = 1005; index < 1010; index++) await write(index);
 		const ids = (todos: { id: string }[]) => todos.map((todo) => todo.id);
 		expect(ids(await db.list({ sortOrder: 'asc' }))).toEqual(
 			ids(memory.list({ sortOrder: 'asc' }))
