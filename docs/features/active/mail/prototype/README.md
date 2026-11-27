@@ -37,7 +37,9 @@ message is marked read and nothing is moved or deleted.
 
 **What it writes.** Counts and distributions only. Addresses, subjects and thread ids are hashed
 with a key that exists in memory for the run alone, and no hash is written. Mailbox names are not
-written. The file can be committed here as the record of the run.
+written. The counts still describe a real person's mail, so keep the file out of this repository:
+the records of the owner's runs below were removed from it
+([#2687](https://github.com/lushly-dev/afd/issues/2687)), and only the summaries here remain.
 
 **What it answers.** Q1, the share of all messages in a recurring template with no
 list-unsubscribe header, with the share of inbound mail alone and a variant that leaves replies out
@@ -66,8 +68,8 @@ a check on the header-level template, not a measure the thresholds use.
 
 ## The iCloud run
 
-Run 2026-11-10 on the owner's iCloud account, whole account, with version 3 of the tool. The record
-is [`icloud.counts.json`](icloud.counts.json). Version 3 named the count of messages listed but not
+Run 2026-11-10 on the owner's iCloud account, whole account, with version 3 of the tool. Its record
+is not kept in the repository. Version 3 named the count of messages listed but not
 returned `vanished_before_fetch`; version 4 calls it `listed_not_returned`.
 
 | Measure | Result | Threshold | Outcome |
@@ -92,8 +94,7 @@ it cannot wait for every listed message before it calls a mailbox synced.
 **One folder is 93% of the account.** The largest mailbox holds 283 721 of the 304 956 listed
 messages. The owner identified it as mail from GitHub that an automation files there, which he is
 keeping for now as a test of large folders and, later, of a whole-folder delete. So the whole-account figures mostly describe GitHub notifications. A second run on
-2026-11-11 left that mailbox out (`--skip-over 100000`, tool version 5;
-[`icloud-without-largest.counts.json`](icloud-without-largest.counts.json)): 21 248 messages,
+2026-11-11 left that mailbox out (`--skip-over 100000`, tool version 5): 21 248 messages,
 complete, every listed message returned.
 
 | Measure | Whole account | Without the largest mailbox | Threshold |
@@ -112,8 +113,8 @@ step 0.4.
 ## The Gmail run
 
 Run 2026-11-11 on the owner's Gmail account with version 5 of the tool, over IMAP with an app
-password, reading All Mail (which leaves out Spam and Trash). The record is
-[`gmail.counts.json`](gmail.counts.json): 17 937 messages (1.8 GB), complete, no errors, every listed
+password, reading All Mail (which leaves out Spam and Trash). Its record is not kept in the
+repository: 17 937 messages (1.8 GB), complete, no errors, every listed
 message returned, in 131 seconds.
 
 | Measure | Result | Threshold | Outcome |
@@ -148,7 +149,7 @@ cd store-bench
 cargo build --release
 ./target/release/loam_mail_store_bench --messages 500000 --out ../store-500000.results.json
 # With a census file, the shares of templated mail and of replies follow it:
-./target/release/loam_mail_store_bench --messages 500000 --census ../icloud.counts.json
+./target/release/loam_mail_store_bench --messages 500000 --census path/to/your.counts.json
 ```
 
 Results of 2026-11-10 on an Apple silicon Mac, with the default shape (six in ten

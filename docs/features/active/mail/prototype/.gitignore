@@ -1,0 +1,2 @@
+# A census run describes a real mailbox: keep its output out of the repository (#2687).
+*.counts.json
