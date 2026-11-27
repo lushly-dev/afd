@@ -27,6 +27,7 @@ export const testFiles = [
 	'scripts/maturity.test.mjs',
 	'scripts/check-site.test.mjs',
 	'scripts/gate-discipline.test.mjs',
+	'scripts/health-history.test.mjs',
 	'scripts/measures-producers.test.mjs',
 	'scripts/check-versions.test.mjs',
 	'scripts/repository-contract.test.mjs',

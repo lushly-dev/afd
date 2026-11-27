@@ -68,6 +68,11 @@ optional `target` and `source`) in the report. Health reads only the files you p
 runs no producer script. See [`config.py`](src/lushly_health/config.py) and
 [`measures.py`](src/lushly_health/measures.py) for the formats.
 
+In AFD, the Health history workflow runs the producers and this audit on `main` once a day and
+keeps each report on the `health-history` branch as `reports/<YYYY-MM-DD>.json`. Reports 366 days
+or more older than the newest are removed from the tree, and the branch's history keeps them. The
+[dashboard's README](../health-dashboard/README.md) says how to load them.
+
 ```python
 from pathlib import Path
 from lushly_health import ArtifactScope, Policy, Target, audit, write_report

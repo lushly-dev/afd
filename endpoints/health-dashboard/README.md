@@ -49,6 +49,17 @@ Create a report with Health, for example:
 python -m lushly_health audit --targets targets.toml --policy policy.toml --output-dir health-reports
 ```
 
+AFD's own reports are kept on the `health-history` branch, one a day as
+`reports/<YYYY-MM-DD>.json`, with the measures of every producer (the bloat sweep, cognitive
+complexity, test counts, the test-change report, coverage and Alfred). The Health history
+workflow (`.github/workflows/health-history.yml`, `scripts/health-history.mjs`) writes it when
+CI's daily run on `main` finishes, measuring `main` as it stands then, with that run's coverage,
+under the UTC day the run started. It records nothing for a day whose Node 26 leg failed, since
+that leg's coverage is then partial. A second run for the same day replaces that day's report.
+Reports dated 366 days or more before the newest are removed from the tree (the branch's history
+keeps them), and nothing else writes the branch. To load a few:
+`git fetch origin health-history` and `git archive FETCH_HEAD reports | tar -x`.
+
 ## What it shows
 
 Per report: the generator, schema and generation time (UTC), an overall verdict with
