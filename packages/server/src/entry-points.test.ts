@@ -53,6 +53,8 @@ interface EsbuildApi {
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PACKAGE_NAME = '@lushly-dev/afd-server';
+/** Headroom for esbuild bundling and subprocess checks under heavy machine load (#2760). */
+const BUNDLE_TIMEOUT_MS = 30_000;
 
 interface ExportConditions {
 	types: string;
@@ -161,27 +163,35 @@ describe('@lushly-dev/afd-server/define', () => {
 		expect(define.defaultExpose).toBe(root.defaultExpose);
 	});
 
-	it('bundles for the browser with no MCP SDK or Node builtin in its module graph', async () => {
-		const result = await bundleForBrowser(`${PACKAGE_NAME}/define`);
+	it(
+		'bundles for the browser with no MCP SDK or Node builtin in its module graph',
+		async () => {
+			const result = await bundleForBrowser(`${PACKAGE_NAME}/define`);
 
-		expect(result.errors.map((message) => message.text)).toEqual([]);
-		const inputs = Object.keys(result.metafile?.inputs ?? {});
-		expect(inputs.some((input) => input.endsWith('src/schema.ts'))).toBe(true);
-		expect(inputs.some((input) => input.endsWith('core/dist/commands.js'))).toBe(true);
-		expect(inputs.filter((input) => /modelcontextprotocol|^node:/.test(input))).toEqual([]);
-		expect(inputs.filter((input) => MCP_AUTH_LAYER.test(input))).toEqual([]);
-		// Only the narrow core subpaths: not the core root, and nothing that needs Node.js.
-		expect(
-			inputs.filter((input) => /core\/dist\/index\.js/.test(input) || NODE_ONLY_CORE.test(input))
-		).toEqual([]);
-	});
+			expect(result.errors.map((message) => message.text)).toEqual([]);
+			const inputs = Object.keys(result.metafile?.inputs ?? {});
+			expect(inputs.some((input) => input.endsWith('src/schema.ts'))).toBe(true);
+			expect(inputs.some((input) => input.endsWith('core/dist/commands.js'))).toBe(true);
+			expect(inputs.filter((input) => /modelcontextprotocol|^node:/.test(input))).toEqual([]);
+			expect(inputs.filter((input) => MCP_AUTH_LAYER.test(input))).toEqual([]);
+			// Only the narrow core subpaths: not the core root, and nothing that needs Node.js.
+			expect(
+				inputs.filter((input) => /core\/dist\/index\.js/.test(input) || NODE_ONLY_CORE.test(input))
+			).toEqual([]);
+		},
+		BUNDLE_TIMEOUT_MS
+	);
 
-	it('the root entry, by contrast, cannot be bundled for the browser', async () => {
-		const result = await bundleForBrowser(PACKAGE_NAME);
+	it(
+		'the root entry, by contrast, cannot be bundled for the browser',
+		async () => {
+			const result = await bundleForBrowser(PACKAGE_NAME);
 
-		const texts = result.errors.map((message) => message.text).join('\n');
-		expect(texts).toMatch(/node:(http|tls|child_process)/);
-	});
+			const texts = result.errors.map((message) => message.text).join('\n');
+			expect(texts).toMatch(/node:(http|tls|child_process)/);
+		},
+		BUNDLE_TIMEOUT_MS
+	);
 });
 
 describe('@lushly-dev/afd-server/credentials', () => {
@@ -192,18 +202,22 @@ describe('@lushly-dev/afd-server/credentials', () => {
 		});
 	});
 
-	it('bundles for the browser as the brand module alone', async () => {
-		const result = await bundleForBrowser(`${PACKAGE_NAME}/credentials`);
+	it(
+		'bundles for the browser as the brand module alone',
+		async () => {
+			const result = await bundleForBrowser(`${PACKAGE_NAME}/credentials`);
 
-		expect(result.errors.map((message) => message.text)).toEqual([]);
-		const inputs = Object.keys(result.metafile?.inputs ?? {}).filter(
-			(input) => input !== 'browser-entry.js'
-		);
-		expect(inputs.map((input) => input.replace(/^.*\/src\//, 'src/')).sort()).toEqual([
-			'src/credentials.ts',
-			'src/verified-credentials.ts',
-		]);
-	});
+			expect(result.errors.map((message) => message.text)).toEqual([]);
+			const inputs = Object.keys(result.metafile?.inputs ?? {}).filter(
+				(input) => input !== 'browser-entry.js'
+			);
+			expect(inputs.map((input) => input.replace(/^.*\/src\//, 'src/')).sort()).toEqual([
+				'src/credentials.ts',
+				'src/verified-credentials.ts',
+			]);
+		},
+		BUNDLE_TIMEOUT_MS
+	);
 });
 
 const HOST_IMPORTS =
@@ -405,71 +419,85 @@ describe('@lushly-dev/afd-server/direct', () => {
 		}
 	});
 
-	it('bundles for the browser with no MCP SDK or Node builtin in its module graph', async () => {
-		const result = await bundleForBrowser(`${PACKAGE_NAME}/direct`);
+	it(
+		'bundles for the browser with no MCP SDK or Node builtin in its module graph',
+		async () => {
+			const result = await bundleForBrowser(`${PACKAGE_NAME}/direct`);
 
-		expect(result.errors.map((message) => message.text)).toEqual([]);
-		const inputs = Object.keys(result.metafile?.inputs ?? {});
-		expect(inputs.some((input) => input.endsWith('src/direct-registry.ts'))).toBe(true);
-		expect(inputs.some((input) => input.endsWith('src/journal-replay.ts'))).toBe(true);
-		expect(inputs.some((input) => input.endsWith('src/approval-crypto.ts'))).toBe(true);
-		expect(inputs.filter((input) => /modelcontextprotocol|^node:/.test(input))).toEqual([]);
-		expect(inputs.filter((input) => NODE_ONLY_CORE.test(input))).toEqual([]);
-		// MCP authorization (spec/authorization.md) is the HTTP layer's: none of it, nor jose.
-		expect(inputs.filter((input) => MCP_AUTH_LAYER.test(input))).toEqual([]);
-		// Server-only deadlines (#543) must not grow in-process hosts that do not use them.
-		expect(inputs.filter((input) => input.endsWith('src/command-timeout.ts'))).toEqual([]);
-	});
+			expect(result.errors.map((message) => message.text)).toEqual([]);
+			const inputs = Object.keys(result.metafile?.inputs ?? {});
+			expect(inputs.some((input) => input.endsWith('src/direct-registry.ts'))).toBe(true);
+			expect(inputs.some((input) => input.endsWith('src/journal-replay.ts'))).toBe(true);
+			expect(inputs.some((input) => input.endsWith('src/approval-crypto.ts'))).toBe(true);
+			expect(inputs.filter((input) => /modelcontextprotocol|^node:/.test(input))).toEqual([]);
+			expect(inputs.filter((input) => NODE_ONLY_CORE.test(input))).toEqual([]);
+			// MCP authorization (spec/authorization.md) is the HTTP layer's: none of it, nor jose.
+			expect(inputs.filter((input) => MCP_AUTH_LAYER.test(input))).toEqual([]);
+			// Server-only deadlines (#543) must not grow in-process hosts that do not use them.
+			expect(inputs.filter((input) => input.endsWith('src/command-timeout.ts'))).toEqual([]);
+		},
+		BUNDLE_TIMEOUT_MS
+	);
 
-	it('keeps the tool surface out of a registry that does not ask for it', async () => {
-		const specifier = `${PACKAGE_NAME}/direct`;
-		const bundle = (imports: string) =>
-			bundleForBrowser(specifier, {
+	it(
+		'keeps the tool surface out of a registry that does not ask for it',
+		async () => {
+			const specifier = `${PACKAGE_NAME}/direct`;
+			const bundle = (imports: string) =>
+				bundleForBrowser(specifier, {
+					minify: true,
+					external: ['zod', 'zod/*'],
+					stdin: {
+						contents: `export { ${imports} } from '${specifier}';`,
+						resolveDir: packageRoot,
+						sourcefile: 'browser-entry.js',
+					},
+				});
+
+			const [hostBundle, surfaceBundle] = await Promise.all([
+				bundle(HOST_IMPORTS),
+				bundle(`${HOST_IMPORTS}, createDirectToolSurface`),
+			]);
+			expect(hostBundle.errors.map((message) => message.text)).toEqual([]);
+			const host = modulesInOutput(hostBundle);
+			expect(host.some((path) => path.endsWith('src/direct-registry.ts'))).toBe(true);
+			expect(host.filter((path) => TOOL_SURFACE_MODULES.test(path))).toEqual([]);
+			// App-to-app calls (spec/command-metadata.md) cost a host only when it imports their registry.
+			expect(host.filter((path) => /src\/app-call(s|-registry)\.(ts|js)$/.test(path))).toEqual([]);
+
+			// The router and the tool list load no Node.js built-in since the confirmation gate moved
+			// out of confirmations.ts, so the surface bundles for the browser too.
+			expect(surfaceBundle.errors.map((message) => message.text)).toEqual([]);
+			const surface = modulesInOutput(surfaceBundle);
+			expect(surface.some((path) => path.endsWith('src/tool-router.ts'))).toBe(true);
+			expect(surface.some((path) => path.endsWith('src/tools.ts'))).toBe(true);
+			expect(surface.filter((path) => /^node:|modelcontextprotocol/.test(path))).toEqual([]);
+		},
+		BUNDLE_TIMEOUT_MS
+	);
+
+	it.each(DIRECT_BUDGETS)(
+		'keeps $what within $bytes bytes minified',
+		async (budget) => {
+			const specifier = `${PACKAGE_NAME}/direct`;
+			const result = await bundleForBrowser(specifier, {
 				minify: true,
 				external: ['zod', 'zod/*'],
-				stdin: {
-					contents: `export { ${imports} } from '${specifier}';`,
-					resolveDir: packageRoot,
-					sourcefile: 'browser-entry.js',
-				},
+				...(budget.imports && {
+					stdin: {
+						contents: `export { ${budget.imports} } from '${specifier}';`,
+						resolveDir: packageRoot,
+						sourcefile: 'browser-entry.js',
+					},
+				}),
 			});
 
-		const hostBundle = await bundle(HOST_IMPORTS);
-		expect(hostBundle.errors.map((message) => message.text)).toEqual([]);
-		const host = modulesInOutput(hostBundle);
-		expect(host.some((path) => path.endsWith('src/direct-registry.ts'))).toBe(true);
-		expect(host.filter((path) => TOOL_SURFACE_MODULES.test(path))).toEqual([]);
-		// App-to-app calls (spec/command-metadata.md) cost a host only when it imports their registry.
-		expect(host.filter((path) => /src\/app-call(s|-registry)\.(ts|js)$/.test(path))).toEqual([]);
-
-		// The router and the tool list load no Node.js built-in since the confirmation gate moved
-		// out of confirmations.ts, so the surface bundles for the browser too.
-		const surfaceBundle = await bundle(`${HOST_IMPORTS}, createDirectToolSurface`);
-		expect(surfaceBundle.errors.map((message) => message.text)).toEqual([]);
-		const surface = modulesInOutput(surfaceBundle);
-		expect(surface.some((path) => path.endsWith('src/tool-router.ts'))).toBe(true);
-		expect(surface.some((path) => path.endsWith('src/tools.ts'))).toBe(true);
-		expect(surface.filter((path) => /^node:|modelcontextprotocol/.test(path))).toEqual([]);
-	});
-
-	it.each(DIRECT_BUDGETS)('keeps $what within $bytes bytes minified', async (budget) => {
-		const specifier = `${PACKAGE_NAME}/direct`;
-		const result = await bundleForBrowser(specifier, {
-			minify: true,
-			external: ['zod', 'zod/*'],
-			...(budget.imports && {
-				stdin: {
-					contents: `export { ${budget.imports} } from '${specifier}';`,
-					resolveDir: packageRoot,
-					sourcefile: 'browser-entry.js',
-				},
-			}),
-		});
-
-		expect(result.errors.map((message) => message.text)).toEqual([]);
-		const size = result.outputFiles?.[0]?.contents.length ?? Number.POSITIVE_INFINITY;
-		expect(size).toBeLessThanOrEqual(budget.bytes);
-	});
+			expect(result.errors.map((message) => message.text)).toEqual([]);
+			const size = result.outputFiles?.[0]?.contents.length ?? Number.POSITIVE_INFINITY;
+			expect(size).toBeLessThanOrEqual(budget.bytes);
+		},
+		BUNDLE_TIMEOUT_MS
+	);
 });
 
 /** What a host on the lean path imports from AFD. */
@@ -510,21 +538,31 @@ describe('the lean schema path', () => {
 				.flatMap((path) => result.metafile?.inputs[path]?.imports ?? [])
 				.map((imported) => imported.path);
 			expect(importedByAfd.filter((path) => NOT_LEAN.test(path))).toEqual([]);
-		}
+		},
+		BUNDLE_TIMEOUT_MS
 	);
 
-	it('defineCommand, by contrast, brings toJSONSchema and still no classic Zod', async () => {
-		const result = await bundleImports(`${PACKAGE_NAME}/direct`, `${LEAN_IMPORTS}, defineCommand`);
+	it(
+		'defineCommand, by contrast, brings toJSONSchema and still no classic Zod',
+		async () => {
+			const result = await bundleImports(
+				`${PACKAGE_NAME}/direct`,
+				`${LEAN_IMPORTS}, defineCommand`
+			);
 
-		const output = modulesInOutput(result);
-		expect(output.some((path) => /json-schema-processors\.js$/.test(path))).toBe(true);
-		expect(output.filter((path) => /zod\/(index\.js|v4\/classic\/)/.test(path))).toEqual([]);
-	});
+			const output = modulesInOutput(result);
+			expect(output.some((path) => /json-schema-processors\.js$/.test(path))).toBe(true);
+			expect(output.filter((path) => /zod\/(index\.js|v4\/classic\/)/.test(path))).toEqual([]);
+		},
+		BUNDLE_TIMEOUT_MS
+	);
 
-	it('runs a Zod Mini host with no locale, and its errors stay actionable', async () => {
-		const result = await bundleForBrowser(`${PACKAGE_NAME}/direct`, {
-			stdin: {
-				contents: `
+	it(
+		'runs a Zod Mini host with no locale, and its errors stay actionable',
+		async () => {
+			const result = await bundleForBrowser(`${PACKAGE_NAME}/direct`, {
+				stdin: {
+					contents: `
 					import * as z from 'zod/mini';
 					import {
 						createDirectRegistry,
@@ -552,23 +590,25 @@ describe('the lean schema path', () => {
 						tools: registry.listCommands(),
 					}));
 				`,
-				resolveDir: packageRoot,
-				sourcefile: 'browser-entry.js',
-			},
-		});
-		expect(result.errors.map((message) => message.text)).toEqual([]);
-		expect(modulesInOutput(result).filter((path) => NOT_LEAN.test(path))).toEqual([]);
+					resolveDir: packageRoot,
+					sourcefile: 'browser-entry.js',
+				},
+			});
+			expect(result.errors.map((message) => message.text)).toEqual([]);
+			expect(modulesInOutput(result).filter((path) => NOT_LEAN.test(path))).toEqual([]);
 
-		const code = new TextDecoder().decode(result.outputFiles?.[0]?.contents);
-		const printed = JSON.parse(
-			execFileSync(process.execPath, ['--input-type=module'], { input: code, encoding: 'utf8' })
-		);
+			const code = new TextDecoder().decode(result.outputFiles?.[0]?.contents);
+			const printed = JSON.parse(
+				execFileSync(process.execPath, ['--input-type=module'], { input: code, encoding: 'utf8' })
+			);
 
-		expect(printed.opened.data).toEqual({ id: 'settings' });
-		expect(printed.refused.error.code).toBe('VALIDATION_ERROR');
-		expect(printed.refused.error.suggestion).toContain(
-			'id: Invalid input: expected string, received number'
-		);
-		expect(printed.tools[0].inputSchema.required).toEqual(['id']);
-	});
+			expect(printed.opened.data).toEqual({ id: 'settings' });
+			expect(printed.refused.error.code).toBe('VALIDATION_ERROR');
+			expect(printed.refused.error.suggestion).toContain(
+				'id: Invalid input: expected string, received number'
+			);
+			expect(printed.tools[0].inputSchema.required).toEqual(['id']);
+		},
+		BUNDLE_TIMEOUT_MS
+	);
 });

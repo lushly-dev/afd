@@ -10,6 +10,8 @@ every such string through :func:`terminal_text`; JSON output needs nothing, sinc
 
 from __future__ import annotations
 
+import contextlib
+import sys
 from typing import Any
 
 _ESC = 0x1B
@@ -105,3 +107,17 @@ def sanitize_for_terminal(text: str) -> str:
 def terminal_text(value: Any) -> str:
     """``value`` as a string that is safe to print to a terminal."""
     return sanitize_for_terminal(value if isinstance(value, str) else str(value))
+
+
+def configure_stdio() -> None:
+    """Reconfigure ``sys.stdout`` and ``sys.stderr`` to UTF-8 with replacement.
+
+    Windows consoles and redirected pipes can default to a legacy code page such
+    as ``cp1252`` with strict error handling, where Unicode status symbols,
+    progress bars, and ``ensure_ascii=False`` JSON raise ``UnicodeEncodeError``.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            with contextlib.suppress(OSError, ValueError):
+                reconfigure(encoding="utf-8", errors="replace")

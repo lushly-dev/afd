@@ -12,11 +12,14 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { LOAM_DISABLED_PATHS } from '@lushly-dev/loam-identity';
 import { seedTestPeople, TEST_RATE_LIMIT } from '@lushly-dev/loam-identity/testing';
-import { afterEach, describe, expect, it } from 'vitest';
-import { runBootstrap, withBootstrapProvider } from './bootstrap.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+	runBootstrap as rawRunBootstrap,
+	withBootstrapProvider as rawWithBootstrapProvider,
+} from './bootstrap.js';
 import { environmentFindings } from './check.js';
-import { runHostCli } from './cli.js';
-import { type DevProfile, runDev } from './dev.js';
+import { runHostCli as rawRunHostCli } from './cli.js';
+import { type DevProfile, runDev as rawRunDev } from './dev.js';
 import { CLIENT_ADDRESS_HEADER, setClientAddress } from './gate.js';
 import { INERT_POLICY } from './headers.js';
 import { createLoamHost } from './host.js';
@@ -36,8 +39,54 @@ const PROVIDER =
 	'[workspace]\nid = "acme"\n\n[identity]\nmode = "provider"\norganization = "acme"\nmethods = ["passkey", "password"]\n\n';
 const PASSWORD = 'correct horse battery staple';
 const running: DevProfile[] = [];
+/**
+ * Tracks every lock-acquiring helper call so `afterEach` can settle in-flight operations and reject any
+ * continuation a timed-out test attempts after teardown begins, before `rm` runs on Windows (#2760).
+ */
+function createTeardownTracker() {
+	const inFlight: Promise<unknown>[] = [];
+	let closed = false;
+	return {
+		reset() {
+			closed = false;
+		},
+		run<T>(start: () => Promise<T>): Promise<T> {
+			if (closed) return Promise.reject(new Error('test teardown already started'));
+			const promise = start();
+			inFlight.push(
+				promise.then(
+					() => undefined,
+					() => undefined
+				)
+			);
+			return promise;
+		},
+		async drain(closeRunning: () => Promise<void>): Promise<void> {
+			closed = true;
+			while (inFlight.length > 0 || running.length > 0) {
+				await Promise.allSettled(inFlight.splice(0));
+				await closeRunning();
+			}
+		},
+	};
+}
+
+const tracker = createTeardownTracker();
+const runBootstrap: typeof rawRunBootstrap = (...args) =>
+	tracker.run(() => rawRunBootstrap(...args));
+const withBootstrapProvider: typeof rawWithBootstrapProvider = (...args) =>
+	tracker.run(() => rawWithBootstrapProvider(...args));
+const runHostCli: typeof rawRunHostCli = (...args) => tracker.run(() => rawRunHostCli(...args));
+const runDev: typeof rawRunDev = (...args) => tracker.run(() => rawRunDev(...args));
+
+beforeEach(() => {
+	tracker.reset();
+});
+
 afterEach(async () => {
-	await Promise.all(running.splice(0).map((profile) => profile.host.close()));
+	await tracker.drain(async () => {
+		await Promise.all(running.splice(0).map((profile) => profile.host.close()));
+	});
 });
 
 async function setup(body = PROVIDER) {
@@ -72,9 +121,11 @@ async function dev(
 	dist: string,
 	rateLimit: { window: number; max: number } | null = TEST_RATE_LIMIT
 ): Promise<DevProfile> {
-	const profile = await runDev({ deployment, dist, ...(rateLimit ? { rateLimit } : {}) });
-	running.push(profile);
-	return profile;
+	return await tracker.run(async () => {
+		const profile = await rawRunDev({ deployment, dist, ...(rateLimit ? { rateLimit } : {}) });
+		running.push(profile);
+		return profile;
+	});
 }
 
 /** One request to the profile over TLS, with its own `Host`, its `Origin` unless told otherwise. */
@@ -872,5 +923,41 @@ describe("I1: the provider's path never shadows the hosted server's own routes",
 		const health = await call(profile, '/api/health');
 		expect([health.status, JSON.parse(health.body)]).toEqual([200, { ok: true }]);
 		expect((await call(profile, '/api/auth/ok')).status).toBe(200);
+	});
+});
+
+describe('teardown tracker (#2760)', () => {
+	it('waits for a deferred bootstrap to finish and refuses follow-up resource acquisition after drain starts', async () => {
+		const local = createTeardownTracker();
+		let releaseBootstrap!: () => void;
+		const events: string[] = [];
+		let continuationStarted = false;
+
+		const deferredFlow = (async () => {
+			await local.run(
+				() =>
+					new Promise<void>((resolve) => {
+						events.push('bootstrap-started');
+						releaseBootstrap = () => {
+							events.push('bootstrap-finished');
+							resolve();
+						};
+					})
+			);
+			await local.run(async () => {
+				continuationStarted = true;
+				events.push('continuation-acquired');
+			});
+		})();
+
+		const draining = local.drain(async () => {
+			events.push('drained');
+		});
+		releaseBootstrap();
+
+		await expect(deferredFlow).rejects.toThrow('test teardown already started');
+		await draining;
+		expect(continuationStarted).toBe(false);
+		expect(events).toEqual(['bootstrap-started', 'bootstrap-finished', 'drained']);
 	});
 });

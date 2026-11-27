@@ -36,6 +36,8 @@ import { LIMIT_KEY_ORDER, QUARTER_ORDER } from './limit-commands.js';
 import { LIMITS_SECTION } from './setting-sections.js';
 
 const kernels: LoamKernel[] = [];
+/** Headroom for tests that issue >200 sequential journaled port calls under CPU load (#2760). */
+const BURST_TEST_TIMEOUT_MS = 30_000;
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -249,31 +251,35 @@ describe("P4-E10: each limit's refusal (section 11, 16)", () => {
 		);
 	});
 
-	it('refuses calls over callsPerSecond, after the burst of 200, with when to retry', async () => {
-		const { kernel } = await workspace({ empty: true });
-		expect((await setLimit(kernel, 'callsPerSecond', 5)).success).toBe(true);
-		const port = kernel.appPort('dual');
-		let refused: Awaited<ReturnType<typeof port.call>> | undefined;
-		let made = 0;
-		while (!refused && made < 400) {
-			const result = await port.call('dual-where', {});
-			made += 1;
-			if (!result.success) refused = result;
-		}
-		// The burst, plus what the stepping clock's milliseconds refilled at 5 a second.
-		expect(made).toBeGreaterThan(200);
-		expect(refused?.error).toMatchObject({
-			code: 'RATE_LIMITED',
-			retryable: true,
-			details: { limit: 5 },
-		});
-		const { retryAfterMs } = (refused?.error?.details ?? {}) as { retryAfterMs: number };
-		expect(retryAfterMs).toBeGreaterThan(0);
-		expect(retryAfterMs).toBeLessThanOrEqual(200);
-		expect(refused?.error?.suggestion).toContain('loam.limits.callsPerSecond');
-		// Another app's rate is its own.
-		expect((await kernel.appPort('solo').call('solo-where', {})).success).toBe(true);
-	});
+	it(
+		'refuses calls over callsPerSecond, after the burst of 200, with when to retry',
+		async () => {
+			const { kernel } = await workspace({ empty: true });
+			expect((await setLimit(kernel, 'callsPerSecond', 5)).success).toBe(true);
+			const port = kernel.appPort('dual');
+			let refused: Awaited<ReturnType<typeof port.call>> | undefined;
+			let made = 0;
+			while (!refused && made < 400) {
+				const result = await port.call('dual-where', {});
+				made += 1;
+				if (!result.success) refused = result;
+			}
+			// The burst, plus what the stepping clock's milliseconds refilled at 5 a second.
+			expect(made).toBeGreaterThan(200);
+			expect(refused?.error).toMatchObject({
+				code: 'RATE_LIMITED',
+				retryable: true,
+				details: { limit: 5 },
+			});
+			const { retryAfterMs } = (refused?.error?.details ?? {}) as { retryAfterMs: number };
+			expect(retryAfterMs).toBeGreaterThan(0);
+			expect(retryAfterMs).toBeLessThanOrEqual(200);
+			expect(refused?.error?.suggestion).toContain('loam.limits.callsPerSecond');
+			// Another app's rate is its own.
+			expect((await kernel.appPort('solo').call('solo-where', {})).success).toBe(true);
+		},
+		BURST_TEST_TIMEOUT_MS
+	);
 
 	it('refuses a store write past storeBytes, with its details, and counts what is kept', async () => {
 		const { kernel, store } = await workspace({ empty: true });
@@ -365,38 +371,42 @@ describe('P4-E10: limit-usage-get (section 11, F3)', () => {
 		);
 	});
 
-	it("counts a refusal of every limit the kernel enforces on one instance (F3); messageBytes is the broker's", async () => {
-		const { kernel } = await workspace({ empty: true });
-		const port = kernel.appPort('dual');
-		// inputBytes, at the port.
-		expect((await port.call('dual-put', { key: 'a', value: 'x'.repeat(300_000) })).success).toBe(
-			false
-		);
-		// journalEntryBytes, a person's call to the app's command over the journal entry.
-		await kernel.call('dual-put', { key: 'b', value: 'x'.repeat(1_100_000) });
-		// storeBytes, with the quota at its least.
-		expect((await setLimit(kernel, 'inputBytes', 65_536)).success).toBe(true);
-		expect((await setLimit(kernel, 'storeBytes', 1_048_576)).success).toBe(true);
-		let stored: { success: boolean } = { success: true };
-		for (let index = 0; stored.success && index < 40; index += 1)
-			stored = await port.call('dual-put', { key: `s${index}`, value: 'v'.repeat(60_000) });
-		expect(stored.success).toBe(false);
-		// callsPerSecond, past the burst.
-		expect((await setLimit(kernel, 'callsPerSecond', 5)).success).toBe(true);
-		let paced: { success: boolean } = { success: true };
-		for (let index = 0; paced.success && index < 400; index += 1)
-			paced = await port.call('dual-where', {});
-		expect(paced.success).toBe(false);
-		const dual = (await kernel.call<Usage>('limit-usage-get', { instance: 'dual' })).data
-			?.instances[0];
-		expect(dual?.storeBytes.limit).toBe(1_048_576);
-		for (const key of ['inputBytes', 'callsPerSecond', 'storeBytes', 'journalEntryBytes'])
-			expect(dual?.refusals[key], key).toBeGreaterThanOrEqual(1);
-		// Every one of section 11's limits is reported, the broker's own messageBytes among them (its count is
-		// `view-broker.test.ts`'s, for a view; dual is native, so none here).
-		expect(Object.keys(dual?.refusals ?? {}).sort()).toEqual([...LIMIT_KEYS].sort());
-		expect(dual?.refusals.messageBytes).toBe(0);
-	});
+	it(
+		"counts a refusal of every limit the kernel enforces on one instance (F3); messageBytes is the broker's",
+		async () => {
+			const { kernel } = await workspace({ empty: true });
+			const port = kernel.appPort('dual');
+			// inputBytes, at the port.
+			expect((await port.call('dual-put', { key: 'a', value: 'x'.repeat(300_000) })).success).toBe(
+				false
+			);
+			// journalEntryBytes, a person's call to the app's command over the journal entry.
+			await kernel.call('dual-put', { key: 'b', value: 'x'.repeat(1_100_000) });
+			// storeBytes, with the quota at its least.
+			expect((await setLimit(kernel, 'inputBytes', 65_536)).success).toBe(true);
+			expect((await setLimit(kernel, 'storeBytes', 1_048_576)).success).toBe(true);
+			let stored: { success: boolean } = { success: true };
+			for (let index = 0; stored.success && index < 40; index += 1)
+				stored = await port.call('dual-put', { key: `s${index}`, value: 'v'.repeat(60_000) });
+			expect(stored.success).toBe(false);
+			// callsPerSecond, past the burst.
+			expect((await setLimit(kernel, 'callsPerSecond', 5)).success).toBe(true);
+			let paced: { success: boolean } = { success: true };
+			for (let index = 0; paced.success && index < 400; index += 1)
+				paced = await port.call('dual-where', {});
+			expect(paced.success).toBe(false);
+			const dual = (await kernel.call<Usage>('limit-usage-get', { instance: 'dual' })).data
+				?.instances[0];
+			expect(dual?.storeBytes.limit).toBe(1_048_576);
+			for (const key of ['inputBytes', 'callsPerSecond', 'storeBytes', 'journalEntryBytes'])
+				expect(dual?.refusals[key], key).toBeGreaterThanOrEqual(1);
+			// Every one of section 11's limits is reported, the broker's own messageBytes among them (its count is
+			// `view-broker.test.ts`'s, for a view; dual is native, so none here).
+			expect(Object.keys(dual?.refusals ?? {}).sort()).toEqual([...LIMIT_KEYS].sort());
+			expect(dual?.refusals.messageBytes).toBe(0);
+		},
+		BURST_TEST_TIMEOUT_MS
+	);
 
 	it('gives an agent HUMAN_REQUIRED in its handler, a member OWNER_REQUIRED, and a port CALL_NOT_GRANTED', async () => {
 		const made = await workspace({ empty: true });
@@ -437,27 +447,31 @@ describe('P4-E10: limit-usage-get (section 11, F3)', () => {
 });
 
 describe('the trust review of step 10', () => {
-	it('refuses a nested call over the rate inside a handler that runs, and the session replays (10)', async () => {
-		// A clock that never moves, so nothing refills: the outer call takes the last place, its nested calls none.
-		const { kernel, journal } = await workspace({ empty: true, clock: () => 1_000_000 });
-		expect((await setLimit(kernel, 'callsPerSecond', 5)).success).toBe(true);
-		const port = kernel.appPort('dual');
-		for (let i = 0; i < 199; i++) expect((await port.call('dual-where', {})).success).toBe(true);
-		const outer = await port.call<{ here?: unknown; wide?: unknown }>('dual-nested', {});
-		expect(outer.success).toBe(true);
-		expect(outer.data).toEqual({});
-		const entries = await journal.read();
-		const parent = entries.find((entry) => entry.command === 'dual-nested')?.traceId;
-		const nested = entries.filter((entry) => entry.context?.parent === parent);
-		expect(nested.map((entry) => [entry.command, entry.result.error?.code])).toEqual([
-			['app-limit-refuse', 'RATE_LIMITED'],
-			['app-limit-refuse', 'RATE_LIMITED'],
-		]);
-		expect(nested[0]?.input).toMatchObject({ command: 'dual-where', limit: 'callsPerSecond' });
-		await kernel.call('limit-usage-get', {});
-		const result = await replay(await journal.read());
-		expect(result.report.diverged).toBe(false);
-	});
+	it(
+		'refuses a nested call over the rate inside a handler that runs, and the session replays (10)',
+		async () => {
+			// A clock that never moves, so nothing refills: the outer call takes the last place, its nested calls none.
+			const { kernel, journal } = await workspace({ empty: true, clock: () => 1_000_000 });
+			expect((await setLimit(kernel, 'callsPerSecond', 5)).success).toBe(true);
+			const port = kernel.appPort('dual');
+			for (let i = 0; i < 199; i++) expect((await port.call('dual-where', {})).success).toBe(true);
+			const outer = await port.call<{ here?: unknown; wide?: unknown }>('dual-nested', {});
+			expect(outer.success).toBe(true);
+			expect(outer.data).toEqual({});
+			const entries = await journal.read();
+			const parent = entries.find((entry) => entry.command === 'dual-nested')?.traceId;
+			const nested = entries.filter((entry) => entry.context?.parent === parent);
+			expect(nested.map((entry) => [entry.command, entry.result.error?.code])).toEqual([
+				['app-limit-refuse', 'RATE_LIMITED'],
+				['app-limit-refuse', 'RATE_LIMITED'],
+			]);
+			expect(nested[0]?.input).toMatchObject({ command: 'dual-where', limit: 'callsPerSecond' });
+			await kernel.call('limit-usage-get', {});
+			const result = await replay(await journal.read());
+			expect(result.report.diverged).toBe(false);
+		},
+		BURST_TEST_TIMEOUT_MS
+	);
 
 	it('measures and dispatches one JSON copy of the input, and refuses one with no JSON form (R2, 7)', async () => {
 		const { kernel, journal } = await workspace({ empty: true });

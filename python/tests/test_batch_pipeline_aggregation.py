@@ -7,11 +7,13 @@ runs, and a batch failure drains its in-flight commands while a deadline cancels
 
 import asyncio
 import logging
+import time
 
 import pytest
 from pydantic import BaseModel
 
 from afd import ExposeOptions, success
+from afd.core import command_execution
 from afd.core.batch import BatchResult
 from afd.core.pipeline import (
     PipelineRequest,
@@ -483,25 +485,58 @@ class TestBatchStopsDrainSiblings:
         assert sibling_cancelled.is_set()
 
     @pytest.mark.asyncio
-    async def test_deadline_cancels_in_flight_commands(self):
+    async def test_deadline_cancels_in_flight_commands(self, monkeypatch):
         writes: list = []
+        started: list[int] = []
+        cancelled: list[int] = []
         server = _server(writes)
 
-        result = await server.call_tool(
-            "afd-batch",
-            {
-                "commands": [
-                    {"command": "todo-slow", "input": {"seconds": 0.3}},
-                    {"command": "todo-slow", "input": {"seconds": 0.3}},
-                    {"command": "todo-create", "input": {}},
-                ],
-                "options": {"parallelism": 2, "timeout": 50},
-            },
+        # Keep the batch clock at 0 until both handlers are scheduled and running, so validation or
+        # scheduling latency under load cannot expire the 50 ms deadline before items 0 and 1 start.
+        real_perf_counter = time.perf_counter
+        clock_origin: float | None = None
+
+        def controlled_perf_counter() -> float:
+            nonlocal clock_origin
+            if len(started) < 2:
+                return 0.0
+            if clock_origin is None:
+                clock_origin = real_perf_counter()
+            return real_perf_counter() - clock_origin
+
+        monkeypatch.setattr(command_execution.time, "perf_counter", controlled_perf_counter)
+
+        @server.command(name="todo-block", description="Wait until cancelled", expose=MCP)
+        async def todo_block(input):
+            slot = len(started)
+            started.append(slot)
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancelled.append(slot)
+                raise
+            writes.append(("block", slot))
+            return success({"slot": slot})
+
+        result = await asyncio.wait_for(
+            server.call_tool(
+                "afd-batch",
+                {
+                    "commands": [
+                        {"command": "todo-block", "input": {}},
+                        {"command": "todo-block", "input": {}},
+                        {"command": "todo-create", "input": {}},
+                    ],
+                    "options": {"parallelism": 2, "timeout": 50},
+                },
+            ),
+            5,
         )
-        await asyncio.sleep(0.4)
 
         assert [item.result.error.code for item in result.results] == ["BATCH_TIMEOUT"] * 3
-        assert result.timing.total_ms < 250
+        assert len(started) == 2
+        assert sorted(cancelled) == [0, 1]
+        assert result.timing.total_ms >= 0
         assert writes == []
 
     @pytest.mark.asyncio

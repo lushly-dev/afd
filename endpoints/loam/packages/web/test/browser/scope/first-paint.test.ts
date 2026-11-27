@@ -50,6 +50,14 @@ const STAGE_B =
 // The switcher's list and the tooltip load on first use, never before the first frame (7.2, 7.5).
 const STAGE_B_CHUNK =
 	/\/assets\/(?:apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip)-/;
+/** `CEILINGS.jsMinified` from `scripts/budget.mjs`, so P2-E1 tracks D115 ceiling updates in one place. */
+function budgetJsMinifiedCeiling(): number {
+	const source = readFileSync(join(DIST, '..', 'scripts', 'budget.mjs'), 'utf8');
+	const match = source.match(/^\s*jsMinified:\s*([\d_]+),/m);
+	if (!match?.[1]) throw new Error('budget.mjs is missing CEILINGS.jsMinified');
+	return Number(match[1].replaceAll('_', ''));
+}
+
 /**
  * The first-paint row of `budget`: `index.html`'s entry and every chunk it imports statically, followed
  * through each chunk's own static `import` statements. A dynamic `import(...)` loads later.
@@ -203,10 +211,11 @@ describe('P2-E1: one first paint', () => {
 		// `afd-server`'s `command-routing.ts`, on top of #2576's `secret` commands; measured 346,326 against `main` at
 		// `ad9e42890`), and by #2599 (Violet's redrawn system icons, +66; measured 346,861 against `main` at
 		// `7e75987e9`), then by the local workspace backup and shell commands (348,039 on `5ade6c0f4`), by #2645 (Zod
-		// shape detection by `_zod.def.type` in `afd-server`; 348,354 with `main` at `871c1a98a`), and by phase 5's step
-		// 10 (9.1's `apps` interface, measured in its specification's record), and by #2846 (journal seams in
-		// TypeScript: the dispatch id and the approval summary; 348,711 to 349,276 with `main` at `55548acc8`).
-		expect(javascript).toBeLessThanOrEqual(349_700);
+		// shape detection by `_zod.def.type` in `afd-server`; 348,354 with `main` at `871c1a98a`), by phase 5's step
+		// 10 (9.1's `apps` interface, measured in its specification's record), by #2846 (journal seams in TypeScript:
+		// the dispatch id and the approval summary; 348,711 to 349,276 with `main` at `55548acc8`), and by #2444
+		// (stage-B ordering and disconnect guards in `loam-shell`).
+		expect(javascript).toBeLessThanOrEqual(budgetJsMinifiedCeiling());
 		expect(javascript).toBe(budgetRow());
 		// Stage B still runs in every deployment: `late` loads after the mark, on the empty shell too.
 		await expect

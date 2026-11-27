@@ -84,8 +84,11 @@ export function expectMode(path: string, mode: number, label?: string): void {
 	expect(statSync(path).mode & 0o777, label).toBe(mode);
 }
 
+/** Retries transient Windows `EBUSY` errors while SQLite/file handles finish closing (#2760). */
+const RM_OPTIONS = { recursive: true, force: true, maxRetries: 10, retryDelay: 100 } as const;
+
 afterEach(async () => {
-	await Promise.all(made.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+	await Promise.all(made.splice(0).map((path) => rm(path, RM_OPTIONS)));
 });
 
 afterAll(async () => {
@@ -93,7 +96,7 @@ afterAll(async () => {
 	base = undefined;
 	// A root that failed to be made private was removed then, and its error already failed the tests.
 	const directory = await root?.catch(() => undefined);
-	if (directory !== undefined) await rm(directory, { recursive: true, force: true });
+	if (directory !== undefined) await rm(directory, RM_OPTIONS);
 });
 
 /**
