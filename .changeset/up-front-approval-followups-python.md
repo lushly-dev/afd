@@ -1,7 +1,0 @@
----
-"afd-python": patch
----
-
-### Fixed
-
-- **Up-front batch approval follow-ups** ([#1511](https://github.com/lushly-dev/afd/issues/1511)). A step of an `afd-batch` or `afd-pipe` approved up front is now validated, when it runs, on the input it is about to run as well as on the input as sent: a validator that reads live state (a default id that an earlier step has since taken) fails the step with `VALIDATION_ERROR` instead of running the approved value unchecked. A gated command whose schema changes a value it reads back (a validator that returns another value, or one that changes the type) no longer validates to itself, so inside `afd-batch` or `afd-pipe` it now fails with `VALIDATION_ERROR`; call it on its own, or make the transform idempotent. A retry whose gated step had no kept input (over `MAX_KEPT_INPUT` with the steps before it), whose input no longer has the binding of any approval it carries (it validated to another input, such as a random default), and that cannot be kept with a new question either is refused with `APPROVAL_REQUIRED` and `details["reason"] == "input-not-kept"`, with a suggestion to call that command on its own, instead of being asked about again on every retry. An approval of the step's own input that only expired is still asked about again.

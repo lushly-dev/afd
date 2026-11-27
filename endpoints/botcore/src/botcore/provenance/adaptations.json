@@ -2391,10 +2391,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "3245ebbd670924de7dbf9bb2ba4e739bfe00cfa51f63055c7f902d8e3dd599f3",
+      "current_import_sha256": "8e7ba40027b7c2afafb4009cc6efcb66313557fa9f9d0cb5061db2826217dc22",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0); Refresh botcore-factory lockfile for lushly-botcore[mcp] extra (#2499); Versioned by pnpm version-track botcore (lushly-botcore 0.10.0); Relock after afd caps mcp below 2.4 (lushly-dev/afd#1756); Versioned by pnpm version-track botcore (lushly-botcore 0.10.1); lushly-botcore 0.10.1: the disk-run entry names the reader fix; locks keep uv's revision 5 and move only the version"
+      "import_reason": "Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0); Refresh botcore-factory lockfile for lushly-botcore[mcp] extra (#2499); Versioned by pnpm version-track botcore (lushly-botcore 0.10.0); Relock after afd caps mcp below 2.4 (lushly-dev/afd#1756); Versioned by pnpm version-track botcore (lushly-botcore 0.10.1); lushly-botcore 0.10.1: the disk-run entry names the reader fix; locks keep uv's revision 5 and move only the version; Versioned by pnpm version-track python (afd-python 0.14.0)"
     },
     {
       "path": "plugins/botcore-teams/LICENSE",
@@ -7752,11 +7752,11 @@
       "path": "uv.lock",
       "upstream_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
       "staged_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
-      "current_import_sha256": "5ce9576635d815669c79f09d70b0eafb2dd4f6f8f65e65bcca2a10901338185b",
+      "current_import_sha256": "98a8d71d8889bbc912ec5cb811927de423550575301994886660ebbfb195476f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Lock the editable afd source at 0.11.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Versioned by pnpm version-track python (afd-python 0.12.0); Refresh uv.lock after promoting pyyaml to afd[server] (#1981); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Versioned by pnpm version-track botcore (lushly-botcore 0.10.0); Relock after afd caps mcp below 2.4 (lushly-dev/afd#1756); Versioned by pnpm version-track botcore (lushly-botcore 0.10.1); lushly-botcore 0.10.1: the disk-run entry names the reader fix; locks keep uv's revision 5 and move only the version"
+      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Lock the editable afd source at 0.11.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Versioned by pnpm version-track python (afd-python 0.12.0); Refresh uv.lock after promoting pyyaml to afd[server] (#1981); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Versioned by pnpm version-track botcore (lushly-botcore 0.10.0); Relock after afd caps mcp below 2.4 (lushly-dev/afd#1756); Versioned by pnpm version-track botcore (lushly-botcore 0.10.1); lushly-botcore 0.10.1: the disk-run entry names the reader fix; locks keep uv's revision 5 and move only the version; Versioned by pnpm version-track python (afd-python 0.14.0)"
     }
   ]
 }
