@@ -54,7 +54,9 @@ headers, cookies and every other context value are left out.
 
 `keys` is the sorted list of the names of the other context keys that have a value. Only the
 names enter the hash, never the values, so a secret cannot be recovered from the journal even by
-guessing. When the entry has `context` or `contextOmitted`, the hashed object gains the same
+guessing. The engine's own `dispatchId` ([dispatch](./dispatch.md#the-dispatch-id), I4) is not
+one of them: its name never enters `keys` and its value is not recorded, so a call hashes as it
+did before the id existed, unless the host had a context key of that name of its own. When the entry has `context` or `contextOmitted`, the hashed object gains the same
 members with the same values, and the names they hold leave `keys`:
 
 ```json

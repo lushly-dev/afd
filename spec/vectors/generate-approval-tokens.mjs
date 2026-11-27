@@ -13,6 +13,7 @@
 //   payload: {"c":command,"i":input digest,"a":actor digest,"iat":ms,"exp":ms,"n":nonce}
 //   digest:  HMAC-SHA256(secret, "<input|actor>\0<canonical JSON>"), base64url
 //   mac:     HMAC-SHA256(secret, "afdap1.<payload>"), base64url
+//   approvalId: SHA-256("approval\0<nonce>"), base64url (the approval summary's id for the token)
 //
 // packages/server/src/approval-vectors.test.ts calls approvalVectors() to check the file against
 // the current code.
@@ -48,6 +49,17 @@ const hmac = (key, data) => createHmac('sha256', key).update(data).digest();
 /** A fixed 128-bit nonce for a case, so the file is the same on every run. */
 const nonceFor = (description) =>
 	base64url(createHash('sha256').update(`nonce\0${description}`).digest().subarray(0, 16));
+
+/**
+ * The approval summary's `approvalId` (spec/command-metadata.md, "The approval summary"): the
+ * SHA-256 of `approval`, a zero byte and the evidence's single-use key, which for a token is its
+ * nonce.
+ */
+const approvalIdFor = (singleUseKey) =>
+	base64url(createHash('sha256').update(`approval\0${singleUseKey}`).digest());
+
+/** The summary's `inputDigest`: the SHA-256 of the canonical JSON of the validated input. */
+const inputDigestFor = (canonical) => base64url(createHash('sha256').update(canonical).digest());
 
 function signed(payloadJson, secret = SECRETS.current) {
 	const signingInput = `${PREFIX}.${base64url(Buffer.from(payloadJson))}`;
@@ -86,8 +98,10 @@ export function approvalVectors(canonicalJson) {
 			input,
 			actor,
 			canonicalInput: canonicalJson(input),
+			inputDigest: inputDigestFor(canonicalJson(input)),
 			canonicalActor: actorJson(actor),
 			nonce,
+			approvalId: approvalIdFor(nonce),
 			payload,
 			token,
 		};
@@ -349,6 +363,14 @@ export function approvalVectors(canonicalJson) {
 		bindings,
 		verify: cases,
 		tokenDelivery,
+		approvalIds: [
+			{
+				description: 'relay evidence: the single-use key is relay:<decisionId>',
+				via: 'relay',
+				singleUseKey: 'relay:decision-1',
+				approvalId: approvalIdFor('relay:decision-1'),
+			},
+		],
 	};
 }
 

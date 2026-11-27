@@ -60,6 +60,7 @@ export const VECTOR_MANIFEST = Object.freeze({
 			'packages/server/dist/journal.js',
 		],
 	},
+	'journal-seams.json': { kind: 'authored' },
 	'mcp-resources.json': { kind: 'authored' },
 	'output-budgets.json': { kind: 'authored' },
 	'output-schema.json': {

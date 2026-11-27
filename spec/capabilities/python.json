@@ -326,6 +326,15 @@
 			"issue": "#1466",
 			"evidence": ["python/tests/test_approver_client_vectors.py"]
 		},
+		"middleware.approval-summary": {
+			"status": "planned",
+			"note": "([#2682](https://github.com/lushly-dev/afd/issues/2682))",
+			"views": {
+				"summary": "([#2682](https://github.com/lushly-dev/afd/issues/2682))"
+			},
+			"issue": "#2682",
+			"evidence": ["python/tests/test_journal_seams_vectors.py"]
+		},
 		"middleware.up-front-approval": {
 			"status": "yes",
 			"note": "(#1312): on 2026-07-28 and in band on a 2025 stdio or stateful HTTP connection; `requestState` keeps each gated step's validated input, as in TypeScript",
@@ -784,6 +793,15 @@
 				"python/src/afd/server/context_fields.py",
 				"python/tests/test_context_fields_mcp.py"
 			]
+		},
+		"single.dispatch-id": {
+			"status": "planned",
+			"note": "([#2682](https://github.com/lushly-dev/afd/issues/2682))",
+			"views": {
+				"summary": "([#2682](https://github.com/lushly-dev/afd/issues/2682))"
+			},
+			"issue": "#2682",
+			"evidence": ["python/tests/test_journal_seams_vectors.py"]
 		}
 	}
 }

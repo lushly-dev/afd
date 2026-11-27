@@ -20,6 +20,7 @@ add_executable(
     handoff_test.cpp
     helpers_test.cpp
     journal_context_cap_vectors_test.cpp
+    journal_seams_vectors_test.cpp
     journal_secret_test.cpp
     journal_test.cpp
     journal_wire_test.cpp

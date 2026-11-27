@@ -47,8 +47,10 @@
 			},
 			"actor": "agent",
 			"canonicalInput": "{\"id\":42}",
+			"inputDigest": "F7TbBk4X9IeOORF35spiO3mJEfNAFLyeeJIJk9fdJ60",
 			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
 			"nonce": "8xksVfpHe2KVl5HiM0zK5g",
+			"approvalId": "vLnCnUV0VedW7e-ecfQMkDz1wnRb-hLd6AVSMTaSpbE",
 			"payload": "{\"c\":\"todo-delete\",\"i\":\"XwbSN9PzqBV5Fzn7oPmOgmovpnyEdgZOueuQB93biao\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"8xksVfpHe2KVl5HiM0zK5g\"}",
 			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiI4eGtzVmZwSGUyS1ZsNUhpTTB6SzVnIn0.V0N8c1RZlzcOKW53K9LVyyowdmPvQMnyObR52Sz68Bo"
 		},
@@ -69,8 +71,10 @@
 			},
 			"actor": "agent",
 			"canonicalInput": "{\"id\":42,\"nested\":{\"a\":false,\"m\":{\"a\":1,\"b\":2},\"z\":true},\"title\":\"x\"}",
+			"inputDigest": "-OUN4I8rgPhxiqrEn1qj1j0dvenC9hwr1-HkiWcd3e4",
 			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
 			"nonce": "4PTGEvZ-qCJPwhnRGbIWcw",
+			"approvalId": "lLrFXEh0IH4GPS8-scUSXFVOczzm7Tqh9Eu-FLFvtns",
 			"payload": "{\"c\":\"todo-delete\",\"i\":\"sfNof3qw2maGEG8X5j2jwFmoMuEpy3j8QJVWwReHd3E\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"4PTGEvZ-qCJPwhnRGbIWcw\"}",
 			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoic2ZOb2YzcXcybWFHRUc4WDVqMmp3Rm1vTXVFcHkzajhRSlZXd1JlSGQzRSIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiI0UFRHRXZaLXFDSlB3aG5SR2JJV2N3In0.4f7EKoXvy-6roGsOBoCCqsQ2ROpO6_zfbuQ9ZG8VZeQ"
 		},
@@ -90,8 +94,10 @@
 			},
 			"actor": "agent",
 			"canonicalInput": "{\"items\":[{\"x\":2,\"y\":1},3,null],\"tags\":[\"b\",\"a\"]}",
+			"inputDigest": "oEKKav8OwzX3B8LrobZXU3rV3W5TiXpRhDk5HsdFo_o",
 			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
 			"nonce": "1W49xpGeh14oMrI_w_MXAA",
+			"approvalId": "ZWZwKIJJ05HQDY4ujFPKshI50x6bhqOcN0dSHGvk39E",
 			"payload": "{\"c\":\"todo-delete\",\"i\":\"IUOqaR7fsTE8PYbX-nDC5bv7nCLJZPjvUYQ1DpPRnBM\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"1W49xpGeh14oMrI_w_MXAA\"}",
 			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiSVVPcWFSN2ZzVEU4UFliWC1uREM1YnY3bkNMSlpQanZVWVExRHBQUm5CTSIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiIxVzQ5eHBHZWgxNG9Ncklfd19NWEFBIn0.CQWzu4zbnDs6tV3uEs8LXTEXm1xkWsG2f-YrJguzgkM"
 		},
@@ -103,8 +109,10 @@
 			},
 			"actor": "agent",
 			"canonicalInput": "{\"note\":\"café ✓ \\\"quoted\\\" back\\\\slash /path <tag> \\b\\f\\n\\r\\t \\u0001 \\u001f     \"}",
+			"inputDigest": "JHbD5L-5P8ybafc6XAorGWiYyJApLCymc7lkMNAPiYk",
 			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
 			"nonce": "TrvupdHrjVv3TaL23DRyKQ",
+			"approvalId": "8vgUm2S84xawa-A9nz97-o7HfyYAx2DLLAF6ldNF3Vo",
 			"payload": "{\"c\":\"todo-delete\",\"i\":\"vu1CjKiJMlU0k6vEoixzHoSUiJaLeQQH5XQxsTJxjM4\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"TrvupdHrjVv3TaL23DRyKQ\"}",
 			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoidnUxQ2pLaUpNbFUwazZ2RW9peHpIb1NVaUphTGVRUUg1WFF4c1RKeGpNNCIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUcnZ1cGRIcmpWdjNUYUwyM0RSeUtRIn0.JXAjfLTHfw-oTLSKJ42MgTvlh6IBx2sjv-Kz7BtjnaU"
 		},
@@ -122,8 +130,10 @@
 			},
 			"actor": "agent",
 			"canonicalInput": "{\"\":6,\"Z\":5,\"a b\":7,\"z\":4,\"é\":3,\"😀\":2,\"\":1}",
+			"inputDigest": "U306f8B6nDjReTiZ4ADX80ROeSQ0RKqQJZ41x061omA",
 			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
 			"nonce": "xcISfkat_cmXcLck5Z9xPg",
+			"approvalId": "sFmqUqke9NU7iPvvj9IpJTWqs6OXSQjbpAaIe5HJ8x4",
 			"payload": "{\"c\":\"todo-delete\",\"i\":\"hUQ9jDPg6jW2dRHXJz5FxNlgrUyVRcXWr2w4oTWqG1k\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"xcISfkat_cmXcLck5Z9xPg\"}",
 			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiaFVROWpEUGc2alcyZFJIWEp6NUZ4TmxnclV5VlJjWFdyMnc0b1RXcUcxayIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJ4Y0lTZmthdF9jbVhjTGNrNVo5eFBnIn0.S3Poa0HLWjtS42QYE5crQOwapFzherARHbUq5mFMEko"
 		},
@@ -149,8 +159,10 @@
 			},
 			"actor": "agent",
 			"canonicalInput": "{\"exact\":100000000000000000000,\"half\":0.5,\"integer\":42,\"large\":1e+21,\"max\":1.7976931348623157e+308,\"micro\":0.000001,\"negative\":-7,\"negativeExponent\":-2.5e-10,\"powerOfTwo\":5.960464477539063e-8,\"safe\":9007199254740991,\"small\":1e-7,\"tenth\":0.1,\"third\":0.3333333333333333,\"tiny\":5e-324,\"zero\":0}",
+			"inputDigest": "kle0BjaCeOx_msSyUHwrFEL8i3oH08gAgSszKVHSRTs",
 			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
 			"nonce": "qitGMHTntIWX7tBp-gLDpA",
+			"approvalId": "4VPUMySAwpwO8RyIGutj3CwtbSdNJ_Ry-isWpc2QQbw",
 			"payload": "{\"c\":\"todo-delete\",\"i\":\"_3F1-2RyMfwTJiPPWvZOsCexvp-XNouqJ5GGjGXzv_E\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"qitGMHTntIWX7tBp-gLDpA\"}",
 			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiXzNGMS0yUnlNZndUSmlQUFd2Wk9zQ2V4dnAtWE5vdXFKNUdHakdYenZfRSIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJxaXRHTUhUbnRJV1g3dEJwLWdMRHBBIn0.9dG1FXTCmfQS7UgSKUbP6j50oAhXJKKogyEmGlIFaac"
 		},
@@ -167,8 +179,10 @@
 			},
 			"actor": "agent",
 			"canonicalInput": "{\"a\":[],\"f\":false,\"n\":null,\"o\":{},\"s\":\"\",\"t\":true}",
+			"inputDigest": "YiRAapoGnk8JxLMSOHdWEvRewbEDrJfQG1U3MIF-Al8",
 			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
 			"nonce": "YaZGM_rPVXNDNRpF7s2rLw",
+			"approvalId": "FUexknFslODDYhZlVxbFH7NBqvAJ5phbIG9h1A1ndDk",
 			"payload": "{\"c\":\"todo-delete\",\"i\":\"zIYv-qSF8BP05u9xUavip0W5oAf7xESu1sCZjDISdp4\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"YaZGM_rPVXNDNRpF7s2rLw\"}",
 			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoieklZdi1xU0Y4QlAwNXU5eFVhdmlwMFc1b0FmN3hFU3Uxc0NaakRJU2RwNCIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJZYVpHTV9yUFZYTkROUnBGN3Myckx3In0.pdHp1JlDywXFLZ2CBJK84ugdn9tAafDlDtzlGaFlVGM"
 		},
@@ -186,8 +200,10 @@
 			},
 			"actor": "agent",
 			"canonicalInput": "{\"a\":{\"b\":{\"c\":{\"d\":[[[]]]}}}}",
+			"inputDigest": "OIEX934jQCkukOpUbgKbNoQl3zh2d31dV6aZ0s0KKDo",
 			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
 			"nonce": "_sjVtHU2T9X6w6gFAW3__g",
+			"approvalId": "hJ3hMpIPDMNlWjRnd4bwgnrE76jEs2waB7q7wh7NMT4",
 			"payload": "{\"c\":\"todo-delete\",\"i\":\"5V3O0-DaEKgv6Suh9qpNp1uRptzMcC5tmGK8TrWqN10\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"_sjVtHU2T9X6w6gFAW3__g\"}",
 			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiNVYzTzAtRGFFS2d2NlN1aDlxcE5wMXVScHR6TWNDNXRtR0s4VHJXcU4xMCIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJfc2pWdEhVMlQ5WDZ3NmdGQVczX19nIn0.ddogyOq13u5VtOEZBzI9tUw3UtltLBr9cf7UajA_DCQ"
 		},
@@ -199,8 +215,10 @@
 			},
 			"actor": "human",
 			"canonicalInput": "{\"id\":42}",
+			"inputDigest": "F7TbBk4X9IeOORF35spiO3mJEfNAFLyeeJIJk9fdJ60",
 			"canonicalActor": "{\"id\":\"user-1\",\"kind\":\"human\"}",
 			"nonce": "HIxPBFXxKvX1VC9G0RRjMA",
+			"approvalId": "gxXjJf5vULy-EWbHvAkGmDXDWFe3NR1r4_ros_m6s2o",
 			"payload": "{\"c\":\"todo-delete\",\"i\":\"XwbSN9PzqBV5Fzn7oPmOgmovpnyEdgZOueuQB93biao\",\"a\":\"_krUNSatBccMRssb7AgkoXdZ1Kfsf-APT1mKUAdopIg\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"HIxPBFXxKvX1VC9G0RRjMA\"}",
 			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiJfa3JVTlNhdEJjY01Sc3NiN0Fna29YZFoxS2ZzZi1BUFQxbUtVQWRvcElnIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJISXhQQkZYeEt2WDFWQzlHMFJSak1BIn0.3fCtBsv9MXxHUgBwWdhjFwPdXmJjvI2K14Oh1NGZu4E"
 		},
@@ -212,8 +230,10 @@
 			},
 			"actor": "agent-relabelled",
 			"canonicalInput": "{\"id\":42}",
+			"inputDigest": "F7TbBk4X9IeOORF35spiO3mJEfNAFLyeeJIJk9fdJ60",
 			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
 			"nonce": "GYotbn1XreOb8U61Q_-wfQ",
+			"approvalId": "13-KQWkI7TvWBIu7oy0CcVHlaRnY9LXTxLehKeQgxd8",
 			"payload": "{\"c\":\"todo-delete\",\"i\":\"XwbSN9PzqBV5Fzn7oPmOgmovpnyEdgZOueuQB93biao\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"GYotbn1XreOb8U61Q_-wfQ\"}",
 			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJHWW90Ym4xWHJlT2I4VTYxUV8td2ZRIn0.3ro4M_zJEYx6ZfgQQgM6m67Qk_goQNJwimoVUYqeUWA"
 		},
@@ -225,8 +245,10 @@
 			},
 			"actor": null,
 			"canonicalInput": "{\"id\":42}",
+			"inputDigest": "F7TbBk4X9IeOORF35spiO3mJEfNAFLyeeJIJk9fdJ60",
 			"canonicalActor": "null",
 			"nonce": "Zmzo7sEtb977QG9_lm2frA",
+			"approvalId": "WKrmBy5ABhFreWaWXzzuQ8MHSX5lwd8AhNqItUFfs3w",
 			"payload": "{\"c\":\"todo-delete\",\"i\":\"XwbSN9PzqBV5Fzn7oPmOgmovpnyEdgZOueuQB93biao\",\"a\":\"0QTNuq4esNH3SRuQQfV--t_gILzIZAQZiNs4N_pcYUk\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"Zmzo7sEtb977QG9_lm2frA\"}",
 			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIwUVROdXE0ZXNOSDNTUnVRUWZWLS10X2dJTHpJWkFRWmlOczROX3BjWVVrIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJabXpvN3NFdGI5NzdRRzlfbG0yZnJBIn0.aheaITShhM4M8k9_4jdVu1KDQcPTzpqX9f0uXhnoyLw"
 		}
@@ -627,6 +649,14 @@
 			"relay": "mcp-elicitation",
 			"includeToken": true,
 			"expectedHasToken": true
+		}
+	],
+	"approvalIds": [
+		{
+			"description": "relay evidence: the single-use key is relay:<decisionId>",
+			"via": "relay",
+			"singleUseKey": "relay:decision-1",
+			"approvalId": "3ZOvbH1IqdV_QziJEbOe0GyIo1DDsYGmO73n9W0GuXo"
 		}
 	]
 }
