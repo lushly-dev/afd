@@ -18,8 +18,12 @@ interface Binding {
 	input: unknown;
 	actor: string | null;
 	canonicalInput: string;
+	/** The approval summary's digest of the input ("The approval summary"); not checked here yet (#2680). */
+	inputDigest: string;
 	canonicalActor: string;
 	nonce: string;
+	/** The approval summary's id for the token; not checked here yet (#2680). */
+	approvalId: string;
 	payload: string;
 	token: string;
 }
@@ -56,6 +60,8 @@ interface Vectors {
 	bindings: Binding[];
 	verify: Verification[];
 	tokenDelivery: TokenDelivery[];
+	/** Approval ids of evidence that is not a token; not checked here yet (#2680). */
+	approvalIds: { description: string; via: string; singleUseKey: string; approvalId: string }[];
 }
 
 const VECTORS_DIR = new URL('../../../spec/vectors/', import.meta.url);

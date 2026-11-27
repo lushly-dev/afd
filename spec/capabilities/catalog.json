@@ -151,6 +151,10 @@
 			"label": "`server/discover` and `afd-help` discovery of declared context fields"
 		},
 		{
+			"id": "single.dispatch-id",
+			"label": "The dispatch id ([`spec/dispatch.md`](../spec/dispatch.md#the-dispatch-id)): `dispatchId` on the command context, made by the engine, one per dispatch (each batch item, pipeline step and nested call), absent from results, journal entries and the context digest"
+		},
+		{
 			"id": "single.output-budgets",
 			"label": "Output budgets ([`spec/output-budgets.md`](../spec/output-budgets.md), Umbel D64): `outputBudget` declaration, effective budget in the context, post-handler check (`OUTPUT_BUDGET_EXCEEDED` on reads, warning on mutations), report, batches/pipelines and journal"
 		},
@@ -217,6 +221,10 @@
 		{
 			"id": "middleware.approval-display",
 			"label": "Approval display rules ([`spec/command-metadata.md`](../spec/command-metadata.md#approval-display), D150): what a person must be able to read before approving"
+		},
+		{
+			"id": "middleware.approval-summary",
+			"label": "The approval summary ([`spec/command-metadata.md`](../spec/command-metadata.md#the-approval-summary)): `onApprovalAccepted` is given `via`, the command, the input digest and an `approvalId` with the call's `dispatchId` when a held call is admitted; a held call's request carries the same `approvalId`"
 		},
 		{
 			"id": "middleware.up-front-approval",
@@ -590,6 +598,9 @@
 				},
 				{
 					"capability": "single.journal-secret"
+				},
+				{
+					"capability": "single.dispatch-id"
 				}
 			]
 		},
@@ -630,6 +641,9 @@
 				},
 				{
 					"capability": "middleware.approval-display"
+				},
+				{
+					"capability": "middleware.approval-summary"
 				},
 				{
 					"capability": "middleware.up-front-approval"
@@ -873,6 +887,23 @@
 					"capability": "middleware.approver-client",
 					"label": "Approver carrier (rules 1 to 5)",
 					"view": "approver"
+				}
+			]
+		},
+		{
+			"id": "spec.command-metadata.approval-summary",
+			"file": "spec/command-metadata.md",
+			"firstColumn": "",
+			"rows": [
+				{
+					"capability": "single.dispatch-id",
+					"label": "The dispatch id on the command context",
+					"view": "summary"
+				},
+				{
+					"capability": "middleware.approval-summary",
+					"label": "The approval summary and `onApprovalAccepted`",
+					"view": "summary"
 				}
 			]
 		},

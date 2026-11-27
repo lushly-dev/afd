@@ -33,6 +33,10 @@ Reserved names are those the command context already uses: `actor`, `approval`, 
 other key the implementation sets itself (in Python, Rust and C++, their snake_case forms, the
 context's own fields and the keys their routers set).
 
+`dispatchId` is reserved as well, for the id the engine sets
+([dispatch](./dispatch.md#the-dispatch-id)). An implementation refuses a declaration of it from
+the release in which it sets the id.
+
 A field whose value is absent or `null` has no value: it is not validated or journaled, and it
 fails a required field.
 

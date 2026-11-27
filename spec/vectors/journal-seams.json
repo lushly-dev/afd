@@ -1,0 +1,482 @@
+{
+	"description": "The dispatch id (spec/dispatch.md, \"The dispatch id\", I1 to I4) and the approval summary (spec/command-metadata.md, \"The approval summary\", rules 1 to 5). Specification-authored. No implementation has either yet: each language loads this file, checks that it is still listed in `gaps`, and skips every case with its issue as the reason.",
+	"gaps": {
+		"typescript": "https://github.com/lushly-dev/afd/issues/2680",
+		"rust": "https://github.com/lushly-dev/afd/issues/2681",
+		"python": "https://github.com/lushly-dev/afd/issues/2682",
+		"cpp": "https://github.com/lushly-dev/afd/issues/2682"
+	},
+	"dispatchId": {
+		"format": {
+			"length": 22,
+			"pattern": "^[A-Za-z0-9_-]{21}[AQgw]$"
+		},
+		"setup": {
+			"commands": [
+				{
+					"name": "item-echo",
+					"description": "Returns its input as data. Its handler notes the dispatch id it reads."
+				},
+				{
+					"name": "item-flaky",
+					"description": "Fails with TRANSIENT_ERROR the first time it runs in a case and succeeds after that. Its handler notes the dispatch id it reads each time."
+				},
+				{
+					"name": "item-outer",
+					"description": "Its handler runs item-echo through the registry with its own context, then returns."
+				},
+				{
+					"name": "item-draw",
+					"description": "Its handler reads one value from context.random, notes it and returns."
+				}
+			],
+			"middleware": "Two observer layers, mw1 outermost and mw2 innermost. Each notes the dispatch id it reads before calling next. A case's `middleware` replaces mw1: `overwrite` sets the context's dispatch id to `overwritten-by-mw1-0000` before calling next, and `retry-once` calls next a second time when the first result fails."
+		},
+		"cases": [
+			{
+				"description": "a single call has a well-formed id",
+				"rule": "I1",
+				"run": {
+					"kind": "call",
+					"command": "item-echo",
+					"input": {
+						"id": 1
+					}
+				},
+				"expect": {
+					"handlerRuns": 1,
+					"distinctIds": 1,
+					"wellFormed": true
+				}
+			},
+			{
+				"description": "both middleware layers and the handler read the same id",
+				"rule": "I3",
+				"run": {
+					"kind": "call",
+					"command": "item-echo",
+					"input": {
+						"id": 1
+					}
+				},
+				"expect": {
+					"readers": ["mw1", "mw2", "handler"],
+					"distinctIds": 1
+				}
+			},
+			{
+				"description": "two calls with the same input and trace id get different ids",
+				"rule": "I2",
+				"run": {
+					"kind": "calls",
+					"command": "item-echo",
+					"input": {
+						"id": 1
+					},
+					"count": 2,
+					"traceId": "trace-1"
+				},
+				"expect": {
+					"handlerRuns": 2,
+					"distinctIds": 2,
+					"wellFormed": true
+				}
+			},
+			{
+				"description": "an id the caller put on the context is replaced",
+				"rule": "I1",
+				"run": {
+					"kind": "call",
+					"command": "item-echo",
+					"input": {
+						"id": 1
+					},
+					"context": {
+						"dispatchId": "caller-chosen-id-000000"
+					}
+				},
+				"expect": {
+					"distinctIds": 1,
+					"wellFormed": true,
+					"never": ["caller-chosen-id-000000"]
+				}
+			},
+			{
+				"description": "a middleware that overwrites the id does not change what later links read",
+				"rule": "I3",
+				"run": {
+					"kind": "call",
+					"command": "item-echo",
+					"input": {
+						"id": 1
+					},
+					"middleware": "overwrite"
+				},
+				"expect": {
+					"readers": ["mw2", "handler"],
+					"distinctIds": 1,
+					"wellFormed": true,
+					"never": ["overwritten-by-mw1-0000"]
+				}
+			},
+			{
+				"description": "a retry runs the inner links again under the same id",
+				"rule": "I2",
+				"run": {
+					"kind": "call",
+					"command": "item-flaky",
+					"input": {},
+					"middleware": "retry-once"
+				},
+				"expect": {
+					"success": true,
+					"handlerRuns": 2,
+					"distinctIds": 1
+				}
+			},
+			{
+				"description": "each batch item is its own dispatch",
+				"rule": "I2",
+				"run": {
+					"kind": "batch",
+					"commands": [
+						{
+							"command": "item-echo",
+							"input": {
+								"id": 1
+							}
+						},
+						{
+							"command": "item-echo",
+							"input": {
+								"id": 2
+							}
+						},
+						{
+							"command": "item-echo",
+							"input": {
+								"id": 3
+							}
+						}
+					],
+					"traceId": "trace-1"
+				},
+				"expect": {
+					"handlerRuns": 3,
+					"distinctIds": 3,
+					"wellFormed": true
+				}
+			},
+			{
+				"description": "each pipeline step is its own dispatch, whatever trace id the steps share",
+				"rule": "I2",
+				"run": {
+					"kind": "pipeline",
+					"steps": [
+						{
+							"command": "item-echo",
+							"input": {
+								"id": 1
+							}
+						},
+						{
+							"command": "item-echo",
+							"input": {
+								"id": 2
+							}
+						},
+						{
+							"command": "item-echo",
+							"input": {
+								"id": 3
+							}
+						}
+					],
+					"traceId": "trace-1"
+				},
+				"expect": {
+					"handlerRuns": 3,
+					"distinctIds": 3,
+					"wellFormed": true
+				}
+			},
+			{
+				"description": "a command a handler runs through the registry is its own dispatch",
+				"rule": "I2",
+				"run": {
+					"kind": "call",
+					"command": "item-outer",
+					"input": {}
+				},
+				"expect": {
+					"handlerRuns": 2,
+					"distinctIds": 2,
+					"wellFormed": true
+				}
+			},
+			{
+				"description": "the result does not carry the id",
+				"rule": "I4",
+				"run": {
+					"kind": "call",
+					"command": "item-echo",
+					"input": {
+						"id": 1
+					}
+				},
+				"expect": {
+					"success": true,
+					"data": {
+						"id": 1
+					},
+					"resultHasId": false
+				}
+			},
+			{
+				"description": "the journal entry does not carry the id, by value or by name",
+				"rule": "I4",
+				"run": {
+					"kind": "call",
+					"command": "item-echo",
+					"input": {
+						"id": 1
+					},
+					"journal": true
+				},
+				"expect": {
+					"entries": 1,
+					"entryHasId": false,
+					"digestHashOmitsId": true
+				}
+			},
+			{
+				"description": "the id is not drawn from the context's random source",
+				"rule": "I1",
+				"run": {
+					"kind": "call",
+					"command": "item-draw",
+					"input": {},
+					"random": [0.25, 0.75]
+				},
+				"expect": {
+					"handlerDraws": [0.25]
+				}
+			}
+		]
+	},
+	"approvalSummary": {
+		"setup": {
+			"tokens": "The secrets, the clock (`now`), the actors and the bindings of spec/vectors/approval-tokens.json. `binding` in a case names one of its bindings by description; that binding gives the command, the input, the actor, the token, and the `inputDigest` and `approvalId` the summary must carry. A case without `binding` gives its own command and input and runs as the actor `agent`.",
+			"commands": "The commands of approval-tokens.json, each with `approval: \"required\"`, and `item-echo`, which has no approval policy. For the relay case `todo-delete` also declares `confirmationMode: \"host-verified\"`, and the harness installs a HumanRelay that approves with the case's `decisionId`.",
+			"hook": "The approval middleware's onApprovalAccepted option notes each summary and dispatch id it is given. A case's `hook` set to `fail` makes it refuse instead, by the language's own failure signal (a throw, a rejection, an Err, an error return).",
+			"nonceStore": "A nonce store that notes every key it is asked to consume, so a case can compare a summary's approvalId with the digest of the key the step spent."
+		},
+		"cases": [
+			{
+				"description": "an accepted token calls the hook once, before the handler, with the handler's dispatch id",
+				"rule": "summary",
+				"run": {
+					"via": "token",
+					"binding": "a flat object"
+				},
+				"expect": {
+					"success": true,
+					"hookCalls": 1,
+					"order": ["hook", "handler"],
+					"members": ["approvalId", "command", "expiresAt", "inputDigest", "issuedAt", "via"],
+					"via": "token",
+					"dispatchIdIsHandlers": true
+				}
+			},
+			{
+				"description": "a token's summary carries the binding's input digest, approval id, issue time and expiry",
+				"rule": "summary",
+				"run": {
+					"via": "token",
+					"binding": "a flat object"
+				},
+				"expect": {
+					"fromBinding": ["inputDigest", "approvalId"],
+					"issuedAt": "now",
+					"expiresAt": "now + ttlMs"
+				}
+			},
+			{
+				"description": "a call no policy holds gets no summary",
+				"rule": "summary",
+				"run": {
+					"via": "none",
+					"command": "item-echo",
+					"input": {
+						"id": 1
+					}
+				},
+				"expect": {
+					"success": true,
+					"hookCalls": 0
+				}
+			},
+			{
+				"description": "a token that is not accepted calls no hook",
+				"rule": "summary",
+				"run": {
+					"via": "token",
+					"binding": "a flat object",
+					"tamper": "signature"
+				},
+				"expect": {
+					"success": false,
+					"code": "APPROVAL_REQUIRED",
+					"hookCalls": 0,
+					"handlerRuns": 0
+				}
+			},
+			{
+				"description": "the summary holds none of the binding's token, nonce or payload",
+				"rule": "1",
+				"run": {
+					"via": "token",
+					"binding": "a flat object"
+				},
+				"expect": {
+					"summaryNeverHolds": ["token", "nonce", "payload"]
+				}
+			},
+			{
+				"description": "a hook that refuses stops the handler, and the token is spent",
+				"rule": "2",
+				"run": {
+					"via": "token",
+					"binding": "a flat object",
+					"hook": "fail",
+					"thenRetry": true
+				},
+				"expect": {
+					"success": false,
+					"code": "COMMAND_EXECUTION_ERROR",
+					"handlerRuns": 0,
+					"retry": {
+						"code": "APPROVAL_REQUIRED",
+						"reason": "already-used",
+						"handlerRuns": 0
+					}
+				}
+			},
+			{
+				"description": "a token reused until it expires keeps its approval id across dispatches",
+				"rule": "3",
+				"run": {
+					"via": "token",
+					"binding": "a flat object",
+					"replay": "within-ttl",
+					"count": 2
+				},
+				"expect": {
+					"hookCalls": 2,
+					"distinctApprovalIds": 1,
+					"distinctDispatchIds": 2
+				}
+			},
+			{
+				"description": "each gated step of a batch approved up front gets its own summary",
+				"rule": "4",
+				"run": {
+					"via": "elicitation",
+					"kind": "batch",
+					"commands": [
+						{
+							"command": "todo-delete",
+							"input": {
+								"id": 1
+							}
+						},
+						{
+							"command": "todo-delete",
+							"input": {
+								"id": 2
+							}
+						}
+					]
+				},
+				"expect": {
+					"hookCalls": 2,
+					"distinctApprovalIds": 2,
+					"distinctDispatchIds": 2,
+					"approvalIdFromSpentKey": true
+				}
+			},
+			{
+				"description": "a held call's request carries the approval id its token will have",
+				"rule": "5",
+				"run": {
+					"via": "token",
+					"command": "todo-delete",
+					"input": {
+						"id": 42
+					},
+					"holdFirst": true
+				},
+				"expect": {
+					"success": true,
+					"hookCalls": 1,
+					"requestApprovalIdIsSummarys": true,
+					"approvalIdFromSpentKey": true
+				}
+			},
+			{
+				"description": "a DirectClient's approval request carries the approval id, and its summary says direct",
+				"rule": "5",
+				"run": {
+					"via": "direct",
+					"command": "todo-delete",
+					"input": {
+						"id": 42
+					}
+				},
+				"expect": {
+					"success": true,
+					"hookCalls": 1,
+					"via": "direct",
+					"requestApprovalIdIsSummarys": true,
+					"approvalIdFromSpentKey": true
+				}
+			},
+			{
+				"description": "relay evidence gives an id from relay:<decisionId>, no times and no decision id",
+				"rule": "summary",
+				"run": {
+					"via": "relay",
+					"command": "todo-delete",
+					"input": {
+						"id": 42
+					},
+					"decisionId": "decision-1"
+				},
+				"expect": {
+					"hookCalls": 1,
+					"via": "relay",
+					"members": ["approvalId", "command", "inputDigest", "via"],
+					"approvalIdIs": "relay evidence: the single-use key is relay:<decisionId>",
+					"summaryNeverHolds": ["decision-1"]
+				}
+			},
+			{
+				"description": "an answer over the MCP relay gives an id from the hold's nonce and the hold's expiry",
+				"rule": "summary",
+				"run": {
+					"via": "elicitation",
+					"command": "todo-delete",
+					"input": {
+						"id": 42
+					}
+				},
+				"expect": {
+					"hookCalls": 1,
+					"via": "elicitation",
+					"members": ["approvalId", "command", "expiresAt", "inputDigest", "via"],
+					"approvalIdFromSpentKey": true
+				}
+			}
+		]
+	}
+}

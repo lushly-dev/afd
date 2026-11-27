@@ -15,7 +15,7 @@ the pull request's number.
 
 - **0. What each language records at a deadline today** ([#2678](https://github.com/lushly-dev/afd/issues/2678)): not started. Needs nothing else here; changes no behaviour.
 
-- **1. Spec and vectors, the dispatch id and the approval hook** ([#2679](https://github.com/lushly-dev/afd/issues/2679)): not started. Needs nothing else here.
+- **1. Spec and vectors, the dispatch id and the approval hook** ([#2679](https://github.com/lushly-dev/afd/issues/2679)): merged in #2796. `spec/dispatch.md` ("The dispatch id", I1 to I4), `spec/command-metadata.md` ("The approval summary"), `spec/vectors/journal-seams.json` (12 and 12 cases, every language a documented gap) and `approvalId` on each binding of `approval-tokens.json`. Each language has a loader that skips every case.
 
 - **2. TypeScript** ([#2680](https://github.com/lushly-dev/afd/issues/2680)): not started. Needs step 1.
 

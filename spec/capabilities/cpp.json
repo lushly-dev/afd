@@ -354,6 +354,15 @@
 			"issue": "#1466",
 			"evidence": ["packages/cpp/tests/approver_client_vectors_test.cpp"]
 		},
+		"middleware.approval-summary": {
+			"status": "planned",
+			"note": "([#2682](https://github.com/lushly-dev/afd/issues/2682))",
+			"views": {
+				"summary": "([#2682](https://github.com/lushly-dev/afd/issues/2682))"
+			},
+			"issue": "#2682",
+			"evidence": ["packages/cpp/tests/journal_seams_vectors_test.cpp"]
+		},
 		"middleware.up-front-approval": {
 			"status": "yes",
 			"note": "on 2026-07-28 and in band on a 2025 stdio connection (`afd::mcp_stdio`); validation computes no default, so the step runs the input shown",
@@ -795,6 +804,15 @@
 				"packages/cpp/include/afd/context_fields.hpp",
 				"packages/cpp/tests/context_fields_test.cpp"
 			]
+		},
+		"single.dispatch-id": {
+			"status": "planned",
+			"note": "([#2682](https://github.com/lushly-dev/afd/issues/2682))",
+			"views": {
+				"summary": "([#2682](https://github.com/lushly-dev/afd/issues/2682))"
+			},
+			"issue": "#2682",
+			"evidence": ["packages/cpp/tests/journal_seams_vectors_test.cpp"]
 		}
 	}
 }

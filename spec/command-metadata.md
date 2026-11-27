@@ -635,6 +635,78 @@ rules 2 to 5 in its `carrier` section, each token's payload included.
 | Approver carrier (rules 1 to 5) | Yes (`createMcpServer({ approver })`; `AFD_APPROVAL_META_KEY`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) | Yes (`McpServer::with_approver`; `AFD_APPROVAL_META_KEY`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) |
 <!-- generated:capabilities:spec.command-metadata.approver:end -->
 
+### The approval summary
+
+A journal can show that a held call ran. Nothing in it says which approval admitted the call, and
+a token binds the actor who asked, not the person who answered. The approval summary is the join
+between the two: a value the approval step makes when it admits a call, which a host can record
+beside the call and the asking surface can record beside the person.
+
+When the approval step admits a call that a policy held (an approval token it accepted, an
+accepted answer over the [MCP relay](#asking-the-human-over-mcp), [relay evidence](#relay-evidence),
+or a DirectClient's [private exchange](#private-in-process-approval-exchange)), it builds the
+summary and, before the next link runs, calls the middleware's `onApprovalAccepted` option
+(`on_approval_accepted` in Python, Rust and C++) with the summary and the call's
+[`dispatchId`](./dispatch.md#the-dispatch-id). A call no policy held gets no summary.
+
+| Member | Value |
+| --- | --- |
+| `via` | `token`, `elicitation`, `relay` or `direct` |
+| `command` | The command's name |
+| `inputDigest` | The unpadded base64url SHA-256 of the canonical JSON (rule 3 of [Approvals](#approvals)) of the validated input, the digest a [`HumanRelay`](#host-verified-confirmation) is given |
+| `approvalId` | The unpadded base64url SHA-256 of the UTF-8 bytes of `approval`, a zero byte and the evidence's single-use key: the key the step spends in its nonce store when it enforces single use, and the same key when the server allows reuse and spends nothing. That is the token's nonce (its payload's `n`) for `token` and `direct`, the hold's nonce for `elicitation`, and `relay:<decisionId>` for `relay` |
+| `issuedAt` | Epoch milliseconds, only when the evidence carries an issue time: a token's `iat`. The time an elicitation's question was asked is not one |
+| `expiresAt` | Epoch milliseconds, only when the evidence carries an expiry: a token's `exp`, the elicitation hold's expiry. Relay evidence carries neither time |
+
+Rules:
+
+1. **It holds no credential and grants nothing.** The summary never carries a token, a nonce, a
+   key, a decision id or a credential, and no engine code reads it back. `inputDigest` is an
+   unkeyed digest of the whole input, so guesses at a short or predictable input can be checked
+   against it: a host that stores the summary leaves the digest out, or redacts it, wherever it
+   would redact the input itself (a command that declares `secret`).
+2. **The hook fails closed.** The step waits for `onApprovalAccepted`. The hook refuses by its
+   language's own failure signal: a throw or a rejection in TypeScript and Python, an `Err` in
+   Rust, an error return in C++, which is built without exceptions. A refusal fails the call with
+   `COMMAND_EXECUTION_ERROR` before the handler runs, with the message an uncaught middleware
+   exception gets ([dispatch](./dispatch.md#middleware-approval-admission-and-exceptions), rule
+   10), so a host that must record an approval before the action can rely on the handler not
+   running without the record. The refusal is reported to `onError` as a thrown middleware error
+   is, and `onCommand` is not called (dispatch, rule 12). Where single use is enforced the
+   evidence is already spent: the token is `already-used` on a retry.
+3. **`approvalId` names the approval, not the admission.** Where a server allows a token to be
+   reused until it expires, every call it admits carries the same `approvalId`, and their
+   `dispatchId`s tell them apart. Under such a server, a retry middleware outside the approval
+   step can have one call admitted twice: the hook is then called twice with the same
+   `approvalId` and the same `dispatchId`, and a host that needs one record per admission counts
+   the calls.
+4. **One per admitted step.** In an `afd-batch` or `afd-pipe` approved up front, each gated step
+   gets its own summary and its own call to the hook as that step is admitted.
+5. **The asking side can know the id.** A held call's request carries the `approvalId` its token
+   will have: the request `onApprovalRequired` is given, and the request a DirectClient's
+   `onApprovalNeeded` hook is given. An approver client that is handed a token derives the id from
+   the payload's `n`, and a `HumanRelay` from its own decision id. An admission that comes as
+   relay evidence carries the relay's id, not that of a token an earlier hold of the same call
+   issued, so a host joins a relayed approval through its relay. Over the MCP relay the server
+   asks through the calling client, so `onApprovalRequired` is not called and no host code holds
+   the id when the question is put; `onApprovalAccepted` still runs when the answer admits the
+   call. That client cannot portably obtain the id, since the nonce travels inside the
+   `requestState`. There the summary joins the approval to the call and not to a person: the
+   call's `actor`, when it has one, is who asked, and the server cannot tell a person's answer
+   from client code that answers by itself.
+
+[`vectors/approval-tokens.json`](./vectors/approval-tokens.json) gives the `approvalId` of each of
+its bindings, and [`vectors/journal-seams.json`](./vectors/journal-seams.json) pins the rules
+above in its `approvalSummary` section. No implementation builds the summary yet: every language
+is listed in that file's `gaps`.
+
+<!-- generated:capabilities:spec.command-metadata.approval-summary:start -->
+|  | TypeScript | Python | Rust | C++ |
+| --- | --- | --- | --- | --- |
+| The dispatch id on the command context | Planned ([#2680](https://github.com/lushly-dev/afd/issues/2680)) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) | Planned ([#2681](https://github.com/lushly-dev/afd/issues/2681)) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) |
+| The approval summary and `onApprovalAccepted` | Planned ([#2680](https://github.com/lushly-dev/afd/issues/2680)) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) | Planned ([#2681](https://github.com/lushly-dev/afd/issues/2681)) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) |
+<!-- generated:capabilities:spec.command-metadata.approval-summary:end -->
+
 ### Approval display
 
 What a person must be able to read in full before approving an action (D150, from Lushly's

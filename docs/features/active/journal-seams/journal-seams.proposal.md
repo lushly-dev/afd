@@ -243,10 +243,11 @@ language records at a deadline today):
   so no hash changes.
 - `spec/command-metadata.md`, Approvals: the summary, `onApprovalAccepted` (given the summary
   and the call's `dispatchId`), and `approvalId` on the held-call requests.
-- Vectors: a new `vectors/dispatch-id.json` for the id (present on a single dispatch, distinct
-  per batch item and pipeline step, absent from the context digest's `keys`), since
-  `vectors/dispatch.json` covers single-command order only; and the `approvalId` of each
-  accepted token in `vectors/approval-tokens.json`.
+- Vectors: a new `vectors/journal-seams.json` with a section for the id (present on a single
+  dispatch, distinct per batch item and pipeline step, absent from the context digest's `keys`)
+  and one for the approval summary, since `vectors/dispatch.json` covers single-command order
+  only; and the `approvalId` of each binding in `vectors/approval-tokens.json`. The spec pull
+  request chose one file for both sections, so each language has one gap to close.
 
 Held ([#2725](https://github.com/lushly-dev/afd/issues/2725)):
 

@@ -29,6 +29,41 @@ returns its `CommandResult` immediately; no later stage runs.
 | 12. Metadata stamping | Stamp `executionTimeMs`, `commandVersion`, `traceId` (when set on context) and `actorKind` (when context carries an actor) on a copy of the result | — | Middleware + handler |
 | 13. Observer hooks | Call `onCommand(name, rawInput, result)` outside the execution `try`; if middleware or handler threw, call `onError(err)` instead | Never changes the result | `onCommand` (normal return, including middleware failures) or `onError` (thrown error / throwing hook) |
 
+## The dispatch id
+
+Before stage 1 the engine gives each call it is asked to run an id and sets it on the command
+context as `dispatchId` (`dispatch_id` in Python, Rust and C++). A call refused in stages 1 to 7
+has one too, though nothing reads it. It names this one call and nothing else:
+a host that keeps its own record of a call (an intent written before the handler, an approval, an
+outcome) keys it by this id, which no other dispatch shares. The trace id cannot serve: a caller
+sets it, and the calls of one request share it on purpose.
+
+- **I1. Made by the engine.** The id is 128 bits from the platform's cryptographic random source,
+  or from a secure generator the host supplies where the platform's cannot be trusted, written as
+  unpadded base64url: 22 characters of `A-Z a-z 0-9 - _`, the last of which carries two bits and
+  so is `A`, `Q`, `g` or `w`. It is never taken from the caller. A value that a caller, a context hook or an in-process host put under that name is
+  replaced. It is never drawn from `context.random`, so a journal's tape is unchanged.
+- **I2. One per dispatch.** Each `afd-batch` item, each `afd-pipe` step and each command a handler
+  runs through the registry is a dispatch of its own and gets its own id, whatever trace id they
+  share. A middleware that calls `next()` more than once (a retry) runs the inner links again
+  under the same id. The id is not an admission: each pass through the innermost link still takes
+  its own approval admission (rule 9), so a retry placed after the approval step is refused with
+  `APPROVAL_UNAVAILABLE` (`details.reason: "admission-mismatch"`) as before. A nested call
+  leaves the outer call's id as it was, also where the two share one context object.
+- **I3. Stable and readable.** Every middleware and the handler read the same value for the whole
+  dispatch. A middleware **MUST NOT** change it, and an engine whose middleware could restores it
+  before each link.
+- **I4. Nowhere else.** The id is not stamped on the result, not written to a journal entry, and
+  its name never enters the journal's `contextDigest.keys`
+  ([journal](./journal.md#context-digest-no-secrets)). A server therefore returns the same
+  results and writes the same journal bytes as one without the id. The one exception is a host
+  that used the name itself: `dispatchId` is reserved
+  ([context fields](./context-fields.md#declaration)), so in an implementation that sets the id a
+  declared field of that name fails at registration and a context value under it is replaced.
+
+[`vectors/journal-seams.json`](./vectors/journal-seams.json) pins I1 to I4 in its `dispatchId`
+section. No implementation sets the id yet: every language is listed in that file's `gaps`.
+
 ## Normative rules
 
 ### Precedence of pre-execution checks

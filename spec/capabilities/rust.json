@@ -322,6 +322,15 @@
 				"packages/rust/tests/approver_client_vectors.rs"
 			]
 		},
+		"middleware.approval-summary": {
+			"status": "planned",
+			"note": "([#2681](https://github.com/lushly-dev/afd/issues/2681))",
+			"views": {
+				"summary": "([#2681](https://github.com/lushly-dev/afd/issues/2681))"
+			},
+			"issue": "#2681",
+			"evidence": ["packages/rust/tests/journal_seams_vectors.rs"]
+		},
 		"middleware.up-front-approval": {
 			"status": "yes",
 			"note": "on 2026-07-28 and in band on a 2025 stdio connection; nothing is kept, since validation computes no default",
@@ -742,6 +751,15 @@
 				"packages/rust/src/context_fields.rs",
 				"packages/rust/tests/server_context_fields.rs"
 			]
+		},
+		"single.dispatch-id": {
+			"status": "planned",
+			"note": "([#2681](https://github.com/lushly-dev/afd/issues/2681))",
+			"views": {
+				"summary": "([#2681](https://github.com/lushly-dev/afd/issues/2681))"
+			},
+			"issue": "#2681",
+			"evidence": ["packages/rust/tests/journal_seams_vectors.rs"]
 		}
 	}
 }

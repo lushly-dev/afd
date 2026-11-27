@@ -18,6 +18,7 @@ mechanically generated files are guarded in CI against unflagged drift
 | `approval-tokens.json` | Approval tokens ([`spec/command-metadata.md`](../command-metadata.md#approvals)): canonical JSON, the keyed input and actor digests, the payload layout, every acceptance and rejection reason, and rule 6 token delivery (`tokenDelivery`) | Format-generated (`generate-approval-tokens.mjs`) |
 | `approver-client.json` | Approval evidence from an approver client and the approval display rules ([`spec/command-metadata.md`](../command-metadata.md#approval-evidence-from-an-approver-client)): an approver's token and its principal binding, the `_meta` carrier over MCP, and every display limit and hidden range | Format-generated (`generate-approver-client.mjs`) |
 | `journal-context-cap.json` | The journal's 4096-byte cap on a declared context field's value ([`spec/journal.md`](../journal.md#declared-context-fields)): values just at, under and over it, where number spelling, multibyte UTF-8 and escapes decide kept or omitted | Format-generated (`generate-journal-context-cap.mjs`) |
+| `journal-seams.json` | The dispatch id ([`spec/dispatch.md`](../dispatch.md#the-dispatch-id), I1 to I4) and the approval summary ([`spec/command-metadata.md`](../command-metadata.md#the-approval-summary), rules 1 to 5). Every language is a documented gap | Specification-authored |
 | `pipeline-variables.json` | Reference resolution and `when` conditions ([`spec/pipeline-variables.md`](../pipeline-variables.md)) against one fixed pipeline context | Legacy reference-generated (`generate-pipeline-variables.mjs`) |
 | `batch-controls.json` | Batch and pipeline execution controls: `stopOnError`, `parallelism`, the batch `timeout` and pipeline `timeoutMs` deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION`, and envelope validation | Legacy reference-generated (`generate-batch-controls.mjs`) |
 | `validation.json` | Command input validation ([`spec/validation.md`](../validation.md)): unknown keys, the `VALIDATION_ERROR` shape, length units, the JSON Schema subset, explicit `null` and defaults | Legacy reference-generated (`generate-validation.mjs`) |
@@ -33,7 +34,7 @@ Every vector file in `spec/vectors/` falls into one of three categories, enforce
    language's runtime output. Because no implementation judges itself, a bug or dependency upgrade in
    TypeScript, Python, Rust or C++ cannot silently redefine the contract. Every new vector file
    (`error-codes.json`, `recovery.json`, `dispatch.json`, `execution-controls.json`, `app-calls.json`,
-   `tool-strategies.json`, `mcp-resources.json`, `output-budgets.json`, and
+   `tool-strategies.json`, `mcp-resources.json`, `output-budgets.json`, `journal-seams.json`, and
    `spec/protocol-conformance.json` beside its spec page) **MUST** be specification-authored.
 2. **Format-generated (permitted only when hand computation is infeasible).** Allowed strictly for
    vectors whose expected outputs are deterministic cryptographic digests or exact byte/code-unit
@@ -55,20 +56,24 @@ Every vector file in `spec/vectors/` falls into one of three categories, enforce
   language does not load a file yet, the entry is tracked in the
   [parity closure plan](../../docs/features/active/parity-closure/parity-closure.plan.md):
 
-  | Language | `pipeline-variables.json` | `batch-controls.json` | `execution-controls.json` | `validation.json` | `error-codes.json` | `recovery.json` | `dispatch.json` | `approval-tokens.json` | `journal-context-cap.json` | `approver-client.json` | `tool-strategies.json` | `mcp-resources.json` | `output-budgets.json` | `app-calls.json` | `output-schema.json` |
-  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/execution-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` | `packages/core/src/errors.test.ts` | `packages/server/src/recovery-vectors.test.ts` | `packages/server/src/dispatch-vectors.test.ts` | `packages/server/src/approval-vectors.test.ts` | `packages/server/src/journal-context-cap-vectors.test.ts` | `packages/server/src/approver-client-vectors.test.ts` | `packages/server/src/tool-strategies-vectors.test.ts` | `packages/server/src/mcp-resources-vectors.test.ts` | `packages/server/src/output-budget-vectors.test.ts` | `packages/core/src/app-calls-vectors.test.ts`, `packages/server/src/app-calls-vectors.test.ts` | `packages/server/src/output-schema-vectors.test.ts` |
-  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | `python/tests/test_execution_controls_vectors.py` | `python/tests/test_validation_vectors.py` | `python/tests/test_error_codes.py` | `python/tests/test_recovery_vectors.py` | `python/tests/test_dispatch_vectors.py` | `python/tests/test_approval_vectors.py` | `python/tests/test_journal_context_cap_vectors.py` | `python/tests/test_approver_client_vectors.py` (every case skipped: a gap) | `python/tests/test_tool_strategies_vectors.py` | `python/tests/test_mcp_resources_vectors.py`, `python/tests/test_tool_meta.py` | `python/tests/test_output_budget_vectors.py` | `python/tests/test_app_calls_vectors.py` | `python/tests/test_output_schema_vectors.py` |
-  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | `packages/rust/tests/execution_controls_vectors.rs` | `packages/rust/tests/validation_vectors.rs` | `packages/rust/tests/error_codes.rs` | `packages/rust/tests/recovery_vectors.rs` | `packages/rust/tests/dispatch_vectors.rs` | `packages/rust/tests/approval_vectors.rs` | `packages/rust/tests/journal_context_cap_vectors.rs` | `packages/rust/tests/approver_client_vectors.rs` (the carrier with `server-auth`) | `packages/rust/tests/tool_strategies_vectors.rs` (the `server` feature) | `packages/rust/tests/mcp_resources_vectors.rs` (the `server` feature) | `packages/rust/tests/output_budget_vectors.rs` | `packages/rust/tests/app_calls_vectors.rs` | `packages/rust/tests/output_schema_vectors.rs` |
-  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | `packages/cpp/tests/execution_controls_vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/recovery_vectors_test.cpp` | `packages/cpp/tests/dispatch_vectors_test.cpp` | `packages/cpp/tests/approval_vectors_test.cpp` | `packages/cpp/tests/journal_context_cap_vectors_test.cpp` | `packages/cpp/tests/approver_client_vectors_test.cpp` (every case skipped: a gap) | `packages/cpp/tests/tool_strategies_vectors_test.cpp` (`AFD_BUILD_MCP_STDIO`) | `packages/cpp/tests/mcp_resources_vectors_test.cpp` (`AFD_BUILD_MCP_STDIO`), `packages/cpp/tests/tool_meta_test.cpp` | `packages/cpp/tests/output_budget_vectors_test.cpp` | `packages/cpp/tests/app_calls_vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` |
+  | Language | `pipeline-variables.json` | `batch-controls.json` | `execution-controls.json` | `validation.json` | `error-codes.json` | `recovery.json` | `dispatch.json` | `approval-tokens.json` | `journal-context-cap.json` | `approver-client.json` | `tool-strategies.json` | `mcp-resources.json` | `output-budgets.json` | `app-calls.json` | `output-schema.json` | `journal-seams.json` |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/execution-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` | `packages/core/src/errors.test.ts` | `packages/server/src/recovery-vectors.test.ts` | `packages/server/src/dispatch-vectors.test.ts` | `packages/server/src/approval-vectors.test.ts` | `packages/server/src/journal-context-cap-vectors.test.ts` | `packages/server/src/approver-client-vectors.test.ts` | `packages/server/src/tool-strategies-vectors.test.ts` | `packages/server/src/mcp-resources-vectors.test.ts` | `packages/server/src/output-budget-vectors.test.ts` | `packages/core/src/app-calls-vectors.test.ts`, `packages/server/src/app-calls-vectors.test.ts` | `packages/server/src/output-schema-vectors.test.ts` | `packages/server/src/journal-seams-vectors.test.ts` (every case skipped: a gap) |
+  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | `python/tests/test_execution_controls_vectors.py` | `python/tests/test_validation_vectors.py` | `python/tests/test_error_codes.py` | `python/tests/test_recovery_vectors.py` | `python/tests/test_dispatch_vectors.py` | `python/tests/test_approval_vectors.py` | `python/tests/test_journal_context_cap_vectors.py` | `python/tests/test_approver_client_vectors.py` (every case skipped: a gap) | `python/tests/test_tool_strategies_vectors.py` | `python/tests/test_mcp_resources_vectors.py`, `python/tests/test_tool_meta.py` | `python/tests/test_output_budget_vectors.py` | `python/tests/test_app_calls_vectors.py` | `python/tests/test_output_schema_vectors.py` | `python/tests/test_journal_seams_vectors.py` (every case skipped: a gap) |
+  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | `packages/rust/tests/execution_controls_vectors.rs` | `packages/rust/tests/validation_vectors.rs` | `packages/rust/tests/error_codes.rs` | `packages/rust/tests/recovery_vectors.rs` | `packages/rust/tests/dispatch_vectors.rs` | `packages/rust/tests/approval_vectors.rs` | `packages/rust/tests/journal_context_cap_vectors.rs` | `packages/rust/tests/approver_client_vectors.rs` (the carrier with `server-auth`) | `packages/rust/tests/tool_strategies_vectors.rs` (the `server` feature) | `packages/rust/tests/mcp_resources_vectors.rs` (the `server` feature) | `packages/rust/tests/output_budget_vectors.rs` | `packages/rust/tests/app_calls_vectors.rs` | `packages/rust/tests/output_schema_vectors.rs` | `packages/rust/tests/journal_seams_vectors.rs` (every case skipped: a gap) |
+  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | `packages/cpp/tests/execution_controls_vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/recovery_vectors_test.cpp` | `packages/cpp/tests/dispatch_vectors_test.cpp` | `packages/cpp/tests/approval_vectors_test.cpp` | `packages/cpp/tests/journal_context_cap_vectors_test.cpp` | `packages/cpp/tests/approver_client_vectors_test.cpp` (every case skipped: a gap) | `packages/cpp/tests/tool_strategies_vectors_test.cpp` (`AFD_BUILD_MCP_STDIO`) | `packages/cpp/tests/mcp_resources_vectors_test.cpp` (`AFD_BUILD_MCP_STDIO`), `packages/cpp/tests/tool_meta_test.cpp` | `packages/cpp/tests/output_budget_vectors_test.cpp` | `packages/cpp/tests/app_calls_vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/journal_seams_vectors_test.cpp` (every case skipped: a gap) |
 
 - Changes to `spec/vectors` run the Python, Rust and C++ workflows as well as `ci.yml`.
 - **A documented gap.** A file may name, in its top-level `gaps`, the languages that load it but
   do not implement its behavior yet, each with its tracking issue. Such a language's suite loads
   the file, checks that it is still listed, and skips every case with that issue as the reason, so
   its run shows the gap instead of failing. Implementing the behavior means running the cases and
-  removing the language from `gaps`. Only `approver-client.json` has one (Python and C++,
-  [#1466](https://github.com/lushly-dev/afd/issues/1466)).
+  removing the language from `gaps`. `approver-client.json` has one (Python and C++,
+  [#1466](https://github.com/lushly-dev/afd/issues/1466)), and `journal-seams.json` lists all four
+  languages ([#2680](https://github.com/lushly-dev/afd/issues/2680),
+  [#2681](https://github.com/lushly-dev/afd/issues/2681),
+  [#2682](https://github.com/lushly-dev/afd/issues/2682)): it was written with the specification,
+  before any implementation.
 - A vector file joins this directory once all four languages load it, because `alfred parity`
   fails on any file here that a language does not load. Until then it sits in `spec/` next to the
   page it pins: [`authorization.json`](../authorization.json), for MCP authorization, the principal
@@ -264,6 +269,74 @@ whole numbers written with a fraction, exponents, fixed and scientific notation,
 round-trip decimals, negative zero, integers past 2^53, two-, three- and four-byte characters,
 `\u` escapes, the short escapes, other control characters, the characters JavaScript leaves
 unescaped (DEL, U+2028 and U+2029), object keys and nesting.
+
+### `journal-seams.json`
+
+Two sections, each with a prose `setup` and `cases` of `{ description, rule, run, expect }`. No
+implementation exists yet, so the file fixes what a harness must build and check; the first
+language to implement a section may sharpen a case's wording but not its meaning.
+
+**`dispatchId`** ([`spec/dispatch.md`](../dispatch.md#the-dispatch-id)). The setup's commands and
+two observer middleware layers each note the dispatch id they read. `run.command` and `run.input`
+are the call; `run.commands` are a batch's items and `run.steps` a pipeline's steps; `run.traceId`
+is the trace id the caller sets on the request. `run.kind` is `call` (one
+call), `calls` (`count` calls with the same input and trace id), `batch` or `pipeline`; `context`
+sets values on the call's context before it runs, under the language's own spelling of each name
+(`dispatch_id` in Python, Rust and C++), `middleware` replaces the outer layer
+(`overwrite`, `retry-once`), `journal: true` records the call with the journal recorder, and
+`random` is the sequence of values the call's `context.random` returns, in order.
+`expect` holds only what the case checks:
+
+- `handlerRuns`: how many times a handler ran. `distinctIds`: how many different ids all readers
+  noted. `readers`: the readers whose notes are compared, when not all of them.
+- `wellFormed`: every noted id matches `format.pattern`. `never`: values no reader may note.
+- `success` and `data`: the result. `resultHasId: false`: no member of the result, its metadata
+  included, is named `dispatchId` or holds the id.
+- `entries`, `entryHasId: false`: the journal has that many entries, and no member of the entry
+  is named for the id or holds it. `digestHashOmitsId: true`: the entry's `contextDigest.hash`
+  equals the hash the harness computes itself from [`spec/journal.md`](../journal.md#context-digest-no-secrets)'s
+  formula with the id's name left out of `keys`. The entry stores only the hash, so nothing less
+  shows that the name stayed out.
+- `handlerDraws`: the values the handler read from `context.random`. An engine that drew the id
+  from that source would hand the handler a later value.
+
+**`approvalSummary`** ([`spec/command-metadata.md`](../command-metadata.md#the-approval-summary)).
+The setup takes its secrets, clock, actors and bindings from `approval-tokens.json`, and its
+nonce store notes every key it is asked to consume. `run.via` says how the call is admitted
+(`token`, `direct`, `relay`, `elicitation`, or `none` for a command without a policy), and
+`binding` names a binding of that file, whose fixed token the call carries. A case without one
+gives `command` and `input`, or with `kind: "batch"` the `commands` of one `afd-batch` request
+approved up front. What varies a call:
+
+- `tamper: "signature"`: the token's last character is replaced by another base64url character.
+- `hook: "fail"`: the hook refuses, by the language's own failure signal.
+- `thenRetry`: the same call is made again with the same token. `replay: "within-ttl"` and `count`:
+  the server allows reuse, and the call is made `count` times.
+- `holdFirst`: the call is first made with no evidence and is held; it is then made again with the
+  token that hold issued, which the harness takes from `onApprovalRequired`'s request.
+- `decisionId`: the decision id the harness's relay answers with.
+
+`expect`:
+
+- `hookCalls`, `handlerRuns`, `success`, `code`, `order` (the hook and the handler, in the order
+  they ran) and `retry` (the result of repeating the call with the same token; its `reason` is the
+  error's `details.reason`).
+- `members`: the summary's member names, sorted. `via`: its `via`. `fromBinding`: the members that
+  must equal the binding's. `issuedAt` and `expiresAt`: `now`, or `now + ttlMs`, of
+  `approval-tokens.json`.
+- `dispatchIdIsHandlers`: the dispatch id the hook is given is the one the handler reads.
+- `summaryNeverHolds`: each entry is the name of a member of the case's binding (`token`, `nonce`,
+  `payload`), whose value must appear nowhere in the summary's JSON, or otherwise a literal value
+  that must not.
+- `approvalIdIs`: the summary's `approvalId` equals the `approvalId` of the entry of
+  `approval-tokens.json`'s `approvalIds` with that description.
+- `approvalIdFromSpentKey`: each summary's `approvalId` equals the unpadded base64url SHA-256 of
+  `approval`, a zero byte and a key the nonce store was asked to consume for that call. The step
+  draws these nonces itself, so no fixed value can be given.
+- `distinctApprovalIds`, `distinctDispatchIds`: across the hook's calls.
+- `requestApprovalIdIsSummarys`: the `approvalId` on the held call's request equals the summary's.
+
+A language without a surface a case needs (C++ has no `HumanRelay`) skips that case and says so.
 
 ### `output-budgets.json`
 

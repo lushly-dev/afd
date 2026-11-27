@@ -351,6 +351,15 @@
 				"packages/server/src/approver-client-vectors.test.ts"
 			]
 		},
+		"middleware.approval-summary": {
+			"status": "planned",
+			"note": "([#2680](https://github.com/lushly-dev/afd/issues/2680))",
+			"views": {
+				"summary": "([#2680](https://github.com/lushly-dev/afd/issues/2680))"
+			},
+			"issue": "#2680",
+			"evidence": ["packages/server/src/journal-seams-vectors.test.ts"]
+		},
 		"middleware.up-front-approval": {
 			"status": "yes",
 			"note": "; `requestState` keeps each gated step's validated input, so a schema with a random or time-based default runs what was approved",
@@ -791,6 +800,15 @@
 				"packages/server/src/context-fields-describe.ts",
 				"packages/server/src/context-fields-mcp.test.ts"
 			]
+		},
+		"single.dispatch-id": {
+			"status": "planned",
+			"note": "([#2680](https://github.com/lushly-dev/afd/issues/2680))",
+			"views": {
+				"summary": "([#2680](https://github.com/lushly-dev/afd/issues/2680))"
+			},
+			"issue": "#2680",
+			"evidence": ["packages/server/src/journal-seams-vectors.test.ts"]
 		}
 	}
 }
