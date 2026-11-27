@@ -33,7 +33,9 @@ TypeScript, Python, Rust and C++.
 - **Expiry result.** When the deadline expires, the engine aborts/cancels the command's cooperative
   cancellation signal and settles the call with `TIMEOUT` (`retryable: true`), `details: { command,
   timeoutMs }`, and a suggestion advising the caller to retry with a larger timeout and to check
-  whether a mutation already took effect.
+  whether a mutation already took effect. Once a language implements idempotency keys, the
+  `TIMEOUT` of a call that carried a key to a `keyed` command also carries
+  `recovery: { "kind": "retry" }` ([idempotency, R3](./idempotency.md#retrying)).
 - **Cooperative interruption.** A handler may continue running after the engine stops waiting; a
   `TIMEOUT` does not prove that the command had no side effects or roll them back.
 

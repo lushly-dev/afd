@@ -87,6 +87,10 @@
 			"label": "Command to MCP tool with `_meta`"
 		},
 		{
+			"id": "command.idempotency",
+			"label": "The `idempotency` field ([`spec/idempotency.md`](../spec/idempotency.md#what-a-command-declares)): `natural` or `keyed`, reported with `mutation`; `natural` sets `idempotentHint`"
+		},
+		{
 			"id": "single.dispatch-order",
 			"label": "Dispatch order: lookup, context, validation, middleware, handler, stamp, `onCommand`"
 		},
@@ -153,6 +157,10 @@
 		{
 			"id": "single.dispatch-id",
 			"label": "The dispatch id ([`spec/dispatch.md`](../spec/dispatch.md#the-dispatch-id)): `dispatchId` on the command context, made by the engine, one per dispatch (each batch item, pipeline step and nested call), absent from results, journal entries and the context digest"
+		},
+		{
+			"id": "single.idempotency-key",
+			"label": "The idempotency key ([`spec/idempotency.md`](../spec/idempotency.md#the-key)): `_meta[\"dev.afd/idempotencyKey\"]`, the meta-tools' `meta` argument or the context; validated before middleware; derived per batch item and pipeline step; recorded in the journal"
 		},
 		{
 			"id": "single.output-budgets",
@@ -225,6 +233,10 @@
 		{
 			"id": "middleware.approval-summary",
 			"label": "The approval summary ([`spec/command-metadata.md`](../spec/command-metadata.md#the-approval-summary)): `onApprovalAccepted` is given `via`, the command, the input digest and an `approvalId` with the call's `dispatchId` when a held call is admitted; a held call's request carries the same `approvalId`"
+		},
+		{
+			"id": "middleware.idempotency-step",
+			"label": "The idempotency step and the retry rule ([`spec/idempotency.md`](../spec/idempotency.md#the-engines-step)): a repeat of a `keyed` call is answered from a store or refused; the retry middleware repeats only what is declared safe; a keyed call's `TIMEOUT` carries a `retry` recovery"
 		},
 		{
 			"id": "middleware.up-front-approval",
@@ -534,6 +546,9 @@
 				},
 				{
 					"capability": "command.to-mcp-tool"
+				},
+				{
+					"capability": "command.idempotency"
 				}
 			]
 		},
@@ -601,6 +616,9 @@
 				},
 				{
 					"capability": "single.dispatch-id"
+				},
+				{
+					"capability": "single.idempotency-key"
 				}
 			]
 		},
@@ -644,6 +662,9 @@
 				},
 				{
 					"capability": "middleware.approval-summary"
+				},
+				{
+					"capability": "middleware.idempotency-step"
 				},
 				{
 					"capability": "middleware.up-front-approval"
@@ -1302,6 +1323,28 @@
 					"capability": "single.dispatch-order",
 					"field": "view",
 					"view": "dispatch-gaps"
+				}
+			]
+		},
+		{
+			"id": "spec.idempotency.status",
+			"file": "spec/idempotency.md",
+			"firstColumn": "",
+			"rows": [
+				{
+					"capability": "command.idempotency",
+					"label": "The `idempotency` field and `idempotentHint`",
+					"view": "status"
+				},
+				{
+					"capability": "single.idempotency-key",
+					"label": "The key: delivery, validation, derived keys, the journal member",
+					"view": "status"
+				},
+				{
+					"capability": "middleware.idempotency-step",
+					"label": "The engine's step, the retry rule and the `TIMEOUT` recovery",
+					"view": "status"
 				}
 			]
 		}

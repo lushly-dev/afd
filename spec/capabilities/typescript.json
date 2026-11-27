@@ -103,6 +103,15 @@
 			"status": "yes",
 			"evidence": ["packages/core/src/command-metadata.ts", "packages/server/src/tools.ts"]
 		},
+		"command.idempotency": {
+			"status": "planned",
+			"note": "([#2675](https://github.com/lushly-dev/afd/issues/2675))",
+			"views": {
+				"status": "([#2675](https://github.com/lushly-dev/afd/issues/2675))"
+			},
+			"issue": "#2675",
+			"evidence": ["packages/server/src/idempotency-vectors.test.ts"]
+		},
 		"single.dispatch-order": {
 			"status": "yes",
 			"note": "reference",
@@ -359,6 +368,15 @@
 			},
 			"issue": "#2680",
 			"evidence": ["packages/server/src/journal-seams-vectors.test.ts"]
+		},
+		"middleware.idempotency-step": {
+			"status": "planned",
+			"note": "([#2675](https://github.com/lushly-dev/afd/issues/2675))",
+			"views": {
+				"status": "([#2675](https://github.com/lushly-dev/afd/issues/2675))"
+			},
+			"issue": "#2675",
+			"evidence": ["packages/server/src/idempotency-vectors.test.ts"]
 		},
 		"middleware.up-front-approval": {
 			"status": "yes",
@@ -809,6 +827,15 @@
 			},
 			"issue": "#2680",
 			"evidence": ["packages/server/src/journal-seams-vectors.test.ts"]
+		},
+		"single.idempotency-key": {
+			"status": "planned",
+			"note": "([#2675](https://github.com/lushly-dev/afd/issues/2675))",
+			"views": {
+				"status": "([#2675](https://github.com/lushly-dev/afd/issues/2675))"
+			},
+			"issue": "#2675",
+			"evidence": ["packages/server/src/idempotency-vectors.test.ts"]
 		}
 	}
 }

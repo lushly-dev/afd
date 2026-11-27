@@ -154,6 +154,9 @@ on this surface, which means:
 - it is admitted by any `allow` list;
 - it is visible under the server's authorization (rule 2).
 
+The idempotency step's errors, and the `retry` a `TIMEOUT` carries for a keyed call, are in
+[idempotency](./idempotency.md#errors) and join this table with the first implementation.
+
 A meta-tool such as `afd-discover` is called as its own tool, not through `afd-call`, whose
 lookup holds only commands. Where the table says *none*, the engine sets no recovery: the step is
 the caller's own and no command does it, such as spelling a command name correctly or splitting a
