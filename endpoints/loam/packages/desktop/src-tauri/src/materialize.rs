@@ -12,10 +12,16 @@ use crate::connection::{Unwritten, sync_directory, write_owner_only};
 use crate::desktop_state::{self, DesktopState, INVALID, PERMISSIONS};
 use crate::js_json::{self, Json};
 use crate::models::{KeyRef, Kind, Provider};
+use crate::mounts::read_owner_only;
 use crate::plugin_manifest::{self, AuthMode};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+
+/// Compile-time digest of the bundled shell (`../dist`), polyfill, and desktop build metadata
+/// (`build.rs`), written to `<app data>/site/.loam-shell-build` so startup reconciles `site/`
+/// across app upgrades (amendment 9.1 & 9.2).
+pub const SHELL_BUILD_ID: &str = env!("LOAM_SHELL_BUILD_ID");
 
 /// Writing the site or a file beside it failed partway: the previous site stays, and the state is not committed.
 pub const FAILED: &str = "DESKTOP_MATERIALIZE_FAILED";
@@ -71,6 +77,10 @@ pub struct Materialized {
     pub mounts: String,
     /// The shell's `frame-src`: the sandbox origin when an app is a view or a provider is configured, else `'none'`.
     pub frame_src: String,
+    /// Deterministic `<plugin-id> <bundleSha256>\n` lines written to `site/.loam-bundles` so
+    /// startup reconciliation detects uncommitted app-only JS upgrades even when `deployment.json`,
+    /// `generation`, and filenames are identical.
+    bundles_marker: String,
     packages: Vec<Package>,
 }
 
@@ -575,12 +585,26 @@ pub fn project(
     } else {
         "'none'".to_owned()
     };
+    let mut plugin_digests: Vec<(&str, &str)> = state
+        .plugins
+        .iter()
+        .map(|plugin| (plugin.id.as_str(), plugin.bundle_sha256.as_str()))
+        .collect();
+    plugin_digests.sort_unstable();
+    let mut bundles_marker = String::new();
+    for (id, sha) in plugin_digests {
+        bundles_marker.push_str(id);
+        bundles_marker.push(' ');
+        bundles_marker.push_str(sha);
+        bundles_marker.push('\n');
+    }
     Ok(Materialized {
         generation,
         deployment: js_json::pretty(&Json::Obj(projection)),
         models: js_json::pretty(&models),
         mounts: js_json::pretty(&mounts),
         frame_src,
+        bundles_marker,
         packages: built.into_iter().map(|app| app.package).collect(),
     })
 }
@@ -638,6 +662,10 @@ fn stage(staging: &Path, built: &Materialized, shell_build: &str) -> std::io::Re
         &staging.join(".loam-generation"),
         format!("{}\n", built.generation).as_bytes(),
     )?;
+    write_synced(
+        &staging.join(".loam-bundles"),
+        built.bundles_marker.as_bytes(),
+    )?;
     sync_tree(staging)
 }
 
@@ -668,28 +696,13 @@ fn sync_tree(root: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Materializes `state` into `data` and commits it (9.2, steps 1 to 4): the site staged whole and swapped into
-/// `site/`, then `mounts.json` and `models.json` written owner-only, then `desktop-state.json` last, the durable
-/// commit point. A failure before the swap leaves every file as it was; a failure after it leaves the state
-/// uncommitted, so startup reconciles the files from the state still committed. Only for `managed` mode, under
-/// `desktop-state.lock`: it replaces `site/` whole.
-pub fn commit(
-    data: &Path,
-    state: &DesktopState,
-    profile: &Profile,
-    shell_build: &str,
-) -> Result<Materialized, &'static str> {
-    let built = project(data, state, profile)?;
-    // Refused now, not at the next start: a state its own reader would refuse is never committed.
-    let state_bytes = desktop_state::bytes(state);
-    if state_bytes.len() > desktop_state::FILE_MAX {
-        return Err(INVALID);
-    }
-    // Fixed names, since a commit runs under `desktop-state.lock`: what a crash left is swept by the next commit.
+/// Stages `built` into `<data>/.site-staging` and atomically swaps it into `<data>/site/`.
+fn swap_site(data: &Path, built: &Materialized, shell_build: &str) -> Result<(), &'static str> {
+    // Fixed names, since commits and reconciliation run under `desktop-state.lock`: what a crash left is swept.
     let staging = data.join(".site-staging");
     let backup = data.join(".site-backup");
     let site = data.join("site");
-    if stage(&staging, &built, shell_build).is_err() || remove_tree(&backup).is_err() {
+    if stage(&staging, built, shell_build).is_err() || remove_tree(&backup).is_err() {
         let _ = remove_tree(&staging);
         return Err(FAILED);
     }
@@ -708,6 +721,152 @@ pub fn commit(
     let _ = remove_tree(&backup);
     // Best effort, as `write_owner_only`'s own: some volumes refuse a folder's `fsync`.
     let _ = sync_directory(data);
+    Ok(())
+}
+
+/// Checks whether `<data>/site/` matches `built` and `shell_build` with no missing/stale artifacts
+/// and no planted shell files (`index.html`, `404.html`, `assets`, `sandbox`).
+fn site_needs_reconcile(data: &Path, built: &Materialized, shell_build: &str) -> bool {
+    let site = data.join("site");
+    if !std::fs::symlink_metadata(&site).is_ok_and(|meta| meta.is_dir()) {
+        return true;
+    }
+    let expected_build = format!("{shell_build}\n");
+    if read_regular(&site.join(".loam-shell-build"), 1024)
+        .ok()
+        .as_deref()
+        != Some(expected_build.as_bytes())
+    {
+        return true;
+    }
+    let expected_generation = format!("{}\n", built.generation);
+    if read_regular(&site.join(".loam-generation"), 1024)
+        .ok()
+        .as_deref()
+        != Some(expected_generation.as_bytes())
+    {
+        return true;
+    }
+    if read_regular(&site.join(".loam-bundles"), 1024 * 1024)
+        .ok()
+        .as_deref()
+        != Some(built.bundles_marker.as_bytes())
+    {
+        return true;
+    }
+    if read_regular(&site.join("deployment.json"), 16 * 1024 * 1024)
+        .ok()
+        .as_deref()
+        != Some(built.deployment.as_bytes())
+    {
+        return true;
+    }
+    for planted in ["index.html", "404.html", "assets", "sandbox"] {
+        if std::fs::symlink_metadata(site.join(planted)).is_ok() {
+            return true;
+        }
+    }
+    let apps_dir = site.join("apps");
+    if built.packages.is_empty() {
+        if std::fs::symlink_metadata(&apps_dir).is_ok() {
+            return true;
+        }
+        return false;
+    }
+    if !std::fs::symlink_metadata(&apps_dir).is_ok_and(|meta| meta.is_dir()) {
+        return true;
+    }
+    let expected_instances: HashSet<&str> = built
+        .packages
+        .iter()
+        .map(|package| package.instance.as_str())
+        .collect();
+    let Ok(entries) = std::fs::read_dir(&apps_dir) else {
+        return true;
+    };
+    let mut found_instances = HashSet::new();
+    for entry in entries {
+        let Ok(entry) = entry else {
+            return true;
+        };
+        let Ok(name) = entry.file_name().into_string() else {
+            return true;
+        };
+        if !entry.file_type().is_ok_and(|kind| kind.is_dir())
+            || !expected_instances.contains(name.as_str())
+        {
+            return true;
+        }
+        found_instances.insert(name);
+    }
+    if found_instances.len() != expected_instances.len() {
+        return true;
+    }
+    for package in &built.packages {
+        let target = apps_dir.join(&package.instance);
+        for file in &package.files {
+            if !std::fs::symlink_metadata(under(&target, file)).is_ok_and(|meta| meta.is_file()) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Checks whether a private owner-only file (`mounts.json`, `models.json`) is missing, has
+/// non-owner-only permissions, or differs from `expected`.
+fn private_file_needs_reconcile(path: &Path, expected: &[u8]) -> bool {
+    let max = expected.len().max(1024 * 1024);
+    read_owner_only(path, max).ok().as_deref() != Some(expected)
+}
+
+/// Reconciles `<data>/site/`, `mounts.json`, and `models.json` against committed `state` whenever
+/// any generated artifact is missing, has wrong permissions, lags `state`'s generation/content, or
+/// `shell_build` changed on app upgrade (amendment 9.1 & 9.2). Must run under `desktop-state.lock`.
+/// Does not rewrite `desktop-state.json`. Returns `(materialized, rewrote_any)`.
+pub fn reconcile(
+    data: &Path,
+    state: &DesktopState,
+    profile: &Profile,
+    shell_build: &str,
+) -> Result<(Materialized, bool), &'static str> {
+    let built = project(data, state, profile)?;
+    let mut rewrote = false;
+    if site_needs_reconcile(data, &built, shell_build) {
+        swap_site(data, &built, shell_build)?;
+        rewrote = true;
+    }
+    for (name, bytes) in [
+        ("mounts.json", built.mounts.as_bytes()),
+        ("models.json", built.models.as_bytes()),
+    ] {
+        let path = data.join(name);
+        if private_file_needs_reconcile(&path, bytes) {
+            write_owner_only(&path, bytes).map_err(unwritten)?;
+            rewrote = true;
+        }
+    }
+    Ok((built, rewrote))
+}
+
+/// Materializes `state` into `data` and commits it (9.2, steps 1 to 4): the site staged whole and swapped into
+/// `site/`, then `mounts.json` and `models.json` written owner-only, then `desktop-state.json` last, the durable
+/// commit point. A failure before the swap leaves every file as it was; a failure after it leaves the state
+/// uncommitted, so startup reconciles the files from the state still committed. Only for `managed` mode, under
+/// `desktop-state.lock`: it replaces `site/` whole.
+pub fn commit(
+    data: &Path,
+    state: &DesktopState,
+    profile: &Profile,
+    shell_build: &str,
+) -> Result<Materialized, &'static str> {
+    let built = project(data, state, profile)?;
+    // Refused now, not at the next start: a state its own reader would refuse is never committed.
+    let state_bytes = desktop_state::bytes(state);
+    if state_bytes.len() > desktop_state::FILE_MAX {
+        return Err(INVALID);
+    }
+    swap_site(data, &built, shell_build)?;
     for (name, bytes) in [
         ("mounts.json", built.mounts.as_bytes()),
         ("models.json", built.models.as_bytes()),

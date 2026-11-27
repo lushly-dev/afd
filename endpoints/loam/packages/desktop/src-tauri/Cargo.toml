@@ -16,6 +16,7 @@ name = "loam-desktop"
 path = "src/main.rs"
 
 [build-dependencies]
+sha2 = "=0.11.1"
 tauri-build = { version = "=2.7.6", features = [] }
 
 # Phase 6 specification, section 2: every crate exactly pinned. No `devtools` feature, and no plugin whose

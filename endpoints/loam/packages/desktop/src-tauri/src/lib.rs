@@ -36,7 +36,177 @@ pub const MAIN: &str = "main";
 /// can set it.
 pub(crate) const DATA_DIRECTORY: &str = "LOAM_DESKTOP_DATA_DIR";
 
-struct SiteState(Arc<site::Site>);
+/// The served site behind an `RwLock` so managed-mode updates swap `Site` (including `frame-src`)
+/// without restarting the host or re-registering protocols (phase 5 no-terminal amendment, 9.2).
+pub struct SiteState(std::sync::RwLock<Arc<site::Site>>);
+
+impl SiteState {
+    pub fn new(site: site::Site) -> Self {
+        Self(std::sync::RwLock::new(Arc::new(site)))
+    }
+
+    pub fn current(&self) -> Arc<site::Site> {
+        self.0
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+
+    pub fn swap(&self, site: site::Site) {
+        *self
+            .0
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Arc::new(site);
+    }
+}
+
+/// Mode resolved at startup (phase 5 no-terminal amendment, 9.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StartupMode {
+    /// Host-managed deployment: signed shell from `EmbeddedAssets`, `deployment.json` + `apps/*`
+    /// from `<app data>/site/` (or fresh empty bundled shell before the first commit).
+    Managed,
+    /// Developer-managed deployment (`loam deployment write --host desktop`): `<app data>/site/`,
+    /// `mounts.json`, and `models.json` served untouched.
+    Cli,
+    /// Managed mode failed closed (`DESKTOP_STATE_PERMISSIONS`, `DESKTOP_STATE_INVALID`, or
+    /// `DESKTOP_MATERIALIZE_FAILED`): no plugins, mounts, models, or inbound endpoint served.
+    FailedClosed(&'static str),
+}
+
+/// Prepared startup state before opening the `main` window.
+pub struct StartupResult {
+    pub mode: StartupMode,
+    pub site: site::Site,
+    pub mounts: Result<Vec<mounts::Access>, &'static str>,
+    pub models: Result<Vec<models::Provider>, &'static str>,
+    pub inbound: bool,
+    /// True when managed-mode startup reconciled one or more generated artifacts against
+    /// committed `desktop-state.json`.
+    pub reconciled: bool,
+}
+
+fn cli_startup(data: &std::path::Path, bundled: site::Lookup) -> StartupResult {
+    let site = site::Site::choose(&data.join("site"), bundled);
+    let deployed = mounts::read_deployed(&data.join("mounts.json"));
+    if let Err(code) = &deployed {
+        eprintln!("loam-desktop: mounts.json refused ({code}); no instance is mounted");
+    }
+    let inbound = deployed.as_ref().is_ok_and(|deployed| deployed.inbound);
+    let providers = models::read(&data.join("models.json"));
+    if let Err(code) = &providers {
+        eprintln!("loam-desktop: models.json refused ({code}); no model provider is configured");
+    }
+    StartupResult {
+        mode: StartupMode::Cli,
+        site,
+        mounts: deployed.map(|deployed| deployed.mounts),
+        models: providers,
+        inbound,
+        reconciled: false,
+    }
+}
+
+fn fail_closed_startup(code: &'static str, bundled: site::Lookup) -> StartupResult {
+    eprintln!(
+        "loam-desktop: desktop-state startup refused ({code}); failing closed with no plugins or providers"
+    );
+    StartupResult {
+        mode: StartupMode::FailedClosed(code),
+        site: site::Site::Bundled(bundled),
+        mounts: Err(code),
+        models: Err(code),
+        inbound: false,
+        reconciled: false,
+    }
+}
+
+/// Resolves `managed` vs `cli` mode at startup, acquires `<app data>/desktop-state.lock` around
+/// managed-mode orphan sweeping and reconciliation against committed `desktop-state.json`, and
+/// fails closed on permission or validation errors before `main` opens (amendment 9.1 & 9.2).
+pub fn startup_prepare(
+    data: &std::path::Path,
+    profile: &materialize::Profile,
+    shell_build: &str,
+    bundled: site::Lookup,
+) -> StartupResult {
+    // Fast pre-check for `cli` mode so developer deployments are left completely untouched
+    // (no `desktop-state.lock` created and no files swept). Uses `symlink_metadata` so a dangling
+    // symlink at `desktop-state.json` is NOT treated as absent and fails closed below.
+    let state_path = data.join(desktop_state::FILE);
+    let state_absent = matches!(
+        std::fs::symlink_metadata(&state_path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound
+    );
+    if state_absent && data.join("site").join("index.html").is_file() {
+        return cli_startup(data, bundled);
+    }
+
+    // Refuse a non-owner-only `desktop-state.json` immediately before touching disk (even if `data`
+    // is read-only).
+    if matches!(desktop_state::read(data), Err(desktop_state::PERMISSIONS)) {
+        return fail_closed_startup(desktop_state::PERMISSIONS, bundled);
+    }
+
+    let _lock = match desktop_state::StateLock::acquire(data) {
+        Ok(lock) => lock,
+        Err(code) => return fail_closed_startup(code, bundled),
+    };
+
+    match desktop_state::mode(data) {
+        Ok(desktop_state::Mode::Cli) => {
+            drop(_lock);
+            cli_startup(data, bundled)
+        }
+        Err(code) => fail_closed_startup(code, bundled),
+        Ok(desktop_state::Mode::Managed(None)) => {
+            if let Err(code) = desktop_state::sweep_orphans(data) {
+                return fail_closed_startup(code, bundled);
+            }
+            StartupResult {
+                mode: StartupMode::Managed,
+                site: site::Site::Bundled(bundled),
+                mounts: Ok(Vec::new()),
+                models: Ok(Vec::new()),
+                inbound: false,
+                reconciled: false,
+            }
+        }
+        Ok(desktop_state::Mode::Managed(Some(state))) => {
+            if let Err(code) = desktop_state::sweep_orphans(data) {
+                return fail_closed_startup(code, bundled);
+            }
+            let (built, reconciled) =
+                match materialize::reconcile(data, &state, profile, shell_build) {
+                    Ok(outcome) => outcome,
+                    Err(code) => return fail_closed_startup(code, bundled),
+                };
+            let site = match site::Site::try_managed(&data.join("site"), bundled, built.frame_src) {
+                Ok(site) => site,
+                Err(bundled) => return fail_closed_startup(materialize::FAILED, bundled),
+            };
+            let deployed = mounts::read_deployed(&data.join("mounts.json"));
+            if let Err(code) = &deployed {
+                eprintln!("loam-desktop: mounts.json refused ({code}); no instance is mounted");
+            }
+            let inbound = deployed.as_ref().is_ok_and(|deployed| deployed.inbound);
+            let providers = models::read(&data.join("models.json"));
+            if let Err(code) = &providers {
+                eprintln!(
+                    "loam-desktop: models.json refused ({code}); no model provider is configured"
+                );
+            }
+            StartupResult {
+                mode: StartupMode::Managed,
+                site,
+                mounts: deployed.map(|deployed| deployed.mounts),
+                models: providers,
+                inbound,
+                reconciled,
+            }
+        }
+    }
+}
 
 fn data_directory<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
     std::env::var_os(DATA_DIRECTORY)
@@ -386,9 +556,75 @@ fn may_navigate(url: &tauri::Url) -> bool {
             || matches!(url.as_str(), "about:srcdoc" | "about:blank"))
 }
 
+/// Shares a Tauri [`tauri::Assets`] provider between the Tauri context and `site::Site` so
+/// `Site::Bundled` and `Site::Managed` resolve exact keys via [`tauri::Assets::get`], which
+/// decompresses Brotli-encoded `EmbeddedAssets` and never falls back to `index.html`.
+struct SharedAssets<R: Runtime>(Arc<dyn tauri::Assets<R>>);
+
+impl<R: Runtime> tauri::Assets<R> for SharedAssets<R> {
+    fn setup(&self, app: &tauri::App<R>) {
+        self.0.setup(app);
+    }
+
+    fn get(&self, key: &tauri::utils::assets::AssetKey) -> Option<std::borrow::Cow<'_, [u8]>> {
+        self.0.get(key)
+    }
+
+    fn iter(&self) -> Box<tauri::utils::assets::AssetsIter<'_>> {
+        self.0.iter()
+    }
+
+    fn csp_hashes(
+        &self,
+        html_path: &tauri::utils::assets::AssetKey,
+    ) -> Box<dyn Iterator<Item = tauri::utils::assets::CspHash<'_>> + '_> {
+        self.0.csp_hashes(html_path)
+    }
+}
+
+struct EmptyAssets;
+
+impl<R: Runtime> tauri::Assets<R> for EmptyAssets {
+    fn get(&self, _key: &tauri::utils::assets::AssetKey) -> Option<std::borrow::Cow<'_, [u8]>> {
+        None
+    }
+
+    fn iter(&self) -> Box<tauri::utils::assets::AssetsIter<'_>> {
+        Box::new(std::iter::empty())
+    }
+
+    fn csp_hashes(
+        &self,
+        _html_path: &tauri::utils::assets::AssetKey,
+    ) -> Box<dyn Iterator<Item = tauri::utils::assets::CspHash<'_>> + '_> {
+        Box::new(std::iter::empty())
+    }
+}
+
+/// Extracts a shared [`tauri::Assets`] handle from `context` while keeping the exact same assets
+/// installed on `context`.
+pub fn share_context_assets<R: Runtime>(
+    context: &mut tauri::Context<R>,
+) -> Arc<dyn tauri::Assets<R>> {
+    let original = context.set_assets(Box::new(EmptyAssets));
+    let shared: Arc<dyn tauri::Assets<R>> = Arc::from(original);
+    context.set_assets(Box::new(SharedAssets(shared.clone())));
+    shared
+}
+
+/// Builds a [`site::Lookup`] backed by exact-key [`tauri::Assets::get`], decompressing embedded
+/// assets (Brotli) without SPA fallback.
+pub fn bundled_lookup<R: Runtime>(assets: Arc<dyn tauri::Assets<R>>) -> site::Lookup {
+    Box::new(move |path| {
+        let key = tauri::utils::assets::AssetKey::from(path);
+        assets.get(&key).map(|bytes| bytes.into_owned())
+    })
+}
+
 pub fn run() {
     logging::init();
-    let context = tauri::generate_context!();
+    let mut context = tauri::generate_context!();
+    let embedded_assets = share_context_assets(&mut context);
     let app = tauri::Builder::default()
         // First, so a second launch exits before it opens anything, and the first window comes forward.
         .plugin(tauri_plugin_single_instance::init(
@@ -407,53 +643,35 @@ pub fn run() {
         // Async protocol handlers move `canonicalize` + disk reads off the UI thread so WebView2's parallel
         // module fetches (and Windows real-time file scans) execute concurrently (#1396).
         .register_asynchronous_uri_scheme_protocol("loam", |context, request, responder| {
-            let site = context.app_handle().state::<SiteState>().0.clone();
+            let site = context.app_handle().state::<SiteState>().current();
             tauri::async_runtime::spawn_blocking(move || {
                 responder.respond(site::serve(&site, false, &request));
             });
         })
         .register_asynchronous_uri_scheme_protocol("loam-sandbox", |context, request, responder| {
-            let site = context.app_handle().state::<SiteState>().0.clone();
+            let site = context.app_handle().state::<SiteState>().current();
             tauri::async_runtime::spawn_blocking(move || {
                 responder.respond(site::serve(&site, true, &request));
             });
         })
         .invoke_handler(handler())
-        .setup(|app| {
+        .setup(move |app| {
             let handle = app.handle().clone();
             let data = data_directory(&handle);
-            let bundled = handle.clone();
-            app.manage(SiteState(Arc::new(site::Site::choose(
-                &data.join("site"),
-                Box::new(move |path| {
-                    let key = format!("/{path}");
-                    bundled
-                        .asset_resolver()
-                        .iter()
-                        .find(|(name, _)| *name == key)
-                        .map(|(_, bytes)| bytes.to_vec())
-                }),
-            ))));
-            // Read once: nothing in the webview can write it, and no command reaches it (10.3). The inbound switch is
-            // in it too (10.8), so a file missing or refused serves nothing inbound.
-            let deployed = mounts::read_deployed(&data.join("mounts.json"));
-            if let Err(code) = &deployed {
-                eprintln!("loam-desktop: mounts.json refused ({code}); no instance is mounted");
-            }
-            let inbound_on = deployed.as_ref().is_ok_and(|deployed| deployed.inbound);
-            app.manage(Arc::new(Mounts::new(
-                deployed.map(|deployed| deployed.mounts),
-            )));
+            let bundled = bundled_lookup(embedded_assets);
+            let custom_dir = keychain::custom_data_dir();
+            let mount_keychain = keychain::mount_service(custom_dir.as_deref());
+            let profile = materialize::Profile {
+                sandbox_origin: site::sandbox_origin(),
+                mount_keychain: &mount_keychain,
+            };
+            let startup = startup_prepare(&data, &profile, materialize::SHELL_BUILD_ID, bundled);
+            app.manage(SiteState::new(startup.site));
+            let inbound_on = startup.inbound;
+            app.manage(Arc::new(Mounts::new(startup.mounts)));
             app.manage(InboundState::default());
             app.manage(DataDirectory(data.clone()));
-            // The copilot's providers (phase 5 specification, 4.2): read once, beside `mounts.json`, under its rule.
-            let providers = models::read(&data.join("models.json"));
-            if let Err(code) = &providers {
-                eprintln!(
-                    "loam-desktop: models.json refused ({code}); no model provider is configured"
-                );
-            }
-            app.manage(Arc::new(Models::new(providers)));
+            app.manage(Arc::new(Models::new(startup.models)));
             app.set_menu(menu(&handle)?)?;
             app.on_menu_event(|app, event| {
                 let Some(window) = app.get_webview_window(MAIN) else {
@@ -619,5 +837,406 @@ mod tests {
                 "allow-inbound-reply"
             ])
         );
+    }
+
+    const SIGNED_PAGE: &str = "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; frame-src 'none'; object-src 'none'; base-uri 'none'\"><title>Loam Signed</title>";
+
+    fn test_bundled() -> site::Lookup {
+        Box::new(|path| match path {
+            "index.html" => Some(SIGNED_PAGE.as_bytes().to_vec()),
+            "assets/app.js" => Some(b"console.log('signed');".to_vec()),
+            "sandbox/proxy.html" => Some(b"<p>signed-proxy</p>".to_vec()),
+            "deployment.json" => Some(b"{\"from\":\"bundled\"}".to_vec()),
+            _ => None,
+        })
+    }
+
+    fn get_site(
+        site: &site::Site,
+        sandbox: bool,
+        path: &str,
+        accept: &str,
+    ) -> tauri::http::Response<std::borrow::Cow<'static, [u8]>> {
+        let req = tauri::http::Request::builder()
+            .uri(format!("loam://localhost{path}"))
+            .header("accept", accept)
+            .body(Vec::new())
+            .unwrap();
+        site::serve(site, sandbox, &req)
+    }
+
+    fn install_view_plugin(data: &std::path::Path) -> desktop_state::DesktopState {
+        let bundle_sha = "1".repeat(64);
+        let root = data.join("plugins/board").join(&bundle_sha);
+        std::fs::create_dir_all(root.join("apps/board/dist")).unwrap();
+        std::fs::write(
+            root.join("plugin-manifest.json"),
+            br#"{"plugin_manifest_version":1,"plugin":{"id":"board","title":"Board","version":"1.0.0","description":"Board."},"apps":[{"id":"board","path":"apps/board"}]}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("apps/board/app-manifest.json"),
+            br#"{"manifest_version":1,"protocol":1,"plugin":{"title":"Board","version":"1.0.0","description":"Board.","id":"board","kind":"view","domains":["board"]},"view":{}}"#,
+        )
+        .unwrap();
+        std::fs::write(root.join("apps/board/dist/view.js"), b"export const v = 1;").unwrap();
+        let mut state = desktop_state::DesktopState::fresh();
+        state.plugins.push(desktop_state::InstalledPlugin {
+            id: "board".into(),
+            bundle_sha256: bundle_sha,
+            engine: None,
+        });
+        state
+    }
+
+    #[test]
+    fn p5_s9_6_shell_build_id_is_a_compile_time_sha256_digest() {
+        let digest = materialize::SHELL_BUILD_ID
+            .strip_prefix("sha256-")
+            .expect("sha256- prefix");
+        assert!(
+            desktop_state::hex64(digest),
+            "{}",
+            materialize::SHELL_BUILD_ID
+        );
+    }
+
+    #[test]
+    fn p5_s9_6_cli_mode_serves_site_index_untouched_without_creating_state_lock() {
+        let data = tempfile::tempdir().unwrap();
+        let site_dir = data.path().join("site");
+        std::fs::create_dir_all(&site_dir).unwrap();
+        let cli_html = "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; frame-src 'none'; object-src 'none'; base-uri 'none'\"><title>CLI Dev Site</title>";
+        std::fs::write(site_dir.join("index.html"), cli_html).unwrap();
+        // Even an orphaned `.staging` directory is left untouched in `cli` mode.
+        std::fs::create_dir_all(data.path().join(".staging")).unwrap();
+
+        let profile = materialize::Profile::default_profile();
+        let startup = startup_prepare(
+            data.path(),
+            &profile,
+            materialize::SHELL_BUILD_ID,
+            test_bundled(),
+        );
+        assert_eq!(startup.mode, StartupMode::Cli);
+        assert!(!startup.reconciled);
+        assert!(!data.path().join(desktop_state::LOCK_FILE).exists());
+        assert!(data.path().join(".staging").exists());
+
+        let resp = get_site(&startup.site, false, "/", "text/html");
+        assert_eq!(resp.status(), 200);
+        assert_eq!(resp.body().as_ref(), cli_html.as_bytes());
+    }
+
+    #[test]
+    fn p5_s9_6_fresh_managed_install_sweeps_orphans_and_serves_bundled_shell() {
+        let data = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(data.path().join("plugins/.staging/stale")).unwrap();
+        std::fs::create_dir_all(data.path().join("plugins/mail")).unwrap();
+        std::fs::write(data.path().join("plugins/mail/launch.pending.json"), b"{}").unwrap();
+
+        let profile = materialize::Profile::default_profile();
+        let startup = startup_prepare(
+            data.path(),
+            &profile,
+            materialize::SHELL_BUILD_ID,
+            test_bundled(),
+        );
+        assert_eq!(startup.mode, StartupMode::Managed);
+        assert!(!startup.reconciled);
+        assert!(!startup.inbound);
+        assert!(startup.mounts.as_ref().unwrap().is_empty());
+        assert!(startup.models.as_ref().unwrap().is_empty());
+        assert!(data.path().join(desktop_state::LOCK_FILE).is_file());
+        assert!(!data.path().join("plugins/.staging").exists());
+        assert!(
+            !data
+                .path()
+                .join("plugins/mail/launch.pending.json")
+                .exists()
+        );
+
+        let resp = get_site(&startup.site, false, "/", "text/html");
+        assert_eq!(resp.status(), 200);
+        assert_eq!(resp.body().as_ref(), SIGNED_PAGE.as_bytes());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn p5_s9_6_non_owner_only_desktop_state_fails_closed_with_desktop_state_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let data = tempfile::tempdir().unwrap();
+        let state = install_view_plugin(data.path());
+        let profile = materialize::Profile::default_profile();
+        materialize::commit(data.path(), &state, &profile, "build-1").unwrap();
+
+        // Loosen permissions on `desktop-state.json` to 0644.
+        let state_file = data.path().join(desktop_state::FILE);
+        std::fs::set_permissions(&state_file, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        let startup = startup_prepare(data.path(), &profile, "build-1", test_bundled());
+        assert_eq!(
+            startup.mode,
+            StartupMode::FailedClosed(desktop_state::PERMISSIONS)
+        );
+        assert_eq!(startup.mounts.err(), Some(desktop_state::PERMISSIONS));
+        assert_eq!(startup.models.err(), Some(desktop_state::PERMISSIONS));
+        assert!(!startup.inbound);
+        // Must serve bundled shell only, NOT the disk deployment.json.
+        let deploy = get_site(&startup.site, false, "/deployment.json", "application/json");
+        assert_eq!(deploy.body().as_ref(), b"{\"from\":\"bundled\"}");
+    }
+
+    #[test]
+    fn p5_s9_6_managed_startup_reconciles_sweeps_orphans_and_ignores_planted_shell_files() {
+        let data = tempfile::tempdir().unwrap();
+        let state = install_view_plugin(data.path());
+        let profile = materialize::Profile::default_profile();
+        materialize::commit(data.path(), &state, &profile, "build-old").unwrap();
+
+        // Plant orphans and tampered shell files, and remove `mounts.json` to force reconciliation.
+        std::fs::create_dir_all(data.path().join("plugins/.staging/orphan")).unwrap();
+        std::fs::write(data.path().join("plugins/board/launch.pending.json"), b"{}").unwrap();
+        std::fs::remove_file(data.path().join("mounts.json")).unwrap();
+        std::fs::write(data.path().join("site/index.html"), b"PLANTED-BEFORE-BOOT").unwrap();
+
+        let startup = startup_prepare(
+            data.path(),
+            &profile,
+            materialize::SHELL_BUILD_ID,
+            test_bundled(),
+        );
+        assert_eq!(startup.mode, StartupMode::Managed);
+        assert!(startup.reconciled);
+        assert!(startup.inbound);
+        assert!(!data.path().join("plugins/.staging").exists());
+        assert!(
+            !data
+                .path()
+                .join("plugins/board/launch.pending.json")
+                .exists()
+        );
+        assert_eq!(
+            std::fs::read_to_string(data.path().join("site/.loam-shell-build")).unwrap(),
+            format!("{}\n", materialize::SHELL_BUILD_ID)
+        );
+
+        // Even if shell files are planted on disk AFTER startup, `Site::Managed` ignores them
+        // while serving `deployment.json` and `apps/*` from disk and rewriting `frame-src` in memory.
+        std::fs::create_dir_all(data.path().join("site/assets")).unwrap();
+        std::fs::write(data.path().join("site/index.html"), b"PLANTED-AFTER-BOOT").unwrap();
+        std::fs::write(data.path().join("site/assets/app.js"), b"planted();").unwrap();
+
+        let index = get_site(&startup.site, false, "/", "text/html");
+        assert_eq!(index.status(), 200);
+        let html = std::str::from_utf8(index.body()).unwrap();
+        assert!(html.contains("<title>Loam Signed</title>"));
+        assert!(html.contains(&format!("frame-src {};", site::sandbox_origin())));
+        assert_eq!(
+            index.headers()["content-security-policy"],
+            format!(
+                "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; frame-src {}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+                site::sandbox_origin()
+            )
+        );
+        let asset = get_site(&startup.site, false, "/assets/app.js", "*/*");
+        assert_eq!(asset.body().as_ref(), b"console.log('signed');");
+        let deploy = get_site(&startup.site, false, "/deployment.json", "application/json");
+        assert!(String::from_utf8_lossy(deploy.body()).contains("\"instance\": \"board\""));
+        let app_file = get_site(&startup.site, false, "/apps/board/dist/view.js", "*/*");
+        assert_eq!(app_file.body().as_ref(), b"export const v = 1;");
+
+        // `SiteState` supports in-place swapping without restarting the host.
+        let site_state = SiteState::new(startup.site);
+        site_state.swap(site::Site::Bundled(test_bundled()));
+        let swapped = get_site(&site_state.current(), false, "/", "text/html");
+        assert_eq!(swapped.body().as_ref(), SIGNED_PAGE.as_bytes());
+    }
+
+    #[test]
+    fn p5_s9_6_generated_context_bundled_lookup_decompresses_html_and_returns_404_for_missing() {
+        let mut context: tauri::Context<tauri::test::MockRuntime> =
+            tauri::generate_context!("tauri.conf.json", test = true);
+        let shared = share_context_assets(&mut context);
+
+        // `Site::Bundled` backed by the real generated `EmbeddedAssets` serves decompressed UTF-8 HTML
+        // and returns 404 for absent assets (no SPA fallback to `index.html`).
+        let bundled_site = site::Site::Bundled(bundled_lookup(shared.clone()));
+        let index = get_site(&bundled_site, false, "/", "text/html");
+        assert_eq!(index.status(), 200);
+        let html = std::str::from_utf8(index.body()).expect("decompressed UTF-8 HTML");
+        assert!(html.to_ascii_lowercase().contains("<!doctype html>"));
+        assert_eq!(
+            get_site(&bundled_site, false, "/assets/does-not-exist.js", "*/*").status(),
+            404
+        );
+
+        // `Site::Managed` backed by the same `EmbeddedAssets` also decodes and serves `/` cleanly.
+        let data = tempfile::tempdir().unwrap();
+        let site_dir = data.path().join("site");
+        std::fs::create_dir_all(&site_dir).unwrap();
+        std::fs::write(site_dir.join("deployment.json"), b"{\"from\":\"disk\"}").unwrap();
+        let managed_site =
+            site::Site::managed(&site_dir, bundled_lookup(shared), "'none'").unwrap();
+        let managed_index = get_site(&managed_site, false, "/", "text/html");
+        assert_eq!(managed_index.status(), 200);
+        let managed_html = std::str::from_utf8(managed_index.body()).expect("managed UTF-8 HTML");
+        assert!(
+            managed_html
+                .to_ascii_lowercase()
+                .contains("<!doctype html>")
+        );
+        assert_eq!(
+            get_site(&managed_site, false, "/deployment.json", "application/json")
+                .body()
+                .as_ref(),
+            b"{\"from\":\"disk\"}"
+        );
+    }
+
+    #[test]
+    fn p5_s9_6_invalid_desktop_state_and_dangling_symlink_fail_closed() {
+        // Corrupt JSON fails closed with `DESKTOP_STATE_INVALID`.
+        let data = tempfile::tempdir().unwrap();
+        connection::write_owner_only(&data.path().join(desktop_state::FILE), b"{not-json").unwrap();
+        let profile = materialize::Profile::default_profile();
+        let startup = startup_prepare(data.path(), &profile, "build-1", test_bundled());
+        assert_eq!(
+            startup.mode,
+            StartupMode::FailedClosed(desktop_state::INVALID)
+        );
+        assert_eq!(startup.mounts.err(), Some(desktop_state::INVALID));
+        assert_eq!(startup.models.err(), Some(desktop_state::INVALID));
+        assert!(!startup.inbound);
+
+        // Valid state referencing a missing plugin bundle fails closed with `DESKTOP_STATE_INVALID`.
+        let data2 = tempfile::tempdir().unwrap();
+        let mut missing_bundle = desktop_state::DesktopState::fresh();
+        missing_bundle.plugins.push(desktop_state::InstalledPlugin {
+            id: "ghost".into(),
+            bundle_sha256: "a".repeat(64),
+            engine: None,
+        });
+        connection::write_owner_only(
+            &data2.path().join(desktop_state::FILE),
+            &desktop_state::bytes(&missing_bundle),
+        )
+        .unwrap();
+        let startup2 = startup_prepare(data2.path(), &profile, "build-1", test_bundled());
+        assert_eq!(
+            startup2.mode,
+            StartupMode::FailedClosed(desktop_state::INVALID)
+        );
+        assert!(!startup2.inbound);
+
+        // Dangling symlink at `desktop-state.json` (even beside a `site/index.html`) fails closed
+        // with `DESKTOP_STATE_PERMISSIONS` rather than falling into `cli` mode.
+        #[cfg(unix)]
+        {
+            let data3 = tempfile::tempdir().unwrap();
+            std::fs::create_dir_all(data3.path().join("site")).unwrap();
+            std::fs::write(data3.path().join("site/index.html"), SIGNED_PAGE).unwrap();
+            std::os::unix::fs::symlink(
+                data3.path().join("nonexistent-target.json"),
+                data3.path().join(desktop_state::FILE),
+            )
+            .unwrap();
+            let startup3 = startup_prepare(data3.path(), &profile, "build-1", test_bundled());
+            assert_eq!(
+                startup3.mode,
+                StartupMode::FailedClosed(desktop_state::PERMISSIONS)
+            );
+            assert_eq!(startup3.mounts.err(), Some(desktop_state::PERMISSIONS));
+            assert!(!startup3.inbound);
+        }
+    }
+
+    #[test]
+    fn p5_s9_6_non_default_profile_reconciles_scoped_mount_keychain_service() {
+        let data = tempfile::tempdir().unwrap();
+        let bundle_sha = "3".repeat(64);
+        let root = data.path().join("plugins/mail").join(&bundle_sha);
+        std::fs::create_dir_all(root.join("apps/mail")).unwrap();
+        std::fs::create_dir_all(root.join("engines/linux-x64")).unwrap();
+        std::fs::write(root.join("engines/linux-x64/mail-engine"), b"\x7fELF").unwrap();
+        std::fs::write(
+            root.join("plugin-manifest.json"),
+            format!(
+                r#"{{"plugin_manifest_version":1,"plugin":{{"id":"mail","title":"Mail","version":"1.0.0","description":"Mail."}},"apps":[{{"id":"mail","path":"apps/mail"}}],"engine":{{"id":"mail-engine","kind":"http-service","mount_app":"mail","service_mode":"login","artifacts":{{"linux-x64":{{"path":"engines/linux-x64/mail-engine","sha256":"{}"}}}},"auth":{{"mode":"agent"}},"mount":{{"audience":"person"}}}}}}"#,
+                "0".repeat(64)
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("apps/mail/app-manifest.json"),
+            br#"{"manifest_version":1,"protocol":1,"plugin":{"title":"Mail","version":"1.0.0","description":"Mail.","id":"mail","kind":"mounted","domains":["mail"]},"mount":{"transport":"http","prefix":"mail"}}"#,
+        )
+        .unwrap();
+
+        let mut state = desktop_state::DesktopState::fresh();
+        state.plugins.push(desktop_state::InstalledPlugin {
+            id: "mail".into(),
+            bundle_sha256: bundle_sha,
+            engine: Some(desktop_state::EngineState {
+                port: 17405,
+                token_id: Some("tok_p1".into()),
+                proof_key: Some("c".repeat(64)),
+            }),
+        });
+        connection::write_owner_only(
+            &data.path().join(desktop_state::FILE),
+            &desktop_state::bytes(&state),
+        )
+        .unwrap();
+
+        let scoped_service = keychain::mount_service(Some(data.path()));
+        assert!(scoped_service.starts_with("loam-plugin-mount-"));
+        let profile = materialize::Profile {
+            sandbox_origin: site::sandbox_origin(),
+            mount_keychain: &scoped_service,
+        };
+        let startup = startup_prepare(
+            data.path(),
+            &profile,
+            materialize::SHELL_BUILD_ID,
+            test_bundled(),
+        );
+        assert_eq!(startup.mode, StartupMode::Managed);
+        assert!(startup.reconciled);
+        let mounts_text = std::fs::read_to_string(data.path().join("mounts.json")).unwrap();
+        assert!(mounts_text.contains(&format!("\"keychain\": \"{scoped_service}\"")));
+        assert!(mounts_text.contains("\"account\": \"mail.tok_p1\""));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn p5_s9_6_sweep_failure_fails_closed_before_opening_main() {
+        use std::os::unix::fs::PermissionsExt;
+        // Skip only if running as root (root bypasses directory write permission checks).
+        // SAFETY: `geteuid` has no preconditions and cannot fail.
+        if unsafe { libc::geteuid() } == 0 {
+            return;
+        }
+        let data = tempfile::tempdir().unwrap();
+        let locked_dir = data.path().join("plugins/mail");
+        std::fs::create_dir_all(&locked_dir).unwrap();
+        std::fs::write(locked_dir.join("launch.pending.json"), b"{}").unwrap();
+        // Make `plugins/mail` read+execute only so unlinking `launch.pending.json` fails with EACCES.
+        std::fs::set_permissions(&locked_dir, std::fs::Permissions::from_mode(0o500)).unwrap();
+
+        let profile = materialize::Profile::default_profile();
+        let startup = startup_prepare(
+            data.path(),
+            &profile,
+            materialize::SHELL_BUILD_ID,
+            test_bundled(),
+        );
+        // Restore permissions before asserting so TempDir cleanup always succeeds.
+        std::fs::set_permissions(&locked_dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+
+        assert_eq!(startup.mode, StartupMode::FailedClosed(materialize::FAILED));
+        assert_eq!(startup.mounts.err(), Some(materialize::FAILED));
+        assert_eq!(startup.models.err(), Some(materialize::FAILED));
+        assert!(!startup.inbound);
     }
 }

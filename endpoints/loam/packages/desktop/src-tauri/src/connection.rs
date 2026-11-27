@@ -195,6 +195,200 @@ pub fn running(pid: u32) -> bool {
     }
 }
 
+/// Verifies that the directory holding `desktop-state.lock` is a real directory (not a symlink or
+/// junction) and, on Unix, is owned by this user and not group/world writable (`mode & 0o022 == 0`)
+/// so another user cannot unlink or replace the lock pathname while a process holds its inode.
+pub(crate) fn check_lock_dir(dir: &Path) -> Result<(), Unwritten> {
+    let metadata = match std::fs::symlink_metadata(dir) {
+        Ok(meta) => meta,
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            return Err(Unwritten::NotOwnerOnly);
+        }
+        Err(_) => return Err(Unwritten::Io),
+    };
+    if !metadata.is_dir() {
+        return Err(Unwritten::NotOwnerOnly);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        // SAFETY: `geteuid` has no preconditions and cannot fail.
+        let user = unsafe { libc::geteuid() };
+        if metadata.uid() != user || (metadata.permissions().mode() & 0o022) != 0 {
+            return Err(Unwritten::NotOwnerOnly);
+        }
+    }
+    Ok(())
+}
+
+/// Ensures `path` exists as a directory (mode `0700` on Unix when newly created), never following a
+/// symlink at `path` itself.
+pub(crate) fn ensure_dir(path: &Path) -> std::io::Result<()> {
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_dir() => return Ok(()),
+        Ok(_) => return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder.create(path)
+}
+
+/// Opens or creates an owner-only lock file at `path` without following symlinks, verifying
+/// [`check_lock_dir`] on the parent directory and [`file_owner_only`] on the opened handle. On
+/// Windows, opens with `FILE_SHARE_READ | FILE_SHARE_WRITE` (and no `FILE_SHARE_DELETE`) so
+/// multiple processes can open the same file and contend on `LockFileEx` without any process
+/// unlinking or renaming it while held.
+pub(crate) fn open_lock_owner_only(path: &Path) -> Result<std::fs::File, Unwritten> {
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .ok_or(Unwritten::Io)?;
+    check_lock_dir(parent)?;
+    for _ in 0..3 {
+        match create_lock_owner_only(path) {
+            Ok(file) => {
+                if !file_owner_only(&file) {
+                    drop(file);
+                    let _ = std::fs::remove_file(path);
+                    return Err(Unwritten::NotOwnerOnly);
+                }
+                return Ok(file);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                match open_existing_lock_owner_only(path) {
+                    Ok(file) => return Ok(file),
+                    Err(ExistingLockError::NotFound) => continue,
+                    Err(ExistingLockError::NotOwnerOnly) => return Err(Unwritten::NotOwnerOnly),
+                    Err(ExistingLockError::Io) => return Err(Unwritten::Io),
+                }
+            }
+            Err(error)
+                if error.kind() == std::io::ErrorKind::PermissionDenied
+                    && std::fs::symlink_metadata(path).is_ok() =>
+            {
+                return Err(Unwritten::NotOwnerOnly);
+            }
+            Err(_) => return Err(Unwritten::Io),
+        }
+    }
+    Err(Unwritten::Io)
+}
+
+enum ExistingLockError {
+    NotFound,
+    NotOwnerOnly,
+    Io,
+}
+
+#[cfg(unix)]
+fn create_lock_owner_only(path: &Path) -> std::io::Result<std::fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)
+}
+
+#[cfg(unix)]
+fn open_existing_lock_owner_only(path: &Path) -> Result<std::fs::File, ExistingLockError> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let file = match std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+        .open(path)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(ExistingLockError::NotFound);
+        }
+        Err(error)
+            if matches!(
+                error.raw_os_error(),
+                Some(libc::ELOOP | libc::EISDIR | libc::ENXIO)
+            ) =>
+        {
+            return Err(ExistingLockError::NotOwnerOnly);
+        }
+        Err(error)
+            if error.kind() == std::io::ErrorKind::PermissionDenied
+                && std::fs::symlink_metadata(path).is_ok() =>
+        {
+            return Err(ExistingLockError::NotOwnerOnly);
+        }
+        Err(_) => return Err(ExistingLockError::Io),
+    };
+    if !file_owner_only(&file) {
+        return Err(ExistingLockError::NotOwnerOnly);
+    }
+    Ok(file)
+}
+
+#[cfg(windows)]
+fn create_lock_owner_only(path: &Path) -> std::io::Result<std::fs::File> {
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    };
+    create_owner_only_with(
+        path,
+        FILE_GENERIC_READ | FILE_GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+    )
+}
+
+#[cfg(windows)]
+fn open_existing_lock_owner_only(path: &Path) -> Result<std::fs::File, ExistingLockError> {
+    use std::os::windows::fs::OpenOptionsExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    };
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_file() => {}
+        Ok(_) => return Err(ExistingLockError::NotOwnerOnly),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(ExistingLockError::NotFound);
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            return Err(ExistingLockError::NotOwnerOnly);
+        }
+        Err(_) => return Err(ExistingLockError::Io),
+    }
+    let file = match std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(ExistingLockError::NotFound);
+        }
+        Err(error)
+            if error.kind() == std::io::ErrorKind::PermissionDenied
+                && std::fs::symlink_metadata(path).is_ok() =>
+        {
+            return Err(ExistingLockError::NotOwnerOnly);
+        }
+        Err(_) => return Err(ExistingLockError::Io),
+    };
+    let still_file = std::fs::symlink_metadata(path).is_ok_and(|meta| meta.is_file());
+    if !still_file || !file_owner_only(&file) {
+        return Err(ExistingLockError::NotOwnerOnly);
+    }
+    Ok(file)
+}
+
 #[cfg(unix)]
 fn create_owner_only(path: &Path) -> std::io::Result<std::fs::File> {
     use std::os::unix::fs::OpenOptionsExt;
@@ -206,10 +400,20 @@ fn create_owner_only(path: &Path) -> std::io::Result<std::fs::File> {
         .open(path)
 }
 
+#[cfg(windows)]
+fn create_owner_only(path: &Path) -> std::io::Result<std::fs::File> {
+    use windows_sys::Win32::Storage::FileSystem::FILE_GENERIC_WRITE;
+    create_owner_only_with(path, FILE_GENERIC_WRITE, 0)
+}
+
 /// A new file whose security descriptor is set as it is created, before anything is written: this user as owner and
 /// a protected DACL with one entry, full control for this user, so nothing is inherited. Never a spawned `icacls`.
 #[cfg(windows)]
-fn create_owner_only(path: &Path) -> std::io::Result<std::fs::File> {
+fn create_owner_only_with(
+    path: &Path,
+    desired_access: u32,
+    share_mode: u32,
+) -> std::io::Result<std::fs::File> {
     use std::ffi::c_void;
     use std::mem::size_of;
     use std::os::windows::ffi::OsStrExt;
@@ -223,7 +427,8 @@ fn create_owner_only(path: &Path) -> std::io::Result<std::fs::File> {
         SetSecurityDescriptorDacl, SetSecurityDescriptorOwner, TOKEN_QUERY, TOKEN_USER, TokenUser,
     };
     use windows_sys::Win32::Storage::FileSystem::{
-        CREATE_NEW, CreateFileW, FILE_ALL_ACCESS, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_WRITE,
+        CREATE_NEW, CreateFileW, FILE_ALL_ACCESS, FILE_ATTRIBUTE_NORMAL,
+        FILE_FLAG_OPEN_REPARSE_POINT,
     };
     use windows_sys::Win32::System::SystemServices::SECURITY_DESCRIPTOR_REVISION;
     use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
@@ -290,16 +495,16 @@ fn create_owner_only(path: &Path) -> std::io::Result<std::fs::File> {
         bInheritHandle: 0,
     };
     let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
-    // SAFETY: `wide` is a NUL-terminated path; `attributes` and what it points to live through the call. No sharing,
-    // and `CREATE_NEW` refuses an existing file or link.
+    // SAFETY: `wide` is a NUL-terminated path; `attributes` and what it points to live through the call.
+    // `CREATE_NEW | FILE_FLAG_OPEN_REPARSE_POINT` refuses an existing file, directory, or dangling symlink.
     let handle = unsafe {
         CreateFileW(
             wide.as_ptr(),
-            FILE_GENERIC_WRITE,
-            0,
+            desired_access,
+            share_mode,
             &attributes,
             CREATE_NEW,
-            FILE_ATTRIBUTE_NORMAL,
+            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT,
             null_mut(),
         )
     };
