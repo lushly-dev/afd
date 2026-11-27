@@ -16,6 +16,8 @@
 #include "afd/schema.hpp"
 #include "afd/streaming.hpp"
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
@@ -86,6 +88,16 @@ struct CommandRegistryOptions {
     /// `spec/command-metadata.md`, "App-to-app calls"). Without one, every app call is refused
     /// with `CALL_NOT_GRANTED`.
     CallGrant call_grant;
+    /// Fills `size` bytes at `out` with cryptographically secure random bytes, for each call's
+    /// `context.dispatch_id` (spec/dispatch.md, "The dispatch id"), and returns true; false when
+    /// it cannot. A call whose source returns false (or throws, in builds with exceptions) gets no
+    /// id and fails with COMMAND_EXECUTION_ERROR before any check. Default: `std::random_device`,
+    /// the OS entropy source on glibc, libc++ (macOS), MSVC and Emscripten. MinGW's libstdc++
+    /// before GCC 9.2 makes it deterministic: supply a generator there. Never pass a
+    /// `RandomSource`-based generator. Must be thread-safe when calls run concurrently. Unlike
+    /// `ApprovalMiddlewareOptions::random_bytes`, which returns nothing, it returns a `bool`, so
+    /// one generator serving both needs a small adapter for one of them.
+    std::function<bool(std::uint8_t* out, std::size_t size)> random_bytes;
 };
 
 /// How `CommandRegistry::list_by_tags` matches a command's tags.

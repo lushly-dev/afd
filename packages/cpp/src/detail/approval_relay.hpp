@@ -131,12 +131,21 @@ struct UpFrontHold {
 /// step's context before the step runs. Only the MCP server creates it.
 class UpFrontApproval {
 public:
+    /// One accepted answer a gated step runs on.
+    struct Approved {
+        std::string binding;
+        /// The hold's nonce, already spent, and its expiry: the step's approval summary.
+        std::string nonce;
+        std::int64_t expires_at_ms = 0;
+        bool used = false;
+    };
+
     /// What the middleware decided.
     struct Plan {
         /// Why nothing runs; unset when every step runs.
         std::optional<CommandError> refusal;
-        /// The bindings of the approvals the gated steps run on, each taken once.
-        std::vector<std::pair<std::string, bool>> approved;
+        /// The approvals the gated steps run on, each taken once.
+        std::vector<Approved> approved;
     };
 
     UpFrontApproval(std::string tool, std::string call, bool conditional,
@@ -168,19 +177,20 @@ public:
         return plan_;
     }
 
-    /// Takes one unused approval whose binding is among `bindings`.
-    bool take(const std::vector<std::string>& bindings) {
+    /// Takes one unused approval whose binding is among `bindings`, if there is one.
+    std::optional<Approved> take(const std::vector<std::string>& bindings) {
         const std::lock_guard lock(mutex_);
         if (!plan_) {
-            return false;
+            return std::nullopt;
         }
-        for (auto& [binding, used] : plan_->approved) {
-            if (!used && std::find(bindings.begin(), bindings.end(), binding) != bindings.end()) {
-                used = true;
-                return true;
+        for (auto& approved : plan_->approved) {
+            if (!approved.used &&
+                std::find(bindings.begin(), bindings.end(), approved.binding) != bindings.end()) {
+                approved.used = true;
+                return approved;
             }
         }
-        return false;
+        return std::nullopt;
     }
 
     void hold(UpFrontHold hold) {

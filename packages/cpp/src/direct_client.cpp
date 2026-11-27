@@ -224,7 +224,8 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
                                       .summary = pending->summary,
                                       .expires_at = pending->expires_at,
                                       .reason = pending->reason,
-                                      .cancellation = context.cancellation});
+                                      .cancellation = context.cancellation,
+                                      .approval_id = pending->approval_id});
             answered = true;
 #if AFD_HAS_EXCEPTIONS
         } catch (...) {

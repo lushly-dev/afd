@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "detail/hmac.hpp"
+#include "detail/sha256.hpp"
 #include <doctest.h>
 
 namespace {
@@ -124,6 +125,32 @@ TEST_CASE("approval token bindings canonicalize, issue and verify as the vectors
         CHECK(outcome(call(vectors, verifying, binding, binding.at("token").get<std::string>())) ==
               "accepted");
     }
+}
+
+TEST_CASE("each binding's input digest and approval id, and the relay's, are the vectors'") {
+    // spec/command-metadata.md, "The approval summary": `inputDigest` is the unpadded base64url
+    // SHA-256 of the canonical input, and `approvalId` that of `approval`, a zero byte and the
+    // single-use key: the token's nonce, or `relay:<decisionId>` for relay evidence.
+    const auto vectors = load_vectors("approval-tokens.json");
+    for (const auto& binding : vectors.at("bindings")) {
+        CAPTURE(binding.at("description").get<std::string>());
+        const auto canonical = afd::canonical_json(binding.at("input"));
+        REQUIRE(canonical);
+        CHECK(afd::detail::base64url_encode(afd::detail::sha256(*canonical)) ==
+              binding.at("inputDigest").get<std::string>());
+        CHECK(afd::approval_id(binding.at("nonce").get<std::string>()) ==
+              binding.at("approvalId").get<std::string>());
+    }
+    const auto& ids = vectors.at("approvalIds");
+    REQUIRE_FALSE(ids.empty());
+    bool relay = false;
+    for (const auto& entry : ids) {
+        CAPTURE(entry.at("description").get<std::string>());
+        relay = relay || entry.at("via") == "relay";
+        CHECK(afd::approval_id(entry.at("singleUseKey").get<std::string>()) ==
+              entry.at("approvalId").get<std::string>());
+    }
+    CHECK(relay);
 }
 
 TEST_CASE("approval tokens verify as the vectors expect") {

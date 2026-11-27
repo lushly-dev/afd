@@ -13,6 +13,8 @@ struct DirectApprovalHold {
     std::string summary;
     std::string expires_at;
     std::optional<std::string> reason;
+    /// `approval_id` of the token's nonce (approval.hpp).
+    std::string approval_id;
 };
 
 // Opaque outside the library; never serialized, and never trusted from a public call context.

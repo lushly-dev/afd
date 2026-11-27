@@ -88,7 +88,56 @@ struct ApprovalRequest {
     std::string summary;
     /// Set when the call carried a token that was rejected.
     std::optional<ApprovalRejection> rejected;
+    /// The `approval_id` the summary of a call admitted on `approval_token` carries
+    /// (spec/command-metadata.md, "The approval summary", rule 5): `approval_id` of the token's
+    /// nonce. Not a credential.
+    std::string approval_id;
 };
+
+/// How an approval step admitted a held call. Wire values are `token`, `elicitation` and
+/// `direct`. (TypeScript's `relay`, a `HumanRelay`'s evidence, has no C++ counterpart.)
+enum class ApprovalVia {
+    /// An approval token in `CommandContext::approval`.
+    token,
+    /// An accepted answer over the MCP relay (`ApprovalRelay::mcp_elicitation`), including each
+    /// gated step of an `afd-batch` or `afd-pipe` approved up front.
+    elicitation,
+    /// `DirectClient`'s private exchange (`DirectClientOptions::on_approval_needed`).
+    direct
+};
+
+/// The wire name of `via`, e.g. `elicitation`.
+std::string_view approval_via_name(ApprovalVia via) noexcept;
+
+/// What an approval step tells `on_approval_accepted` when it admits a call a policy held
+/// (spec/command-metadata.md, "The approval summary"). It holds no token, nonce, key or
+/// credential, and grants nothing: no engine code reads it back.
+struct ApprovalSummary {
+    ApprovalVia via = ApprovalVia::token;
+    /// The command's name.
+    std::string command;
+    /// The unpadded base64url SHA-256 of the canonical JSON of the validated input. Unkeyed, so
+    /// guesses at a short input can be checked against it: a host that stores the summary leaves
+    /// it out, or redacts it, wherever it would redact the input (a `secret` command).
+    std::string input_digest;
+    /// `approval_id` of the evidence's single-use key: the token's nonce for `token` and
+    /// `direct`, the hold's nonce for `elicitation`. Under `ApprovalReplay::within_ttl`, every
+    /// call one token admits carries the same id; their dispatch ids tell them apart.
+    std::string approval_id;
+    /// Epoch milliseconds: a token's `iat`. Unset for `elicitation`.
+    std::optional<std::int64_t> issued_at;
+    /// Epoch milliseconds: a token's `exp`, or the elicitation hold's expiry.
+    std::optional<std::int64_t> expires_at;
+};
+
+/// `{via, command, inputDigest, approvalId, issuedAt?, expiresAt?}`, as TypeScript's
+/// `ApprovalSummary`.
+void to_json(Json& out, const ApprovalSummary& summary);
+
+/// The approval id of a single-use key: the unpadded base64url SHA-256 of the UTF-8 bytes of
+/// `approval`, a zero byte and `key` (spec/command-metadata.md, "The approval summary"). An
+/// approver handed a token derives it from the payload's `n`.
+std::string approval_id(std::string_view key);
 
 /// Whether one token can run its call more than once.
 enum class ApprovalReplay {
@@ -148,13 +197,45 @@ struct ApprovalMiddlewareOptions {
     /// Fills `size` bytes at `out` with cryptographically secure random bytes, for nonces.
     /// Default: `std::random_device`, which is the OS entropy source on glibc, libc++ (macOS),
     /// MSVC and Emscripten. MinGW's libstdc++ before GCC 9.2 makes it deterministic: supply a
-    /// generator there. Never pass a `RandomSource`-based generator.
+    /// generator there. Never pass a `RandomSource`-based generator. It returns nothing, while
+    /// `CommandRegistryOptions::random_bytes` returns whether it filled the bytes, so one
+    /// generator serving both needs a small adapter for one of them.
     std::function<void(std::uint8_t* out, std::size_t size)> random_bytes;
     /// Whether to ask the human over MCP. Default: no relay. With `mcp_elicitation`, a call the
     /// `afd::mcp_stdio` server routes to one command is asked as a form elicitation; no token is
     /// issued and `on_approval_required` is not called for it. A declined form fails the call
     /// with `APPROVAL_REQUIRED`, `details.reason: "declined"`.
     ApprovalRelay relay = ApprovalRelay::none;
+    /// Called each time this middleware admits a call a policy held, before the next link runs
+    /// (spec/command-metadata.md, "The approval summary"): with the `ApprovalSummary` and the
+    /// call's `CommandContext::dispatch_id` (empty only when the middleware runs outside
+    /// `CommandRegistry::execute`). A host that keeps its own record of a call files the approval
+    /// there under the dispatch id. Return `std::nullopt` to let the call run, or a message to
+    /// refuse it.
+    ///
+    /// Each gated step of an `afd-batch` or `afd-pipe` approved up front gets its own call as the
+    /// step is admitted, and a call no policy held, or whose evidence was rejected, gets none.
+    /// Under `ApprovalReplay::within_ttl`, a retrying middleware placed before this one can have
+    /// one call admitted twice: the hook is then called twice with the same approval id and
+    /// dispatch id.
+    ///
+    /// It fails closed. A refusal is this middleware's error: in builds with exceptions it throws
+    /// a `std::runtime_error` (`The on_approval_accepted hook refused the call: <message>`), which
+    /// unwinds through the links outside this one as any middleware's exception does, and
+    /// `CommandRegistry` reports it to `on_error`, answers `COMMAND_EXECUTION_ERROR` and skips
+    /// `on_command`. Without exceptions the middleware returns `COMMAND_EXECUTION_ERROR` and the
+    /// registry reports it the same way. The refusal of the last pass through this middleware
+    /// stands whatever a link outside it returns: one that catches the exception, or the failure,
+    /// cannot make the call a success. A retry that reaches this middleware again is decided
+    /// afresh, so one the hook admits runs. The handler does not run, and the evidence is already
+    /// spent: under `ApprovalReplay::single_use` a retry with the same token is `already-used`.
+    /// So a host that must record an approval before the action can rely on the handler not
+    /// running without it. An exception the hook throws is a middleware exception too. Must be
+    /// thread-safe when calls run concurrently. Last, so positional initializers written before
+    /// it existed still compile.
+    std::function<std::optional<std::string>(const ApprovalSummary& summary,
+                                             std::string_view dispatch_id)>
+        on_approval_accepted;
 };
 
 /// A middleware that runs a command whose `approval` policy requires approval only when

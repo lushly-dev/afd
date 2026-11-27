@@ -364,13 +364,17 @@
 			"evidence": ["packages/cpp/tests/approver_client_vectors_test.cpp"]
 		},
 		"middleware.approval-summary": {
-			"status": "planned",
-			"note": "([#2682](https://github.com/lushly-dev/afd/issues/2682))",
+			"status": "yes",
+			"note": "(`ApprovalMiddlewareOptions::on_approval_accepted`, `ApprovalSummary`, `ApprovalRequest::approval_id`, `DirectApprovalRequest::approval_id`, `approval_id`)",
 			"views": {
-				"summary": "([#2682](https://github.com/lushly-dev/afd/issues/2682))"
+				"summary": "(`ApprovalMiddlewareOptions::on_approval_accepted`, `ApprovalSummary`, `ApprovalRequest::approval_id`, `DirectApprovalRequest::approval_id`, `approval_id`)"
 			},
-			"issue": "#2682",
-			"evidence": ["packages/cpp/tests/journal_seams_vectors_test.cpp"]
+			"evidence": [
+				"packages/cpp/src/approval.cpp",
+				"packages/cpp/tests/journal_seams_vectors_test.cpp",
+				"packages/cpp/tests/journal_seams_test.cpp",
+				"packages/cpp/tests/approval_vectors_test.cpp"
+			]
 		},
 		"middleware.idempotency-step": {
 			"status": "planned",
@@ -829,13 +833,16 @@
 			]
 		},
 		"single.dispatch-id": {
-			"status": "planned",
-			"note": "([#2682](https://github.com/lushly-dev/afd/issues/2682))",
+			"status": "yes",
+			"note": "(`CommandContext::dispatch_id`, `DispatchId`)",
 			"views": {
-				"summary": "([#2682](https://github.com/lushly-dev/afd/issues/2682))"
+				"summary": "(`CommandContext::dispatch_id`, `DispatchId`)"
 			},
-			"issue": "#2682",
-			"evidence": ["packages/cpp/tests/journal_seams_vectors_test.cpp"]
+			"evidence": [
+				"packages/cpp/src/registry.cpp",
+				"packages/cpp/tests/journal_seams_vectors_test.cpp",
+				"packages/cpp/tests/journal_seams_test.cpp"
+			]
 		},
 		"single.idempotency-key": {
 			"status": "planned",
