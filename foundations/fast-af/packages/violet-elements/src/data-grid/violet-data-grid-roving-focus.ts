@@ -324,7 +324,8 @@ export function handleCustomCellWidgetKeydownEvent(
     return false;
   }
 
-  if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+  // Option+Tab (altKey) is macOS Safari's shortcut to focus all controls, so Tab allows altKey.
+  if (event.key === "Tab" && !event.ctrlKey && !event.metaKey) {
     const widgets = hostCell ? customCellWidgetsInCellElement(hostCell) : [];
     const index = widgets.indexOf(widget);
     if (event.shiftKey) {

@@ -146,8 +146,8 @@ const statusChipTemplate = html<VioletDataGridCellTemplateContext<CultivationRow
                 block-size:0.375rem;
                 flex:0 0 auto;
                 margin-inline-start:0.0625rem;
-                border-inline-end:1.25px solid currentColor;
-                border-block-end:1.25px solid currentColor;
+                border-right:1.25px solid currentColor;
+                border-bottom:1.25px solid currentColor;
                 transform:translateY(-2.5px) rotate(45deg);
                 opacity:0;
             "

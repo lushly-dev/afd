@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fix four `violet-elements` right-to-left, WebKit and Firefox bugs (#2693, #2694, #2712, #2446):
+  - `violet-switch` now positions its checked thumb with a logical `inset-inline-start` offset instead of a physical `translate(...)`, keeping the thumb inside the track toward the inline-end edge in right-to-left layouts (#2693).
+  - `violet-combobox`, `violet-accordion-item`, the five `violet-data-grid` cell pickers (`attachment-cell`, `multi-picker`, `persona-picker`, `pill-select`, `reference-picker`) and `violet-data-grid.stories.ts` now draw their rotated chevrons from physical `border-right` and `border-bottom` edges so they point vertically in right-to-left layouts (#2694).
+  - `violet-data-grid`'s header and custom cell widget `Tab` handlers now allow `Alt+Tab` (macOS Safari's Option+Tab full-keyboard navigation), and `vitest.config.ts` maps `Tab` to `Alt+Tab` on macOS WebKit so all Tab-to-button browser specs pass locally on macOS (#2712).
+  - `violet-tooltip.spec.ts` now focuses the test window before focusing the trigger and polls popover dismissal and hover re-open state, eliminating a headless Firefox flake (#2446).
+
 - Redraw the 16 `system/*` icons as an original set on one grid, a 1.75 line on 24 units with round caps and joins, replacing seed icons of which four carried Feather's geometry (#2542, #2567). Names, registration and the MIT license are unchanged. Each icon's metadata and review record now sit beside its drawing in `icons/sources/system/icons/<name>/`, and `icons:build` reads that layout as well as `raw/`.
 
 - **Breaking: token interface version 5 — Scales two-stage cutover (#1111, #2197).** `tokens/interface.json` moves to `contractVersion` 5 (96 ids, down from 98) and `tokens/violet-theme.export.json` moves to `contractVersion` 2 (`build-runtime-theme.mjs` expects `contractVersion === 2`): retired `size.font.{sm,md}` (components now read `type.caption.size` and `type.body.size`) and renamed all 24 positional semantic tokens in the interface (`type.{caption,label,body,heading.section,heading.page}.*`, `radius.{inset,control,floating}`, `space.inline.{tight,group}`, `space.stack.{tight,group}`, `space.layout.{panel,page}`). Unprefixed compatibility aliases from the v4 prefix cutover apply only to surviving v5 ids; migrate retired and renamed v3/v4 properties directly to their v5 `--violet-*` names. Regenerated theme presets, component fallbacks, `custom-elements.json` and Specimen pack records.
