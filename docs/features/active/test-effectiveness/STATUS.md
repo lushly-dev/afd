@@ -193,6 +193,17 @@ The proposal lists six under "For the owner to decide". Each has its own line he
   collecting on one machine for a week without a session asking, which follows the release
   and a machine's settings naming a checkout.
 
+- The gate-outcome tests on Windows (#2520): all six files (`tests/test_gate_outcome*.py`) pass
+  on Hero, 233 passed and 1 skipped: the test that two shared folders of one machine name are not
+  read twice, which skips where the file system does not tell `twin` from `TWIN`. A real
+  collection of 27 Nov UTC into a scratch folder (60 requests, `partly`, 1,303 lines) and the
+  report by workflow of that record alone (1,024 finished pull-request runs) answer, and the
+  record's files hold no `\r\n`. The issue's PowerShell line `$env:BOTCORE_SKILL_USAGE_SHARED =
+  ""` removes the variable rather than blanking it, so the machine settings' shared folder stays
+  on: the first collection copied its record there (removed since), and the issue's report of 26
+  Nov read the other machines' records. An empty value, as Git Bash's
+  `BOTCORE_SKILL_USAGE_SHARED= botcore ...` sets, turns it off (`skill_usage/store.py`).
+
 - A docs topic the command line can print (#2479): merged in #2533. `botcore docs <topic>` prints
   what the server's docs tool returns, from the same function; `botcore docs` lists the topics.
 
