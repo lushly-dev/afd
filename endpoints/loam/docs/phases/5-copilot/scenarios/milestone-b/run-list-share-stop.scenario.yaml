@@ -1,0 +1,116 @@
+# Draft JTBD scenario for Loam's phase 5 specification (Milestone B, step 14, section 9.8).
+# Staged in scenarios/milestone-b/ until step 14 lands, so kernel/src/scenarios.test.ts stays untouched.
+# Needs Loam's runner (tag loam-runner) on p5-base (which seeds projects `prj_atlas` and `prj_beacon`,
+# and the hold script `script:hang`). Covers run-list, run-get, run-share and run-stop across
+# copilot sessions and delegations, including project visibility, authorization and stopping a live run.
+name: A run is listed, shared and stopped
+description: >-
+  When the copilot or a specialist runs work on my behalf, I want to list and inspect runs, share
+  a run's summary in a project, and stop any active run immediately, so that delegated and ongoing
+  agent work stays observable, shareable and controllable.
+job: run-list-share-stop
+tags: [milestone-b, loam-runner]
+steps:
+  - description: I start a copilot session and complete a specialist delegation
+    command: copilot-delegate
+    input:
+      specialist: tally/auditor
+      input: { goal: "script:delegate-tally-ok" }
+      budget: { calls: 3, rounds: 2 }
+    expect:
+      success: true
+  - description: I list my runs and see the completed delegation
+    command: run-list
+    input: { kind: delegation, limit: 10 }
+    expect:
+      success: true
+      data:
+        runs:
+          '0':
+            id: { matches: '^run_[0-9a-f]{16}$' }
+            kind: delegation
+            state: done
+            specialist: tally/auditor
+  - description: I inspect the run's summary, budget spent and calls
+    command: run-get
+    input: { run: "${{ steps[0].data.run }}" }
+    expect:
+      success: true
+      data:
+        run:
+          id: { matches: '^run_[0-9a-f]{16}$' }
+          kind: delegation
+          state: done
+  - description: I share the run into seeded project prj_atlas
+    command: run-share
+    input: { run: "${{ steps[0].data.run }}", project: prj_atlas }
+    expect:
+      success: true
+      data:
+        run: { matches: '^run_[0-9a-f]{16}$' }
+        sharedProjects:
+          '0': prj_atlas
+  - description: Listing runs scoped to project prj_atlas now includes the shared run
+    command: run-list
+    input: { project: prj_atlas, shared: true }
+    expect:
+      success: true
+      data:
+        runs:
+          '0':
+            id: { matches: '^run_[0-9a-f]{16}$' }
+  - description: Sharing into a project I cannot enter is refused with PROJECT_NOT_FOUND
+    command: run-share
+    input: { run: "${{ steps[0].data.run }}", project: nonexistent-project }
+    expect:
+      success: false
+      error:
+        code: PROJECT_NOT_FOUND
+  - description: "[agent] An agent cannot share a run"
+    command: run-share
+    input: { run: "${{ steps[0].data.run }}", project: prj_atlas }
+    expect:
+      success: false
+      error:
+        code: HUMAN_REQUIRED
+  - description: I start a long-running copilot turn without waiting for completion
+    command: copilot-message-send
+    input:
+      session: "${{ steps[0].data.session }}"
+      text: "script:hang"
+      wait: false
+    expect:
+      success: true
+      data:
+        turn:
+          state: running
+  - description: "[agent] An agent cannot stop a run"
+    command: run-stop
+    input: { run: "${{ steps[7].data.run }}" }
+    expect:
+      success: false
+      error:
+        code: HUMAN_REQUIRED
+  - description: I stop the live run and confirm it transitions to stopped
+    command: run-stop
+    input: { run: "${{ steps[7].data.run }}" }
+    expect:
+      success: true
+      data:
+        run: { matches: '^run_[0-9a-f]{16}$' }
+        state: stopped
+        stopReason: user-stopped
+  - description: Stopping a run that is already terminal returns RUN_NOT_ACTIVE
+    command: run-stop
+    input: { run: "${{ steps[7].data.run }}" }
+    expect:
+      success: false
+      error:
+        code: RUN_NOT_ACTIVE
+  - description: Looking up an unknown run id returns RUN_NOT_FOUND
+    command: run-get
+    input: { run: run_0000000000000000 }
+    expect:
+      success: false
+      error:
+        code: RUN_NOT_FOUND

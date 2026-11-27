@@ -1,0 +1,124 @@
+# Draft JTBD scenario for Loam's phase 5 specification (Milestone B, step 11, section 9.5).
+# Staged in scenarios/milestone-b/ until step 11 lands, so kernel/src/scenarios.test.ts stays untouched.
+# Needs Loam's runner (tag loam-runner) on p5-base. Tests confirmation groups (plan approval):
+# exact pending-set matching, sequential confirm on untainted policy asks, refusal to batch-confirm
+# tainted or destructive confirmations, human-only enforcement, and safe group decline.
+name: Approve or decline a plan's pending confirmations as a group
+description: >-
+  When the copilot proposes a multi-step plan whose non-destructive actions wait for my approval,
+  I want to review and confirm or decline the exact group together while keeping destructive,
+  approval-held and tainted actions individual, so that multi-step plans are fast without ever
+  rubber-stamping unseen or risky work.
+job: confirmation-group-answer
+tags: [milestone-b, loam-runner]
+steps:
+  - description: I start a copilot session
+    command: copilot-session-start
+    input: {}
+    expect:
+      success: true
+  - description: The copilot proposes two untainted policy-ask calls in one turn, sharing a confirmation group
+    command: copilot-message-send
+    input:
+      session: "${{ steps[0].data.session.id }}"
+      text: "script:plan-two-asks"
+    expect:
+      success: true
+      data:
+        turn:
+          state: waiting
+          calls:
+            '0': { mode: ask, reason: policy, outcome: pending }
+            '1': { mode: ask, reason: policy, outcome: pending }
+  - description: I inspect turn 1 to get the group id and both pending confirmation ids
+    command: copilot-session-get
+    input:
+      session: "${{ steps[0].data.session.id }}"
+      from: 1
+    expect:
+      success: true
+      data:
+        confirmations:
+          '0': { state: pending }
+          '1': { state: pending }
+  - description: Confirming with a partial confirmation list is refused so unseen items cannot be swept in
+    command: confirmation-group-act
+    input:
+      group: "${{ steps[2].data.confirmations[0].group }}"
+      confirmations: ["${{ steps[2].data.confirmations[0].id }}"]
+      answer: confirm
+    expect:
+      success: false
+      error:
+        code: CONFIRMATION_GROUP_CHANGED
+  - description: "[agent] An agent cannot answer a confirmation group"
+    command: confirmation-group-act
+    input:
+      group: "${{ steps[2].data.confirmations[0].group }}"
+      confirmations:
+        - "${{ steps[2].data.confirmations[0].id }}"
+        - "${{ steps[2].data.confirmations[1].id }}"
+      answer: confirm
+    expect:
+      success: false
+      error:
+        code: HUMAN_REQUIRED
+  - description: Confirming the exact pending untainted policy group runs both items in order and settles the turn
+    command: confirmation-group-act
+    input:
+      group: "${{ steps[2].data.confirmations[0].group }}"
+      confirmations:
+        - "${{ steps[2].data.confirmations[0].id }}"
+        - "${{ steps[2].data.confirmations[1].id }}"
+      answer: confirm
+    expect:
+      success: true
+      data:
+        answer: confirm
+        results:
+          '0': { state: confirmed }
+          '1': { state: confirmed }
+          '2': { notExists: true }
+  - description: A tainted turn raises a confirmation that cannot be batch-confirmed
+    command: copilot-message-send
+    input:
+      session: "${{ steps[0].data.session.id }}"
+      text: "script:obey-thr-2"
+    expect:
+      success: true
+      data:
+        turn:
+          state: waiting
+  - description: I read turn 2's tainted pending confirmation
+    command: copilot-session-get
+    input:
+      session: "${{ steps[0].data.session.id }}"
+      from: 2
+    expect:
+      success: true
+      data:
+        confirmations:
+          '0': { state: pending, asked: { reason: taint } }
+  - description: Batch-confirming a group that contains a tainted confirmation is refused
+    command: confirmation-group-act
+    input:
+      group: "${{ steps[7].data.confirmations[0].group }}"
+      confirmations: ["${{ steps[7].data.confirmations[0].id }}"]
+      answer: confirm
+    expect:
+      success: false
+      error:
+        code: CONFIRMATION_GROUP_INDIVIDUAL_REQUIRED
+  - description: Declining a tainted group is always allowed
+    command: confirmation-group-act
+    input:
+      group: "${{ steps[7].data.confirmations[0].group }}"
+      confirmations: ["${{ steps[7].data.confirmations[0].id }}"]
+      answer: decline
+    expect:
+      success: true
+      data:
+        answer: decline
+        results:
+          '0': { state: declined }
+          '1': { notExists: true }
