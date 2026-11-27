@@ -80,6 +80,8 @@ await defineVioletButton(new CustomElementRegistry());
 - `@lushly-dev/violet-elements/theme-css` is the Node-safe theme-set helpers (`findVioletThemeSetGaps` and the types), side-effect free; see [Runtime Theme](#runtime-theme).
 - `@lushly-dev/violet-elements/theme-runtime` is the runtime theme alone (`installVioletTheme`, `installVioletThemeSet`, `loadVioletBuiltInTheme`, the preset functions), without the built-in set's values or any element; see [Runtime Theme](#runtime-theme).
 - `@lushly-dev/violet-elements/theme-builtin` is the built-in set's values (`violetThemeBuiltInSet`, `violetThemeCssText`).
+- `@lushly-dev/violet-elements/pack/*` is the component pack, the briefs an agent reads before it
+  writes markup with these components; see [The Component Pack](#the-component-pack).
 - **Adding or changing an element.** The class module holds the class and exports
   `violet<Name>Definition` and nothing that registers; the sibling `violet-<x>.define.ts` defines
   the elements it uses (`await defineVioletIcon(registry)`), registers its system icons and calls
@@ -110,6 +112,24 @@ before they are treated as reference-grade. The stories run on Specimen
   each one with its accessibility check and builds the review page.
 - New components should include co-located `*.stories.ts` files.
 - Stories are required as part of component creation, not a follow-up task.
+
+## The Component Pack
+
+[pack/](https://github.com/lushly-dev/afd/blob/main/foundations/fast-af/packages/violet-elements/pack) holds one record per component, built from its stories, the manifest and its
+`*.guide.json`, and the shared rules, in the committed form of
+[Specimen's pack format](https://github.com/lushly-dev/afd/blob/main/foundations/specimen/docs/pack-format.md). `pnpm pack:build` rebuilds them,
+`pnpm test:stories` fails when they no longer match, and [pack/GAPS.md](https://github.com/lushly-dev/afd/blob/main/foundations/fast-af/packages/violet-elements/pack/GAPS.md) lists what
+they still lack.
+
+The build writes the exported form to `dist/pack/`, which the npm package ships: the records, the
+rules and `data/violet-elements/library.json`, the catalog stamped with this package's name and
+version. It is what `specimen pack-export` writes, without its staleness check, which needs a
+Specimen run. A deployment copies it as it stands. For Umbel's `components` plugin, copy
+`node_modules/@lushly-dev/violet-elements/dist/pack/data` and `.../rules` into
+`spaces/<space>/packs/components/library/` beside the deployment's `pack.toml` (the
+[plugin's README](https://github.com/lushly-dev/afd/blob/main/endpoints/umbel/plugins/components/README.md#a-deployments-pack) gives
+its lines) and restart the host. `@lushly-dev/violet-elements/pack/data/violet-elements/library.json`
+resolves to the catalog, for a tool that finds the pack through the package.
 
 ## The Token Interface
 
