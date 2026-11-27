@@ -273,7 +273,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | Milestone | State | Jobs | Process files changed |
 |---|---|---|---|
 | G0: stand it up | In progress: the App created and installed 2026-11-15; the adapter ([#1290](https://github.com/lushly-dev/afd/pull/1290)); the service on `random` with its key, service user and start at boot, installed 2026-11-19; test writes for every write permission 2026-11-20 and 2026-11-21; credit settled 2026-11-21 (rebase, done in Lushly; AFD in [#1809](https://github.com/lushly-dev/afd/issues/1809)); the runbook; exit met 2026-11-21 (`gateway-status` on each route from `random`, `macbook-air` and `hero` after a restart of `random`); the rate-limit replay 2026-11-23; open: the two process checks, which G1 builds, so `process.json` keeps G0 unlanded | — | AFD: `docs/operations/factory-gateway.md` and `SETUP.md` ([#1834](https://github.com/lushly-dev/afd/pull/1834)). Lushly: `SETUP.md` ([lushly#2707](https://github.com/lushly-dev/lushly/pull/2707), [lushly#2782](https://github.com/lushly-dev/lushly/pull/2782), [lushly#2809](https://github.com/lushly-dev/lushly/pull/2809), which names `gateway-status`; merged by the gateway by rebase as `482ee117`, the owner its author) |
-| G1: one writer (MVP) | In progress since 2026-11-14: botcore host changes ([#1230](https://github.com/lushly-dev/afd/pull/1230)) and the command skeleton against a fake GitHub ([#1232](https://github.com/lushly-dev/afd/pull/1232)), all fifteen jobs passing, both merged 2026-11-15; job 16 (a stopped lane) added and passing 2026-11-24; Lushly side tracked in [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) | `mvp` (01–11, 15, 16) | — |
+| G1: one writer (MVP) | In progress since 2026-11-14: botcore host changes ([#1230](https://github.com/lushly-dev/afd/pull/1230)) and the command skeleton against a fake GitHub ([#1232](https://github.com/lushly-dev/afd/pull/1232)), all fifteen jobs passing, both merged 2026-11-15; job 16 (a stopped lane) added and passing 2026-11-24; job 17 (issue types and parents, `issue-set`) added and passing 2026-11-27; Lushly side tracked in [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) | `mvp` (01–11, 15–17) | — |
 | G2: review as a record | Open | `records` (12) | — |
 | G3: events, not polling | Open | `events` (13–14) | — |
 | G4: no credential outside the door | Open | unit tests and the exit | — |
@@ -624,6 +624,39 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
     only until G1, as its manifest allows.
   - **Checked** with `uv run --frozen pytest -q` in `botcore-factory` against the fake GitHub; no
     real queue was written to. `random` serves the change after the owner's update.
+- 2026-11-27: issue types and parents through the gateway
+  ([#2729](https://github.com/lushly-dev/afd/issues/2729), in
+  [#2869](https://github.com/lushly-dev/afd/pull/2869)), by the owner's decision on
+  [#2515](https://github.com/lushly-dev/afd/issues/2515).
+  - **Built.** `issue-create` takes `type` and `parent` and answers both; `issue-set` (foreman and
+    owner) changes or clears either, and a field left out is kept; `issue-get` gives `type`,
+    `parent` and `subIssues { total }`. Both check the type and parent before writing, and write
+    the parent first, so a refused attach changes neither. A retry its `dedupe_key` matches sets
+    whatever the issue still lacks. An attach GitHub refuses or does not answer names the issue
+    it filed; that `GITHUB_UNAVAILABLE` is retryable only with a `dedupe_key`. The App adapter
+    writes the type by name over REST, offers only enabled types, and writes sub-issues through
+    `POST .../sub_issues` with `replace_parent` and `DELETE .../sub_issue`; the type, parent and
+    count come only on the one-issue read, never in a scan.
+  - **Beyond the draft.** `PARENT_IN_OTHER_REPO` (a parent in another repository, shown as
+    `owner/name#number`, can be replaced but not detached) and `VALIDATION_ERROR` for an
+    `issue-set` given neither field; the proposal's row says so. `issue-create` moved from
+    `service.py` to `gateway/issue_tree.py` with `issue-set`.
+  - **Job 17** (`mvp`, foreman route) files an epic and a part, retries the part, attaches an
+    open issue, counts the parts, types an open issue `Epic`, moves a part, detaches it twice and
+    refuses an unknown type and a missing parent. The proposal's Jobs table and G1's list carry it.
+  - **The door check** now finds `addSubIssue`, `removeSubIssue` and `updateIssueIssueType`
+    beside `mutation` or `(input:` (`scripts/check-process.mjs`). Watched failing: a planted
+    `addSubIssue` mutation in `docs/operations/factory-gateway.md` passed before and was named
+    after; `epics.md`'s two calls are now found, and its `door.allow` entry to G5 covers them.
+    Lushly's byte copy takes it with `pnpm process:sync` once this merges. The door still misses
+    `pr-merge`'s own queue and auto-merge mutations:
+    [#2848](https://github.com/lushly-dev/afd/issues/2848).
+  - **Carried from #2809's review:** the generic `STILL_QUEUED` keeps GitHub's refusal in its
+    details, with a test of that branch.
+  - **Checked** against the fake GitHub and a mocked App only: no real issue type or sub-issue
+    has been written. Open: the owner's update of `random` (the runbook step), then a real
+    `issue-set` on a test issue; `triage-issues`' `references/epics.md` moves to these commands
+    when G1's process lands, in both repositories.
 
 ## Follow-ups not yet issues
 

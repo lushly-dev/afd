@@ -27,7 +27,8 @@ the claims themselves.
 - **Jobs:** fifteen, written as scenarios, checked ([Checks](#checks)) and walked by three readers
   who did not write them ([Walking the paths](#walking-the-paths)). The owner ranks them next
   ([For the owner](#for-the-owner)). A sixteenth, seeing a stopped lane, was added on
-  2026-11-24 for his decision that `gateway-status` reports the lane.
+  2026-11-24 for his decision that `gateway-status` reports the lane, and a seventeenth, filing an
+  epic and its parts, on 2026-11-27 with `issue-set` for his decision of 2026-11-26.
 - **Progress:** [STATUS.md](STATUS.md).
 
 ## Decisions
@@ -391,7 +392,7 @@ lane's loop can hold without its queued branches' code being able to merge).
 | `issue-claim` | S F L O | `numbers[]`, `holder`, `lease_hours?` | `claims[] { number, holder, leaseUntil, renewed, previousHolder? }`, `record { label, commentAuthor }` | `ALREADY_CLAIMED`, `ISSUE_CLOSED`, `NOT_FOUND`; none is claimed if any is refused | G1 |
 | `issue-release` | S F L O | `number`, `holder`, `reason`, `force?` (owner only) | `released`, `changed`, `record { label }` | `NOT_CLAIMED`, `NOT_HOLDER`, `SECRET_IN_BODY` | G1 |
 | `issue-label` | F O | `number`, `add?`, `remove?` | `labels[]`, `previous[]` | `LABEL_UNKNOWN`, `NOT_FOUND` | G1 |
-| `issue-set` | F O | `number`, `type?` (`null` clears it), `parent?` (`null` detaches it; a new parent replaces the old); a field left out is unchanged, and at least one is given | `type`, `parent`, `previous { type, parent }`, `changed` | `TYPE_UNKNOWN`, `PARENT_NOT_FOUND`, `NOT_FOUND` | G1 |
+| `issue-set` | F O | `number`, `type?` (`null` clears it), `parent?` (`null` detaches it; a new parent replaces the old); a field left out is unchanged, and at least one is given | `type`, `parent`, `previous { type, parent }`, `changed` | `TYPE_UNKNOWN`, `PARENT_NOT_FOUND`, `NOT_FOUND`, `VALIDATION_ERROR` (neither field given), `PARENT_IN_OTHER_REPO` (detaching from a parent in another repository) | G1 |
 | `issue-comment` | F L O | `number`, `body`, `dedupe_key?` | `url`, `deduplicated` | `NOT_FOUND`, `SECRET_IN_BODY` | G1 |
 | `issue-create` | F L O | `title`, `body`, `labels[]`, `type?`, `parent?` (the new issue is filed as that issue's sub-issue), `dedupe_key?` | `number`, `created`, `type`, `parent`; a call its `dedupe_key` matches files nothing and completes a missing `type` or `parent` ([Writes that can be retried](#writes-that-can-be-retried)) | `LABEL_UNKNOWN`, `TYPE_UNKNOWN`, `PARENT_NOT_FOUND`, `SECRET_IN_BODY` | G1 |
 | `branch-push` | C S L O | `ref`, `head`, `bundle` | `ref`, `head`, `changed`, `by`, `checksPublished[]` (G2) | `PROTECTED_REF`, `REF_NOT_ALLOWED`, `HEAD_NOT_IN_BUNDLE`, `NOT_FAST_FORWARD`, `COMMIT_AUTHOR_NOT_OWNER` (a commit the push adds, not already on `main`, authored by someone other than the owner), `UPLOAD_INCOMPLETE` (the upload does not list the commits leading to `head`) | G1 |
@@ -409,19 +410,20 @@ lane's loop can hold without its queued branches' code being able to merge).
 Every write can also be refused with `WRITE_BUDGET_EXCEEDED`.
 
 **Issue types and parents.** `type` is the type's name as the organization lists it (`Epic`, not
-a node id); `TYPE_UNKNOWN`'s suggestion lists the organization's types. `parent` is an issue's
-number in the same repository, open or closed; `PARENT_NOT_FOUND` when there is none. GitHub's own
-limits (an issue as its own parent, a cycle, 100 sub-issues) come back as `GITHUB_REFUSED`. The
-gateway does not enforce triage's two levels; that stays the skill's rule.
+a node id), matched without regard to case; `TYPE_UNKNOWN`'s suggestion lists the organization's
+types. `parent` is an issue's number in the same repository, open or closed; `PARENT_NOT_FOUND`
+when there is none, a pull request included. A parent in another repository reads as
+`owner/name#number`: `issue-set` can replace it but not detach it, since the gateway serves only
+its own repositories. If GitHub refuses to attach an issue `issue-create` has just filed, the
+refusal names the issue's number, and a retry with the same `dedupe_key` finishes the attach. If
+GitHub does not answer that attach, the `GITHUB_UNAVAILABLE` names the number too, and it is the
+one such answer that is retryable only with a `dedupe_key`: repeating a filing without one files
+a second issue.
+GitHub's own limits (an issue as its own parent, a cycle, 100 sub-issues) come back as
+`GITHUB_REFUSED`. The gateway does not enforce triage's two levels; that stays the skill's rule.
 
 **Why `variable-set` has no job of its own.** It exists for the factory's `lane-host-set`, whose
 job (the factory's job 02, "move the lane to another machine") covers it.
-
-**Why `issue-set` and the new `issue-create` fields have no job yet.** The owner added them to G1
-on 2026-11-26 ([#2515](https://github.com/lushly-dev/afd/issues/2515)), after G1's command
-skeleton was built. Their job, filing an epic and attaching its parts, lands with their
-implementation ([#2729](https://github.com/lushly-dev/afd/issues/2729)), since every scenario in
-`scenarios/` runs against the plugin.
 
 **Not drafted.** No command deletes anything, changes branch protection, reruns or cancels a
 workflow, dispatches a workflow, publishes a release or approves a pull request. Those stay with
@@ -457,8 +459,7 @@ must pass, the process it changes and its exit.
   `type` and `parent` on `issue-create`, and `issue-set`
   ([#2515](https://github.com/lushly-dev/afd/issues/2515)). A session that opens an epic does not
   get them until G5: `/session` makes no issue writes other than claims until then.
-- **Jobs:** `mvp` (01 to 11, 15 and 16, and the job for issue types and parents that
-  [#2729](https://github.com/lushly-dev/afd/issues/2729) adds).
+- **Jobs:** `mvp` (01 to 11, 15, 16 and 17).
 - **Process** (the manifest's G1 entry):
   - AFD: `AGENTS.md` (factory agents reach GitHub through the gateway, never `gh` writes);
     `triage-issues` (its `references/epics.md` files epics and attaches their parts through
@@ -609,6 +610,7 @@ runs against.
 | 14 | 13 | Wake on what happened on GitHub instead of polling | events |
 | 15 | 14 | Treat a GitHub Actions outage as a stall, not a failure | events |
 | 16 | 16 | See a stopped lane instead of waiting on it (added 2026-11-24 for the owner's 2026-11-15 decision that `gateway-status` reports the lane) | mvp |
+| 17 | 17 | File an epic and its parts, and move a part between epics (added 2026-11-27 with `issue-set` for the owner's 2026-11-26 decision, [#2729](https://github.com/lushly-dev/afd/issues/2729)) | mvp |
 
 ### What writing them changed
 

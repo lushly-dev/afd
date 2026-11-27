@@ -123,7 +123,7 @@ def test_the_write_list_names_every_write_the_ports_have():
     reads = {
         "issue", "issues", "pull", "pulls", "repo_labels", "comments", "ref", "has_commit",
         "on_main", "check_runs", "variable", "issue_events", "comment_feed", "actions_status",
-        "rate_limit", "ages", "now",
+        "rate_limit", "ages", "now", "issue_types",
     }  # fmt: skip
     # Not GitHub writes: the App's credentials and its local mirror, and the fake's file read.
     local = {"token", "token_age", "key_age", "fetch_main", "refresh"}

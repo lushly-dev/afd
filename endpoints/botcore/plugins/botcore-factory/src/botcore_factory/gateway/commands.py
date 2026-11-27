@@ -17,7 +17,7 @@ from afd import CommandResult
 from botcore.host import CommandPolicy
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from botcore_factory.gateway import records
+from botcore_factory.gateway import issue_tree, records
 from botcore_factory.gateway.github import GitHubRefused, GitHubUnavailable
 from botcore_factory.gateway.service import (
     Gateway,
@@ -32,6 +32,8 @@ Repo = Annotated[str, StringConstraints(pattern=r"^[\w.-]+/[\w.-]+$")]
 Name = Annotated[str, StringConstraints(min_length=1, max_length=255)]
 #: A machine's name: one word, no spaces or line breaks.
 HostName = Annotated[str, StringConstraints(pattern=r"^\S{1,255}$")]
+#: An issue's number.
+Number = Annotated[int, Field(ge=1)]
 
 
 class Holder(BaseModel):
@@ -66,6 +68,7 @@ ROUTES: dict[str, tuple[str, ...]] = {
         *READS,
         *CLAIMS,
         "issue-label",
+        "issue-set",
         "issue-comment",
         "issue-create",
         "pr-revert",
@@ -259,23 +262,52 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
         """
         return await write(lambda: get().issue_comment(repo, number, body, dedupe_key))
 
-    async def issue_create(
+    async def issue_create(  # noqa: PLR0913 - the command's inputs
         repo: Repo,
         title: Name,
         body: str,
         labels: list[str] | None = None,
+        type: Name | None = None,
+        parent: Number | None = None,
         dedupe_key: Name | None = None,
     ) -> CommandResult[Any]:
-        """File an issue once: an open issue filed with the same dedupe_key is returned.
+        """File an issue once, with an optional type and parent.
+
+        An open issue filed with the same dedupe_key is returned instead, given whichever of
+        the type and parent it still lacks.
 
         Args:
             repo: owner/name of a repository this gateway serves.
             title: The title.
             body: The body, inline (at most 64 KiB), checked for secrets.
             labels: Labels the repository defines.
+            type: An issue type the organization defines, by name (Epic, Task).
+            parent: An issue in this repository; the new issue is filed as its sub-issue.
             dedupe_key: A key you choose; the same key never files twice.
         """
-        return await write(lambda: get().issue_create(repo, title, body, labels or [], dedupe_key))
+        return await write(
+            lambda: issue_tree.issue_create(
+                get(), repo, title, body, labels or [], dedupe_key, type, parent
+            )
+        )
+
+    async def issue_set(
+        repo: Repo,
+        number: Number,
+        type: Name | None = issue_tree.KEEP,
+        parent: Number | None = issue_tree.KEEP,
+    ) -> CommandResult[Any]:
+        """Change or clear an issue's type or parent; returns both, before and after.
+
+        Args:
+            repo: owner/name of a repository this gateway serves.
+            number: The issue.
+            type: An issue type the organization defines, by name; null clears it. Left out,
+                the type is unchanged.
+            parent: An issue in this repository, which replaces any parent it has; null
+                detaches it. Left out, the parent is unchanged.
+        """
+        return await write(lambda: issue_tree.issue_set(get(), repo, number, type, parent))
 
     return {
         "gateway-status": gateway_status,
@@ -286,6 +318,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
         "issue-claim": issue_claim,
         "issue-release": issue_release_owner if route == "owner" else issue_release,
         "issue-label": issue_label,
+        "issue-set": issue_set,
         "issue-comment": issue_comment,
         "issue-create": issue_create,
     }

@@ -20,8 +20,8 @@ details.outcomeKnown says whether the call could have run.
 - cell: reads, branch-push to refs/factory/queue/<branch> only, review-record.
 - session: reads, issue-claim and issue-release for your own issues, and branch-push to
   refs/factory/queue/<branch> only: hand your branch to the lane rather than merging it.
-- foreman: reads, claims, issue-label, issue-comment, issue-create, pr-revert, variable-set,
-  gateway-audit, gateway-wait. No push, pr-merge or verification-record.
+- foreman: reads, claims, issue-label, issue-set, issue-comment, issue-create, pr-revert,
+  variable-set, gateway-audit, gateway-wait. No push, pr-merge or verification-record.
 - lane: reads, claims, issue-comment, issue-create, branch-push, pr-open,
   verification-record, pr-merge, pr-revert, gateway-wait, lane-heartbeat.
 - owner: everything, and issue-release with force.
@@ -41,6 +41,23 @@ issue-claim takes numbers[] and a holder {branch, machine}: all are claimed or n
 a lapsed claim is taken over and previousHolder says whose it was. issue-release by the
 holder; a retry succeeds with changed: false. pr-open and pr-merge refuse CLAIM_LOST when an
 issue in closes[] is held by another branch: stop, and let the foreman lane-drop the branch.
+
+## Issue types and parents
+
+issue-create takes type (a type the organization defines, by name: Epic, Task) and parent
+(an issue in this repository, open or closed; the new issue is filed as its sub-issue).
+issue-set {number, type?, parent?} changes either on an existing issue: null clears the type
+or detaches the parent, a new parent replaces the old, a field left out is unchanged; it
+answers type, parent, previous {type, parent} and changed. Both check first, so a refusal
+files and changes nothing: TYPE_UNKNOWN (its suggestion lists the types), PARENT_NOT_FOUND (a
+pull request is not a parent), NOT_FOUND. A parent in another repository is shown as
+owner/name#number; issue-set can replace it but not detach it (PARENT_IN_OTHER_REPO).
+GitHub's own limits (an issue under itself or its own sub-issue, 100 sub-issues) come back as
+GITHUB_REFUSED. If GitHub refuses or does not answer the attach of an issue just filed, the
+answer names its number: never file it again; with the same dedupe_key a repeat only attaches
+it (and only then is a GITHUB_UNAVAILABLE there retryable), or call issue-set.
+issue-get gives type and parent when set, and subIssues {total}. Two levels (epic and part)
+is triage's rule, not the gateway's.
 
 ## Pushing, opening, validating, merging (the lane)
 

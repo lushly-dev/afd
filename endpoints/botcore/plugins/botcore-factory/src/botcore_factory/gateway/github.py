@@ -58,7 +58,9 @@ class MergeMethodNotAllowed(Exception):
 class GitHub(Protocol):
     def issue(self, repo: str, number: int) -> dict[str, Any] | None:
         """One issue; only this read carries ``closedBy``, the numbers of the repository's pull
-        requests, open or closed, that close it (GitHub's closing references)."""
+        requests, open or closed, that close it (GitHub's closing references), and ``type``
+        (the type's name or None), ``parent`` (the parent's number in this repository,
+        ``owner/name#number`` in another, or None) and ``subIssues`` (how many it has)."""
         ...
 
     def issues(self, repo: str) -> list[dict[str, Any]]: ...
@@ -68,7 +70,28 @@ class GitHub(Protocol):
     def set_labels(self, repo: str, number: int, labels: list[str]) -> None: ...
     def comments(self, repo: str, number: int) -> list[dict[str, Any]]: ...
     def add_comment(self, repo: str, number: int, body: str) -> dict[str, Any]: ...
-    def create_issue(self, repo: str, title: str, body: str, labels: list[str]) -> int: ...
+    def create_issue(
+        self, repo: str, title: str, body: str, labels: list[str], type: str | None = None
+    ) -> int:
+        """File an issue, with the issue type named ``type`` when one is given."""
+        ...
+
+    def issue_types(self, repo: str) -> list[str]:
+        """The names of the issue types the repository's organization offers it."""
+        ...
+
+    def set_issue_type(self, repo: str, number: int, type: str | None) -> None:
+        """Set the issue's type by name, or clear it with None."""
+        ...
+
+    def add_sub_issue(self, repo: str, parent: int, child: int) -> None:
+        """Make ``child`` a sub-issue of ``parent``, replacing any parent it has."""
+        ...
+
+    def remove_sub_issue(self, repo: str, parent: int, child: int) -> None:
+        """Detach ``child`` from ``parent``."""
+        ...
+
     def ref(self, repo: str, ref: str) -> str | None: ...
     def has_commit(self, repo: str, sha: str) -> bool:
         """Whether ``sha`` is a head this repository has shown: a ref tip, a pull request's
@@ -158,6 +181,7 @@ GITHUB_KEYS = {
     "actionsStatus",
     "rateLimit",
     "ages",
+    "issueTypes",
     "githubUnavailable",
 }
 
@@ -250,6 +274,11 @@ class FakeGitHub:
         if issue is not None:
             pulls = data.get("pullRequests", [])
             issue["closedBy"] = sorted(p["number"] for p in pulls if number in p.get("closes", []))
+            issue.setdefault("type", None)
+            issue.setdefault("parent", None)
+            issue["subIssues"] = sum(
+                1 for other in data.get("issues", []) if other.get("parent") == number
+            )
         return issue
 
     def issues(self, repo: str) -> list[dict[str, Any]]:
@@ -366,8 +395,11 @@ class FakeGitHub:
             issue.setdefault("comments", []).append(comment)
             return copy.deepcopy(comment)
 
-    def create_issue(self, repo: str, title: str, body: str, labels: list[str]) -> int:
+    def create_issue(
+        self, repo: str, title: str, body: str, labels: list[str], type: str | None = None
+    ) -> int:
         with self._write(repo) as data:
+            self._type_offered(data, type)
             number = self._next_number(data)
             data["issues"].append(
                 {
@@ -378,9 +410,46 @@ class FakeGitHub:
                     "labels": list(labels),
                     "author": {"login": self.bot, "association": "NONE"},
                     "comments": [],
+                    "type": type,
+                    "parent": None,
                 }
             )
             return number
+
+    def issue_types(self, repo: str) -> list[str]:
+        return list(self._check(repo).get("issueTypes", []))
+
+    @staticmethod
+    def _type_offered(data: dict[str, Any], type: str | None) -> None:
+        if type is not None and type not in data.get("issueTypes", []):
+            raise GitHubRefused(422, f"Issue type {type} does not exist")
+
+    def set_issue_type(self, repo: str, number: int, type: str | None) -> None:
+        with self._write(repo) as data:
+            self._type_offered(data, type)
+            self._require_issue(data, number)["type"] = type
+
+    def add_sub_issue(self, repo: str, parent: int, child: int) -> None:
+        """As GitHub does: an issue cannot be its own parent or its ancestor's; 100 at most."""
+        with self._write(repo) as data:
+            issue = self._require_issue(data, child)
+            self._require_issue(data, parent)
+            above: int | None = parent
+            while above is not None:
+                if above == child:
+                    raise GitHubRefused(422, "An issue cannot be a sub-issue of itself")
+                above = (self._issue(data, above) or {}).get("parent")
+            siblings = [i for i in data["issues"] if i.get("parent") == parent]
+            if len(siblings) >= 100:
+                raise GitHubRefused(422, "Parent cannot have more than 100 sub-issues")
+            issue["parent"] = parent
+
+    def remove_sub_issue(self, repo: str, parent: int, child: int) -> None:
+        with self._write(repo) as data:
+            issue = self._require_issue(data, child)
+            if issue.get("parent") != parent:
+                raise GitHubRefused(404, f"#{child} is not a sub-issue of #{parent}")
+            issue["parent"] = None
 
     def update_ref(self, repo: str, ref: str, head: str, expected: str | None = None) -> None:
         with self._write(repo) as data:

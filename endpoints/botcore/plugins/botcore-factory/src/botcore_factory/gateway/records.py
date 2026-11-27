@@ -26,6 +26,7 @@ WRITE_COMMANDS = {
     "issue-claim",
     "issue-release",
     "issue-label",
+    "issue-set",
     "issue-comment",
     "issue-create",
     "branch-push",
