@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replace the external MDN audio URL in `violet-message-media.stories.ts` (`AudioFile`) with an inline PCM WAV `data:` URI and regenerate the `violet-message-media` Specimen pack record so `test:stories` makes no external network requests (#2752).
+
 - Finish forced-colors and right-to-left coverage (#509):
   - `violet-data-grid` draws selection, the active cell and focus with system colours in forced-colors mode: selected cells and rows take `Highlight` and `HighlightText`, the active cell keeps `Canvas` inside a `Highlight` ring, the focused cell adds an inner `Highlight` outline, the row checkbox column stays `Canvas`, and column resizers draw in `CanvasText`. Text in a `.cell-content` element, which the default cell template uses and a custom template may, opts out of the forced-colours text backplate so it stays readable on `Highlight`.
   - `violet-data-grid`'s pointer column resizing grows the column toward its trailing edge in right-to-left, reading the direction with `violet-direction.ts` when the drag begins.
@@ -14,7 +16,6 @@
   - `violet-combobox`, `violet-accordion-item`, the five `violet-data-grid` cell pickers (`attachment-cell`, `multi-picker`, `persona-picker`, `pill-select`, `reference-picker`) and `violet-data-grid.stories.ts` now draw their rotated chevrons from physical `border-right` and `border-bottom` edges so they point vertically in right-to-left layouts (#2694).
   - `violet-data-grid`'s header and custom cell widget `Tab` handlers now allow `Alt+Tab` (macOS Safari's Option+Tab full-keyboard navigation), and `vitest.config.ts` maps `Tab` to `Alt+Tab` on macOS WebKit so all Tab-to-button browser specs pass locally on macOS (#2712).
   - `violet-tooltip.spec.ts` now focuses the test window before focusing the trigger and polls popover dismissal and hover re-open state, eliminating a headless Firefox flake (#2446).
-
 - Redraw the 16 `system/*` icons as an original set on one grid, a 1.75 line on 24 units with round caps and joins, replacing seed icons of which four carried Feather's geometry (#2542, #2567). Names, registration and the MIT license are unchanged. Each icon's metadata and review record now sit beside its drawing in `icons/sources/system/icons/<name>/`, and `icons:build` reads that layout as well as `raw/`.
 
 - **Breaking: token interface version 5 — Scales two-stage cutover (#1111, #2197).** `tokens/interface.json` moves to `contractVersion` 5 (96 ids, down from 98) and `tokens/violet-theme.export.json` moves to `contractVersion` 2 (`build-runtime-theme.mjs` expects `contractVersion === 2`): retired `size.font.{sm,md}` (components now read `type.caption.size` and `type.body.size`) and renamed all 24 positional semantic tokens in the interface (`type.{caption,label,body,heading.section,heading.page}.*`, `radius.{inset,control,floating}`, `space.inline.{tight,group}`, `space.stack.{tight,group}`, `space.layout.{panel,page}`). Unprefixed compatibility aliases from the v4 prefix cutover apply only to surviving v5 ids; migrate retired and renamed v3/v4 properties directly to their v5 `--violet-*` names. Regenerated theme presets, component fallbacks, `custom-elements.json` and Specimen pack records.

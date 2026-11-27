@@ -6,8 +6,13 @@ use anyhow::Result;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::time::timeout;
+
+/// Close an idle keep-alive socket so abandoned browser sockets cannot pin kernel buffers (#2751).
+const IDLE_READ_TIMEOUT: Duration = Duration::from_secs(30);
 
 struct Slot {
     generation: Arc<Generation>,
@@ -195,6 +200,7 @@ pub async fn start(renders: Renders) -> Result<String> {
     let origin = format!("http://{}", listener.local_addr()?);
     tokio::spawn(async move {
         while let Ok((stream, _)) = listener.accept().await {
+            let _ = stream.set_nodelay(true);
             let renders = renders.clone();
             tokio::spawn(async move {
                 let _ = connection(stream, renders).await;
@@ -227,7 +233,10 @@ async fn connection(mut stream: TcpStream, renders: Renders) -> Result<()> {
             if let Some(end) = buffer.windows(4).position(|window| window == b"\r\n\r\n") {
                 break end;
             }
-            let read = stream.read(&mut chunk).await?;
+            let Ok(read) = timeout(IDLE_READ_TIMEOUT, stream.read(&mut chunk)).await else {
+                return Ok(());
+            };
+            let read = read?;
             if read == 0 {
                 return Ok(());
             }

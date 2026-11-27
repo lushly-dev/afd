@@ -172,6 +172,7 @@ export class BenchWorkerClient {
 	private failure: Error | undefined;
 	private reportPackProgress = false;
 	private stderr = '';
+	private readonly defaultTimeoutMs: number;
 	private closing: Promise<void> | undefined;
 	private terminating: Promise<void> | undefined;
 
@@ -181,6 +182,7 @@ export class BenchWorkerClient {
 		onPackProgress?: (message: string) => void
 	) {
 		this.reportPackProgress = onPackProgress !== undefined;
+		this.defaultTimeoutMs = Math.max(10_000, config.config.test?.timeoutMs ?? 15_000);
 		this.exited = new Promise((resolveExit) => {
 			this.resolveExit = resolveExit;
 		});
@@ -330,7 +332,7 @@ export class BenchWorkerClient {
 		await this.ready;
 		return (await this.request(
 			{ operation: 'run', request },
-			(request.timeoutMs ?? 10_000) + 15_000
+			(request.timeoutMs ?? this.defaultTimeoutMs) + 15_000
 		)) as StoryRun | GateRun;
 	}
 	async matrix(request: MatrixRequest): Promise<MatrixRun> {
@@ -383,7 +385,7 @@ export class BenchWorkerClient {
 		await this.ready;
 		return (await this.request(
 			{ operation: 'inspect', request },
-			(request.timeoutMs ?? 10_000) + 15_000
+			(request.timeoutMs ?? this.defaultTimeoutMs) + 15_000
 		)) as InspectResult;
 	}
 	async point(request: PointRequest): Promise<PointResult> {

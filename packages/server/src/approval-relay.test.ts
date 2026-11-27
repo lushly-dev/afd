@@ -1185,25 +1185,68 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 	});
 
 	it('starts no approved step once its batch has timed out', async () => {
-		const slow = {
-			consume: async () => {
-				await new Promise((resolve) => setTimeout(resolve, 100));
-				return true;
+		const calls: string[] = [];
+		const list = commands(calls);
+		let release!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let enteredConsume!: () => void;
+		const entered = new Promise<void>((resolve) => {
+			enteredConsume = resolve;
+		});
+		let finished = () => {};
+		const approval = createApprovalMiddleware({
+			secret: SECRET,
+			commands: list,
+			relay: 'mcp-elicitation',
+			nonceStore: {
+				consume: async () => {
+					enteredConsume();
+					await blocked;
+					return true;
+				},
 			},
-		};
-		const { url, calls } = await serve({ middleware: { nonceStore: slow } });
+		});
+		const { url } = await serve({
+			server: {
+				commands: list,
+				middleware: [
+					async (name, input, context, next) => {
+						try {
+							return await approval(name, input, context, next);
+						} finally {
+							finished();
+						}
+					},
+				],
+			},
+		});
 		const call = rawCaller(url);
 		const timed = {
 			commands: [{ command: 'todo-delete', input: { id: 7 } }],
 			options: { timeout: 30 },
 		};
-		const state = asked(await call('afd-batch', timed)).requestState as string;
-		const result = await call('afd-batch', timed, {
-			inputResponses: approved,
-			requestState: state,
-		});
-		expect(JSON.stringify(result)).toContain('BATCH_TIMEOUT');
-		await new Promise((resolve) => setTimeout(resolve, 200));
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+		let settled: Promise<void> | undefined;
+		try {
+			const state = asked(await call('afd-batch', timed)).requestState as string;
+			settled = new Promise<void>((resolve) => {
+				finished = resolve;
+			});
+			const pending = call('afd-batch', timed, {
+				inputResponses: approved,
+				requestState: state,
+			});
+			await entered;
+			await vi.advanceTimersByTimeAsync(30);
+			const result = await pending;
+			expect(JSON.stringify(result)).toContain('BATCH_TIMEOUT');
+		} finally {
+			release();
+			vi.useRealTimers();
+		}
+		await settled;
 		expect(calls).toEqual([]);
 	});
 

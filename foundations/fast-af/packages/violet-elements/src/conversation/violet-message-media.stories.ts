@@ -17,6 +17,10 @@ const GARDEN_IMAGE = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http:
 
 const FERN_IMAGE = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="250"><rect width="400" height="250" fill="#dfeae3"/><path d="M200 240C190 160 150 90 90 40M200 240C210 150 250 90 310 50" stroke="#2c5e4b" stroke-width="10" fill="none"/></svg>')}`;
 
+// Inline 8-bit PCM WAV (44.1 kHz mono silence) so the audio story never contacts an outside host.
+const SAMPLE_AUDIO =
+  "data:audio/wav;base64,UklGRiwAAABXQVZFZm10IBAAAAABAAEARKwAAESsAAABAAgAZGF0YQgAAACAgICAgICAgA==";
+
 const meta = {
   title: "Conversation/Message Media",
   component: "violet-message-media",
@@ -115,9 +119,9 @@ export const GenericFile: Story = {
 
 export const AudioFile: Story = {
   args: {
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3",
-    mediaType: "audio/mpeg",
-    filename: "bird-sounds.mp3",
+    src: SAMPLE_AUDIO,
+    mediaType: "audio/wav",
+    filename: "bird-sounds.wav",
     alt: "",
   },
 };

@@ -9,7 +9,7 @@ import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { ManifestV3, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createKernelParts } from '../kernel.js';
 import type { LayoutStateV0 } from '../layout.js';
 import { createFixedEnvironment, createSeededRandom, createSteppingClock } from '../session.js';
@@ -68,8 +68,9 @@ const HOSTILE = '<img src=x onerror="globalThis.hit=1">';
 /**
  * Each fixture's summary handler, by app. `stopped`: every handler throws, as a replay's must not run.
  * `aborted`: when `slow`'s summary saw its signal abort, the calling test's own list.
+ * `onSlowStart`: called once `slow`'s handler has attached its abort listener.
  */
-function definitions(stopped = false, aborted: number[] = []) {
+function definitions(stopped = false, aborted: number[] = [], onSlowStart?: () => void) {
 	const summary = (run: (context: AppCallContextV1) => Promise<unknown>) =>
 		defineApp({
 			sdk: 1,
@@ -111,6 +112,7 @@ function definitions(stopped = false, aborted: number[] = []) {
 			(context) =>
 				new Promise(() => {
 					context.signal?.addEventListener('abort', () => aborted.push(Date.now()));
+					onSlowStart?.();
 				})
 		),
 		boom: named('boom', async () => {
@@ -163,8 +165,8 @@ const deployment = (): ProjectionV3 => ({
 	apps: APPS.map(([id]) => ({ instance: id, app: id, package: `fixtures/${id}/` })),
 });
 
-const ports = (stopped = false, aborted: number[] = []) => {
-	const defined = definitions(stopped, aborted);
+const ports = (stopped = false, aborted: number[] = [], onSlowStart?: () => void) => {
+	const defined = definitions(stopped, aborted, onSlowStart);
 	return createFixturePorts(
 		Object.fromEntries(
 			APPS.map(([id, order]) => [
@@ -193,6 +195,10 @@ afterEach(async () => {
 async function workspace(aborted: number[] = []) {
 	const journal = new MemoryJournalSink();
 	const auth = new MockAuthAdapter();
+	let resolveSlowStarted!: () => void;
+	const slowStarted = new Promise<void>((resolve) => {
+		resolveSlowStarted = resolve;
+	});
 	const parts = await createKernelParts(
 		{
 			store: new MemoryAdapter(),
@@ -204,13 +210,40 @@ async function workspace(aborted: number[] = []) {
 			clock: createSteppingClock(),
 			random: createSeededRandom('summaries'),
 			deployment: deployment(),
-			ports: ports(false, aborted),
+			ports: ports(false, aborted, resolveSlowStarted),
 		},
 		{}
 	);
 	kernels.push(parts.kernel);
 	const atlas = await parts.kernel.call<ProjectV1>('project-create', { name: 'Atlas' });
-	return { ...parts, journal, auth, atlas: atlas.data as ProjectV1 };
+	return { ...parts, journal, auth, atlas: atlas.data as ProjectV1, slowStarted };
+}
+
+/**
+ * Wait for the five fast summary commands to finish journaling (including WebCrypto SHA-256
+ * digests on the libuv thread pool) and for `slow` to arm its abort listener before advancing
+ * fake timers to the 2 s deadline.
+ */
+function trackSummaryReady(kernel: LoamKernel, slowStarted: Promise<void>) {
+	const fastDone = new Set<string>();
+	let resolveFast!: () => void;
+	const allFastDone = new Promise<void>((resolve) => {
+		resolveFast = resolve;
+	});
+	const unsubscribe = kernel.subscribe((event) => {
+		if (event.command.endsWith('-summary') && event.command !== 'slow-summary') {
+			fastDone.add(event.command);
+			if (fastDone.size === 5) resolveFast();
+		}
+	});
+	return {
+		async waitReady() {
+			await Promise.all([slowStarted, allFastDone]);
+			// Drain all microtask continuations so `summarize` clears the fast rows' deadline timers.
+			await new Promise<void>((resolve) => setImmediate(resolve));
+		},
+		unsubscribe,
+	};
 }
 
 const rowsOf = (result: { data?: unknown }) =>
@@ -219,12 +252,28 @@ const rowsOf = (result: { data?: unknown }) =>
 describe('P2-E9: (kernel unit) project-summary-get', () => {
 	it('P2-D9: asks each app with a summary at the project, in the rail’s order, each failure its row alone, and drops an unknown link kind with a warning', async () => {
 		const aborted: number[] = [];
-		const { kernel, journal, atlas } = await workspace(aborted);
-		const started = Date.now();
-		const home = await kernel.call<ProjectSummaryResult>('project-summary-get', {
-			project: 'atlas',
-		});
-		expect(Date.now() - started).toBeLessThan(4_000);
+		const { kernel, journal, atlas, slowStarted } = await workspace(aborted);
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+		const { waitReady, unsubscribe } = trackSummaryReady(kernel, slowStarted);
+		let started = 0;
+		let elapsed = 0;
+		let home: Awaited<ReturnType<typeof kernel.call<ProjectSummaryResult>>>;
+		try {
+			started = Date.now();
+			const pending = kernel.call<ProjectSummaryResult>('project-summary-get', {
+				project: 'atlas',
+			});
+			await waitReady();
+			await vi.advanceTimersByTimeAsync(1_999);
+			expect(aborted).toHaveLength(0);
+			await vi.advanceTimersByTimeAsync(1);
+			home = await pending;
+			elapsed = Date.now() - started;
+		} finally {
+			unsubscribe();
+			vi.useRealTimers();
+		}
+		expect(elapsed).toBe(2_000);
 		expect(home.success).toBe(true);
 		const { project, summaries } = home.data as ProjectSummaryResult;
 		expect(project).toMatchObject({ id: atlas.id, slug: 'atlas' });
@@ -255,7 +304,7 @@ describe('P2-E9: (kernel unit) project-summary-get', () => {
 		expect(slow?.error?.code).toBe('PROJECT_SUMMARY_TIMEOUT');
 		// The deadline aborted the native handler's signal, at the deadline (T5).
 		expect(aborted).toHaveLength(1);
-		expect((aborted[0] as number) - started).toBeGreaterThanOrEqual(1_900);
+		expect((aborted[0] as number) - started).toBe(2_000);
 		expect(boom?.error).toMatchObject({ suggestion: expect.any(String) });
 		expect(boom?.summary).toBeUndefined();
 		expect(wide?.summary?.counts).toHaveLength(8);
@@ -328,8 +377,18 @@ describe('P2-E9: (kernel unit) project-summary-get', () => {
 	});
 
 	it('replays from its record with every handler stopped, whatever the deadline did', async () => {
-		const { kernel, journal } = await workspace();
-		await kernel.call('project-summary-get', { project: 'atlas' });
+		const { kernel, journal, slowStarted } = await workspace();
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+		const { waitReady, unsubscribe } = trackSummaryReady(kernel, slowStarted);
+		try {
+			const pending = kernel.call('project-summary-get', { project: 'atlas' });
+			await waitReady();
+			await vi.advanceTimersByTimeAsync(2_000);
+			await pending;
+		} finally {
+			unsubscribe();
+			vi.useRealTimers();
+		}
 		const recorded = await journal.read();
 		const { report } = await replayKernel(recorded, {
 			deployment: deployment(),
@@ -341,10 +400,20 @@ describe('P2-E9: (kernel unit) project-summary-get', () => {
 	});
 
 	it("#1936: replays an agent's, its gates run again and its handler answered from the record with its nested calls", async () => {
-		const { kernel, journal } = await workspace();
-		expect((await kernel.agent.call('project-summary-get', { project: 'atlas' })).success).toBe(
-			true
-		);
+		const { kernel, journal, slowStarted } = await workspace();
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+		const { waitReady, unsubscribe } = trackSummaryReady(kernel, slowStarted);
+		let agentCall: Awaited<ReturnType<typeof kernel.agent.call>>;
+		try {
+			const pending = kernel.agent.call('project-summary-get', { project: 'atlas' });
+			await waitReady();
+			await vi.advanceTimersByTimeAsync(2_000);
+			agentCall = await pending;
+		} finally {
+			unsubscribe();
+			vi.useRealTimers();
+		}
+		expect(agentCall.success).toBe(true);
 		const recorded = await journal.read();
 		const summary = recorded.find((entry) => entry.command === 'project-summary-get');
 		expect(summary?.context?.autonomy).toBe('act');

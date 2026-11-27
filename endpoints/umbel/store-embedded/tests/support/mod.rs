@@ -50,9 +50,10 @@ pub(crate) fn open_memory(
     SqliteMemoryStore::open(dir, space, options).map(Arc::new)
 }
 
-/// The memory factory of `run_memory`: the memory store alone.
+/// The memory factory of `run_memory`: the memory store alone, with the contending lock timeout
+/// so the two-thread concurrency case does not hit `Busy` under host load (#2800).
 pub(crate) fn memory_factory(dir: &Path, space: &str) -> Result<Arc<dyn MemoryStore>, StoreError> {
-    Ok(open_memory(dir, space, StoreOptions::default())?)
+    Ok(open_memory(dir, space, child_options())?)
 }
 
 /// Section 5.4's restore by hand, as the suite's `MemoryRestore`: with every handle dropped,
@@ -83,12 +84,13 @@ pub(crate) fn restore_memory(dir: &Path, _space: &str, backup: &Path) -> Result<
     file.sync_all().map_err(io)
 }
 
-/// The lock timeout of the writer children that contend with each other and the parent: long
-/// enough that a machine busy with other suites does not turn a wait into `Busy` (#2637). The
-/// timeout itself is tested by the `busy` and `memory-busy` children, which keep 200 ms.
+/// The lock timeout of the contending writer children and conformance suites: long enough that a
+/// machine busy with other suites does not turn a wait into `Busy` (#2637, #2800). The timeout
+/// itself is tested by the `busy` and `memory-busy` children (200 ms) and the explicit
+/// short-timeout tests.
 pub(crate) const CHILD_LOCK_TIMEOUT_MS: u64 = 60_000;
 
-/// The options of a contending writer child.
+/// The options of a contending writer child or conformance store.
 pub(crate) fn child_options() -> StoreOptions {
     StoreOptions {
         lock_timeout_ms: CHILD_LOCK_TIMEOUT_MS,
@@ -96,9 +98,9 @@ pub(crate) fn child_options() -> StoreOptions {
 }
 
 /// Open the SQLite stores, the tantivy index and the memory store of `space` under `dir`, with
-/// the memory restore of section 5.4.
+/// the memory restore of section 5.4 and the contending lock timeout (#2800).
 pub(crate) fn open(dir: &Path, space: &str) -> Result<Stores, StoreError> {
-    open_stores(dir, space, StoreOptions::default())
+    open_stores(dir, space, child_options())
 }
 
 /// [`open`] with `options` for every store.
@@ -200,7 +202,7 @@ pub(crate) fn writer_child() {
             write_memories(&*memory).unwrap_or_else(|e| fail(e));
         }
         Ok("memory-forever") => {
-            let memory = open_memory(dir, SPACE, StoreOptions::default())
+            let memory = open_memory(dir, SPACE, child_options())
                 .unwrap_or_else(|e| fail(format!("opening the memory store: {e}")));
             let mut n = 0_u64;
             loop {
