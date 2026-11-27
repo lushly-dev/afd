@@ -3,6 +3,9 @@
  * Process check: each Factory Gateway milestone updates the files agents follow as it lands, and
  * no instruction file, skill, runbook, script, hook or MCP configuration goes around the gateway.
  *
+ * Standard-tool-first: no standard tool knows which GitHub writes the gateway serves, or which
+ * milestone ends each exemption, so this reads the files itself (Lushly's gate asks this line).
+ *
  * Each repository keeps its own half of the process manifest (the proposal's "Keeping the process
  * current"): AFD's is docs/features/active/factory-gateway/process.json, Lushly's
  * Docs/operations/factory-gateway/process.json, and this script is the same file in both (Lushly
