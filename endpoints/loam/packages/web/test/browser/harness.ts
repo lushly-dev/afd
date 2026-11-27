@@ -47,16 +47,12 @@ export const ENGINE: Engine = (() => {
 })();
 
 /**
- * Whether this run takes D34's polyfill branch on purpose: `LOAM_SCOPED_POLYFILL=1` in Firefox alone, the one engine
- * here whose scoped registries can be turned off (#706, #2254). Every other run claims the platform's registries.
+ * Firefox with scoped custom element registries on, as Firefox 159 ships them (phase 1's W3, D174): Playwright's
+ * Firefox is 157, which has them behind this preference. E1's floor case turns it off, to stand for a Firefox below
+ * the support floor.
  */
-export const SCOPED_POLYFILL = ENGINE === 'firefox' && process.env.LOAM_SCOPED_POLYFILL === '1';
-
-/**
- * Firefox with scoped custom element registries on, as Firefox 159 ships them (phase 1's W3, D34): Playwright's Firefox
- * is 157, which has them behind this preference. {@link SCOPED_POLYFILL} leaves it off.
- */
-const FIREFOX_PREFS = { 'dom.scoped-custom-element-registries.enabled': !SCOPED_POLYFILL };
+export const FIREFOX_SCOPED_REGISTRIES = 'dom.scoped-custom-element-registries.enabled';
+const FIREFOX_PREFS = { [FIREFOX_SCOPED_REGISTRIES]: true };
 
 /** Launch {@link ENGINE}. A suite that runs in more than one engine launches through this, never `chromium` itself. */
 export function launchEngine(options: LaunchOptions = {}): Promise<Browser> {

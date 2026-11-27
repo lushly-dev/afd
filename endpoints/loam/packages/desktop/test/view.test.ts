@@ -35,6 +35,21 @@ describe('P6-D3: a view on the desktop', () => {
 			JSON.stringify({
 				location: location.origin,
 				parsedSandbox: new URL('loam-sandbox://localhost/sandbox/proxy.html').origin,
+				// D174's support floor: whether this webview has scoped custom element registries (#2254).
+				scopedRegistries: (() => {
+					try {
+						const registry = new CustomElementRegistry();
+						const root = document
+							.createElement('div')
+							.attachShadow({ mode: 'open', customElementRegistry: registry } as ShadowRootInit);
+						return (
+							(root as ShadowRoot & { customElementRegistry?: unknown }).customElementRegistry ===
+							registry
+						);
+					} catch (cause) {
+						return `no: ${String(cause)}`;
+					}
+				})(),
 			})
 		);
 		const opened = await desktop.call('app-open', { instance: 'hello' });

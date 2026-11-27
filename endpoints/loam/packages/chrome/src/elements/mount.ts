@@ -62,7 +62,10 @@ export interface MountOptions {
 	document?: unknown;
 }
 
-/** The `@webcomponents` polyfill has no `customElementRegistry` option on `document.createElement`. */
+/**
+ * D34's polyfill, kept in the desktop app's WebKitGTK webview alone (D174, amended), has no `customElementRegistry`
+ * option on `document.createElement`.
+ */
 const usesPolyfill = (): boolean =>
 	(globalThis as { __scopedRegistryPolyfillApplied?: boolean }).__scopedRegistryPolyfillApplied ===
 	true;
@@ -117,6 +120,7 @@ export class LoamMount extends HTMLElement {
 		const root = this.attachShadow({
 			mode: 'open',
 			customElementRegistry: registry,
+			// The polyfill's keys, read only where it runs.
 			registry,
 			customElements: registry,
 		} as ShadowRootInit);

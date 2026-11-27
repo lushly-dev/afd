@@ -15,6 +15,7 @@ import type {
 	DocumentTypeV1,
 	LoamEditorElementV1,
 } from '@lushly-dev/loam-sdk';
+import { isSupportFloorFailure } from '../apps/support-floor.js';
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import type { LoamMount } from '../elements/mount.js';
 import type { LoamShell } from '../elements/shell.js';
@@ -116,7 +117,8 @@ export async function syncInspector(
 	try {
 		await host.ensureActivated(type.instance);
 	} catch (cause) {
-		reportError(cause);
+		// Below the support floor the failure is expected and explained where the app opens (D174).
+		if (!isSupportFloorFailure(cause)) reportError(cause);
 		return false;
 	}
 	// A later sync took its place while the plugin activated.

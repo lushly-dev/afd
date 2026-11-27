@@ -908,7 +908,7 @@ export const CEILINGS = Object.freeze({
 	// measured 99,613 against `main` at `a5e79aab`; set to 100,100 under D115.
 	// #2235 (explicit empty value and element-identity option tracking in `violet-option`/`violet-listbox`,
 	// imported by `surfaces`): measured 100,335 against `main` at `44e711eb`; set to 100,800 under D115.
-	surfacesMinified: 102_600,
+	surfacesMinified: 103_500, // #2755 (D174's floor): 103,036 at `7d0135d8`; from 102,600 under D115.
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's

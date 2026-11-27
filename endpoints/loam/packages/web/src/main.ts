@@ -36,6 +36,8 @@ const base = new URL('../', /* @vite-ignore */ import.meta.url).href;
 
 /** Captured once at boot before stage B loads any native app (defense in depth, not realm isolation: D54). */
 const desktopInvoke = captureDesktopInvoke(window);
+// The desktop app's webview, where the chrome keeps D34's scoped-registry polyfill for WebKitGTK (D174, amended).
+if (desktopInvoke) document.documentElement.dataset.loamWebview = 'desktop';
 
 /**
  * Phase 3's 4.3 refresh, its provider given once probed: the hosted relay's own `401` runs it, as the trust-record
