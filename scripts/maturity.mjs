@@ -51,7 +51,8 @@ export const LADDER = Object.freeze([
 	{
 		id: 'preview',
 		label: 'Preview',
-		meaning: 'published, on npm only under the `preview` tag; may change in any release.',
+		meaning:
+			"published, on npm only under the `preview` tag (npm's `latest` stays on a `0.0.0` placeholder, so a plain install never gets a preview); may change in any release.",
 		classifier: 'Development Status :: 3 - Alpha',
 		published: true,
 	},
@@ -474,7 +475,14 @@ async function fetchJson(url) {
 	}
 }
 
-/** Compares each published unit with its registry. Returns errors, warnings and unchecked items. */
+/** The `0.0.0-*` version a maintainer publishes so npm holds the name; as in release-control.mjs. */
+export const isPlaceholder = (version) =>
+	typeof version === 'string' && version.startsWith('0.0.0-') && semver.valid(version) !== null;
+
+/**
+ * Compares each published unit with its registry. Returns errors, warnings and unchecked items;
+ * no rule warns today, and the field stays so the CLI's output shape does not change.
+ */
 export async function checkRegistries(inventory) {
 	const errors = [];
 	const warnings = [];
@@ -493,12 +501,13 @@ export async function checkRegistries(inventory) {
 					const tags = result.body['dist-tags'] ?? {};
 					const latest = result.body.versions?.[tags.latest];
 					if (word.id === 'preview') {
+						// `latest` stays on the `0.0.0-*` placeholder: a plain install must never resolve a
+						// preview, and the release plan refuses a preview release otherwise
+						// (assertLatestNotPrerelease in scripts/release-control.mjs).
 						if (!tags.preview) errors.push(`${name}: Preview, but npm has no preview tag`);
-						if (latest && !latest.deprecated && !semver.prerelease(tags.latest))
-							errors.push(`${name}: Preview, but latest is ${tags.latest}, a release`);
-						else if (latest?.deprecated)
-							warnings.push(
-								`${name}: latest is the deprecated placeholder ${tags.latest} (an owner step, #2766)`
+						if (!isPlaceholder(tags.latest))
+							errors.push(
+								`${name}: Preview, but latest is ${tags.latest ?? 'missing'}; it stays on the 0.0.0 placeholder (npm dist-tag add ${name}@<0.0.0-placeholder> latest), or the unit is Beta in scripts/release/inventory.json`
 							);
 					} else if (
 						!tags.latest ||

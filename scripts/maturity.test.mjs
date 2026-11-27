@@ -8,6 +8,7 @@ import {
 	checkInventory,
 	checkLlmsLines,
 	checkReadmeRows,
+	checkRegistries,
 	checkRepository,
 	checkSiteText,
 	LADDER,
@@ -324,6 +325,60 @@ describe('surfaces', () => {
 		});
 		assert.deepEqual(site('<span class="footer-edition">AFD / VIOLET</span>').errors, []);
 		assert.match(site('<strong data-maturity="nope">Beta</strong>').errors[0], /unknown part/);
+	});
+});
+
+describe('checkRegistries', () => {
+	/** The versions a real registry body holds: the placeholder is published deprecated. */
+	const versions = {
+		'0.0.0-bootstrap.0': { deprecated: 'Placeholder; install @preview.' },
+		'1.0.0-preview.1': {},
+		'1.0.0': {},
+	};
+
+	/** Runs the registry check for one Preview npm package whose registry answers with `tags`. */
+	async function previewWith(tags) {
+		const realFetch = globalThis.fetch;
+		globalThis.fetch = async () =>
+			new Response(JSON.stringify({ 'dist-tags': tags, versions }), { status: 200 });
+		try {
+			return await checkRegistries({
+				units: [
+					unit('p', {
+						maturity: 'preview',
+						distributions: [
+							{ name: '@x/p', registry: 'npm', format: 'npm', manifest: 'p/package.json' },
+						],
+					}),
+				],
+			});
+		} finally {
+			globalThis.fetch = realFetch;
+		}
+	}
+
+	it("keeps a Preview package's latest on the 0.0.0 placeholder, as the release plan requires", async () => {
+		const placeholder = await previewWith({
+			latest: '0.0.0-bootstrap.0',
+			preview: '1.0.0-preview.1',
+		});
+		assert.deepEqual([placeholder.errors, placeholder.warnings], [[], []]);
+		const onPreview = await previewWith({ latest: '1.0.0-preview.1', preview: '1.0.0-preview.1' });
+		assert.match(
+			onPreview.errors[0],
+			/latest is 1\.0\.0-preview\.1; it stays on the 0\.0\.0 placeholder/
+		);
+		const onRelease = await previewWith({ latest: '1.0.0', preview: '1.0.0-preview.1' });
+		assert.match(onRelease.errors[0], /latest is 1\.0\.0;/);
+		const noPreview = await previewWith({ latest: '0.0.0-bootstrap.0' });
+		assert.match(noPreview.errors[0], /npm has no preview tag/);
+		const noLatest = await previewWith({ preview: '1.0.0-preview.1' });
+		assert.match(noLatest.errors[0], /latest is missing/);
+		const notAVersion = await previewWith({
+			latest: '0.0.0-not a version',
+			preview: '1.0.0-preview.1',
+		});
+		assert.match(notAVersion.errors[0], /latest is 0\.0\.0-not a version;/);
 	});
 });
 
