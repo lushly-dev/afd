@@ -1,8 +1,7 @@
-# Draft JTBD scenario for Loam's phase 5 specification, milestone B (step 10, B0 amendment).
+# JTBD scenario for Loam's phase 5 specification, milestone B (step 10, B0 amendment; P5-B4).
 # Needs Loam's runner (tag loam-runner) on the seed p5-base, which from milestone B gives
 # mailfixapp the events grant and adds mailfix-thread-list to its [[calls]] (with expose.apps set
-# in mailfix's entry). Held in scenarios/milestone-b/ until step 10 moves it into scenarios/ and
-# adds it to scenarios.test.ts. The data is invented.
+# in mailfix's entry). The data is invented.
 name: Native plugin catches up from its mounted engine
 description: >-
   When another actor changes my mounted engine through Loam, I want my native plugin to catch up

@@ -22,7 +22,7 @@ import {
 	replayJournal,
 } from '@lushly-dev/afd-server/direct';
 import type { IdentityV1, ProjectionV4 } from '@lushly-dev/loam-manifest';
-import { MemoryAdapter } from '@lushly-dev/local-db';
+import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import * as z from 'zod/mini';
 import type { AppearanceV0 } from './appearance.js';
 import { oversizedInput } from './apps/mounted.js';
@@ -159,6 +159,8 @@ export interface ReplayKernelOptions {
 	ports?: KernelPorts;
 	/** The recording kernel's identity (phase 3 specification, 2.1). */
 	identity?: IdentityV1;
+	/** The replay's store, for a test that reads what it rebuilt (the bus's tables, phase 5's 9.2). Default: a new one. */
+	store?: DataAdapter;
 	/** Which auth gate the recording kernel used (`'session'` for browser, `'principal'` for hosted server). */
 	gate?: 'session' | 'principal';
 	/**
@@ -688,7 +690,7 @@ export async function replayKernel(
 	};
 	const parts: KernelParts = await createKernelParts(
 		{
-			store: new MemoryAdapter(),
+			store: options.store ?? new MemoryAdapter(),
 			storeKind: 'memory',
 			journal: new MemoryJournalSink(),
 			auth,
@@ -857,6 +859,9 @@ export async function replayKernel(
 			await replayJournal(target, ordered, {
 				ignore: [...REPLAY_IGNORE, ...(options.ignore ?? [])],
 				context: (entry) => {
+					// Every entry before this one has run: the bus decides their readers now, with the state they left, as the
+					// live kernel decided each when it was appended (phase 5's 9.2).
+					internals.events?.replayed(ordered, entry.seq - 1);
 					replaying = entry;
 					return {};
 				},
@@ -865,6 +870,10 @@ export async function replayKernel(
 			nested.problems,
 			recorded
 		);
+		// Every original entry, re-executed or answered from its record, once, in journal order (phase 5's 9.2): AFD's
+		// replay never appends, so the bus projects the journal it replays, and its rows match the live kernel's.
+		internals.events?.replayed(ordered, Number.POSITIVE_INFINITY);
+		await internals.events?.flush();
 		if (report.diverged) {
 			const divergence = firstDivergence(report);
 			const where = divergence?.difference?.path ? ` at ${divergence.difference.path}` : '';
@@ -903,6 +912,7 @@ export async function replayKernel(
 		delete internals.drive;
 		delete internals.startPage;
 		delete internals.recordedRun;
+		delete internals.events;
 		kept = options.keep === true;
 		return {
 			report,

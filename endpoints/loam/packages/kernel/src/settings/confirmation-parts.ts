@@ -4,7 +4,7 @@
  * prompt of a command's input. Apart from `confirmations.ts` so that file keeps to the size gate; it imports types alone.
  */
 
-import type { Actor, CommandResult } from '@lushly-dev/afd-core';
+import type { Actor, CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type {
 	ConfirmationAskedV1,
 	ConfirmationRecordV1,
@@ -15,6 +15,7 @@ import type {
 } from '@lushly-dev/loam-sdk';
 import type { LoamKernelErrorCode } from '../errors.js';
 import type { Opener } from '../overlays/commands.js';
+import type { ScopeV1 } from '../scope/records.js';
 import type { SettingsKit } from './settings.js';
 
 /** The workspace store's table the inbox keeps its rows in (10.1): a pending confirmation is one of them. */
@@ -55,6 +56,8 @@ export type StoredConfirmation = NotificationV1 & {
 	cbucket: string;
 	/** A decline in the slot, kept so the window holds across a reload and the inbox's path (blocker 6). */
 	cslot?: true;
+	/** The agent that raised it, by id (phase 5's 9.2 and 9.3): whom `event-list` and `shell-open` let read it. */
+	raiserAgent?: string;
 	/** The act's claim, as a notice's (step 5): a confirm runs once. */
 	claim?: string;
 };
@@ -67,6 +70,7 @@ export const KERNEL_ONLY_FIELDS = [
 	'cbucket',
 	'cslot',
 	'claim',
+	'raiserAgent',
 ] as const;
 
 /**
@@ -446,4 +450,54 @@ export function settleInputOf(z: SettingsKit['z']) {
 			})
 		),
 	});
+}
+
+/**
+ * The bus's note of a confirmation on the call's `bus` field (phase 5 specification, 9.2), which the journal keeps: a
+ * new row raised, each one answered, by id, person, scope, command and who raised it, never its input. Not a slot's.
+ */
+export function noteBus(
+	context: CommandContext,
+	event: 'asked' | 'confirmed' | 'declined' | 'withdrawn',
+	row: StoredConfirmation
+): void {
+	if (row.cslot !== undefined) return;
+	const held = context as { bus?: BusNotesV1 };
+	held.bus ??= {};
+	const bus = held.bus;
+	const note: BusConfirmationV1 = {
+		notification: row.id,
+		person: row.person,
+		scope: row.scope,
+		command: row.confirmation.command,
+		...(row.cbucket.startsWith('app:') ? { raiser: row.cbucket.slice(4) } : {}),
+		...(row.raiserAgent !== undefined ? { agent: row.raiserAgent } : {}),
+		...(typeof row.confirmation.session === 'string' ? { session: row.confirmation.session } : {}),
+	};
+	if (event === 'asked') bus.raised = note;
+	else {
+		bus.answered ??= [];
+		bus.answered.push(note);
+	}
+}
+
+/** A confirmation the confirmations' gate named in the call's `bus` field (9.2): raised new, or answered. */
+export interface BusConfirmationV1 {
+	notification: string;
+	person: string;
+	scope: ScopeV1;
+	/** The command it asks for, whose owner is the instance it targets. */
+	command: string;
+	/** The instance that raised it, when an app did. */
+	raiser?: string;
+	/** The agent that raised it, by id, when an agent did (`raiserAgent`). */
+	agent?: string;
+	/** The copilot session, when the copilot raised it. */
+	session?: string;
+}
+
+/** The `bus` context field (journaled): what a call raised or answered of the inbox's confirmations. */
+export interface BusNotesV1 {
+	raised?: BusConfirmationV1;
+	answered?: BusConfirmationV1[];
 }

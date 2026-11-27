@@ -153,4 +153,6 @@ export const SHELL_COMMAND_NAMES = [
 	'shell-focus-previous',
 	'shell-save',
 	'shell-project-switcher',
+	// Phase 5's step 10 (its 9.2): what changed since a cursor, for a person, an agent and an app with `events`.
+	'event-list',
 ] as const;

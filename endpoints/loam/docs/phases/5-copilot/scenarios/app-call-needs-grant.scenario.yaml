@@ -1,7 +1,7 @@
-# Draft JTBD scenario for Loam's phase 5 specification, milestone B. Needs Loam's runner (tag
-# loam-runner) on the seed p5-base, which from milestone B also gives checklist a calls grant for
-# tally-get, and sets expose.apps on tally's tally-get; hello holds no calls grant. The step
-# directives are phase 4's. The data is invented.
+# JTBD scenario for Loam's phase 5 specification, milestone B (P5-B4). Needs Loam's runner (tag
+# loam-runner) on the seed p5-base, whose overlay (p5-base.overlay.json) gives checklist a calls
+# grant for tally-get and sets expose.apps on tally's tally-get; hello holds no calls grant. The
+# step directives are phase 4's. The data is invented.
 name: Keep apps out of each other unless allowed
 description: >-
   When an app tries to call another app's command it was not granted, I want the call refused

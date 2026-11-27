@@ -54,6 +54,8 @@ export interface AppCallContextV1 {
 	readonly projects?: ProjectsV1;
 	/** Present with the `settings` grant: this app's own sections (phase 4 specification, 3.8). */
 	readonly settings?: SettingsV1;
+	/** Present with the `events` grant: what changed since a cursor (phase 5 specification, 9.2). */
+	readonly events?: EventsV1;
 }
 
 /** Where a call runs: a workspace, and a project in it (phase 2 specification, 3.1). Ids, never names. */
@@ -316,6 +318,121 @@ export type ResourceLinkV1 =
 	| { kind: 'app'; instance: string; route?: string; scope: ScopeV1 };
 
 /**
+ * A place in the shell (phase 5 specification, 9.3): {@link ResourceLinkV1}'s two kinds and four shell targets, so every
+ * `ResourceLinkV1` is a `ResourceLinkV2`. An external URL is never one: no kind holds a `url`, and `mounted-ui`'s `uri`
+ * is a `ui://` resource its instance advertised.
+ */
+export type ResourceLinkV2 =
+	| ResourceLinkV1
+	| { kind: 'project'; project: string; scope: ScopeV1 }
+	| {
+			kind: 'section';
+			section: 'projects' | 'documents' | 'account' | 'settings' | 'inbox';
+			path?: string;
+			/** A settings section or key, when `section` is `settings`. */
+			target?: string;
+			scope: ScopeV1;
+	  }
+	| { kind: 'mounted-ui'; instance: string; uri: string; scope: ScopeV1 }
+	| { kind: 'confirmation'; notification: string; scope: ScopeV1 };
+
+/** What changed, by kind (phase 5 specification, 9.2's table). `mount-notified` is reserved. */
+export type EventKindV1 =
+	| 'project-created'
+	| 'project-updated'
+	| 'project-archived'
+	| 'project-restored'
+	| 'document-created'
+	| 'document-updated'
+	| 'document-trashed'
+	| 'document-restored'
+	| 'setting-changed'
+	| 'experiment-changed'
+	| 'autonomy-changed'
+	| 'app-changed'
+	| 'notification-pushed'
+	| 'confirmation-raised'
+	| 'confirmation-answered'
+	| 'call-refused'
+	| 'app-mutated'
+	| 'mount-mutated'
+	| 'mount-notified';
+
+/**
+ * One event (phase 5 specification, 9.2; Umbel D10's `id` and `seq`): what changed, who changed it and where, never an
+ * input, a result or content. An app reads its own positions in the stream, so a gap tells it nothing.
+ */
+export interface EventV1 {
+	/** `ev_<seq>`. */
+	id: string;
+	/** The stream's position, from 1: the workspace's for a person or an agent, the app's own for an app. */
+	seq: number;
+	/** `v1.<seq>`: as `since`, the events after this one. */
+	cursor: string;
+	/** Epoch milliseconds, the journal entry's. */
+	at: number;
+	kind: EventKindV1;
+	/** The command whose journal entry it came from. */
+	command: string;
+	/** `human:<person>`, `agent:<id>`, `app:<instance>` or `system:shell`; to an app, every person is `human:person`. */
+	actor: string;
+	/** `human:<person>`, when an agent acted for one; never given to an app. */
+	onBehalfOf?: string;
+	scope: ScopeV1;
+	/** The app or mounted instance it belongs to. */
+	instance?: string;
+	/** Where it happened, to open with `shell-open`. */
+	subject: ResourceLinkV2;
+}
+
+/** A wakeup (principle 14): what kinds a surface may read changed, never a delivery; read them with `events.list`. */
+export interface EventHintV1 {
+	kinds: EventKindV1[];
+	instances?: string[];
+	/** The surface's readable head, `v1.<seq>`. */
+	cursor: string;
+}
+
+/** `event-list`'s input. */
+export interface EventsListOptionsV1 {
+	/** A cursor `event-list` gave; omitted, the latest events and the head. */
+	since?: string;
+	/** 1 to 32 kinds; an unknown kind matches nothing. */
+	kinds?: string[];
+	instance?: string;
+	/** 1 to 200, default 50. */
+	limit?: number;
+}
+
+/** What the `events` grant gives an app (phase 5 specification, 9.2): `event-list`, as a promise. */
+export interface EventsV1 {
+	list(
+		options?: EventsListOptionsV1
+	): Promise<{ events: EventV1[]; cursor: string; hasMore: boolean }>;
+}
+
+/**
+ * {@link EventsV1} over a client that may call `event-list`: rejects with the refusal's code and suggestion,
+ * `GRANT_REQUIRED`, `EVENT_CURSOR_INVALID` and `EVENT_CURSOR_EXPIRED` among them.
+ */
+export function eventsOver(client: LoamClientV1): EventsV1 {
+	return {
+		async list(options) {
+			const result = await client.call<{ events: EventV1[]; cursor: string; hasMore: boolean }>(
+				'event-list',
+				options ?? {}
+			);
+			if (!result.success || !result.data)
+				throw Object.assign(new Error(result.error?.message ?? 'The events could not be read'), {
+					code: result.error?.code,
+					suggestion: result.error?.suggestion,
+				});
+			return result.data;
+		},
+	};
+}
+
+/**
  * What an app's `ui.project_summary` command returns, for a project's home (phase 2 specification, 7.7).
  * Text, rendered as text. The shell drops what is over a bound.
  */
@@ -507,6 +624,8 @@ export interface AppContextV1 {
 	readonly documents?: DocumentsV1;
 	/** With the `settings` grant: this app's own sections (phase 4 specification, 3.8). */
 	readonly settings?: SettingsV1;
+	/** With the `events` grant: what changed since a cursor (phase 5 specification, 9.2). */
+	readonly events?: EventsV1;
 	/** The person's inbox, to push a notice to (phase 4 specification, 10.2). */
 	readonly notifications?: NotificationsV1;
 	/** The confirmations this app raised, read and withdrawn (phase 4 specification, 7.2, 12). */
@@ -596,6 +715,11 @@ export interface LoamSurfaceElementV1 extends HTMLElement {
 	 * Read them again with `context.settings`.
 	 */
 	settingsChanged?(sections: string[]): void;
+	/**
+	 * With the `events` grant: a wakeup when events this app may read were projected (phase 5 specification, 9.2),
+	 * coalesced, never a delivery. Catch up with `context.events.list({ since })`.
+	 */
+	eventsChanged?(hint: EventHintV1): void;
 }
 
 /**

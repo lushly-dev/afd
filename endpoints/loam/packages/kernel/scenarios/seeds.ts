@@ -45,12 +45,13 @@ import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
 import { createInProcessLauncher } from '@lushly-dev/loam-copilot';
 import type { ModelScriptV1, TestProviderV1 } from '@lushly-dev/loam-copilot/test-provider';
-import type { ManifestV3, ProjectionV4 } from '@lushly-dev/loam-manifest';
+import type { IdentityV1, ManifestV3, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { type CopilotHostV1, createCopilotHost } from '../src/copilot/host.js';
 import type { CopilotOptionsV1, CopilotProviderV1 } from '../src/copilot/types.js';
 import { DOCUMENT_TABLE, documentContentKey } from '../src/documents/document-types.js';
 import { createKernel } from '../src/kernel.js';
+import type { MembershipV1 } from '../src/scope/access.js';
 import type { ProjectV1 } from '../src/scope/records.js';
 import { scopeKeyOf, storeRecordId } from '../src/scope/store-id.js';
 import { createFixedEnvironment } from '../src/testing.js';
@@ -204,6 +205,8 @@ async function p4Base(
 		mailfixEntry?: Record<string, unknown>;
 		/** Changes to the apps' manifests as read, by instance: `p5-base`'s milestone B overlay. */
 		overlay?: Readonly<Record<string, (manifest: ManifestV3) => ManifestV3>>;
+		/** `provider` identity on a desktop host, with its membership, for a test of a signed-in person's view. */
+		identity?: { identity: IdentityV1; membership: MembershipV1 };
 	} = {}
 ): Promise<SeededKernel> {
 	const { mailfix, mailfixb } = extra;
@@ -245,6 +248,7 @@ async function p4Base(
 		generation: 'p4-base',
 		workspace: { id: 'personal', name: 'Personal' },
 		sandbox_origin: 'https://sandbox.loam.test',
+		...(extra.identity ? { host: { kind: 'desktop' } } : {}),
 		apps: [
 			...served.apps,
 			...(mailfix
@@ -269,6 +273,7 @@ async function p4Base(
 		environment: createFixedEnvironment(),
 		host: 'test',
 		...(extra.copilot ? { copilot: extra.copilot } : {}),
+		...(extra.identity ? extra.identity : {}),
 		deployment,
 		ports,
 	});
@@ -371,6 +376,8 @@ export async function p5Base(options: {
 	mailfixEntry?: Record<string, unknown>;
 	/** A test's own changes to the apps' manifests as read, after milestone B's overlay. */
 	overlay?: Readonly<Record<string, (manifest: ManifestV3) => ManifestV3>>;
+	/** `provider` identity on a desktop host, with its membership (the person signs in as in `p4-base`). */
+	identity?: { identity: IdentityV1; membership: MembershipV1 };
 }): Promise<SeededKernel> {
 	const provider = createScenarioProvider({
 		...(options.scripts ? { extra: options.scripts } : {}),
@@ -398,6 +405,7 @@ export async function p5Base(options: {
 		mailfix: options.mailfix ?? mountedMailfix(),
 		...(options.mailfixEntry ? { mailfixEntry: options.mailfixEntry } : {}),
 		...(options.mailfixb ? { mailfixb: mountedMailfix() } : {}),
+		...(options.identity ? { identity: options.identity } : {}),
 		...(options.provider
 			? {
 					copilot: {

@@ -661,7 +661,7 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #2599 (Violet's redrawn system icons: `folder`, `document`, `close`, `search` and
 	// `warning`, which first paint carries, grow and `settings` shrinks): measured 346,861 with `main` at `7e75987e9`
 	// merged, against 346,795 with main's icons (+66); set to 347,200.
-	jsMinified: 348_800, // D115: shell keys (348,039, 5ade6c0f4); #2645 (348,354, 871c1a98a); phase 5 step 10's 9.1.
+	jsMinified: 348_800, // D115: shell keys (348,039, 5ade6c0f4); #2645 (348,354, 871c1a98a); step 10's 9.1; its 9.2, 348,711.
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -805,7 +805,7 @@ export const CEILINGS = Object.freeze({
 	// measured 139,141 against `main` at `804e17cc`; set to 139,700 under D115.
 	// #2107 (moved `journal-provenance.ts` and `redactWrapped` from first paint into `late/journal-wrappers.ts`):
 	// measured 144,170 against `main` at `bd30d790b` (+4,850 moved from first paint); set to 144,700 under D115.
-	lateMinified: 150_400, // D115: 150,050 (5ade6c0f4); phase 5 step 10's 9.1 ('apps' attribution), to 150,062.
+	lateMinified: 163_800, // D115: 150,050 (5ade6c0f4); step 10's 9.1 to 150,062, its 9.2 (the bus) to 163,695.
 	// #2117 (`recordOrder` calls in `documents.ts`): measured 13,584 against `main` at `804e17cc`; set to 13,800 under D115.
 	lateDocumentsMinified: 13_800,
 	// Bug batch #2113: 17,514 (`closeApp` across persisted scopes with R14 dirty re-check, `document-open` gated refusal, `isTypeGated`, `Editors.projects()`); set to 18,000 under D115.
@@ -861,7 +861,7 @@ export const CEILINGS = Object.freeze({
 	// review's fixes and re-check 39,283 (+7,448 in all): each tab named by `ownerTitle` (its own `owner-title` chunk, with
 	// `shell-name`), the app's settings delivered through `surface-calls` (1,700, shared with `surfaces`), the change of
 	// person and main's gate, the view's teardown and the wait for the app surfaces; set to 39,900 under D115.
-	accountMinified: 40_400,
+	accountMinified: 41_000, // D115: phase 5 step 10's 9.2 (the SDK's events): 40,241 to 40,951.
 	// Raised under D115 by #862 (`__vite__mapDeps` table emitted in `url-sync` once `vite/preload-helper` lives in the
 	// single `$initial` `index` chunk): measured 6,601 against `main` at `bd374912`; set to 6,900.
 	urlMinified: 6_900,
@@ -894,7 +894,7 @@ export const CEILINGS = Object.freeze({
 	// `276855fc`: set to 474,000 under D115.
 	// Bug batch #2179/#2119/#2118/#2016/#1952 merged with `main` at `b868f8c1`: 474,014 (+217 over its 473,797 at
 	// `a5e79aab`, main's changes since); set to 474,500 under D115.
-	appsMinified: 478_600, // D115: phase 5's step 10 (9.1), 473,988 to 478,082 on `871c1a98a`.
+	appsMinified: 479_000, // D115: phase 5 step 10's 9.1, 473,988 to 478,337; its 9.2 (onBusEvent), to 478,642.
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
 	// Phase 5's step 3 with phase 3's step 8 merged (`main` at `46f7ab11`; step 8's `surface-calls`, shared with
@@ -908,7 +908,7 @@ export const CEILINGS = Object.freeze({
 	// measured 99,613 against `main` at `a5e79aab`; set to 100,100 under D115.
 	// #2235 (explicit empty value and element-identity option tracking in `violet-option`/`violet-listbox`,
 	// imported by `surfaces`): measured 100,335 against `main` at `44e711eb`; set to 100,800 under D115.
-	surfacesMinified: 103_500, // #2755 (D174's floor): 103,036 at `7d0135d8`; from 102,600 under D115.
+	surfacesMinified: 104_200, // #2755 (D174's floor): 103,036 at `7d0135d8`; phase 5 step 10's 9.2 to 103,680, raised.
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's

@@ -78,9 +78,20 @@ const RUNS: Readonly<Record<string, string>> = Object.freeze({
 	'person-sends-mail': 'now',
 	// Step 6's: fresh-context units.
 	'reply-set-fresh-context': 'now',
-	'app-call-needs-grant': "milestone B's amendment: native calls grants",
-	'events-since-cursor': "milestone B's amendment: event-list",
+	// Step 10's (milestone B, P5-B4): native calls grants and `event-list`, then `shell-open` in its third part.
+	'app-call-needs-grant': 'now',
+	'events-since-cursor': 'now',
+	'plugin-catches-up-from-engine': 'now',
+	'open-what-was-asked': "step 10's third part: shell-open",
 });
+
+/** Milestone B's bus jobs, 10 to 13 (the specification's 18, P5-B4): each file's run is that row's. */
+const MILESTONE_B = [
+	'app-call-needs-grant',
+	'events-since-cursor',
+	'open-what-was-asked',
+	'plugin-catches-up-from-engine',
+];
 
 /** Milestone A's jobs (the specification's "The slice"), the files tagged `slice`: P5-A1's, in every place it names. */
 const SLICE_JOBS = [
@@ -155,7 +166,13 @@ for (const [phase, directory, runs, fallback, row] of [
 			});
 
 		for (const name of Object.keys(runs).filter((key) => runs[key] === 'now')) {
-			const rows = row ? `${row}${P4_ROWS_OF[name] ?? ''}` : SLICE.has(name) ? 'P5-A1: ' : '';
+			const rows = row
+				? `${row}${P4_ROWS_OF[name] ?? ''}`
+				: SLICE.has(name)
+					? 'P5-A1: '
+					: MILESTONE_B.includes(name)
+						? 'P5-B4: '
+						: '';
 			it(`${rows}passes ${name}`, async () => {
 				const { passed, detail } = await runFile(directory, `${name}.scenario.yaml`, fallback);
 				expect(passed, detail).toBe(true);

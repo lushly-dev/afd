@@ -70,6 +70,7 @@ import type {
 	KernelPorts,
 } from '../types.js';
 import { DOCUMENT_KIT } from './command-kit.js';
+import { type Bus, createBus } from './events.js';
 import { createLateScope, documentChainOf, type LateScopeDeps } from './scope-change.js';
 import { createShellCommands, paletteGroupOf, type ShellCommandDeps } from './shell-commands.js';
 import {
@@ -288,6 +289,7 @@ export interface LateParts {
 	copilot: Pick<CopilotParts, 'gate' | 'contextFields' | 'stopAll'>;
 	/** Phase 4's confirmations (its 7.2): the chain's last gate, after the copilot's, and their context fields. */
 	confirmations: Pick<Confirmations, 'gate' | 'contextFields' | 'recorded'>;
+	bus: Bus;
 	/** Injected wrapper provenance and redaction (#2107): loaded with `late/` so first paint stays lean. */
 	wrappers: JournalWrappers;
 	/**
@@ -345,9 +347,8 @@ export async function createLateParts(
 		deps.scope,
 		(type) => documents.types().types.get(type)?.title
 	);
-	// The chunks of the late load, awaited together inside `loadLate`, so their commands register in stage B;
-	// any failing fails the late load whole (documents specification, Status, deviations 9 and 14). The third is
-	// `late-identity`, the kernel's hearing of the adapter, with `session-settle` (phase 3 specification, 4.4, 13).
+	// The late load's chunks, awaited together in `loadLate` (stage B); one failing fails it whole (documents spec, Status, 9
+	// and 14). The third, `late-identity`: the adapter's hearing, with `session-settle` (phase 3 specification, 4.4, 13).
 	const [
 		{ createDocumentCommands, trashBefore },
 		{ createEditorParts },
@@ -429,6 +430,7 @@ export async function createLateParts(
 			? personKey(sessionActor(deps.auth, deps.clock))
 			: (settledFor ?? undefined);
 	};
+	const bus = createBus(deps, shellPerson);
 	// Keyed by the person the shell is for, once `session-settle` is built; the adapter's until then (4.4, B2).
 	const quiet =
 		deps.personal && personalWrites(deps.personal, deps.store, deps.viewState, shellPerson);
@@ -449,8 +451,7 @@ export async function createLateParts(
 	await agentMembers.cache.load(deps.store);
 	endIfDisposed();
 	deps.scope.agents = agentMembers.cache;
-	// The editor owner after a call that may move it (documents specification, 5.4); built below, with
-	// the scope it needs.
+	// The editor owner after a call that may move it (documents specification, 5.4); built below, with its scope.
 	let editor: EditorParts | undefined;
 	// `loam.layout.~documents` declares the inspector while the editor owner, the active tab's plugin, has a
 	// type with one (5.1): recomputed after a call that may move the active tab, main or the scope, and at boot.
@@ -590,9 +591,8 @@ export async function createLateParts(
 		experiments?.stop();
 		return destroy();
 	};
-	// The active scope's editor record registers in stage B and is read then (documents specification, 6):
-	// stage A's `hydrate` drops a record with no handler.
-	// Each person's `loam.new.recent~<actor>` registers on their first use, read before anything writes it (7).
+	// The active scope's editor record registers in stage B, read then (documents specification, 6; stage A drops it);
+	// each person's `loam.new.recent~<actor>` on their first use, read before anything writes it (7).
 	const created = createNewParts({ ...deps, check: documents });
 	// The link index, built by one `list` at its first read, and kept by the link commands and expiry (9.3).
 	const index = createDocumentIndex(deps.store);
@@ -634,8 +634,7 @@ export async function createLateParts(
 		replaying: () => deps.internals?.replaying === true,
 		isOwner: (person) => isOwner(deps.scope.membership, person),
 		canOpen: (instance, project) => canOpen(deps.apps(), deps.scope, instance, project),
-		// `loam.documents.trashDays` written through to the workspace row (A-P2-2), which the trash's expiry reads, in
-		// one batch with the setting's own row.
+		// `loam.documents.trashDays` written through to the workspace row the trash's expiry reads (A-P2-2), in one batch.
 		async trashDays(days, context, also) {
 			const row = await stores.workspace();
 			const at = DOCUMENT_KIT.callNow(context);
@@ -721,10 +720,9 @@ export async function createLateParts(
 		writeOwn: (section, key, entry, context) =>
 			(settings as Settings).writeOwn(section, key, entry, context),
 		replaying: () => deps.internals?.replaying === true,
-		// The orphan notice (4.2, 10.2), through step 5's inbox: in `local` mode to the one person the shell is for, every
-		// person an owner. In `provider` mode none, by the coordinator's ruling, until the owner roster is a server record
-		// (phase 5's shell commands over MCP): the kernel holds only the people it has settled, and the boot settle's
-		// membership is not journaled, so a replay could not send the same. The flags are stored and shown either way.
+		// The orphan notice (4.2, 10.2), through step 5's inbox: in `local` mode to the one person, an owner. In `provider`
+		// mode none (the coordinator's ruling) until the owner roster is a server record: the kernel holds only the people
+		// it settled, and the boot settle's membership is unjournaled, so a replay could not send it. Flags shown either way.
 		async orphaned(rows, context) {
 			if (deps.scope.membership.mode !== 'local') return;
 			const owners = [shellPerson() ?? 'local'];
@@ -1086,6 +1084,7 @@ export async function createLateParts(
 			...confirmations.commands,
 			confirmations.settle,
 			...limitCommands.commands,
+			bus.command,
 			...keybindingCommands,
 			...createShellKeyCommands(SHELL_KEY_ACTIONS, deps.performShellKey),
 			...(deps.localWorkspace ? createLocalWorkspaceCommands(deps.localWorkspace) : []),
@@ -1093,7 +1092,7 @@ export async function createLateParts(
 			limitCommands.noticeCommand,
 		].map((command) => [command.name, command])
 	);
-	// A sticky toast lands in the inbox, including a muted app's unseen toast (6.1, 3.7).
+	// A sticky toast lands in the inbox, a muted app's unseen one too (6.1, 3.7).
 	byName.set(
 		'toast-show',
 		notifications.toastShow(byName.get('toast-show') as ZodCommandDefinition)
@@ -1238,6 +1237,7 @@ export async function createLateParts(
 		],
 		copilot,
 		confirmations,
+		bus,
 		wrappers,
 		writeThrough: writeThrough(deps.viewState, deps.state, quiet?.active),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
@@ -1282,9 +1282,8 @@ export async function createLateParts(
 			return named;
 		},
 		mcpOptions: ({ commands, middleware }, listeners) => ({
-			// A server holds no active scope and no person's session (3.3), so the commands that move them
-			// are not served: a person's calls make them. Nor are the human commands, which only a person runs
-			// (3.4: "not served over MCP means left out of `mcpOptions().commands`").
+			// A server holds no active scope or person's session (3.3): the commands that move them are not served, nor the
+			// human commands only a person runs (3.4: "not served over MCP means left out of `mcpOptions().commands`").
 			commands: commands.filter(
 				(command) =>
 					!INTERNAL_COMMANDS.includes(command.name) &&

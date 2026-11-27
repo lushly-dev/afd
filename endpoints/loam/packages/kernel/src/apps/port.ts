@@ -311,6 +311,9 @@ export function createAppPort(options: AppPortOptions): {
 			};
 		},
 		call,
+		// The `events` grant's push (phase 5 specification, 9.2): without it, never called.
+		onBusEvent: (listener, boundScope) =>
+			granted.has('events') ? host.onBusEvent(instance, listener, boundScope) : () => {},
 		async waitOverlay(overlayId) {
 			const held = host.overlays.whenClosed(overlayId);
 			if (!held) {

@@ -1,6 +1,12 @@
 import { createScopedWorkspace } from '@lushly-dev/loam-kernel/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { deliverSettings, settingsHeard, surfaceCalls } from './surface-calls.js';
+import {
+	bindSurfaces,
+	deliverEvents,
+	deliverSettings,
+	settingsHeard,
+	surfaceCalls,
+} from './surface-calls.js';
 
 describe("P2-E7: a mount's context calls through its surface's port (3.6)", () => {
 	it('sends navigate and overlays through the call it is given', async () => {
@@ -70,5 +76,89 @@ describe("P4-E1: phase 4's 3.8: an app's surfaces hear its own sections change",
 		handed.push('mutated');
 		expect(sections).toEqual(['greet.general']);
 		expect(deliverSettings([native], [])).toBe(0);
+	});
+});
+
+describe("P5-B2: an app's events through its surfaces (phase 5 specification, 9.2)", () => {
+	it('P5-B2: gives context.events only with the events grant, over the surface’s own call', async () => {
+		const call = vi.fn(async () => ({
+			success: true as const,
+			data: { events: [], cursor: 'v1.0', hasMore: false },
+		}));
+		const manifest = (grants: string[]) =>
+			({ plugin: { id: 'watch' }, grants: grants.map((name) => ({ name, reason: 'r' })) }) as never;
+		const none = surfaceCalls(
+			{ instance: 'watch', manifest: manifest([]) } as never,
+			call as never
+		);
+		expect(none.events).toBeUndefined();
+		const granted = surfaceCalls(
+			{ instance: 'watch', manifest: manifest(['events']) } as never,
+			call as never
+		);
+		await expect(granted.events?.list({ since: 'v1.0' })).resolves.toEqual({
+			events: [],
+			cursor: 'v1.0',
+			hasMore: false,
+		});
+		expect(call.mock.calls).toEqual([['event-list', { since: 'v1.0' }]]);
+		const refused = vi.fn(async () => ({
+			success: false as const,
+			error: { code: 'EVENT_CURSOR_EXPIRED', message: 'm', suggestion: 's' },
+		}));
+		const expired = surfaceCalls(
+			{ instance: 'watch', manifest: manifest(['events']) } as never,
+			refused as never
+		);
+		await expect(expired.events?.list({ since: 'v1.1' })).rejects.toMatchObject({
+			code: 'EVENT_CURSOR_EXPIRED',
+		});
+	});
+
+	it('P5-B2: listens for the bus in the scope the surfaces are bound to, a workspace-only app’s the workspace', () => {
+		const levels = (scope_levels: string[]) => {
+			const stop = vi.fn();
+			const onBusEvent = vi.fn(() => stop);
+			return { port: { manifest: { app: { scope_levels } }, onBusEvent }, onBusEvent, stop };
+		};
+		const wake = vi.fn();
+		const inProject = levels(['workspace', 'project']);
+		const bound = bindSurfaces(inProject.port as never, { workspace: 'w', project: 'p' }, wake);
+		expect(bound.scope).toEqual({ workspace: 'w', project: 'p' });
+		expect(inProject.onBusEvent).toHaveBeenCalledExactlyOnceWith(wake, {
+			workspace: 'w',
+			project: 'p',
+		});
+		bound.stop();
+		expect(inProject.stop).toHaveBeenCalledOnce();
+		// A workspace-only app's surfaces, and their bus, are the workspace's: it learns no project (4.3).
+		const workspaceOnly = levels(['workspace']);
+		expect(
+			bindSurfaces(workspaceOnly.port as never, { workspace: 'w', project: 'p' }, wake).scope
+		).toEqual({
+			workspace: 'w',
+		});
+		expect(workspaceOnly.onBusEvent).toHaveBeenCalledExactlyOnceWith(wake, { workspace: 'w' });
+	});
+
+	it('P5-B2: wakes each surface that listens with its own copy of the hint, one that throws stopping none', () => {
+		const heard: unknown[] = [];
+		const hint = { kinds: ['mount-mutated' as const], instances: ['mail'], cursor: 'v1.3' };
+		const thrower = {
+			eventsChanged() {
+				throw new Error('boom');
+			},
+		};
+		const native = { eventsChanged: (given: unknown) => heard.push(given) };
+		const reportError = vi.fn();
+		vi.stubGlobal('reportError', reportError);
+		try {
+			expect(deliverEvents([thrower, native, { other: true }], hint)).toBe(1);
+		} finally {
+			vi.unstubAllGlobals();
+		}
+		expect(heard).toEqual([hint]);
+		expect(heard[0]).not.toBe(hint);
+		expect(reportError).toHaveBeenCalledOnce();
 	});
 });

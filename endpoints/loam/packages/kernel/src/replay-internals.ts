@@ -3,7 +3,7 @@
  * the journal in place of running a call, and the replay's own state. Split from `kernel.ts`, which re-exports it.
  */
 
-import { type Actor, type CommandResult, failure } from '@lushly-dev/afd-core';
+import { type Actor, type CommandResult, failure, type JournalEntry } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { NestedRerunV1 } from './journal-order.js';
 
@@ -53,6 +53,14 @@ export interface KernelPartsInternals {
 	drive?(person: string | null): void;
 	/** At a reload, the replay's Mock set to the person the page's first settle names (4.4). */
 	startPage?(): void;
+	/**
+	 * Set by `late/`'s bus when it is built for a replay (phase 5's 9.2), since the replay's own journal stays empty:
+	 * decide the original entries' readers through `through` as the replay reaches them, then write them all.
+	 */
+	events?: {
+		replayed(entries: readonly JournalEntry[], through: number): void;
+		flush(): Promise<void>;
+	};
 	/** Set by the kernel for replay: a confirmed run answered from record, with command and result (#1656). */
 	recordedRun?(confirmation: string, command: string, result: CommandResult): void;
 }

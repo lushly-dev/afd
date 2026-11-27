@@ -12,6 +12,8 @@ import {
 	type DialogInputV1,
 	type DocumentRecordV1,
 	type DocumentsV1,
+	type EventHintV1,
+	eventsOver,
 	type LinkRowV1,
 	type ModalInputV1,
 	notificationsOver,
@@ -62,7 +64,14 @@ export function surfaceCalls(
 	call: AppPort['call']
 ): Pick<
 	AppContextV1,
-	'client' | 'navigate' | 'overlays' | 'documents' | 'settings' | 'notifications' | 'confirmations'
+	| 'client'
+	| 'navigate'
+	| 'overlays'
+	| 'documents'
+	| 'settings'
+	| 'notifications'
+	| 'confirmations'
+	| 'events'
 > {
 	const { instance } = port;
 	/** Open a question and wait for its answer; a refusal throws, with its code. */
@@ -80,6 +89,10 @@ export function surfaceCalls(
 		// The `settings` grant's reads of the app's own sections (phase 4 specification, 3.8).
 		...(port.manifest?.grants?.some((grant) => grant.name === 'settings')
 			? { settings: settingsOver({ call }) }
+			: {}),
+		// The `events` grant's catch-up (phase 5 specification, 9.2).
+		...(port.manifest?.grants?.some((grant) => grant.name === 'events')
+			? { events: eventsOver({ call }) }
 			: {}),
 		// The person's inbox, every app's to push to at its own rate (phase 4 specification, 10.2, 12).
 		notifications: notificationsOver({ call }),
@@ -129,6 +142,44 @@ export function deliverSettings(surfaces: Iterable<unknown>, sections: readonly 
 		if (typeof target?.settingsChanged !== 'function') continue;
 		try {
 			target.settingsChanged([...sections]);
+			told++;
+		} catch (cause) {
+			(globalThis as { reportError?(error: unknown): void }).reportError?.(cause);
+		}
+	}
+	return told;
+}
+
+/**
+ * The scope an app's surfaces are bound to (phase 2 specification, 3.6): the project only for an app that opens in one,
+ * so a workspace-only app learns no project (4.3), and the bus's hints for them in that same scope (phase 5's 9.2), so
+ * the port filters out another project's events. `stop` ends the listening.
+ */
+export function bindSurfaces(
+	port: Pick<AppPort, 'manifest' | 'onBusEvent'>,
+	scope: { workspace: string; project?: string },
+	wake: (hint: EventHintV1) => void
+): { scope: { workspace: string; project?: string }; stop: () => void } {
+	const { workspace, project } = scope;
+	const bound =
+		project !== undefined && port.manifest.app?.scope_levels?.includes('project')
+			? { workspace, project }
+			: { workspace };
+	return { scope: bound, stop: port.onBusEvent(wake, bound) };
+}
+
+/**
+ * Wake each surface of an app whose events changed (phase 5 specification, 9.2): a native surface's mount calls its
+ * element's `eventsChanged`, a view's frame sends `host-context-changed` with `dev.loam/eventsChanged`. A hint, never a
+ * delivery; one surface that throws stops no other.
+ */
+export function deliverEvents(surfaces: Iterable<unknown>, hint: EventHintV1): number {
+	let told = 0;
+	for (const surface of surfaces) {
+		const target = surface as { eventsChanged?(changed: EventHintV1): void };
+		if (typeof target?.eventsChanged !== 'function') continue;
+		try {
+			target.eventsChanged(structuredClone(hint));
 			told++;
 		} catch (cause) {
 			(globalThis as { reportError?(error: unknown): void }).reportError?.(cause);

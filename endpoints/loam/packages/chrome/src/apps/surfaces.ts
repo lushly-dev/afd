@@ -45,7 +45,13 @@ import {
 	prepareScopedRegistries,
 	SCOPED_REGISTRIES_FLOOR,
 } from './support-floor.js';
-import { deliverSettings, settingsHeard, surfaceCalls } from './surface-calls.js';
+import {
+	bindSurfaces,
+	deliverEvents,
+	deliverSettings,
+	settingsHeard,
+	surfaceCalls,
+} from './surface-calls.js';
 
 type Part = 'sidebar' | 'inspector' | 'panel';
 
@@ -132,6 +138,8 @@ export class AppSurfaces implements ShellApps {
 	#surfaceScope: ScopeOf = { workspace: '' };
 	#openingNotice: ReturnType<typeof setTimeout> | undefined;
 	#mainElements: HTMLElement[] = [];
+	/** The showing app's push (phase 5 specification, 9.2), ended when it leaves. */
+	#bus: (() => void) | undefined;
 	#inspectorElements: HTMLElement[] = [];
 	readonly #status = new StatusItems();
 	readonly #overlays: OverlaySurfaces;
@@ -483,10 +491,30 @@ export class AppSurfaces implements ShellApps {
 	}
 
 	/**
+	 * Bind the showing app's surfaces to their scope, and wake them when events it may read are projected (9.2), in that
+	 * same scope, so another project's events are not theirs; the port filters them.
+	 */
+	#bindSurfaces(port: AppPort, scope: ScopeOf): void {
+		this.#bus?.();
+		const { instance } = port;
+		const bound = bindSurfaces(port, scope, (hint) => {
+			if (this.#showing !== instance) return;
+			const parts = ['sidebar', 'panel'].flatMap((name) => [
+				...this.#part<HTMLElement>(name).children,
+			]);
+			deliverEvents([...this.#mainElements, ...this.#inspectorElements, ...parts], hint);
+		});
+		this.#surfaceScope = bound.scope;
+		this.#bus = bound.stop;
+	}
+
+	/**
 	 * What the catalog does on a switch (4.2): park the sidebar and panel, drop the rest. After a change of
 	 * scope nothing is parked, and what each app had parked is dropped: it was made in the scope left (7.6).
 	 */
 	#leave(): readonly Element[] | null {
+		this.#bus?.();
+		this.#bus = undefined;
 		this.#token++;
 		const rescoped = this.#rescoped;
 		this.#rescoped = false;
@@ -727,11 +755,7 @@ export class AppSurfaces implements ShellApps {
 		this.#state = state;
 		if (stale()) return;
 		const { manifest } = port;
-		const { workspace, project } = state.scope as ScopeOf;
-		this.#surfaceScope =
-			project !== undefined && manifest.app?.scope_levels?.includes('project')
-				? { workspace, project }
-				: { workspace };
+		this.#bindSurfaces(port, state.scope as ScopeOf);
 		// A surface whose experiment is off is not created (phase 4 specification, 5.3): the kernel's `gates` say which.
 		held.closed = new Set(
 			Object.entries(detail.gates ?? {}).flatMap(([name, gate]) => (gate.open ? [] : [name]))

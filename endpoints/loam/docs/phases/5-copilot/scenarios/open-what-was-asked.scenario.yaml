@@ -1,6 +1,6 @@
-# Draft JTBD scenario for Loam's phase 5 specification, milestone B (step 10, B0 amendment).
-# Needs Loam's runner (tag loam-runner) on the seed p5-base. Held in scenarios/milestone-b/ until
-# step 10 moves it into scenarios/ and adds it to scenarios.test.ts. The data is invented.
+# JTBD scenario for Loam's phase 5 specification, milestone B (step 10, B0 amendment; P5-B4).
+# Needs Loam's runner (tag loam-runner) on the seed p5-base; it runs once step 10 builds shell-open
+# (9.3). The data is invented.
 name: Open what was asked
 description: >-
   When I ask the copilot or an active app to open a document, an app, a section or a confirmation
