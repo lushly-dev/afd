@@ -11,6 +11,11 @@ import {
 	callNotGranted,
 } from '@lushly-dev/afd-core/internal/app-calls';
 import {
+	createDispatchId,
+	presetDispatchId,
+	setDispatchId,
+} from '@lushly-dev/afd-core/internal/dispatch-id';
+import {
 	APP_CALLS,
 	createDirectRegistry,
 	type DirectCommandRegistry,
@@ -67,11 +72,18 @@ export function createAppCallRegistry(
 		interface: registry.interface,
 		contextFields: registry.contextFields,
 		async execute(name, input, context: CommandContext = {}, callOptions) {
-			// The grant check sees the interface the call runs with, as in the core registry.
-			const appContext: CommandContext = { ...context, interface: 'apps' };
-			if (!appCallGranted(byName.get(name), name, appContext, callGrant)) {
+			// The grant check sees the interface the call runs with, as in the core registry, and
+			// the call's dispatch id, made now so the grant reads the id the handler will
+			// (spec/dispatch.md, "The dispatch id"). The grant gets its own copy: the preset that
+			// carries the id to the engine is never handed to host code.
+			const dispatchId = createDispatchId();
+			const grantContext: CommandContext = { ...context, interface: 'apps' };
+			setDispatchId(grantContext, dispatchId);
+			if (!appCallGranted(byName.get(name), name, grantContext, callGrant)) {
 				return failure(callNotGranted());
 			}
+			const appContext: CommandContext = { ...context, interface: 'apps' };
+			presetDispatchId(appContext, dispatchId);
 			return registry.execute(name, input, appContext, callOptions);
 		},
 		listTools: registry.listTools,

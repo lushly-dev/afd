@@ -39,6 +39,7 @@ import {
 } from './approval-crypto.js';
 import {
 	type AcceptedApproval,
+	type ApprovalAdmission,
 	type ApprovalRelay,
 	releaseUpFrontApproval,
 	shownInput,
@@ -53,6 +54,9 @@ import { type ApprovedInputs, batchSteps, pipelineSteps, sentKey } from './up-fr
 interface Approved {
 	binding: string;
 	used: boolean;
+	/** The approval's nonce and expiry, for the step's approval summary. */
+	nonce: string;
+	expiresAt: number;
 }
 
 type Plan = { kind: 'run'; approved: Approved[] } | { kind: 'refuse'; error: CommandError };
@@ -164,7 +168,7 @@ type Gate = (
 	command: string,
 	input: unknown,
 	context: CommandContext,
-	next: (canonical: string | undefined) => Promise<CommandResult>
+	next: (canonical: string | undefined, admission?: ApprovalAdmission) => Promise<CommandResult>
 ) => Promise<CommandResult>;
 
 /** One gate per approval middleware, so each keeps its own plans. */
@@ -272,7 +276,12 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 			if (fresh) {
 				return {
 					kind: 'run',
-					approved: matched.map((answer) => ({ binding: answer.binding, used: false })),
+					approved: matched.map((answer) => ({
+						binding: answer.binding,
+						used: false,
+						nonce: answer.nonce,
+						expiresAt: answer.expiresAt,
+					})),
 				};
 			}
 		}
@@ -330,7 +339,7 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 		commandName: string,
 		input: unknown,
 		context: CommandContext,
-		next: (canonical: string | undefined) => Promise<CommandResult>
+		next: (canonical: string | undefined, admission?: ApprovalAdmission) => Promise<CommandResult>
 	): Promise<CommandResult> {
 		// The input this step is decided on, before any await, and the one it is admitted on.
 		const decidedOn = deps.mayRequireApproval(commandName, context)
@@ -365,7 +374,11 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 		const approval = decided.approved.find((item) => !item.used && bindings.includes(item.binding));
 		if (approval) {
 			approval.used = true;
-			return next(inputBinding);
+			return next(inputBinding, {
+				via: 'elicitation',
+				key: approval.nonce,
+				expiresAt: approval.expiresAt,
+			});
 		}
 		return failure(unplannedError(upFront.tool, commandName));
 	};

@@ -204,8 +204,9 @@ describe('P2-E1: one first paint', () => {
 		// `ad9e42890`), and by #2599 (Violet's redrawn system icons, +66; measured 346,861 against `main` at
 		// `7e75987e9`), then by the local workspace backup and shell commands (348,039 on `5ade6c0f4`), by #2645 (Zod
 		// shape detection by `_zod.def.type` in `afd-server`; 348,354 with `main` at `871c1a98a`), and by phase 5's step
-		// 10 (9.1's `apps` interface, measured in its specification's record).
-		expect(javascript).toBeLessThanOrEqual(348_800);
+		// 10 (9.1's `apps` interface, measured in its specification's record), and by #2846 (journal seams in
+		// TypeScript: the dispatch id and the approval summary; 348,711 to 349,276 with `main` at `55548acc8`).
+		expect(javascript).toBeLessThanOrEqual(349_700);
 		expect(javascript).toBe(budgetRow());
 		// Stage B still runs in every deployment: `late` loads after the mark, on the empty shell too.
 		await expect

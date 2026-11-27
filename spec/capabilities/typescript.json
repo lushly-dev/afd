@@ -361,13 +361,16 @@
 			]
 		},
 		"middleware.approval-summary": {
-			"status": "planned",
-			"note": "([#2680](https://github.com/lushly-dev/afd/issues/2680))",
+			"status": "yes",
+			"note": "(`createApprovalMiddleware({ onApprovalAccepted })`, `ApprovalSummary`; `approvalId` on `ApprovalRequest` and DirectClient's `DirectApprovalRequest`)",
 			"views": {
-				"summary": "([#2680](https://github.com/lushly-dev/afd/issues/2680))"
+				"summary": "(`onApprovalAccepted(summary, dispatchId)`, `ApprovalSummary`)"
 			},
-			"issue": "#2680",
-			"evidence": ["packages/server/src/journal-seams-vectors.test.ts"]
+			"evidence": [
+				"packages/server/src/approval.ts",
+				"packages/server/src/journal-seams-vectors.test.ts",
+				"packages/server/src/approval-vectors.test.ts"
+			]
 		},
 		"middleware.idempotency-step": {
 			"status": "planned",
@@ -820,13 +823,16 @@
 			]
 		},
 		"single.dispatch-id": {
-			"status": "planned",
-			"note": "([#2680](https://github.com/lushly-dev/afd/issues/2680))",
+			"status": "yes",
+			"note": "(`context.dispatchId`, set by `createMcpServer`, `createDirectRegistry` and the core registry; not enumerable, so copies, results, journal entries and the context digest leave it out)",
 			"views": {
-				"summary": "([#2680](https://github.com/lushly-dev/afd/issues/2680))"
+				"summary": "(`context.dispatchId`)"
 			},
-			"issue": "#2680",
-			"evidence": ["packages/server/src/journal-seams-vectors.test.ts"]
+			"evidence": [
+				"packages/core/src/dispatch-id.ts",
+				"packages/server/src/execution.ts",
+				"packages/server/src/journal-seams-vectors.test.ts"
+			]
 		},
 		"single.idempotency-key": {
 			"status": "planned",

@@ -116,6 +116,13 @@ export interface DirectApprovalRequest {
 	summary: string;
 	/** ISO 8601 time the approval token expires, from `details.expiresAt` (empty when it is missing). */
 	expiresAt: string;
+	/**
+	 * The `approvalId` the call's approval summary will carry once this approval admits it
+	 * (`spec/command-metadata.md`, "The approval summary", rule 5), so the application can keep it
+	 * beside the person who answered and join it to what the approval middleware's
+	 * `onApprovalAccepted` hook records. Absent when the registry's approval step does not set it.
+	 */
+	approvalId?: string;
 	/** Who made the call. */
 	actor?: Actor;
 	/** Why a token the call already carried was not accepted, from `details.reason`. */

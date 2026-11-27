@@ -100,6 +100,19 @@ export interface AcceptedApproval {
 	step?: ApprovedStep;
 }
 
+/**
+ * The evidence an approval step admitted a held call on, from which it builds the call's approval
+ * summary (`spec/command-metadata.md`, "The approval summary"): how it was admitted, the
+ * evidence's single-use key, and the times the evidence carries.
+ */
+export interface ApprovalAdmission {
+	via: 'token' | 'elicitation' | 'relay' | 'direct';
+	/** The key the step spends in its nonce store, or would spend when reuse is allowed. */
+	key: string;
+	issuedAt?: number;
+	expiresAt?: number;
+}
+
 /** The human's answer to an earlier approval elicitation for one binding. */
 export type ApprovalAnswer =
 	| ({ kind: 'accept' } & AcceptedApproval)
@@ -242,8 +255,11 @@ export interface UpFrontApproval {
 		command: string,
 		input: unknown,
 		context: CommandContext,
-		/** Lets the step through, admitting it on the canonical input it was decided on. */
-		next: (canonical: string | undefined) => Promise<CommandResult>
+		/**
+		 * Lets the step through, admitting it on the canonical input it was decided on; `admission`
+		 * when an approval the human gave admits it.
+		 */
+		next: (canonical: string | undefined, admission?: ApprovalAdmission) => Promise<CommandResult>
 	): Promise<CommandResult>;
 	/** The call's relay, which reads the human's answers and records the hold. */
 	relay: ApprovalRelay;

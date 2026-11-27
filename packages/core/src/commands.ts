@@ -10,6 +10,7 @@ import type { ApprovalPolicy } from './approval.js';
 import type { BatchRequest, BatchResult } from './batch.js';
 import type { Clock, RandomSource } from './clock.js';
 import { type CommandToolMeta, commandToolMeta } from './command-metadata.js';
+import { setDispatchId, takeDispatchId } from './dispatch-id.js';
 import {
 	AFD_OUTPUT_BUDGET_META_KEY,
 	MAX_OUTPUT_BUDGET_BYTES,
@@ -429,6 +430,19 @@ export interface CommandContext {
 	/** Unique ID for this command invocation */
 	traceId?: string;
 
+	/**
+	 * The id the engine gives this one dispatch (`spec/dispatch.md`, "The dispatch id"): 128
+	 * random bits as 22 characters of unpadded base64url. The MCP server, `createDirectRegistry()`
+	 * and the core registry set it before anything else runs; each batch item, pipeline step and
+	 * command a handler runs through the registry gets its own, whatever trace id they share. Key
+	 * a record you keep of a call (an intent written before the handler, an approval) by it.
+	 *
+	 * Read it; never set it. A value a caller puts here is replaced, a middleware that changes it
+	 * does not change what later links read, and it is not enumerable, so it stays out of spread
+	 * copies, `JSON.stringify`, results, journal entries and the journal's context digest.
+	 */
+	readonly dispatchId?: string;
+
 	/** Timeout in milliseconds */
 	timeout?: number;
 
@@ -727,10 +741,14 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 			context?: CommandContext
 		): Promise<CommandResult<TOutput>> {
 			const command = commands.get(name);
+			// The handler's own copy, with this dispatch's id, so the caller's context keeps its own
+			// (spec/dispatch.md, I2) and an app's grant reads the id the handler will.
+			const handlerContext = withContextDefaults(context);
+			setDispatchId(handlerContext, takeDispatchId(handlerContext));
 			// An app's call is checked first, with one answer for a missing, unexposed or ungranted
 			// command, so an app learns nothing about commands it may not call.
 			if (context?.interface === 'apps') {
-				if (!appCallGranted(command, name, context, options.callGrant)) {
+				if (!appCallGranted(command, name, handlerContext, options.callGrant)) {
 					return { success: false, error: callNotGranted() };
 				}
 			}
@@ -764,7 +782,7 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 			}
 
 			try {
-				const result = await command.handler(input, withContextDefaults(context));
+				const result = await command.handler(input, handlerContext);
 				return result as CommandResult<TOutput>;
 			} catch (error) {
 				// Raw messages and stacks only in devMode, as in the MCP server.

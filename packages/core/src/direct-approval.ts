@@ -7,6 +7,8 @@ import type { CommandContext } from './commands.js';
 
 export interface DirectApprovalHold {
 	approvalToken: string;
+	/** The approval summary's id for this hold's token (`spec/command-metadata.md`, rule 5). */
+	approvalId?: string;
 	expiresAt: string;
 	summary: string;
 	reason?: string;

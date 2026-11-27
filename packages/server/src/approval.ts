@@ -68,6 +68,7 @@ import {
 import { markApprovalProcessState } from './approval-process-state.js';
 import {
 	type AcceptedApproval,
+	type ApprovalAdmission,
 	approvalRelay,
 	relayMessage,
 	type UpFrontDeps,
@@ -127,11 +128,49 @@ export interface ApprovalRequest {
 	input: unknown;
 	actor?: Actor;
 	approvalToken: string;
+	/**
+	 * The `approvalId` the call's approval summary will carry once this token admits it
+	 * (`spec/command-metadata.md`, "The approval summary", rule 5): keep it beside the person who
+	 * approves, to join their decision to the call `onApprovalAccepted` reports.
+	 */
+	approvalId: string;
 	/** ISO 8601 expiry of `approvalToken`. */
 	expiresAt: string;
 	summary: string;
 	/** Set when the call carried a token that was rejected. */
 	rejected?: ApprovalRejection;
+}
+
+/**
+ * What the approval step gives `onApprovalAccepted` when it admits a held call
+ * (`spec/command-metadata.md`, "The approval summary"). It holds no token, nonce, key or decision
+ * id, and grants nothing: no AFD code reads it back.
+ */
+export interface ApprovalSummary {
+	/**
+	 * How the call was admitted: an approval token (`token`), an answer over the MCP relay
+	 * (`elicitation`), a `HumanRelay`'s evidence (`relay`), or DirectClient's private exchange
+	 * (`direct`).
+	 */
+	via: 'token' | 'elicitation' | 'relay' | 'direct';
+	/** The command's name. */
+	command: string;
+	/**
+	 * Unpadded base64url SHA-256 of the canonical JSON of the validated input. Unkeyed, so a short
+	 * or predictable input can be guessed from it: store it only where you would store the input
+	 * (leave it out for a command that declares `secret`).
+	 */
+	inputDigest: string;
+	/**
+	 * Unpadded base64url SHA-256 of `approval`, a zero byte and the evidence's single-use key. It
+	 * names the approval, not the admission: a token reused under `replay: 'within-ttl'` gives
+	 * every call it admits the same id, and the dispatch id tells them apart.
+	 */
+	approvalId: string;
+	/** Epoch milliseconds the evidence was issued, when it carries one (a token). */
+	issuedAt?: number;
+	/** Epoch milliseconds the evidence expires, when it carries one (a token, an elicitation hold). */
+	expiresAt?: number;
 }
 
 /** Options for {@link createApprovalMiddleware}. */
@@ -209,6 +248,21 @@ export interface ApprovalMiddlewareOptions {
 	onApprovalRequired?: (request: ApprovalRequest) => void | Promise<void>;
 
 	/**
+	 * Called when this step admits a call a policy held, after the evidence is checked and spent
+	 * and before the rest of the chain and the handler run (`spec/command-metadata.md`, "The
+	 * approval summary"), with the call's {@link ApprovalSummary} and its `dispatchId`, so a host
+	 * can record the approval beside the dispatch. The step waits for it, and it fails closed: a
+	 * throw or a rejection fails the call with `COMMAND_EXECUTION_ERROR` before the handler runs, as
+	 * an uncaught middleware error does, and the evidence stays spent. A call no policy held, or
+	 * one held and not admitted, calls nothing. `dispatchId` is `undefined` only when this
+	 * middleware runs outside an AFD engine.
+	 */
+	onApprovalAccepted?: (
+		summary: ApprovalSummary,
+		dispatchId: string | undefined
+	) => void | Promise<void>;
+
+	/**
 	 * Source of time for issuing and expiring tokens and for forgetting spent nonces. Default:
 	 * the system clock. `context.clock` is never used: a caller can set it, and this is
 	 * security time.
@@ -223,7 +277,7 @@ interface Binding {
 }
 
 type Verdict =
-	| { ok: true; nonce: string; expiresAt: number }
+	| { ok: true; nonce: string; issuedAt: number; expiresAt: number }
 	| { ok: false; reason: ApprovalRejection };
 
 interface TokenPayload {
@@ -390,7 +444,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 				reason: who.purpose === 'principal' ? 'credentials-mismatch' : 'actor-mismatch',
 			};
 		}
-		return { ok: true, nonce: payload.n, expiresAt: payload.exp };
+		return { ok: true, nonce: payload.n, issuedAt: payload.iat, expiresAt: payload.exp };
 	}
 
 	async function issue(
@@ -494,7 +548,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	 */
 	async function spendRelayDecision(decisionId: string, now: number): Promise<boolean> {
 		if (decisionId.length === 0) return false;
-		const key = `relay:${decisionId}`;
+		const key = relayKey(decisionId);
 		const expiresAt = now + MAX_TTL_MS;
 		return memoryStore
 			? memoryStore.consume(key, expiresAt, now)
@@ -557,8 +611,16 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		const live = liveCommand(context);
 		if (live && gates(commands.get(live.name)?.approval)) markListedGate(context);
 		const mayGate = policiesFor(commandName, context).some(gates);
-		const next = (canonical: string | undefined) => {
+		const next = async (canonical: string | undefined, admission?: ApprovalAdmission) => {
 			if (!mayGate) return outerNext();
+			// A held call an approval admitted: tell the host before anything else runs. A refusal
+			// throws out of this step, so the call is never admitted (rule 2).
+			if (admission && canonical !== undefined && options.onApprovalAccepted) {
+				await options.onApprovalAccepted(
+					await approvalSummary(commandName, canonical, admission),
+					context.dispatchId
+				);
+			}
 			admitApproval(context, {
 				step: self,
 				commandName,
@@ -627,7 +689,9 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 				context
 			);
 			if (!mismatch) {
-				if (await spendRelayDecision(relayedEvidence.decisionId, now)) return next(inputBinding);
+				if (await spendRelayDecision(relayedEvidence.decisionId, now)) {
+					return next(inputBinding, { via: 'relay', key: relayKey(relayedEvidence.decisionId) });
+				}
 				rejected = 'already-used';
 			} else {
 				rejected = mismatch;
@@ -641,7 +705,14 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			if (evidence !== undefined) {
 				const verdict = await verify(evidence, commandName, inputBinding, resolveWho(), now);
 				if (verdict.ok) {
-					if (await spend(verdict.nonce, verdict.expiresAt, now)) return next(inputBinding);
+					if (await spend(verdict.nonce, verdict.expiresAt, now)) {
+						return next(inputBinding, {
+							via: directExchange ? 'direct' : 'token',
+							key: verdict.nonce,
+							issuedAt: verdict.issuedAt,
+							expiresAt: verdict.expiresAt,
+						});
+					}
 					rejected = 'already-used';
 				} else {
 					rejected = verdict.reason;
@@ -664,7 +735,11 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 				});
 			}
 			if (answer.kind === 'accept' && (await relayedApprovalHolds(answer, bindings, now))) {
-				return next(inputBinding);
+				return next(inputBinding, {
+					via: 'elicitation',
+					key: answer.nonce,
+					expiresAt: answer.expiresAt,
+				});
 			}
 			// An expired, spent or invalid approval is asked again, saying why.
 			const binding = bindings[0] as string;
@@ -698,6 +773,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 
 		const payload = await issue(commandName, inputBinding, resolveWho(), now);
 		const approvalToken = await sign(payload);
+		const approvalId = await approvalIdOf(payload.n);
 		const expiresAt = new Date(payload.exp).toISOString();
 		// An approver always gets its token (except when relay evidence was what failed); anyone
 		// else as the option says.
@@ -709,6 +785,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		if (directExchange) {
 			holdDirectApproval(context, {
 				approvalToken,
+				approvalId,
 				expiresAt,
 				summary,
 				...(rejected && { reason: rejected }),
@@ -720,6 +797,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			input,
 			...(context.actor && { actor: { ...context.actor } }),
 			approvalToken,
+			approvalId,
 			expiresAt,
 			summary,
 			...(rejected && { rejected }),
@@ -770,6 +848,32 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		perProcessRelayNonces: !options.nonceStore,
 	});
 	return middleware;
+}
+
+/** The single-use key of a relay decision (`spec/command-metadata.md`, "Relay evidence", rule 4). */
+function relayKey(decisionId: string): string {
+	return `relay:${decisionId}`;
+}
+
+/** The approval summary's `approvalId` for the evidence whose single-use key is `key`. */
+function approvalIdOf(key: string): Promise<string> {
+	return sha256Base64url(`approval\0${key}`);
+}
+
+/** The approval summary of a call admitted on `admission` (`spec/command-metadata.md`). */
+async function approvalSummary(
+	command: string,
+	canonical: string,
+	admission: ApprovalAdmission
+): Promise<ApprovalSummary> {
+	return {
+		via: admission.via,
+		command,
+		inputDigest: await sha256Base64url(canonical),
+		approvalId: await approvalIdOf(admission.key),
+		...(admission.issuedAt !== undefined && { issuedAt: admission.issuedAt }),
+		...(admission.expiresAt !== undefined && { expiresAt: admission.expiresAt }),
+	};
 }
 
 /** The approval step needs WebCrypto to sign or check a token, and this page has none. */

@@ -98,6 +98,7 @@ export {
 	type ApprovalRejection,
 	type ApprovalRequest,
 	type ApprovalSecret,
+	type ApprovalSummary,
 	createApprovalMiddleware,
 } from './approval.js';
 // Approval evidence from an approver client (spec/command-metadata.md)

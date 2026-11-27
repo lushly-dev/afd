@@ -6,11 +6,12 @@
  * builds its tokens from the documented format rather than through this middleware, so a change
  * to the token format or to canonical JSON fails here.
  */
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { Actor, CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import { fixedClock } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
-import { canonicalJson, createApprovalMiddleware } from './approval.js';
+import { type ApprovalSummary, canonicalJson, createApprovalMiddleware } from './approval.js';
 
 interface Binding {
 	description: string;
@@ -18,11 +19,11 @@ interface Binding {
 	input: unknown;
 	actor: string | null;
 	canonicalInput: string;
-	/** The approval summary's digest of the input ("The approval summary"); not checked here yet (#2680). */
+	/** The approval summary's digest of the input ("The approval summary"). */
 	inputDigest: string;
 	canonicalActor: string;
 	nonce: string;
-	/** The approval summary's id for the token; not checked here yet (#2680). */
+	/** The approval summary's id for the token. */
 	approvalId: string;
 	payload: string;
 	token: string;
@@ -60,7 +61,7 @@ interface Vectors {
 	bindings: Binding[];
 	verify: Verification[];
 	tokenDelivery: TokenDelivery[];
-	/** Approval ids of evidence that is not a token; not checked here yet (#2680). */
+	/** Approval ids of evidence that is not a token. */
 	approvalIds: { description: string; via: string; singleUseKey: string; approvalId: string }[];
 }
 
@@ -106,6 +107,11 @@ function gate(
 	};
 }
 
+/** The approval summary's id for a single-use key, from its definition. */
+function approvalIdOf(key: string): string {
+	return createHash('sha256').update(`approval\0${key}`, 'utf8').digest('base64url');
+}
+
 function outcome(result: CommandResult): string {
 	if (result.success) return 'accepted';
 	expect(result.error?.code).toBe('APPROVAL_REQUIRED');
@@ -140,11 +146,43 @@ describe('approval token vectors', () => {
 			expect(payload).toBe(binding.payload.replace(binding.nonce, n));
 		});
 
+		it("gives the approval summary the binding's input digest and approval id", async () => {
+			const summaries: ApprovalSummary[] = [];
+			const middleware = createApprovalMiddleware({
+				secret: vectors.secrets.current as string,
+				commands: vectors.commands.map((name) => ({ name, approval: 'required' as const })),
+				clock: fixedClock(vectors.now),
+				onApprovalAccepted: (summary) => {
+					summaries.push(summary);
+				},
+			});
+			const context: CommandContext = {
+				...(binding.actor !== null && { actor: vectors.actors[binding.actor] }),
+				approval: binding.token,
+			};
+			await middleware(binding.command, binding.input, context, async () => ({ success: true }));
+			expect(summaries).toEqual([
+				{
+					via: 'token',
+					command: binding.command,
+					inputDigest: binding.inputDigest,
+					approvalId: binding.approvalId,
+					issuedAt: vectors.now,
+					expiresAt: vectors.now + vectors.ttlMs,
+				},
+			]);
+			expect(binding.approvalId).toBe(approvalIdOf(binding.nonce));
+		});
+
 		it('accepts the vector token', async () => {
 			expect(
 				outcome(await gate()(binding.command, binding.input, binding.actor, binding.token))
 			).toBe('accepted');
 		});
+	});
+
+	it.each(vectors.approvalIds)('approval id: $description', (entry) => {
+		expect(entry.approvalId).toBe(approvalIdOf(entry.singleUseKey));
 	});
 
 	it.each(vectors.verify)('verifies $description', async (vector) => {
