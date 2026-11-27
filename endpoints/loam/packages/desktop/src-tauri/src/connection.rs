@@ -64,35 +64,86 @@ pub fn data_directory() -> Option<PathBuf> {
     base.map(|base| base.join(IDENTIFIER))
 }
 
-/// Writes `connection` to `<data>/inbound.json`, owner-only from the start: a temporary file created with mode 0600
-/// (POSIX) or a protected DACL for this user alone (Windows), written, synced and checked, then renamed into place.
-/// A volume that cannot keep the rule (FAT, some network shares) is [`PERMISSIONS`], and no file is left.
+/// Writes `connection` to `<data>/inbound.json`, owner-only from the start ([`write_owner_only`]). A volume that cannot
+/// keep the rule (FAT, some network shares) is [`PERMISSIONS`], and no file is left.
 pub fn write(data: &Path, connection: &Connection) -> Result<(), &'static str> {
-    let path = data.join(FILE);
-    let temporary = data.join(format!("{FILE}.{}.tmp", std::process::id()));
-    let _ = std::fs::remove_file(&temporary);
     let text = serde_json::to_vec(connection).expect("a connection serialises");
-    // The rule is checked on the new file's own handle before the token is written, since a volume may accept the
-    // mode or the DACL and keep neither; the token never reaches a file others could read.
-    let written = create_owner_only(&temporary)
-        .and_then(|mut file| {
-            if !file_owner_only(&file) {
-                return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
-            }
-            file.write_all(&text)?;
-            file.sync_all()
-        })
-        .is_ok();
-    // And checked again on what was made, by its path, before and after the rename.
-    if !written || !owner_only(&temporary) || std::fs::rename(&temporary, &path).is_err() {
+    write_owner_only(&data.join(FILE), &text).map_err(|_| PERMISSIONS)
+}
+
+/// Why [`write_owner_only`] wrote nothing.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Unwritten {
+    /// The volume did not keep the owner-only rule on what was made.
+    NotOwnerOnly,
+    /// Creating, writing, syncing or renaming the file failed (no space, a locked or missing folder).
+    Io,
+}
+
+/// Writes `bytes` to `path`, owner-only from the start: a temporary file beside it created with mode 0600 (POSIX) or
+/// a protected DACL for this user alone (Windows), written, synced and checked, then renamed into place over what was
+/// there, and the folder synced. `inbound.json` and the materializer's `mounts.json`, `models.json` and
+/// `desktop-state.json` (phase 5 no-terminal amendment, 9.2) are written this way. On failure no file is left.
+pub(crate) fn write_owner_only(path: &Path, bytes: &[u8]) -> Result<(), Unwritten> {
+    let name = path.file_name().ok_or(Unwritten::Io)?.to_string_lossy();
+    let temporary = path.with_file_name(format!("{name}.{}.tmp", std::process::id()));
+    let _ = std::fs::remove_file(&temporary);
+    let fail = |why: Unwritten| {
         let _ = std::fs::remove_file(&temporary);
-        return Err(PERMISSIONS);
+        Err(why)
+    };
+    // The rule is checked on the new file's own handle before anything is written, since a volume may accept the
+    // mode or the DACL and keep neither; a secret never reaches a file others could read.
+    // A folder that cannot be written is not the rule failing: only the checks below are.
+    let Ok(mut file) = create_owner_only(&temporary) else {
+        return fail(Unwritten::Io);
+    };
+    if !file_owner_only(&file) {
+        drop(file);
+        return fail(Unwritten::NotOwnerOnly);
     }
-    if !owner_only(&path) {
-        let _ = std::fs::remove_file(&path);
-        return Err(PERMISSIONS);
+    if file
+        .write_all(bytes)
+        .and_then(|()| file.sync_all())
+        .is_err()
+    {
+        drop(file);
+        return fail(Unwritten::Io);
     }
+    drop(file);
+    // And checked again on what was made, by its path, before and after the rename.
+    if !owner_only(&temporary) {
+        return fail(Unwritten::NotOwnerOnly);
+    }
+    if std::fs::rename(&temporary, path).is_err() {
+        return fail(Unwritten::Io);
+    }
+    if !owner_only(path) {
+        let _ = std::fs::remove_file(path);
+        return Err(Unwritten::NotOwnerOnly);
+    }
+    // The rename made durable where the volume allows it, so a commit point survives a power loss once this returns.
+    // Best effort: the file is in place either way, and some volumes (FUSE, network shares) refuse a folder's `fsync`.
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty());
+    let _ = sync_directory(parent.unwrap_or(Path::new(".")));
     Ok(())
+}
+
+/// A directory's entries flushed to the disk (POSIX `fsync` on the directory), so a rename into it is durable. On
+/// Windows this does nothing: `std::fs::rename` does not ask for `MOVEFILE_WRITE_THROUGH`, so a rename there may still
+/// sit in the cache at a power loss, an honest limit startup's reconciliation (step 9b3) covers.
+pub(crate) fn sync_directory(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        std::fs::File::open(path)?.sync_all()
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        Ok(())
+    }
 }
 
 /// Deletes `<data>/inbound.json` if it is this process's own, so an exit never removes another run's file.

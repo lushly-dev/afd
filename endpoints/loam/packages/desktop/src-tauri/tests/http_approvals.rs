@@ -313,10 +313,14 @@ fn no_approval_token_or_bearer_reaches_a_log() {
         seen[1].body["params"]["_meta"]["dev.afd/approval"],
         json!(SHELL_TOKEN)
     );
-    for secret in [SHELL_TOKEN, SERVER_TOKEN, "afdap1.", BEARER] {
-        assert!(
-            !stdout.contains(secret) && !stderr.contains(secret),
-            "{secret} reached a log: stdout={stdout:?} stderr={stderr:?}"
-        );
+    // A failure names the secret by its label and the stream it reached, never the secret or the stream's text.
+    for (label, secret) in [
+        ("the shell's token", SHELL_TOKEN),
+        ("the server's token", SERVER_TOKEN),
+        ("an approval token's prefix", "afdap1."),
+        ("the bearer", BEARER),
+    ] {
+        assert!(!stdout.contains(secret), "{label} reached stdout");
+        assert!(!stderr.contains(secret), "{label} reached stderr");
     }
 }

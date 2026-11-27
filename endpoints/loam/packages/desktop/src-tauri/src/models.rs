@@ -8,7 +8,7 @@
 //! **A key never leaves this module**: not in a result, an event, an error or a log. Every refusal is a bare code;
 //! nothing a provider or the body holds is logged, so model traffic never reaches the app's stderr (#1448).
 use futures_util::StreamExt;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -50,7 +50,7 @@ const OPENAI_URL: &str = "https://api.openai.com/v1/chat/completions";
 /// The event's name on `window`.
 pub const EVENT: &str = "loam:model";
 
-#[derive(Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Deserialize, Serialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub enum Kind {
     Anthropic,
@@ -59,34 +59,37 @@ pub enum Kind {
 }
 
 /// Where a key is kept: never the key itself.
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum KeyRef {
     Keychain(KeychainRef),
     File(FileRef),
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct KeychainRef {
     pub keychain: String,
     pub account: String,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct FileRef {
     pub file: PathBuf,
 }
 
-/// One provider of `models.json`, as `deployment write --models-out` writes it.
-#[derive(Deserialize, Clone, Debug)]
+/// One provider of `models.json`, as `deployment write --models-out` writes it, and of `desktop-state.json`'s
+/// `copilot.providers` (phase 5 no-terminal amendment, 9.1), the same record.
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Provider {
     pub id: String,
     pub kind: Kind,
     pub model: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub endpoint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub key: Option<KeyRef>,
 }
 
@@ -96,7 +99,7 @@ struct File {
     providers: Vec<Provider>,
 }
 
-fn identifier(value: &str) -> bool {
+pub(crate) fn identifier(value: &str) -> bool {
     let mut bytes = value.bytes();
     matches!(bytes.next(), Some(b'a'..=b'z'))
         && value.len() <= 32
@@ -110,7 +113,7 @@ fn model_id(value: &str) -> bool {
         && bytes.all(|byte| byte.is_ascii_alphanumeric() || b"._:/@-".contains(&byte))
 }
 
-fn keychain_name(value: &str) -> bool {
+pub(crate) fn keychain_name(value: &str) -> bool {
     let mut bytes = value.bytes();
     matches!(bytes.next(), Some(byte) if byte.is_ascii_alphanumeric())
         && value.len() <= 64
@@ -157,28 +160,28 @@ pub fn read(path: &Path) -> Result<Vec<Provider>, &'static str> {
     let file: File = serde_json::from_slice(&bytes).map_err(|_| MODELS_INVALID)?;
     let mut seen = std::collections::HashSet::new();
     for provider in &file.providers {
-        let compatible = provider.kind == Kind::OpenaiCompatible;
-        let key_valid = match &provider.key {
-            None => compatible,
-            Some(KeyRef::Keychain(entry)) => {
-                keychain_name(&entry.keychain) && keychain_name(&entry.account)
-            }
-            Some(KeyRef::File(FileRef { file })) => file.is_absolute(),
-        };
-        let endpoint_valid = match &provider.endpoint {
-            None => !compatible,
-            Some(endpoint) => compatible && endpoint_allowed(endpoint),
-        };
-        if !seen.insert(provider.id.as_str())
-            || !identifier(&provider.id)
-            || !model_id(&provider.model)
-            || !key_valid
-            || !endpoint_valid
-        {
+        if !seen.insert(provider.id.as_str()) || !provider_valid(provider) {
             return Err(MODELS_INVALID);
         }
     }
     Ok(file.providers)
+}
+
+/// One provider as `models.json` must hold it: its id, model, endpoint and key reference each valid for its kind.
+pub(crate) fn provider_valid(provider: &Provider) -> bool {
+    let compatible = provider.kind == Kind::OpenaiCompatible;
+    let key_valid = match &provider.key {
+        None => compatible,
+        Some(KeyRef::Keychain(entry)) => {
+            keychain_name(&entry.keychain) && keychain_name(&entry.account)
+        }
+        Some(KeyRef::File(FileRef { file })) => file.is_absolute(),
+    };
+    let endpoint_valid = match &provider.endpoint {
+        None => !compatible,
+        Some(endpoint) => compatible && endpoint_allowed(endpoint),
+    };
+    identifier(&provider.id) && model_id(&provider.model) && key_valid && endpoint_valid
 }
 
 // ─── The key ────────────────────────────────────────────────────────────────────
