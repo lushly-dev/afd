@@ -252,6 +252,97 @@ def test_aged_bucket_eviction_prunes_empty_buckets_and_keeps_populated_ones(
     assert not (root / "cd").exists()
 
 
+@pytest.mark.parametrize("handles", [True, False], ids=["handle-walk", "path-walk"])
+def test_a_checkout_kept_inside_an_aged_folder_is_a_warning_not_a_failure(
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    handles: bool,
+) -> None:
+    """#2625: a temp folder a test suite writes to holds git fixtures. Each is kept whole,
+    and that is the rule working: the run stays ok and disk-status healthy, naming them."""
+    from botcore.commands.disk import remove, schedule, setup
+
+    if handles and not remove.HANDLES:
+        pytest.skip("this system has no handle walk (Windows): the path walk case covers it")
+    monkeypatch.setattr(remove, "HANDLES", handles)
+    root = repo["tmp"] / "scratch"
+    fixture = root / "afd-doc-lines-abc123"
+    deep = root / "pytest-of-me" / "pytest-1" / "test_x0" / "work"
+    plain = root / "afd-versions-def456"
+    for folder in (fixture, deep, plain):
+        folder.mkdir(parents=True)
+        (folder / "file.txt").write_text("x", encoding="utf-8")
+    (fixture / ".git").mkdir()
+    (deep / ".git").write_text("gitdir: /x\n", encoding="utf-8")
+    (root / "pytest-of-me" / "loose.txt").write_text("x", encoding="utf-8")
+    for p in sorted(root.rglob("*"), key=lambda p: -len(p.parts)):
+        age(p)
+    text = repo["settings"].read_text(encoding="utf-8")
+    text += f"\n[[aged]]\npath = {json.dumps(str(root) + '/*')}\nmax_age_days = 2\n"
+    repo["settings"].write_text(text, encoding="utf-8")
+
+    data = run_reclaim(apply=True, tier=0)
+    res = outcomes(data)
+    assert res[str(plain)] == "done" and not plain.exists()
+    assert res[str(fixture)] == "kept" and (fixture / ".git").is_dir()
+    assert res[str(root / "pytest-of-me")] == "kept" and (deep / "file.txt").exists()
+    assert not (root / "pytest-of-me" / "loose.txt").exists()  # what is not a checkout goes
+    assert data["failures"] == []
+    assert sorted(data["kept"]) == sorted([str(fixture), str(root / "pytest-of-me")])
+    last = json.loads((state / "status.json").read_text())["last_apply"]
+    assert last["ok"] is True and sorted(last["kept"]) == sorted(data["kept"])
+
+    monkeypatch.setattr(schedule, "current", lambda: schedule.ScheduleState("test", True, "here"))
+    status = asyncio.run(setup.disk_status()).data
+    assert status["healthy"], status["problems"]
+    (warning,) = [w for w in status["warnings"] if "holds a git checkout" in w]
+    assert sorted(data["kept"])[0] in warning or sorted(data["kept"])[1] in warning
+    assert "and 1 more" in warning and "by hand" not in warning
+
+
+@pytest.mark.parametrize("handles", [True, False], ids=["handle-walk", "path-walk"])
+@pytest.mark.parametrize("stuck", ["unlink", "lstat"])
+def test_an_aged_folder_with_a_checkout_and_a_real_leftover_is_still_partial(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, handles: bool, stuck: str
+) -> None:
+    """A kept checkout explains only itself: a file beside it that could not be removed, or
+    even read, keeps the folder `partial`, a failure."""
+    from botcore.commands.disk import remove
+
+    if handles and not remove.HANDLES:
+        pytest.skip("this system has no handle walk (Windows): the path walk case covers it")
+    if stuck == "lstat" and handles:
+        pytest.skip("the handle walk reads entries through scandir, not lstat")
+    monkeypatch.setattr(remove, "HANDLES", handles)
+    root = tmp_path / "scratch"
+    folder = root / "fixture"
+    (folder / "repo" / ".git").mkdir(parents=True)
+    (folder / "stuck.bin").write_text("x", encoding="utf-8")
+    real = getattr(os, stuck)
+
+    def refusing(path, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003 - os's own signature
+        if os.fspath(path).endswith("stuck.bin"):
+            raise PermissionError(13, "Permission denied")
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr(remove.os, stuck, refusing)
+    action = reclaim.Action(kind="aged", target=str(folder), root=str(root))
+    reclaim._do_remove(action)
+    assert action.outcome == "partial", action.detail
+    assert (folder / "stuck.bin").exists() and (folder / "repo" / ".git").is_dir()
+
+
+def test_a_checkout_inside_a_strip_still_leaves_the_strip_partial(tmp_path: Path) -> None:
+    """Only an [[aged]] folder keeps a checkout as a matter of course: inside a worktree's
+    build output one is unexpected, and the strip says it was left undone."""
+    worktree = tmp_path / "wt"
+    (worktree / "dist" / "inner" / ".git").mkdir(parents=True)
+    action = reclaim.Action(kind="strip", target=str(worktree / "dist"), root=str(worktree))
+    reclaim._do_remove(action)
+    assert action.outcome == "partial" and "holds a git checkout" in (action.detail or "")
+
+
 def test_low_space_pressure_escalates_aged_folders_and_stops_when_recovered(
     repo: dict[str, Path],  # noqa: F811
     state: Path,
