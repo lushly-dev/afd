@@ -2,14 +2,28 @@
 //! of its own but the MCP 2026-07-28 headers an `http` request needs, which `era` derives from the message
 //! itself (phase 5 specification, 7.2). The webview names an instance; the address, the bearer and the command
 //! line stay here, read from `mounts.json`, and never cross IPC, not even in an error, which is a bare code.
+#[path = "mounts_proof.rs"]
+mod proof;
+
+#[cfg(test)]
+use proof::verify_proof_header;
+use proof::{
+    LoopbackTarget, PROOF_TIMEOUT, VerifiedConn, close_verified_http, connect_and_verify,
+    loopback_target, send_verified_http,
+};
+#[allow(unused_imports)]
+pub(crate) use proof::{compute_proof, verify_proof};
+
+use crate::desktop_state::hex64;
+use crate::models::{KeychainRef, key_shaped, keychain_name};
 use futures_util::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::Stdio;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, Command};
@@ -35,13 +49,16 @@ pub const TOO_LARGE: &str = "REQUEST_TOO_LARGE";
 pub const LIMIT: &str = "MOUNT_LIMIT";
 pub const PERMISSIONS: &str = "DESKTOP_MOUNTS_PERMISSIONS";
 pub const MOUNTS_INVALID: &str = "DESKTOP_MOUNTS_INVALID";
+pub const KEYCHAIN_MISSING: &str = "MOUNT_KEYCHAIN_MISSING";
 
 type Reply = Result<Value, &'static str>;
 type Pending = Arc<Mutex<HashMap<String, oneshot::Sender<Reply>>>>;
 /// Where a server's notification goes: `notify::script` and the main webview.
 pub type Notify = Arc<dyn Fn(u64, Value) + Send + Sync>;
+type KeychainReader = Arc<dyn Fn(&str, &str) -> Option<String> + Send + Sync>;
 
-/// One entry of `mounts.json`, as `loam deployment write --host desktop --mounts-out` writes it.
+/// One entry of `mounts.json`, as `loam deployment write --host desktop --mounts-out` or the
+/// managed desktop materializer writes it.
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum Access {
@@ -49,13 +66,16 @@ pub enum Access {
     Stdio(StdioAccess),
 }
 
-/// Phase 1's `{ instance, url, bearer? }`.
+/// Phase 1's `{ instance, url, bearer? }`, extended for managed plugin engines with
+/// `bearer_keychain` and `proof_key` (phase 5 no-terminal amendment, 5.2 and 5.3).
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HttpAccess {
     instance: String,
     url: String,
     bearer: Option<String>,
+    bearer_keychain: Option<KeychainRef>,
+    proof_key: Option<String>,
 }
 
 /// The desktop's `{ instance, transport: 'stdio', command, cwd? }` (10.4).
@@ -120,8 +140,30 @@ pub fn read_deployed(path: &Path) -> Result<Deployed, &'static str> {
             return Err(MOUNTS_INVALID);
         }
         match entry {
-            Access::Http(HttpAccess { url, .. }) => {
+            Access::Http(HttpAccess {
+                url,
+                bearer,
+                bearer_keychain,
+                proof_key,
+                ..
+            }) => {
                 if !(url.starts_with("http://") || url.starts_with("https://")) {
+                    return Err(MOUNTS_INVALID);
+                }
+                if bearer.is_some() && bearer_keychain.is_some() {
+                    return Err(MOUNTS_INVALID);
+                }
+                if bearer_keychain.is_some() && proof_key.is_none() {
+                    return Err(MOUNTS_INVALID);
+                }
+                if let Some(kc) = bearer_keychain
+                    && (!keychain_name(&kc.keychain) || !keychain_name(&kc.account))
+                {
+                    return Err(MOUNTS_INVALID);
+                }
+                if let Some(proof) = proof_key
+                    && (!hex64(proof) || loopback_target(url).is_none())
+                {
                     return Err(MOUNTS_INVALID);
                 }
             }
@@ -466,12 +508,27 @@ fn handle_owner_only(handle: std::os::windows::io::RawHandle) -> bool {
     true
 }
 
+enum HttpTransport {
+    /// Plain HTTP/HTTPS mount without `proof_key` (CLI `deployment write` path).
+    Plain {
+        client: reqwest::Client,
+        url: String,
+    },
+    /// Loopback HTTP/1.1 mount whose bearer-bearing requests are bound to a `proof_key`-verified
+    /// TCP connection; any new TCP connection must pass a fresh `/health` proof first (5.2).
+    Verified {
+        target: LoopbackTarget,
+        proof_key: String,
+        proof_timeout: Duration,
+        conn: Mutex<Option<VerifiedConn>>,
+    },
+}
+
 // Each lives in an Arc, one per open handle, so the size of the larger variant costs nothing worth boxing.
 #[allow(clippy::large_enum_variant)]
 enum Connection {
     Http {
-        client: reqwest::Client,
-        url: String,
+        transport: HttpTransport,
         bearer: Option<String>,
         session: Mutex<Option<String>>,
     },
@@ -484,16 +541,44 @@ enum Connection {
     },
 }
 
+enum Slot {
+    Opening,
+    Open(Arc<Connection>),
+}
+
 struct Open {
     instance: String,
-    connection: Arc<Connection>,
+    slot: Slot,
+}
+
+/// Releases an in-flight `Slot::Opening` reservation if `open` returns an error or is cancelled.
+struct OpeningGuard<'a> {
+    open: &'a StdMutex<HashMap<u64, Open>>,
+    handle: u64,
+    armed: bool,
+}
+
+impl Drop for OpeningGuard<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            let mut open = self.open.lock().expect("mounts open");
+            if matches!(
+                open.get(&self.handle).map(|held| &held.slot),
+                Some(Slot::Opening)
+            ) {
+                open.remove(&self.handle);
+            }
+        }
+    }
 }
 
 /// Every instance `mounts.json` lists, and the connections the webview holds open.
 pub struct Mounts {
     entries: Result<Vec<Access>, &'static str>,
     next: AtomicU64,
-    open: Mutex<HashMap<u64, Open>>,
+    open: StdMutex<HashMap<u64, Open>>,
+    keychain_reader: KeychainReader,
+    proof_timeout: Duration,
 }
 
 impl Mounts {
@@ -501,7 +586,24 @@ impl Mounts {
         Self {
             entries,
             next: AtomicU64::new(1),
-            open: Mutex::new(HashMap::new()),
+            open: StdMutex::new(HashMap::new()),
+            keychain_reader: Arc::new(crate::keychain::read),
+            proof_timeout: PROOF_TIMEOUT,
+        }
+    }
+
+    #[cfg(test)]
+    fn with_test_config(
+        entries: Result<Vec<Access>, &'static str>,
+        keychain_reader: KeychainReader,
+        proof_timeout: Duration,
+    ) -> Self {
+        Self {
+            entries,
+            next: AtomicU64::new(1),
+            open: StdMutex::new(HashMap::new()),
+            keychain_reader,
+            proof_timeout,
         }
     }
 
@@ -512,41 +614,120 @@ impl Mounts {
             .iter()
             .find(|entry| entry.instance() == instance)
             .ok_or(INSTANCE_UNKNOWN)?;
-        // Held from the count to the insert, so concurrent opens cannot pass the limit together.
-        let mut open = self.open.lock().await;
-        if open
-            .values()
-            .filter(|held| held.instance == instance)
-            .count()
-            >= HANDLES_PER_INSTANCE
-        {
-            return Err(LIMIT);
-        }
-        // Handles stay well inside JavaScript's safe integers.
-        let handle = self.next.fetch_add(1, Ordering::Relaxed);
+        // Reserve a slot under the lock so concurrent opens cannot pass `HANDLES_PER_INSTANCE`
+        // together, then release the lock before any async proof check or blocking keychain read.
+        let handle = {
+            let mut open = self.open.lock().expect("mounts open");
+            if open
+                .values()
+                .filter(|held| held.instance == instance)
+                .count()
+                >= HANDLES_PER_INSTANCE
+            {
+                return Err(LIMIT);
+            }
+            // Handles stay well inside JavaScript's safe integers.
+            let handle = self.next.fetch_add(1, Ordering::Relaxed);
+            open.insert(
+                handle,
+                Open {
+                    instance: instance.to_owned(),
+                    slot: Slot::Opening,
+                },
+            );
+            handle
+        };
+        let mut guard = OpeningGuard {
+            open: &self.open,
+            handle,
+            armed: true,
+        };
         let connection = match entry {
-            Access::Http(HttpAccess { url, bearer, .. }) => Connection::Http {
-                client: reqwest::Client::builder()
-                    .redirect(reqwest::redirect::Policy::none())
-                    .no_proxy()
-                    .timeout(ANSWER_TIMEOUT)
-                    .build()
-                    .map_err(|_| UNREACHABLE)?,
-                url: url.clone(),
-                bearer: bearer.clone(),
-                session: Mutex::new(None),
-            },
+            Access::Http(HttpAccess {
+                url,
+                bearer,
+                bearer_keychain,
+                proof_key,
+                ..
+            }) => {
+                // Defensive checks in case `Mounts::new` was constructed without `read_deployed`.
+                if (bearer.is_some() && bearer_keychain.is_some())
+                    || (bearer_keychain.is_some() && proof_key.is_none())
+                {
+                    return Err(MOUNTS_INVALID);
+                }
+                // Pre-bearer server identity verification runs BEFORE resolving or transmitting
+                // any bearer token, and binds subsequent authenticated requests to the verified
+                // TCP connection (amendment 5.2).
+                let transport = match proof_key {
+                    Some(proof) => {
+                        let target = loopback_target(url).ok_or(UNREACHABLE)?;
+                        let verified =
+                            connect_and_verify(&target, proof, self.proof_timeout).await?;
+                        HttpTransport::Verified {
+                            target,
+                            proof_key: proof.clone(),
+                            proof_timeout: self.proof_timeout,
+                            conn: Mutex::new(Some(verified)),
+                        }
+                    }
+                    None => HttpTransport::Plain {
+                        client: reqwest::Client::builder()
+                            .redirect(reqwest::redirect::Policy::none())
+                            .no_proxy()
+                            .timeout(ANSWER_TIMEOUT)
+                            .build()
+                            .map_err(|_| UNREACHABLE)?,
+                        url: url.clone(),
+                    },
+                };
+                let resolved_bearer = match bearer_keychain {
+                    Some(KeychainRef { keychain, account }) => {
+                        if !keychain_name(keychain) || !keychain_name(account) {
+                            return Err(KEYCHAIN_MISSING);
+                        }
+                        let reader = self.keychain_reader.clone();
+                        let service = keychain.clone();
+                        let account = account.clone();
+                        let found = tokio::task::spawn_blocking(move || reader(&service, &account))
+                            .await
+                            .map_err(|_| KEYCHAIN_MISSING)?
+                            .ok_or(KEYCHAIN_MISSING)?;
+                        if !key_shaped(&found) {
+                            return Err(KEYCHAIN_MISSING);
+                        }
+                        Some(found)
+                    }
+                    None => bearer.clone(),
+                };
+                Connection::Http {
+                    transport,
+                    bearer: resolved_bearer,
+                    session: Mutex::new(None),
+                }
+            }
             Access::Stdio(StdioAccess { command, cwd, .. }) => {
                 spawn(handle, command, cwd.as_deref(), notify)?
             }
         };
-        open.insert(
-            handle,
-            Open {
-                instance: instance.to_owned(),
-                connection: Arc::new(connection),
-            },
-        );
+        let connection = Arc::new(connection);
+        let committed = {
+            let mut open = self.open.lock().expect("mounts open");
+            if let Some(held) = open.get_mut(&handle)
+                && matches!(held.slot, Slot::Opening)
+            {
+                held.slot = Slot::Open(connection.clone());
+                true
+            } else {
+                false
+            }
+        };
+        guard.armed = false;
+        if !committed {
+            // `close_all` drained the map while this handle was opening; clean up the connection.
+            let _ = close(&connection).await;
+            return Err(UNREACHABLE);
+        }
         Ok(handle)
     }
 
@@ -562,10 +743,11 @@ impl Mounts {
             return Err(TOO_LARGE);
         }
         let connection = {
-            let open = self.open.lock().await;
-            open.get(&handle)
-                .map(|held| held.connection.clone())
-                .ok_or(UNREACHABLE)?
+            let open = self.open.lock().expect("mounts open");
+            match open.get(&handle).map(|held| &held.slot) {
+                Some(Slot::Open(connection)) => connection.clone(),
+                _ => return Err(UNREACHABLE),
+            }
         };
         match connection.as_ref() {
             Connection::Stdio {
@@ -575,32 +757,56 @@ impl Mounts {
                 closed,
             } => send_stdio(child, stdin, pending, closed, &message, &encoded).await,
             Connection::Http {
-                client,
-                url,
+                transport,
                 bearer,
                 session,
-            } => {
-                send_http(
-                    handle,
-                    client,
-                    url,
-                    bearer.as_deref(),
-                    session,
-                    &message,
-                    encoded,
-                    notify,
-                )
-                .await
-            }
+            } => match transport {
+                HttpTransport::Plain { client, url } => {
+                    send_http(
+                        handle,
+                        client,
+                        url,
+                        bearer.as_deref(),
+                        session,
+                        &message,
+                        encoded,
+                        notify,
+                    )
+                    .await
+                }
+                HttpTransport::Verified {
+                    target,
+                    proof_key,
+                    proof_timeout,
+                    conn,
+                } => {
+                    send_verified_http(
+                        handle,
+                        target,
+                        proof_key,
+                        *proof_timeout,
+                        conn,
+                        bearer.as_deref(),
+                        session,
+                        &message,
+                        encoded,
+                        notify,
+                    )
+                    .await
+                }
+            },
         }
     }
 
     /// `mount_close`: for `http` the session's `DELETE`, for `stdio` `SIGTERM` then `SIGKILL`.
     pub async fn close(&self, handle: u64) -> Result<(), &'static str> {
-        let Some(held) = self.open.lock().await.remove(&handle) else {
+        let Some(held) = self.open.lock().expect("mounts open").remove(&handle) else {
             return Ok(());
         };
-        close(&held.connection).await
+        match held.slot {
+            Slot::Open(connection) => close(&connection).await,
+            Slot::Opening => Ok(()),
+        }
     }
 
     /// Every connection, when the app exits: no child outlives it.
@@ -608,9 +814,12 @@ impl Mounts {
         let all: Vec<_> = self
             .open
             .lock()
-            .await
+            .expect("mounts open")
             .drain()
-            .map(|(_, held)| held.connection)
+            .filter_map(|(_, held)| match held.slot {
+                Slot::Open(connection) => Some(connection),
+                Slot::Opening => None,
+            })
             .collect();
         futures_util::future::join_all(all.iter().map(|connection| close(connection))).await;
     }
@@ -909,17 +1118,29 @@ fn event_data(event: &[u8]) -> Result<Option<Value>, &'static str> {
 async fn close(connection: &Connection) -> Result<(), &'static str> {
     match connection {
         Connection::Http {
-            client,
-            url,
+            transport,
             bearer,
             session,
         } => {
             if let Some(id) = session.lock().await.take() {
-                let mut request = client.delete(url).header("Mcp-Session-Id", id);
-                if let Some(bearer) = bearer {
-                    request = request.bearer_auth(bearer);
+                match transport {
+                    HttpTransport::Plain { client, url } => {
+                        let mut request = client.delete(url).header("Mcp-Session-Id", id);
+                        if let Some(bearer) = bearer {
+                            request = request.bearer_auth(bearer);
+                        }
+                        let _ = request.send().await;
+                    }
+                    HttpTransport::Verified {
+                        target,
+                        proof_timeout,
+                        conn,
+                        ..
+                    } => {
+                        close_verified_http(target, *proof_timeout, conn, bearer.as_deref(), &id)
+                            .await;
+                    }
                 }
-                let _ = request.send().await;
             }
             Ok(())
         }
@@ -1049,13 +1270,13 @@ mod tests {
     }
 
     #[cfg(unix)]
-    fn restrict(path: &Path) {
+    pub(super) fn restrict(path: &Path) {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).unwrap();
     }
 
     #[cfg(windows)]
-    fn restrict(path: &Path) {
+    pub(super) fn restrict(path: &Path) {
         let system = Path::new(&std::env::var_os("SystemRoot").unwrap()).join("System32");
         let user = std::process::Command::new(system.join("whoami.exe"))
             .args(["/user", "/fo", "csv", "/nh"])
@@ -1269,3 +1490,7 @@ mod tests {
         assert_eq!(mounts.send(1, big, notify).await.err(), Some(TOO_LARGE));
     }
 }
+
+#[cfg(test)]
+#[path = "mounts_proof_tests.rs"]
+mod proof_tests;
