@@ -580,7 +580,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
     - the freshness check, which only a workflow runs with Actions' token, until G4.
   - **Result.** On the branch: 606 files read, 20 allowed. Two reviewers (`lushly-reviewer` and
     `lushly-security-auditor`, Opus 5.5 high) found no blockers on the repair.
-  - **One gap, filed as [#2809](https://github.com/lushly-dev/afd/issues/2809).** G1's
+  - **One gap, filed as [#2809](https://github.com/lushly-dev/afd/issues/2809)** (corrected by the
+    `pr-merge` entry below: the code already dequeued; the record of it was the gap). G1's
     `pr-merge` `cancel` turns auto-merge off. It does not take a pull request out of a merge
     queue that has already accepted it (`dequeuePullRequest`), which Lushly's queue mode does
     when it ejects. The entry above (2026-11-24) said no manifest listed Lushly's files until
@@ -608,6 +609,21 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
     `running: true`, `stale: false`, `queued: 5`, `lastMergeAt` 09:48Z. The lane's `lane.log`
     says `heartbeat: reporting to the gateway`.
   - **Not yet reporting:** AFD's lane, which reports once botcore's lane runs for AFD.
+- 2026-11-27: `pr-merge`'s `cancel` and the merge queue
+  ([#2809](https://github.com/lushly-dev/afd/issues/2809), in
+  [#2857](https://github.com/lushly-dev/afd/pull/2857)). The code already took a queued pull
+  request out of the queue with `dequeuePullRequest` (since #1627, 2026-11-19); the proposal's
+  command table still said only that it turned auto-merge off, and nothing recorded which of the
+  two a cancel did.
+  - **Now.** The answer carries `dequeued`, the journal keeps it with the input's `cancel` (the
+    audit redaction kept neither), and the reasoning names each step taken. The proposal's row and
+    the gateway's `docs` topic say a queued pull request is dequeued, and job 05 expects
+    `dequeued: false` for a cancel outside a queue.
+  - **For Lushly.** The lane's ejection (`scripts/merge-lane-queue-github.mjs`) can call
+    `pr-merge` with `cancel` once it is on the gateway, so its direct `dequeuePullRequest` holds
+    only until G1, as its manifest allows.
+  - **Checked** with `uv run --frozen pytest -q` in `botcore-factory` against the fake GitHub; no
+    real queue was written to. `random` serves the change after the owner's update.
 
 ## Follow-ups not yet issues
 

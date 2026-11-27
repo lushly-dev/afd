@@ -90,6 +90,7 @@ _AUDIT_INPUT: dict[str, Callable[[Any], bool]] = {
     "numbers": _numbers,
     "head": _text,
     "ref": _text,
+    "cancel": lambda value: isinstance(value, bool),
 }
 
 
@@ -98,8 +99,9 @@ def audit_record(record: JournalRecord) -> JournalRecord:
 
     The gateway journals refused writes too, such as an `issue-create` refused with
     `SECRET_IN_BODY`, so an input is never kept whole: only the audit's fields of the right type
-    (`repo`, `number`, `numbers`, `head`, `ref`), and of the result only `success`, an error's
-    `code` and a pull request `number`. The actor, timestamp and trace ID stay; the tape goes.
+    (`repo`, `number`, `numbers`, `head`, `ref`, `cancel`), and of the result only `success`, an
+    error's `code`, a pull request `number` and whether a cancel `dequeued` it (#2809). The
+    actor, timestamp and trace ID stay; the tape goes.
     """
     data = record.input if isinstance(record.input, dict) else {}
     kept_input = {
@@ -108,8 +110,17 @@ def audit_record(record: JournalRecord) -> JournalRecord:
     result = record.result if isinstance(record.result, dict) else {}
     kept_result: dict[str, Any] = {"success": result.get("success") is True}
     outcome = result.get("data")
-    if isinstance(outcome, dict) and _number(outcome.get("number")):
-        kept_result["data"] = {"number": outcome["number"]}
+    if isinstance(outcome, dict):
+        kept = {
+            **({"number": outcome["number"]} if _number(outcome.get("number")) else {}),
+            **(
+                {"dequeued": outcome["dequeued"]}
+                if isinstance(outcome.get("dequeued"), bool)
+                else {}
+            ),
+        }
+        if kept:
+            kept_result["data"] = kept
     failure = result.get("error")
     if isinstance(failure, dict) and isinstance(failure.get("code"), str):
         kept_result["error"] = {"code": failure["code"]}
