@@ -2284,7 +2284,9 @@ E1, E2 and phase 4's I8 chord now run in Firefox 157.0 and WebKit 27.2 as well a
   is the GTK port and has none, so CI's first run there
   ([run 45169180782](https://github.com/lushly-dev/afd/actions/runs/45169180782)) took the polyfill and failed with
   [#2254](https://github.com/lushly-dev/afd/issues/2254)'s error in all six E1 cases and two E2 cases. Its pages also
-  did not receive `Mod+Alt+P` ([#2314](https://github.com/lushly-dev/afd/issues/2314)), and its forced-colors title bar
+  did not open the switcher on `Mod+Alt+P` ([#2314](https://github.com/lushly-dev/afd/issues/2314): most likely the
+  shell read its `Macintosh` user agent as macOS, until [#2336](https://github.com/lushly-dev/afd/pull/2336);
+  `desktop/test/chord.test.ts` presses it in WebKitGTK), and its forced-colors title bar
   fails as Firefox's does ([#2255](https://github.com/lushly-dev/afd/issues/2255)). So the WebKit job runs on macOS,
   and the GTK port is below the support floor and out of this job's scope (D174). Loam's Linux desktop runs on
   WebKitGTK 2.52.6 in `loam-desktop.yml`, which has no scoped registries either: P6-D3's diagnostic measured
