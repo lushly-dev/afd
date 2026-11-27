@@ -1,0 +1,78 @@
+# Draft JTBD scenario for Loam's phase 5 specification (Milestone B, step 12, section 9.6).
+# Staged in scenarios/milestone-b/ until step 12 lands, so kernel/src/scenarios.test.ts stays untouched.
+# Needs Loam's runner (tag loam-runner) on p5-base (extended in step 12 with a deployer-installed
+# role pack `reviewer-pack` carrying one skill `code-review`, one palette prompt command
+# `review-diff`, one specialist `pack:reviewer-pack/checker` allow-listed to `[tally-get]`, and one
+# candidate `.mcp.json` connector `tracker` that is NOT configured in loam.deployment.toml).
+name: A role plugin directory loads as an agent pack
+description: >-
+  When a deployer installs a role plugin directory as an agent pack, I want its skills, palette
+  commands and bounded specialists available for inspection and use while its .mcp.json connectors
+  are offered for review and never mounted automatically, so that role bundles extend the copilot
+  without widening trust.
+job: agent-pack-loads
+tags: [milestone-b, loam-runner]
+steps:
+  - description: I list the deployer-installed agent packs in the workspace
+    command: pack-list
+    input: {}
+    expect:
+      success: true
+      data:
+        packs:
+          '0':
+            id: reviewer-pack
+            skills: { gte: 1 }
+            specialists: { gte: 1 }
+            commands: { gte: 1 }
+            candidateConnectors: { gte: 1 }
+  - description: I inspect the pack's skills, commands, specialists and candidate .mcp.json connectors
+    command: pack-get
+    input: { pack: reviewer-pack }
+    expect:
+      success: true
+      data:
+        pack:
+          id: reviewer-pack
+          skills:
+            '0': { id: code-review }
+          commands:
+            '0': { id: review-diff }
+          specialists:
+            '0': { id: checker, qualifiedId: "pack:reviewer-pack/checker" }
+          candidateConnectors:
+            '0': { id: tracker, status: candidate }
+  - description: The pack's .mcp.json connector was never mounted automatically as an app
+    command: app-get
+    input: { instance: tracker }
+    expect:
+      success: false
+      error:
+        code: APP_NOT_FOUND
+  - description: "[agent] An agent can also inspect installed packs (read-only)"
+    command: pack-get
+    input: { pack: reviewer-pack }
+    expect:
+      success: true
+      data:
+        pack:
+          id: reviewer-pack
+  - description: Looking up an unknown pack id returns PACK_NOT_FOUND
+    command: pack-get
+    input: { pack: nonexistent-pack }
+    expect:
+      success: false
+      error:
+        code: PACK_NOT_FOUND
+  - description: A specialist contributed by the pack takes a bounded delegation using only its allow-listed tools
+    command: copilot-delegate
+    input:
+      specialist: "pack:reviewer-pack/checker"
+      input: { goal: "script:delegate-pack-ok" }
+      budget: { calls: 2, rounds: 2 }
+    expect:
+      success: true
+      data:
+        delegation:
+          specialist: "pack:reviewer-pack/checker"
+          state: done

@@ -233,7 +233,7 @@ The design review and phases 0, 1, 2 and 4 are done or exited: their detail is a
 
   - 10, the bus (native `calls`, `event-list`, `shell-open`): merged as [#2714](https://github.com/lushly-dev/afd/pull/2714), [#2748](https://github.com/lushly-dev/afd/pull/2748) and [#2768](https://github.com/lushly-dev/afd/pull/2768) ([its record](phases/5-copilot/spec.md#step-10-the-bus-2026-11-26)); `shell-open`'s mounted view is not rendered yet ([#2719](https://github.com/lushly-dev/afd/issues/2719)), so P5-B3's Chromium half waits for it.
 
-  - B0b, milestone B's remaining amendment (section 9.5's exact tables, scenarios and P5-B5 onward, before step 11): not started.
+  - B0b, milestone B's remaining amendment (sections 9.5 to 9.10, jobs 14 to 17, T33 to T38, P5-B5 to P5-B10, Q-B4 to Q-B6): drafted 2026-11-27 in [#2852](https://github.com/lushly-dev/afd/pull/2852) (pending owner answers to Q-B4 to Q-B6).
 
   - 11, specialists, delegations, groups, provider swap: not started.
 

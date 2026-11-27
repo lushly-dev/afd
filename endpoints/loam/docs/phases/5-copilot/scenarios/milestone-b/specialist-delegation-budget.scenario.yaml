@@ -1,0 +1,144 @@
+# Draft JTBD scenario for Loam's phase 5 specification (Milestone B, step 11, section 9.5).
+# Staged in scenarios/milestone-b/ until step 11 lands, so kernel/src/scenarios.test.ts stays untouched.
+# Needs Loam's runner (tag loam-runner) on p5-base (extended in step 11 with a tally specialist
+# `tally/auditor` whose tools are `[tally-get, tally-add]`, a `mailfixapp/triager` specialist with
+# its own manifest command `[mailfixapp-thread-peek]` that reads `mailfix` through its `calls` grant
+# and taints via the trace, an active agent member `agt_helper00000000000001` whose sponsor lost
+# access to project `restricted`, and a suspended agent member `agt_suspended00000000002`). The
+# copilot's model is the test provider playing scripts from kernel/scenarios/model-scripts.ts.
+# The data is invented.
+name: A specialist an app contributes takes a delegation under a budget
+description: >-
+  When I or the copilot delegate focused work to a specialist an app contributes, I want it to run
+  with typed input, only its own app's tools, a strict budget, bidirectional taint, and sponsor
+  checks, so that delegated work stays bounded and never widens access.
+job: specialist-delegation-budget
+tags: [milestone-b, loam-runner]
+steps:
+  - description: I start a copilot session in workspace scope
+    command: copilot-session-start
+    input: {}
+    expect:
+      success: true
+  - description: A direct delegation with malformed input against the specialist's input_schema is refused
+    command: copilot-delegate
+    input:
+      session: "${{ steps[0].data.session.id }}"
+      specialist: tally/auditor
+      input: { badKey: true }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+  - description: Direct delegation to tally/auditor succeeds within its budget using only tally tools
+    command: copilot-delegate
+    input:
+      session: "${{ steps[0].data.session.id }}"
+      specialist: tally/auditor
+      input: { goal: "script:delegate-tally-ok" }
+      budget: { calls: 3, rounds: 2, seconds: 30 }
+    expect:
+      success: true
+      data:
+        delegation:
+          specialist: tally/auditor
+          state: done
+          tainted: false
+          spent:
+            calls: { lte: 3 }
+            rounds: { lte: 2 }
+  - description: A specialist attempting a tool outside its own app's declared tools is refused and recorded
+    command: copilot-delegate
+    input:
+      session: "${{ steps[0].data.session.id }}"
+      specialist: tally/auditor
+      input: { goal: "script:delegate-tally-escape" }
+      budget: { calls: 3, rounds: 2 }
+    expect:
+      success: true
+      data:
+        delegation:
+          specialist: tally/auditor
+          state: done
+          calls:
+            '0': { command: project-create, outcome: error, code: SPECIALIST_TOOL_REFUSED }
+  - description: A specialist that exhausts its call budget stops cleanly with state limit
+    command: copilot-delegate
+    input:
+      session: "${{ steps[0].data.session.id }}"
+      specialist: tally/auditor
+      input: { goal: "script:delegate-tally-overbudget" }
+      budget: { calls: 1, rounds: 2 }
+    expect:
+      success: true
+      data:
+        delegation:
+          specialist: tally/auditor
+          state: limit
+          limitReason: DELEGATION_LIMIT_EXCEEDED
+          spent:
+            calls: 1
+  - description: The copilot delegates to mailfixapp/triager, which reads stranger mail via mailfixapp-thread-peek and taints both delegation and parent session
+    command: copilot-message-send
+    input:
+      session: "${{ steps[0].data.session.id }}"
+      text: "script:delegate-mail-taint-then-create"
+    expect:
+      success: true
+      data:
+        turn:
+          state: waiting
+          delegations:
+            '0': { specialist: mailfixapp/triager, tainted: true }
+          calls:
+            '0': { command: project-create, mode: ask, reason: taint, outcome: pending }
+  - description: The parent session now carries the taint source inherited back from the specialist
+    command: copilot-session-get
+    input:
+      session: "${{ steps[0].data.session.id }}"
+    expect:
+      success: true
+      data:
+        session:
+          taint:
+            '0': { source: mailfix }
+  - description: Delegating to an unknown specialist id is refused with SPECIALIST_NOT_FOUND
+    command: copilot-delegate
+    input:
+      session: "${{ steps[0].data.session.id }}"
+      specialist: tally/nonexistent
+      input: { goal: "script:delegate-tally-ok" }
+    expect:
+      success: false
+      error:
+        code: SPECIALIST_NOT_FOUND
+  - description: Delegating to an agent member in a project its sponsor lost access to is refused with oracle parity
+    command: copilot-delegate
+    input:
+      specialist: tally/auditor
+      agentMember: agt_helper00000000000001
+      project: restricted
+      input: { goal: "script:delegate-tally-ok" }
+    expect:
+      success: false
+      error:
+        code: PROJECT_NOT_FOUND
+  - description: Delegating to an inactive or foreign-sponsored agent member is refused with AGENT_SPONSOR_MISMATCH
+    command: copilot-delegate
+    input:
+      specialist: tally/auditor
+      agentMember: agt_suspended00000000002
+      input: { goal: "script:delegate-tally-ok" }
+    expect:
+      success: false
+      error:
+        code: AGENT_SPONSOR_MISMATCH
+  - description: "[agent] An agent cannot call copilot-delegate directly"
+    command: copilot-delegate
+    input:
+      specialist: tally/auditor
+      input: { goal: "script:delegate-tally-ok" }
+    expect:
+      success: false
+      error:
+        code: HUMAN_REQUIRED
