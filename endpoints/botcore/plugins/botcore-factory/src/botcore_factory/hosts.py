@@ -47,6 +47,8 @@ def build_factory_host(
             handler = _without_foreman_session(handler)
         cell.register(command, handler, full._policies[command])
     cell.docs, cell.middleware = full.docs, full.middleware
+    # The skills its MCP server serves (lushly-botcore 0.11+; absent before).
+    cell.skills = getattr(full, "skills", None)
     return cell
 
 

@@ -666,7 +666,11 @@ def create_host_mcp_server(
     - ``default_timeout_ms`` defaults to ``None`` (no per-command timeout) so long-running
       commands such as ``dev_test`` or ``dev_build`` keep their existing behavior unless a
       caller sets an explicit timeout.
-    - Additional keyword arguments (such as ``skills``, ``resources``, ``auth``,
+    - ``skills`` defaults to :func:`botcore.host_skills.host_skill_catalog`: Botcore's bundled
+      skills and the folders the host's plugins register, filtered by the workspace's
+      ``[skills]`` ``include`` and ``skip``, served over ``io.modelcontextprotocol/skills``.
+      Pass a ``SkillCatalog`` to serve others, or ``skills=None`` to serve none.
+    - Additional keyword arguments (such as ``resources``, ``auth``,
       ``context_hook``, ``context_fields``, ``middleware``, ``first_class_tools``,
       ``instructions``) are forwarded to ``afd.server.create_server``. The returned MCP SDK
       server also exposes ``.afd_server`` for inspecting the underlying AFD server.
@@ -682,6 +686,10 @@ def create_host_mcp_server(
 
     options = dict(afd_options)
     options.setdefault("default_timeout_ms", None)
+    if "skills" not in options:
+        from botcore.host_skills import host_skill_catalog
+
+        options["skills"] = host_skill_catalog(host)
     extra_middleware = list(options.pop("middleware", None) or [])
     actor = options.pop("actor", None) or host.actor or Actor(kind="agent")
 

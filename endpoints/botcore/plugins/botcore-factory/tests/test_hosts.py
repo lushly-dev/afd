@@ -117,3 +117,11 @@ def test_a_plain_build_host_admits_the_plugin_with_its_own_policies():
         core_commands=(),
     )
     assert host.list_command_names() == EVERY
+
+
+def test_the_cell_host_keeps_the_skill_sources(make_run) -> None:
+    # create_host_mcp_server serves host.skills; a copy that drops it would ignore [skills].
+    run = make_run()
+    full, cell = run.host("factory"), run.host("factory-cell")
+    assert cell.skills is not None
+    assert cell.skills == full.skills

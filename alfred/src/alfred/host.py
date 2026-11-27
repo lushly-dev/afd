@@ -455,6 +455,8 @@ def build_alfred_host(
             raise ValueError(f"Command {name} collides with the Alfred alias for {ALIASES[name]}")
         host.register(name, base._commands[name], base._policies[name])
     host.docs, host.middleware = base.docs, base.middleware
+    # The skills its MCP server serves (lushly-botcore 0.11+; absent before).
+    host.skills = getattr(base, "skills", None)
     # Override contextual environment reporting before construction-time collision checks.
     host._commands["info_env"] = _info_env
     host._commands["dev_build"] = _dev_build

@@ -7,7 +7,7 @@ description: >
   MCP or a CLI.
 metadata:
   source: botcore
-  version: 2.2.0
+  version: 2.3.0
   portable: true
 ---
 
@@ -56,7 +56,7 @@ notes = "notes_plugin:NotesPlugin"
 - **Docs.** MCP clients see names, policies and docs topics but not docstrings. Put call signatures in the `add_docs` topic.
 - **`host_context_safe`.** `build_host` refuses a plugin without it. Set it only once the plugin keeps no module-global state.
 - **Config.** `config_schema()` returns a Pydantic model class that validates `[tool.botcore.plugins.<entry-point name>]`. `build_host` and `botcore serve` pass the result to an optional `configure(config)`; the other `botcore` subcommands don't.
-- **Skills.** `add_skills_dir` only records a path. Nothing in Botcore reads `registry.skills_dirs`, and `botcore skill-seed` passes no plugin directories.
+- **Skills.** `build_host` keeps the folders `add_skills_dir` registers on `host.skills`, and `create_host_mcp_server` serves each skill in them over MCP's Skills extension beside Botcore's own (a plugin skill replaces a bundled one of its name). A folder the extension cannot read, such as one with `skill.md` in lower case or a file path with a space, stops construction. A host you assemble from another's commands must copy `host.skills` too. `botcore skill-seed` passes no plugin directories, so clients that do not read MCP skills (`claude -p`, the Agent SDK, Codex) do not get them.
 
 ## Serve it through a host
 

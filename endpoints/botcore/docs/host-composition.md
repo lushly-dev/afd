@@ -30,7 +30,14 @@ handlers, and every admitted call enters `host.execute`. Additional AFD server
 options (`skills`, `resources`, `auth`, `context_hook`, `context_fields`,
 `middleware`, `tool_strategy`, `first_class_tools`, `default_timeout_ms`) may
 be passed directly to `create_host_mcp_server` (`default_timeout_ms` defaults
-to `None` so long-running commands are not cut off unless configured); the
+to `None` so long-running commands are not cut off unless configured; `skills`
+defaults to `botcore.host_skills.host_skill_catalog(host)`, which serves what
+`host.skills` (a `HostSkills`, set by `build_host`) names: Botcore's bundled
+skills and the host's plugin skill folders, filtered by the workspace's
+`[skills]` `include` and `skip`, less any skill already seeded under
+`[skills] source_dir`. A host not made by `build_host` has `skills = None` and
+serves none; one built by copying another host's commands copies its `skills`
+too. `skills=None` serves none); the
 returned MCP SDK server also exposes `.afd_server` for inspecting the
 underlying AFD server (call transport methods such as `run` and
 `streamable_http_app` on the returned server). The CLI offers `catalog` and
