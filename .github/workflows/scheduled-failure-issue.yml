@@ -21,6 +21,7 @@ on:
       - FAST-AF
       - Loam
       - Loam desktop
+      - Maturity registry
       - Python
       - Python newest MCP SDK
       - Rust

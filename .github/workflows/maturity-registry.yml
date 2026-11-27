@@ -1,0 +1,57 @@
+name: Maturity registry
+
+# Compares every published unit's maturity in scripts/release/inventory.json with what its
+# registry says (#2765): npm's dist-tags (a Preview package keeps `latest` on its 0.0.0
+# placeholder), PyPI's Development Status classifier, and crates.io. It reads the network, so it
+# runs on a schedule and by hand, never on a pull request or in the merge queue, where a registry
+# outage would block a merge. A mismatch fails the run; scheduled-failure-issue.yml then opens or
+# updates an issue, and closes it after the next passing run. An unreachable registry is reported
+# as unchecked in the summary and does not fail the run, and a release published before the ladder
+# (RELEASE_LAG in scripts/maturity.mjs) is a warning until its next release.
+on:
+  schedule:
+    - cron: '37 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  registry:
+    name: Published units against their registries
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Compare with npm, PyPI and crates.io
+        shell: bash
+        run: |
+          # Actions runs this with `-e`: turn it off for the check, or a mismatch ends the step
+          # before the summary is written.
+          set +e -uo pipefail
+          out="$RUNNER_TEMP/maturity-registry.txt"
+          node scripts/maturity.mjs --registry 2>&1 | tee "$out"
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo "### Maturity against the registries"
+            echo
+            echo '```'
+            cat "$out"
+            echo '```'
+            if [ "$status" -ne 0 ]; then
+              echo
+              echo "Fix each \`registry:\` line in the registry or in \`scripts/release/inventory.json\`."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
