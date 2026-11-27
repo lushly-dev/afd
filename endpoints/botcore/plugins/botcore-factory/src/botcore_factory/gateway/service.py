@@ -917,7 +917,13 @@ class Gateway:
         if state == "merged":
             cleaned = False if cancel else self._release_on_merge(repo, pull, spend=True)
             return success(
-                {"state": "merged", "autoMerge": False, "changed": cleaned},
+                {
+                    "state": "merged",
+                    "autoMerge": False,
+                    "changed": cleaned,
+                    # A cancel answers dequeued whatever it found, so its callers read one shape.
+                    **({"dequeued": False} if cancel else {}),
+                },
                 reasoning=(
                     f"Finished releasing claims for merged pull request {number}"
                     if cleaned
@@ -945,9 +951,11 @@ class Gateway:
     def _cancel(self, repo: str, pull: dict[str, Any]) -> CommandResult[Any]:
         """Turn auto-merge off and take the pull request out of the merge queue, then say what
         GitHub shows, never what was asked: auto-merge can become a queue entry between the
-        read and the write, so it is read again and cancelled once more before answering."""
+        read and the write, so it is read again and cancelled once more before answering.
+        Turning auto-merge off leaves a queued pull request in the queue (#2809), so a queued
+        one is dequeued too, and the answer's ``dequeued`` records which of the two ran."""
         number = pull["number"]
-        changed = dequeued = False
+        changed = dequeued = disabled = False
         refused = ""  # What GitHub said when it would not turn auto-merge off.
         for _ in range(2):
             queued = bool((pull.get("mergeQueue") or {}).get("queued"))
@@ -961,6 +969,7 @@ class Gateway:
                 # says whether that was why. Any other refusal is reported below.
                 try:
                     self.github.disable_auto_merge(repo, number)
+                    disabled = True
                 except GitHubRefused as exc:
                     refused = exc.message
             if queued:
@@ -970,7 +979,7 @@ class Gateway:
         state = self.pull_state(pull)
         if state == "merged":
             return success(
-                {"state": "merged", "autoMerge": False, "changed": False},
+                {"state": "merged", "autoMerge": False, "changed": False, "dequeued": dequeued},
                 reasoning=f"Pull request {number} merged before it could be cancelled",
             )
         queue = self._queued(pull, changed=changed).get("mergeQueue")
@@ -978,10 +987,12 @@ class Gateway:
             "state": state,
             "autoMerge": bool(pull.get("autoMerge")),
             "changed": changed,
+            "dequeued": dequeued,
             **({"mergeQueue": queue} if queue else {}),
         }
         if data["autoMerge"] or (queue or {}).get("queued"):
-            if refused:
+            # GitHub's refusal explains it only while auto-merge is what is still set.
+            if refused and data["autoMerge"]:
                 raise refuse(
                     "STILL_QUEUED",
                     f"Pull request {number} is still set to merge: GitHub refused to turn "
@@ -990,15 +1001,25 @@ class Gateway:
                     "grant; otherwise call pr-status, then pr-merge with cancel again",
                     number=number,
                     refused=refused,
+                    dequeued=dequeued,
                 )
             raise refuse(
                 "STILL_QUEUED",
                 f"Pull request {number} is still set to merge after cancelling twice",
                 "Call pr-status, then pr-merge with cancel again; GitHub may be re-queueing it",
                 number=number,
+                dequeued=dequeued,
             )
-        off = "taken out of the merge queue" if dequeued else "turned off"
-        return success(data, reasoning=f"Auto-merge {off if changed else 'was already off'}")
+        done = [  # In the order they ran.
+            *(["turned auto-merge off"] if disabled else []),
+            *(["took it out of the merge queue"] if dequeued else []),
+        ]
+        if done:
+            reasoning = f"Pull request {number}: {' and '.join(done)}"
+        else:
+            was = "is no longer" if changed else "was not"
+            reasoning = f"Pull request {number} {was} set to merge"
+        return success(data, reasoning=reasoning)
 
     def _merge(self, repo: str, pull: dict[str, Any]) -> CommandResult[Any]:
         number, head = pull["number"], pull["head"]

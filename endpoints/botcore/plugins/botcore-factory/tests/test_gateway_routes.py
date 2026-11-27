@@ -957,7 +957,7 @@ def test_a_closed_pull_request_is_never_merged_or_queued(run):
     assert result.error.code == "PR_CLOSED" and "pr-status" in result.error.suggestion
 
 
-def test_the_lane_can_turn_auto_merge_off_after_the_branch_moved(run):
+def test_the_lane_can_turn_auto_merge_off_after_the_branch_moved(run, tmp_path):
     gateway = run()
     assert gateway(
         "lane", "verification-record", repo=REPO, head=PR47_HEAD, result="passed", summary="ok"
@@ -969,7 +969,15 @@ def test_the_lane_can_turn_auto_merge_off_after_the_branch_moved(run):
         lambda d: next(p for p in d["pullRequests"] if p["number"] == 47).update(head="f" * 40)
     )
     cancelled = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD, cancel=True)
-    assert cancelled.data == {"state": "open", "autoMerge": False, "changed": True}
+    assert cancelled.data == {
+        "state": "open",
+        "autoMerge": False,
+        "changed": True,
+        "dequeued": False,
+    }
+    assert cancelled.reasoning == "Pull request 47: turned auto-merge off"
+    entry = read_journal(tmp_path / "run" / "state" / "journal")[-1]
+    assert entry.result == {"success": True, "data": {"dequeued": False}}
 
 
 @pytest.mark.parametrize(
@@ -1230,7 +1238,9 @@ def test_a_queued_pull_request_keeps_its_claim_until_it_merges(run):
     assert [claim["number"] for claim in claims] == [103]
 
 
-def test_cancel_takes_a_pull_request_out_of_the_queue(run):
+def test_cancel_takes_a_pull_request_out_of_the_queue(run, tmp_path):
+    """#2809: turning auto-merge off leaves a queued pull request in the queue, so cancel
+    dequeues it, and the answer the journal keeps says it did."""
     gateway = behind_a_queue(run, 44, PR44_HEAD)
     assert gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD).success
     cancelled = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD, cancel=True)
@@ -1238,8 +1248,13 @@ def test_cancel_takes_a_pull_request_out_of_the_queue(run):
         "state": "open",
         "autoMerge": False,
         "changed": True,
+        "dequeued": True,
         "mergeQueue": {"required": True, "queued": False},
     }
+    assert cancelled.reasoning == "Pull request 44: took it out of the merge queue"
+    entry = read_journal(tmp_path / "run" / "state" / "journal")[-1]
+    assert entry.command == "pr-merge" and entry.input["cancel"] is True
+    assert entry.result == {"success": True, "data": {"dequeued": True}}
     pull = next(p for p in gateway.github()["pullRequests"] if p["number"] == 44)
     assert pull["mergeQueue"] == {"required": True} and pull["autoMerge"] is False
     # Open, not queued and no auto-merge: what a pull request the queue let go looks like.
@@ -1247,7 +1262,8 @@ def test_cancel_takes_a_pull_request_out_of_the_queue(run):
     assert (status["state"], status["autoMerge"]) == ("open", False)
     assert status["mergeQueue"] == {"required": True, "queued": False}
     again = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD, cancel=True)
-    assert again.data["changed"] is False
+    assert (again.data["changed"], again.data["dequeued"]) == (False, False)
+    assert again.reasoning == "Pull request 44 was not set to merge"
 
 
 def test_pr_status_says_why_the_queue_let_a_pull_request_go(run):
@@ -1283,10 +1299,91 @@ def test_cancel_follows_auto_merge_into_the_queue(run, monkeypatch):
         "state": "open",
         "autoMerge": False,
         "changed": True,
+        "dequeued": True,
         "mergeQueue": {"required": True, "queued": False},
     }
+    # GitHub refused the first step, so only the dequeue is named.
+    assert cancelled.reasoning == "Pull request 47: took it out of the merge queue"
     pull = next(p for p in gateway.github()["pullRequests"] if p["number"] == 47)
     assert pull["mergeQueue"] == {"required": True}
+
+
+def test_a_cancel_on_a_merged_pull_request_answers_the_same_shape(run, tmp_path):
+    """#2809's review: a cancel answers dequeued whether the pull request merged before the
+    call or during it, so a lane that reads it never meets a missing key."""
+    gateway = run()
+    merged = gateway("lane", "pr-merge", repo=REPO, number=41, head="1" * 40, cancel=True)
+    assert merged.data == {
+        "state": "merged",
+        "autoMerge": False,
+        "changed": False,
+        "dequeued": False,
+    }
+    entry = read_journal(tmp_path / "run" / "state" / "journal")[-1]
+    assert entry.input["cancel"] is True
+    assert entry.result == {"success": True, "data": {"dequeued": False}}
+
+
+def test_a_pull_request_that_merges_as_it_is_dequeued_is_reported_merged(run, monkeypatch):
+    def merged(self, repo, number):
+        with self._write(repo) as data:
+            self._pull(data, number).update(
+                state="merged", mergedAt="2030-02-03T10:00:30Z", mergeQueue={"required": True}
+            )
+
+    monkeypatch.setattr(FakeGitHub, "dequeue_pull", merged)
+    gateway = behind_a_queue(run, 44, PR44_HEAD)
+    assert gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD).success
+    result = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD, cancel=True)
+    assert result.data == {
+        "state": "merged",
+        "autoMerge": False,
+        "changed": False,
+        "dequeued": True,
+    }
+    assert "merged before it could be cancelled" in result.reasoning
+
+
+def test_auto_merge_turned_off_elsewhere_is_not_claimed(run, monkeypatch):
+    """GitHub refused to turn auto-merge off because something else already had: the cancel
+    changed nothing itself, so its reasoning claims no step."""
+    from botcore_factory.gateway.github import GitHubRefused
+
+    def gone(self, repo, number):
+        with self._write(repo) as data:
+            self._pull(data, number).update(autoMerge=False, autoMergeHead=None)
+        raise GitHubRefused(200, "Auto-merge is not enabled")
+
+    gateway = behind_a_queue(run, 47, PR47_HEAD)
+    assert gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD).data["autoMerge"]
+    monkeypatch.setattr(FakeGitHub, "disable_auto_merge", gone)
+    result = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD, cancel=True)
+    assert (result.data["changed"], result.data["dequeued"]) == (True, False)
+    assert result.reasoning == "Pull request 47 is no longer set to merge"
+
+
+def test_the_audit_keeps_cancel_and_dequeued_only_as_booleans():
+    from afd.core.journal import JournalContextDigest, JournalRecord
+
+    from botcore_factory.gateway.records import audit_record
+
+    def kept(cancel, dequeued):
+        record = JournalRecord(
+            timestamp="2030-02-03T10:00:00Z",
+            command="pr-merge",
+            input={"repo": REPO, "number": 44, "cancel": cancel},
+            context_digest=JournalContextDigest(hash="sha256:" + "0" * 64),
+            result={"success": True, "data": {"state": "open", "dequeued": dequeued}},
+            duration_ms=1.0,
+        )
+        redacted = audit_record(record)
+        return redacted.input, redacted.result
+
+    assert kept(True, True) == (
+        {"repo": REPO, "number": 44, "cancel": True},
+        {"success": True, "data": {"dequeued": True}},
+    )
+    assert kept("ghp_" + "a" * 36, "yes") == ({"repo": REPO, "number": 44}, {"success": True})
 
 
 def test_cancel_that_cannot_dequeue_says_it_is_still_queued(run, monkeypatch):
@@ -1295,6 +1392,7 @@ def test_cancel_that_cannot_dequeue_says_it_is_still_queued(run, monkeypatch):
     assert gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD).success
     result = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD, cancel=True)
     assert result.error.code == "STILL_QUEUED" and "pr-status" in result.error.suggestion
+    assert result.error.details["dequeued"] is True  # It tried; GitHub still shows it queued.
 
 
 def test_a_pull_request_closed_as_it_was_queued_is_not_reported_queued(run, monkeypatch):

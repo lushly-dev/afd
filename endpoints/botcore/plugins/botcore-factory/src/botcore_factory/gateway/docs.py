@@ -77,8 +77,10 @@ issue in closes[] is held by another branch: stop, and let the foreman lane-drop
    it go (failed_checks: the queue's run of the checks failed, so the same head will fail
    again; merged: GitHub logs a merge so too, a second before state reads merged). Open,
    queued false and autoMerge false on two reads a minute apart means it left the queue.
-   cancel takes it out of the queue too and answers what GitHub then shows (STILL_QUEUED if
-   it is still set to merge). NOT_QUEUED: GitHub took the request and shows nothing for it.
+   cancel takes it out of the queue too (turning auto-merge off alone leaves a queued pull
+   request queued) and answers what GitHub then shows, with dequeued saying whether it took
+   it out, which the journal keeps (STILL_QUEUED if it is still set to merge).
+   NOT_QUEUED: GitHub took the request and shows nothing for it.
    The App queued a pull request in AFD on 2026-11-23: the queue's rebase kept the owner as
    author with the bot as committer (lushly-dev/afd#1809). A queue that squashes a pull
    request the App opened may credit the owner as a co-author, which a base that refuses

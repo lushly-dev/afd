@@ -66,6 +66,7 @@ steps:
         state: open
         autoMerge: false
         changed: true
+        dequeued: false
   - description: A merged pull request gets a revert pull request, which the lane then validates and merges
     command: pr-revert
     input: { repo: example-org/example-repo, numbers: [41], reason: Broke the release build }
