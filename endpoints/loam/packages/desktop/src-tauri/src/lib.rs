@@ -5,13 +5,17 @@
 //! the webview is granted. `loam-desktop mcp` is the stdio bridge to that endpoint (`bridge`).
 pub mod bridge;
 pub mod connection;
+pub mod desktop_state;
 pub mod era;
 pub mod inbound;
+pub mod js_json;
 pub(crate) mod keychain;
 pub mod logging;
+pub mod materialize;
 pub mod models;
 pub mod mounts;
 pub mod notify;
+pub mod plugin_manifest;
 pub mod site;
 pub mod updater;
 
