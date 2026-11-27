@@ -2,6 +2,8 @@
  * E1 (phase 1 specification, section 14): hello loads native, under a scoped registry, and tally's
  * `x-card` stays apart from its own.
  */
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import type { Browser } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -10,13 +12,13 @@ import {
 	deploymentEntry,
 	deploymentFile,
 	ENGINE,
+	FIREFOX_SCOPED_REGISTRIES,
 	journal,
 	kernelCall,
 	launchEngine,
 	openApp,
 	openShell,
 	packApp,
-	SCOPED_POLYFILL,
 	serveDeployment,
 	surfacesIdle,
 } from '../harness';
@@ -274,54 +276,106 @@ describe('P2-E13: E1: hello loads native', () => {
 		await opened.context.close();
 	});
 
-	it(`D34: mounts through the platform's scoped registry where ${ENGINE} has one, and the polyfill where it does not (#706)`, async () => {
+	it(`D174: mounts through the platform's scoped registry in ${ENGINE}, with nothing polyfilled (#706, #2254)`, async () => {
 		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-		// Before any of the page's scripts, so the polyfill cannot answer for the platform.
-		await context.addInitScript(() => {
-			let native = false;
-			try {
-				const registry = new CustomElementRegistry();
-				const root = document
-					.createElement('div')
-					.attachShadow({ mode: 'open', customElementRegistry: registry } as ShadowRootInit);
-				native =
-					(root as ShadowRoot & { customElementRegistry?: unknown }).customElementRegistry ===
-					registry;
-			} catch {}
-			(globalThis as { __loamNativeScoped?: boolean }).__loamNativeScoped = native;
-		});
 		const opened = await openShell(browser, site.origin, {}, context);
 		const { page } = opened;
 		await openApp(page, 'hello');
 		await page.locator('hello-main x-card').waitFor();
 		const branch = await page.evaluate(() => {
-			const scope = globalThis as {
-				__loamNativeScoped?: boolean;
-				__scopedRegistryPolyfillApplied?: boolean;
-			};
 			const mount = document
 				.querySelector('loam-shell')
 				?.shadowRoot?.querySelector('loam-main loam-mount') as HTMLElement;
-			const element = mount.shadowRoot?.querySelector('hello-main') as HTMLElement;
+			const root = mount.shadowRoot as ShadowRoot & { customElementRegistry?: unknown };
+			const element = root.querySelector('hello-main') as HTMLElement;
 			return {
-				native: scope.__loamNativeScoped === true,
-				polyfill: scope.__scopedRegistryPolyfillApplied === true,
-				upgraded: element.shadowRoot !== null,
+				scoped:
+					root.customElementRegistry !== undefined && root.customElementRegistry !== customElements,
+				polyfill:
+					(globalThis as { __scopedRegistryPolyfillApplied?: boolean })
+						.__scopedRegistryPolyfillApplied === true,
+				upgraded: element?.matches(':defined') === true,
 				global: customElements.get('hello-main') !== undefined,
 			};
 		});
-		// Which branch ran, by engine, is in the log: phase 1's W3 and D34 read it.
-		console.info(
-			`${ENGINE} ${browser.version()}: scoped registries ${branch.native ? 'native' : 'by the polyfill'}`
-		);
-		// A run claims the platform's registries unless it asks for the polyfill: an engine without them fails here by
-		// name, not only through the suites the polyfill breaks (#2254).
-		expect(branch.native).toBe(!SCOPED_POLYFILL);
-		expect(branch.polyfill).toBe(!branch.native);
-		expect(branch.upgraded).toBe(true);
-		// Scoped either way: the app's element is in its registry alone, never the global one.
-		expect(branch.global).toBe(false);
+		expect(branch).toEqual({ scoped: true, polyfill: false, upgraded: true, global: false });
+		// Which engine and version ran is in the log, once it held: phase 1's W3 and D174 read it.
+		console.info(`${ENGINE} ${browser.version()}: scoped registries native`);
 		expect(opened.errors).toEqual([]);
 		await context.close();
 	});
+
+	// Firefox is the one engine here whose scoped registries can be turned off, so it stands for every engine below the
+	// floor: Firefox before 159 and the WebKit GTK port Playwright ships (D174).
+	// Registered in Firefox alone, so no other engine's log shows a skip, which the exit check refuses.
+	if (ENGINE === 'firefox') {
+		it('D174: below the support floor, a native app says why it cannot run, and loads none of its code', async () => {
+			const below = await launchEngine({
+				firefoxUserPrefs: { [FIREFOX_SCOPED_REGISTRIES]: false },
+			});
+			try {
+				const opened = await openShell(below, site.origin);
+				const { page } = opened;
+				const loaded = () =>
+					site.log.filter(({ path }) => path.startsWith('/apps/hello/dist/')).length;
+				const before = loaded();
+				await openApp(page, 'hello');
+				await page
+					.locator('loam-main loam-notice')
+					.getByText('no scoped custom element registries', { exact: false })
+					.waitFor();
+				expect(loaded()).toBe(before);
+				expect(await page.locator('hello-main').count()).toBe(0);
+				// The chrome and Violet still run: nothing replaced the platform's registry under them.
+				expect(opened.errors).toEqual([]);
+			} finally {
+				await below.close();
+			}
+		});
+
+		it("D174: below the support floor, a mounted app's console still opens, on the global registry", async () => {
+			// A server that never answers: the console shows the instance, whatever its state, with no app code.
+			const silent = createServer(() => {});
+			await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve));
+			const { port } = silent.address() as AddressInfo;
+			const mounted = await serveDeployment({
+				mounts: true,
+				config: deploymentFile(
+					[
+						'[apps.work]',
+						'app = "hello"',
+						`package = ${JSON.stringify(await packApp('hello', 'mounted'))}`,
+						'title = "Work"',
+						'prefix = "work"',
+						'audience = "person"',
+						'transport = "http"',
+						`url = "http://127.0.0.1:${port}/mcp"`,
+					].join('\n')
+				),
+			});
+			const below = await launchEngine({
+				firefoxUserPrefs: { [FIREFOX_SCOPED_REGISTRIES]: false },
+			});
+			try {
+				const opened = await openShell(below, mounted.root);
+				const { page } = opened;
+				await openApp(page, 'work');
+				await page.locator('loam-main loam-mount loam-console').waitFor();
+				expect(
+					await page.evaluate(() => {
+						const mount = document
+							.querySelector('loam-shell')
+							?.shadowRoot?.querySelector('loam-main loam-mount') as HTMLElement;
+						return mount.shadowRoot?.querySelector('loam-console')?.matches(':defined') === true;
+					})
+				).toBe(true);
+				expect(await page.locator('loam-main loam-notice').count()).toBe(0);
+				expect(opened.errors).toEqual([]);
+			} finally {
+				await below.close();
+				await mounted.close();
+				await new Promise((resolve) => silent.close(resolve));
+			}
+		});
+	}
 });

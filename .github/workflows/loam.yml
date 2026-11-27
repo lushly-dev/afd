@@ -229,7 +229,8 @@ jobs:
           retention-days: 7
 
   # #706: the mount and its scoped registry (E1), the sandboxed view (E2) and phase 4's I8 chord, in Firefox
-  # (`vitest.engines.config.ts`), beside the Chromium suite that runs them with the rest.
+  # (`vitest.engines.config.ts`), beside the Chromium suite that runs them with the rest. E1's floor case turns the
+  # registries off, as a Firefox before 159 has them (D174).
   firefox:
     name: Firefox suites
     needs: scope
@@ -262,8 +263,8 @@ jobs:
           retention-days: 7
 
   # #706: the same suites in WebKit, on macOS: Apple's port, which has scoped custom element registries as Safari 26 does.
-  # Playwright's Linux WebKit is the GTK port, which has none, so E1 there takes D34's polyfill and fails (#2254), and
-  # the chord did not reach the page there (#2314); phase 1's 9.7 records both.
+  # Playwright's Linux WebKit is the GTK port, which has none, so it is below the support floor (D174, #2254) and is not
+  # run: E1's mount cases would fail there. Phase 1's 9.7 records it.
   webkit:
     name: WebKit suites
     needs: scope

@@ -10,7 +10,6 @@
  */
 
 import { css, type FASTElement, Updates } from '@lushly-dev/fast-element';
-import { ensureScopedRegistrySupport } from '@lushly-dev/fast-element/scoped.js';
 import type {
 	AppDetail,
 	AppPort,
@@ -41,6 +40,11 @@ import { OverlaySurfaces } from './overlay-surfaces.js';
 import { type Parked, park, restore } from './parking.js';
 import { readSidebarList, type SidebarList, selectInLists, sidebarLists } from './sidebar.js';
 import { StatusItems } from './status-items.js';
+import {
+	nativeAppsSupported,
+	prepareScopedRegistries,
+	SCOPED_REGISTRIES_FLOOR,
+} from './support-floor.js';
 import { deliverSettings, settingsHeard, surfaceCalls } from './surface-calls.js';
 
 type Part = 'sidebar' | 'inspector' | 'panel';
@@ -658,11 +662,14 @@ export class AppSurfaces implements ShellApps {
 			const { port } = held;
 			// A view or mounted app has no module in the page, and nothing to activate.
 			if (port.manifest.plugin.kind !== 'native') return undefined;
+			// Below the support floor in a browser no app code loads: there is no registry to give it (D174).
+			if (!nativeAppsSupported()) return SCOPED_REGISTRIES_FLOOR;
 			let imported = false;
 			try {
 				const definition = await port.load();
 				imported = true;
-				await ensureScopedRegistrySupport();
+				// After the app's module, before its registry, as D34's polyfill ran on the desktop (D174, amended).
+				await prepareScopedRegistries();
 				const registry = new CustomElementRegistry();
 				const context = this.#contextOf(port, registry);
 				held.registry = registry;
@@ -898,8 +905,8 @@ export class AppSurfaces implements ShellApps {
 		const main = this.#part<HTMLElement>('main');
 		let registry: CustomElementRegistry;
 		try {
-			// Here, as `activate` does, so the console's chunk does not share the module with first paint's.
-			await ensureScopedRegistrySupport();
+			// Before the console's chunk, so its elements are defined after the polyfill where it is kept (D174).
+			await prepareScopedRegistries();
 			const { consoleRegistry } = await import('./console.js');
 			registry = await consoleRegistry();
 		} catch (cause) {

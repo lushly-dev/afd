@@ -183,7 +183,7 @@ Rows this phase depends on, re-checked 2026-11-01:
 | --- | --- | --- | --- |
 | W1 | MCP Apps 2026-01-26 stable, draft open | Unchanged: the only dated version is 2026-01-26, with `draft` beside it; `@modelcontextprotocol/ext-apps` is at 2.0.4 (2026-10-27). The draft softens the proxy's two `ready` steps from MUST to SHOULD and keeps the rest of the section | Phase 1 pins 2026-01-26: `text/html;profile=mcp-app`, `_meta.ui.resourceUri`, and the web-host rule that **a sandbox proxy has a different origin from the host, with `allow-scripts allow-same-origin`**. This was not in the architecture, and D62 records it |
 | W2 | Serving resources from AFD servers not implemented | Done: Rust #608, TypeScript #615; the in-process registry serves none | Phase 1's packaged views need no AFD resource server. Views served by a mounted server wait for phase 5 ([13](#13-out-of-scope-and-the-seams-reserved)) |
-| W3 | Scoped registries in all three engines (Firefox 159, 2026-10-27) | MDN still marks the constructor "limited availability" and gives no Baseline; Firefox 159 was not re-confirmed from a primary page | D34's polyfill path stays. `loam.yml` is Chromium only, so phase 1 proves Chromium; a follow-up runs the mount suite in Firefox and WebKit |
+| W3 | Scoped registries in all three engines (Firefox 159, 2026-10-27) | MDN still marks the constructor "limited availability" and gives no Baseline; Firefox 159 was not re-confirmed from a primary page | D34's polyfill path stays. `loam.yml` is Chromium only, so phase 1 proves Chromium; a follow-up runs the mount suite in Firefox and WebKit. Revised 2026-11-26: the polyfill retired in browsers by D174, kept in the desktop webview (9.7) |
 | W6 | Precommit handler missing in Safari | Not re-checked; phase 1 adds no route | None |
 | W13 | Agent Skills in shells | Not re-checked; skills are admitted and listed, served from phase 5 | None |
 | R6 | Versioned surface ids and a removal rule | Taken up: the catalog carries one version, and removal needs a new `manifest_version` ([4.1](#41-the-catalog-version-1)) | |
@@ -1130,28 +1130,35 @@ export const APP_CALLABLE_SHELL_COMMANDS_V1 = [
 
 ### 5.4 Scoped registries and the mount
 
-`loam-mount` is the mount contract (D34, D9, principle 10).
+`loam-mount` is the mount contract (D34 as D174 amends it, D9, principle 10).
 
 - **One registry per instance**: `new CustomElementRegistry()`, created at activation.
   It holds the app's elements and the kit elements it asked for. Lookup does not fall
   through to the global registry, so an app sees only what it defined.
 - **`loam-mount`** is a chrome element defined globally. Its shadow root is attached
-  with `{ mode: 'open', customElementRegistry: registry, registry, customElements: registry }`:
-  the first is the platform's key, and the polyfill reads the other two
-  (`scoped/detection.ts:41-45`, and the polyfill's `src/scoped-custom-element-registry.ts:106-115`).
+  with `{ mode: 'open', customElementRegistry: registry, registry, customElements: registry }`: the
+  first is the platform's key, and the polyfill, which runs only in the desktop app's webview (D174,
+  amended), reads the other two.
   - Its stylesheet is `:host { all: initial; display: block; block-size: 100%; contain:
     content; font-family: ...; color: var(--color-text-primary); }`. `all: initial`
     resets inherited styles and does not reach custom properties, so tokens flow
     through and inherited styles do not.
   - It creates the surface's element with `document.createElement(name, {
-    customElementRegistry: registry })`, assigns `context` and `selection`, and appends
-    it.
+    customElementRegistry: registry })`, or `shadowRoot.createElement(name)` where the polyfill
+    runs, assigns `context` and `selection`, and appends it.
   - The chrome's parts stay in its own shadow roots, so an app's selectors cannot reach
     them. D54 applies: this is a contract, since an app can walk the DOM.
-- **The polyfill.** The chrome calls `ensureScopedRegistrySupport()` from
-  `@lushly-dev/fast-element/scoped.js` before the first native app activates (D34), and
-  the mount's element creation has one branch: `shadowRoot.createElement(name)` when the polyfill is
-  in use, which scopes through the key above.
+- **The support floor (D174, amended).** Before the first native app activates, and before the
+  console loads, the chrome calls `supportsScopedRegistries()` from `@lushly-dev/fast-element/scoped.js`.
+  In the desktop app's webview, which `main.ts` marks when Tauri's IPC is present at boot, an engine
+  without them takes D34's polyfill (`ensureScopedRegistrySupport()`, after the app's module and before
+  the console's chunk), as WebKitGTK 2.52 on Linux needs; `packages/desktop/test/scoped.test.ts` fails
+  if it stops working there. In a browser nothing is polyfilled: an engine without scoped registries
+  (below Chromium 146, Firefox 159 or Safari 26) does not activate the app: its module is not requested until a command runs, and
+  main says the browser has no scoped custom element registries and which versions to use. Its commands
+  still run for an agent or the palette, through the kernel's lazy handlers. The console, views and
+  mounted apps are unaffected: the console's registry is the global one there, since it is the chrome's. D34's polyfill was retired in browsers
+  because it replaced the registry under every element defined before it loaded ([#2254](https://github.com/lushly-dev/afd/issues/2254)).
 - **Kit elements in a scoped registry.** `kit.define` imports the element's module, finds
   its `FASTElementDefinition` through `fastElementRegistry.getByType`, and calls
   `definition.define(registry)`, as `scoped/registry.ts:22-23` does; a constructor may
@@ -2278,17 +2285,20 @@ E1, E2 and phase 4's I8 chord now run in Firefox 157.0 and WebKit 27.2 as well a
   [#2254](https://github.com/lushly-dev/afd/issues/2254)'s error in all six E1 cases and two E2 cases. Its pages also
   did not receive `Mod+Alt+P` ([#2314](https://github.com/lushly-dev/afd/issues/2314)), and its forced-colors title bar
   fails as Firefox's does ([#2255](https://github.com/lushly-dev/afd/issues/2255)). So the WebKit job runs on macOS,
-  and the GTK port is covered by those issues rather than by this job. Loam's Linux desktop runs on WebKitGTK, whose
-  scoped registries were not measured here. E1's D34 case fails by name in a run that claims the platform's registries
-  and lacks them.
+  and the GTK port is below the support floor and out of this job's scope (D174). Loam's Linux desktop runs on
+  WebKitGTK 2.52.6 in `loam-desktop.yml`, which has no scoped registries either: P6-D3's diagnostic measured
+  `new CustomElementRegistry()` throwing "Illegal constructor" (#2755). The native Mail app (P5-A9) ran there through
+  D34's polyfill, which mounts native apps in Tauri's webview though not in Playwright's GTK build, so the desktop keeps it (D174,
+  amended) and `scoped.test.ts` asserts that path on Linux. The page still throws #2254's error twice there, for elements
+  defined before the polyfill loads, which no test had read before; loading it first on the desktop is #2793. E1's D174 case fails by name in a run whose engine lacks
+  them.
 - **Scoped registries in Firefox.** Playwright's Firefox 157 has them behind
   `dom.scoped-custom-element-registries.enabled`, the preference Firefox 159 turned on, and the Firefox job sets it, so
-  it stands for Firefox 159 and later. With it off (`LOAM_SCOPED_POLYFILL=1`, which acts in Firefox alone), D34's
-  polyfill branch ran for the first time and failed: an element defined before the polyfill loads cannot be created
-  after it ("Illegal constructor"), and the chrome and Violet define
-  theirs long before the first app activates. E1 failed 7 of 7. So native apps do not work today in a Firefox before
-  159, ESR among them. That is [#2254](https://github.com/lushly-dev/afd/issues/2254), with a decision for the owner
-  on D34; until then the polyfill branch is not in CI, and `LOAM_SCOPED_POLYFILL=1` runs it.
+  it stands for Firefox 159 and later. With it off, D34's polyfill branch ran for the first time and failed: an element
+  defined before the polyfill loads cannot be created after it ("Illegal constructor"), and the chrome and Violet define
+  theirs long before the first app activates. E1 failed 7 of 7 ([#2254](https://github.com/lushly-dev/afd/issues/2254)).
+  The owner retired the polyfill in browsers and set their floor at Firefox 159 (D174, 2026-11-26): E1's floor case now turns the
+  preference off and finds main's notice, no app code requested and no page error.
 - **What held, in Firefox and Apple's WebKit.** 6.1's isolation: the inner document's origin is `null`, `parent.document`, `top.document`,
   `localStorage` and `indexedDB` throw `SecurityError`, `fetch` fails, and neither `top` nor `parent` can be navigated.
   The proxy's `frame-src 'self'` refuses a view's navigation to another site with no request sent, and a site that

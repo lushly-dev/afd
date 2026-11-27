@@ -418,9 +418,9 @@ An app may bring its own elements. They register under a scoped custom
 element registry, so tag names never collide between apps or with the shell,
 and each app's root resets inherited styles so that no app's typography or
 spacing reaches another. Scoped registries ship in Chromium 146, Safari 26
-and Firefox 159; the SDK keeps the polyfill fast-element already depends on
-only for older Firefox and retires it when the support floor passes 159
-(D34).
+and Firefox 159; the SDK kept the polyfill fast-element already depends on
+only for older Firefox (D34); D174 retired it in browsers on 2026-11-26,
+with the floor at Firefox 159, and kept it in the desktop app for WebKitGTK.
 
 ## Design foundation
 

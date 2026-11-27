@@ -15,6 +15,7 @@ import type {
 	DocumentRefV1,
 	LoamEditorElementV1,
 } from '@lushly-dev/loam-sdk';
+import { isSupportFloorFailure } from '../apps/support-floor.js';
 import type { LoamMount } from '../elements/mount.js';
 import type { LoamNotice } from '../elements/notice.js';
 import type { LoamViewFrame } from '../view/view-frame.js';
@@ -251,7 +252,9 @@ export class LoamEditorFrame extends FASTElement {
 			this.fail({
 				code: 'APP_ACTIVATION_FAILED',
 				message: `The app that edits this document did not start: ${cause instanceof Error ? cause.message : String(cause)}`,
-				suggestion: "Read the page's console, then reload; the document is kept.",
+				suggestion: isSupportFloorFailure(cause)
+					? 'Open the document in a browser at the support floor or later; the document is kept.'
+					: "Read the page's console, then reload; the document is kept.",
 			});
 			return;
 		}

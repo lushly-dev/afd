@@ -643,7 +643,7 @@ sequenceDiagram
 | Measured accelerators | Rust compiled to WebAssembly through wasm-bindgen behind a TypeScript interface | Palette and reference index, journal replay and diff, content indexing, tree-sitter, when a measurement on a real workspace shows a need | Admitted only by the rule in D37; the TypeScript implementation ships first; `afd-loam` is reserved for such a unit |
 | Chrome | `@lushly-dev/fast-element` 3 and `@lushly-dev/violet-elements` from `foundations/fast-af` | The platform's component runtime and set; scoped-registry aware | Both quarantined; nothing publishes from here yet |
 | Tokens and the design foundation | Violet core and runtime, with Loam's semantic layer as a Violet theme | The platform's token engine | `violet-elements` keeps local theme registries today; phase 0 moves it onto Violet themes so one component set serves Loam, Lushly and others (D28) |
-| Element isolation | Scoped custom element registries, native in Chromium 146, Safari 26 and Firefox 159; the polyfill FAST-AF already depends on for older Firefox | Tag names never collide | The polyfill is retired when the support floor reaches Firefox 159 (D34) |
+| Element isolation | Scoped custom element registries, native in Chromium 146, Safari 26 and Firefox 159, the browser floor for native apps; D34's polyfill only in the desktop app's webview, for WebKitGTK | Tag names never collide | Below the floor in a browser, a native app says why it cannot run (D174, amended) |
 | Overlays | `<dialog>`, the popover attribute, `inert`, CSS anchor positioning | Top layer without z-index management; anchor positioning ships in Chromium 125, Firefox 147 and Safari 26 | A fallback only for older engines |
 | Routing | Navigation API; view transitions where present. Five fixed path shapes need no URLPattern (D74) | Baseline since 2026-01; same-document transitions in all engines | Cross-document transitions not in Firefox |
 | Palette index | A small in-kernel fuzzy index over commands and resources | Deterministic, no model | A WebAssembly module if measured |
@@ -752,9 +752,10 @@ flowchart TD
   marked so.
 - **Compatibility.** The hosted server serves MCP 2026-07-28 and, through
   the SDK, 2025-11-25 and earlier. The browser targets current Chromium,
-  Safari and Firefox, with the scoped-registry polyfill for Firefox before
-  159 and an anchor-positioning fallback for older engines, both retired by
-  the watchlist.
+  Safari and Firefox. Native apps need scoped registries, so their browser
+  floor is Chromium 146, Firefox 159 and Safari 26, with nothing polyfilled;
+  the desktop app keeps the polyfill for WebKitGTK (D174, amended). An
+  anchor-positioning fallback for older engines is retired by the watchlist.
 - **Versioning.** The manifest protocol version, the surface catalog, the
   SDK, the kernel interface, the store interfaces and the event shape are
   versioned under `endpoints/loam/`, independently of AFD's contract version;
