@@ -216,6 +216,96 @@ def test_a_scan_does_not_ask_who_closes_each_issue(github):
             assert "closedByPullRequestsReferences" not in json.loads(request.content)["query"]
 
 
+def test_one_issue_carries_its_type_parent_and_sub_issues(github):
+    app, mock, _ = github
+    node = _issue(5) | {
+        "issueType": {"name": "Task"},
+        "parent": {"number": 2, "repository": {"nameWithOwner": REPO.upper()}},
+        "subIssuesSummary": {"total": 3},
+    }
+    mock.graphql += [
+        {"data": {"repository": {"issue": node}}},
+        {"data": {"repository": {"issue": _issue(6) | {"issueType": None, "parent": None}}}},
+        {
+            "data": {
+                "repository": {
+                    "issue": _issue(7)
+                    | {"parent": {"number": 4, "repository": {"nameWithOwner": "acme/other"}}}
+                }
+            }
+        },
+    ]
+    one = app.issue(REPO, 5)
+    assert (one["type"], one["parent"], one["subIssues"]) == ("Task", 2, 3)
+    query = json.loads(mock.requests[-1].content)["query"]
+    assert "issueType { name }" in query and "subIssuesSummary { total }" in query
+    assert (app.issue(REPO, 6)["type"], app.issue(REPO, 6 + 1)["parent"]) == (None, "acme/other#4")
+
+
+def test_a_scan_does_not_ask_for_types_or_parents(github):
+    app, mock, _ = github
+    mock.graphql += [_page("issues", [_issue(1)]), _page("issues", [])]
+    app.issues(REPO)
+    for request in mock.requests:
+        if request.url.path == "/graphql":
+            query = json.loads(request.content)["query"]
+            assert "issueType" not in query and "parent {" not in query
+
+
+def test_issue_types_are_the_repository_s_by_name(github):
+    app, mock, _ = github
+    types = {
+        "nodes": [
+            {"name": "Bug", "isEnabled": True},
+            {"name": "Epic", "isEnabled": True},
+            {"name": "Story", "isEnabled": False},  # Disabled: GitHub refuses it.
+            None,
+        ]
+    }
+    mock.graphql.append({"data": {"repository": {"issueTypes": types}}})
+    assert app.issue_types(REPO) == ["Bug", "Epic"]
+    assert (
+        "issueTypes(first: 100) { nodes { name isEnabled } }"
+        in json.loads(mock.requests[-1].content)["query"]
+    )
+
+
+def test_a_type_is_written_by_name_and_cleared_with_null(github):
+    app, mock, _ = github
+    mock.routes[("POST", f"/repos/{REPO}/issues")] = httpx.Response(201, json={"number": 8})
+    mock.routes[("PATCH", f"/repos/{REPO}/issues/8")] = httpx.Response(200, json={})
+    assert app.create_issue(REPO, "T", "B", ["x"], "Epic") == 8
+    assert json.loads(mock.requests[-1].content) == {
+        "title": "T",
+        "body": "B",
+        "labels": ["x"],
+        "type": "Epic",
+    }
+    app.create_issue(REPO, "T", "B", [])
+    assert "type" not in json.loads(mock.requests[-1].content)
+    app.set_issue_type(REPO, 8, None)
+    assert json.loads(mock.requests[-1].content) == {"type": None}
+
+
+def test_sub_issues_are_attached_and_detached_by_the_child_s_id(github):
+    app, mock, _ = github
+    mock.routes[("GET", f"/repos/{REPO}/issues/9")] = httpx.Response(
+        200, json={"id": 900009, "number": 9}
+    )
+    mock.routes[("POST", f"/repos/{REPO}/issues/2/sub_issues")] = httpx.Response(201, json={})
+    mock.routes[("DELETE", f"/repos/{REPO}/issues/2/sub_issue")] = httpx.Response(200, json={})
+    app.add_sub_issue(REPO, 2, 9)
+    assert json.loads(mock.requests[-1].content) == {"sub_issue_id": 900009, "replace_parent": True}
+    app.remove_sub_issue(REPO, 2, 9)
+    removed = mock.requests[-1]
+    assert removed.method == "DELETE" and json.loads(removed.content) == {"sub_issue_id": 900009}
+    mock.routes[("POST", f"/repos/{REPO}/issues/2/sub_issues")] = httpx.Response(
+        422, json={"message": "Parent cannot have more than 100 sub-issues"}
+    )
+    with pytest.raises(GitHubRefused, match="100 sub-issues"):
+        app.add_sub_issue(REPO, 2, 9)
+
+
 def test_a_number_that_is_not_an_issue_is_none(github):
     app, mock, _ = github
     mock.graphql.append(

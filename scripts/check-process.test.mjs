@@ -204,6 +204,9 @@ test("the checker's patterns refuse each write the gateway serves, and no read",
 			'addComment',
 			'createIssue',
 			'updateIssue',
+			'updateIssueIssueType',
+			'addSubIssue',
+			'removeSubIssue',
 		].flatMap((name) => [
 			`mutation { ${name}(input: $i) { clientMutationId } }`,
 			`mutation M { ${name} { clientMutationId } }`,
@@ -226,6 +229,8 @@ test("the checker's patterns refuse each write the gateway serves, and no read",
 		'gh api --method get repos/o/r/issues -f state=open',
 		'list.map(updateIssue => x); createIssue(title);',
 		'Read `addComment` in the schema.',
+		'Attach it with `addSubIssue`, and detach it with `removeSubIssue`.',
+		"gh api graphql -f query='query { repository { issue(number: 1) { subIssues(first: 5) { totalCount } } } }'",
 	];
 	for (const read of reads)
 		assert.deepEqual(writesIn(read, expressions), [], `refused a read: ${read}`);

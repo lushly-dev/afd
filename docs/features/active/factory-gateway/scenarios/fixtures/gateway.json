@@ -11,6 +11,7 @@
 	},
 	"protectedRefs": ["refs/heads/main"],
 	"secretPatterns": ["EXAMPLE-SECRET-[0-9]+"],
+	"issueTypes": ["Bug", "Feature", "Task", "Epic"],
 	"labels": [
 		"status:triage",
 		"status:planned",

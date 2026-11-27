@@ -1432,6 +1432,30 @@ def test_auto_merge_github_does_not_show_is_not_reported_queued(run, monkeypatch
     assert result.error.code == "NOT_QUEUED" and "pr-merge again" in result.error.suggestion
 
 
+def test_a_queue_entry_that_stays_is_not_blamed_on_auto_merge(run, monkeypatch):
+    """GitHub refused to turn auto-merge off because it had become a queue entry, and the
+    dequeue did not take: the refusal says the pull request is still queued, keeps GitHub's
+    answer in its details, and does not blame auto-merge, which is off."""
+    from botcore_factory.gateway.github import GitHubRefused
+
+    def queued(self, repo, number):
+        with self._write(repo) as data:
+            pull = self._pull(data, number)
+            pull.update(autoMerge=False, autoMergeHead=None)
+            self._enqueue(pull, PR47_HEAD)
+        raise GitHubRefused(200, "Auto-merge is not enabled")
+
+    gateway = behind_a_queue(run, 47, PR47_HEAD)
+    assert gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD).data["autoMerge"]
+    monkeypatch.setattr(FakeGitHub, "disable_auto_merge", queued)
+    monkeypatch.setattr(FakeGitHub, "dequeue_pull", lambda self, repo, number: None)
+    result = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD, cancel=True)
+    assert result.error.code == "STILL_QUEUED"
+    assert "after cancelling twice" in result.error.message
+    assert result.error.details["dequeued"] is True
+    assert result.error.details["refused"] == "Auto-merge is not enabled"
+
+
 def test_a_refusal_to_turn_auto_merge_off_is_reported_not_swallowed(run, monkeypatch):
     from botcore_factory.gateway.github import GitHubRefused
 

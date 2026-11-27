@@ -1555,10 +1555,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "806bad02d63b15a4e94d9a88675aa99823a923c58cc1e5564a5bf0fae4f752a7",
+      "current_import_sha256": "fdd04a74207fbfb08d200f73b325ce8ab4507b0e0759f5c43d143401308ba565",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385)"
+      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); Factory gateway: issue types and parents through issue-create and issue-set (#2729)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/cli.py",
@@ -1577,10 +1577,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "4f60e07c458bf05a294c21bb760f44e58c0bcfd1627847257619ec390245c937",
+      "current_import_sha256": "34cec6bf54d1cb8b3cbc501fcfe90ca748b9bd6ab72891d39098ace2df938432",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes; Factory gateway: issue types and parents through issue-create and issue-set (#2729)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/config.py",
@@ -1599,10 +1599,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "9772d90cccd59b19ec5dbe5afd350fbe8dc7b2ed4f79411c255caf1cece2393f",
+      "current_import_sha256": "24f25805da6f565de6ac90effdbf0cb79a12312a345862f9073825379e0d0123",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes; Factory gateway: pr-merge cancel reports and journals whether it dequeued the pull request (#2809)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes; Factory gateway: pr-merge cancel reports and journals whether it dequeued the pull request (#2809); Factory gateway: issue types and parents through issue-create and issue-set (#2729)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/github.py",
@@ -1610,10 +1610,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "e2d2209fa104740ee551bb7fbe3a54d1e68b610f144383673050446be03e0518",
+      "current_import_sha256": "49ed2704ecce362f646c68d16603fe2ddc9a6354fc136c3f2fe1890b5665c969",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); Replace remaining production assert statements with explicit runtime checks (#1757); Normalize LF line endings on refreshed Botcore provenance entries (#1757); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); Replace remaining production assert statements with explicit runtime checks (#1757); Normalize LF line endings on refreshed Botcore provenance entries (#1757); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); Factory gateway: issue types and parents through issue-create and issue-set (#2729)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/github_app.py",
@@ -1621,10 +1621,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "25266976b8bafa4f10cf7cad1c3aa9e0426a279a409d582c34321cf18071ee35",
+      "current_import_sha256": "30a343b944ae245ea7b97ce2c6ec7057199c0fa1e3680dbb65c7d93fdf4c602d",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385)"
+      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); Factory gateway: issue types and parents through issue-create and issue-set (#2729)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/harness.py",
@@ -1649,15 +1649,26 @@
       "import_reason": "factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes; Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413); Journal behind the host only with redact: secret commands (afd-python); Gateway journal keeps only audit fields; journal behind the host needs redact (afd-python secret); CommandPolicy declares secret; CommandHost binds it for AFD's journal with afd.core.open_dispatch and runs a secret call off tape (#2590)"
     },
     {
+      "path": "plugins/botcore-factory/src/botcore_factory/gateway/issue_tree.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "cab02cec4ff4b1e729366122b4ab45a6530baf18cb03669492e2e4cda0519f13",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Factory gateway: issue types and parents through issue-create and issue-set (#2729)"
+    },
+    {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/records.py",
       "origin": "local-after-import",
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "32f4a8b8b4355e4767f538bd913bc534e1368ae9a86e687888f370d8afd7b1df",
+      "current_import_sha256": "17e43038050a53bc42f4f438877f115d7ca79fe4f7d4b8da10fde9c82b37d15d",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413); Gateway journal keeps only audit fields; journal behind the host needs redact (afd-python secret); Factory gateway: pr-merge cancel reports and journals whether it dequeued the pull request (#2809)"
+      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413); Gateway journal keeps only audit fields; journal behind the host needs redact (afd-python secret); Factory gateway: pr-merge cancel reports and journals whether it dequeued the pull request (#2809); Factory gateway: issue types and parents through issue-create and issue-set (#2729)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/server.py",
@@ -1676,10 +1687,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "adf2cd654ae153ad3e9f70463a885b6e4e079d1667fab5905f6e8dfab63ef10c",
+      "current_import_sha256": "449622327d160e3140962c7a663b3141ea9a2afe4e0b1d3d41598fb7291ed82a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: trust its own verification record over GitHub's lagging check-runs list (#2401); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes; Factory gateway: pr-merge cancel reports and journals whether it dequeued the pull request (#2809)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: trust its own verification record over GitHub's lagging check-runs list (#2401); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes; Factory gateway: pr-merge cancel reports and journals whether it dequeued the pull request (#2809); Factory gateway: issue types and parents through issue-create and issue-set (#2729)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/state.py",
@@ -2072,10 +2083,21 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "1535908ccaef6c7ae51dea05b96ca72c85453ce96284815cb550c6fb0c0fdc58",
+      "current_import_sha256": "d89d2424e4d53d7725214dea551dfa83237c45fa7dd83c8ea21aa08119071ca7",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
+      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes; Factory gateway: issue types and parents through issue-create and issue-set (#2729)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_gateway_issue_tree.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "8ef07858ec4799229617d65bad25d642b3b44c618df7f115a8ff74f5823f5580",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Factory gateway: issue types and parents through issue-create and issue-set (#2729)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_gateway_lane.py",
@@ -2094,10 +2116,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "691c7bc73cc448e33b78a7c06469f3c7032c565dcabf944afd01ab4205c7e020",
+      "current_import_sha256": "8d98b6eaee6e42cda547bf6f4b728d17c8a1d5c472dc33e851e08d325efdda4b",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413); Gateway journal keeps only audit fields; journal behind the host needs redact (afd-python secret); Factory gateway: pr-merge cancel reports and journals whether it dequeued the pull request (#2809)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413); Gateway journal keeps only audit fields; journal behind the host needs redact (afd-python secret); Factory gateway: pr-merge cancel reports and journals whether it dequeued the pull request (#2809); Factory gateway: issue types and parents through issue-create and issue-set (#2729)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_gateway_scenarios.py",
@@ -2105,10 +2127,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "62a47e894e778ad2d32ff4972a1b6b34e969a923d498aba8fd8deadc28514e6f",
+      "current_import_sha256": "88650759235729c305490b451bbf4a39d594f46b030f87fcaf6a66c8650ee8e4",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16)"
+      "import_reason": "factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); Factory gateway: issue types and parents through issue-create and issue-set (#2729)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_gateway_server.py",
@@ -2138,10 +2160,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "6392105954652a901ab49e0c6813319d138f0edcfd7bdae4bed7ffe1108e03db",
+      "current_import_sha256": "33b8593614519c6aa10c7bbf05499d39ce231b77bc4c311ff43b5b6445d60648",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385)"
+      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); Factory gateway: issue types and parents through issue-create and issue-set (#2729)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_hosts.py",

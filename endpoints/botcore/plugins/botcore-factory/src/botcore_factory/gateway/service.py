@@ -379,7 +379,11 @@ class Gateway:
             "author": issue.get("author"),
             "body": {"trust": "content", "text": issue.get("body", "")},
             "linkedPrs": pulls,
+            "subIssues": {"total": int(issue.get("subIssues") or 0)},
         }
+        for key in ("type", "parent"):
+            if issue.get(key) is not None:
+                data[key] = issue[key]
         if isinstance(record, Claim):
             data["claim"] = self._claim_row(record, issue)
         return success(data, reasoning=f"Issue {number} is {issue['state']}")
@@ -661,26 +665,6 @@ class Gateway:
             {"url": comment_url(repo, number, comment["id"]), "deduplicated": False},
             reasoning=f"Commented on {number}",
         )
-
-    def issue_create(
-        self, repo: str, title: str, body: str, labels: list[str], dedupe_key: str | None
-    ) -> CommandResult[Any]:
-        self.repo(repo)
-        self.text(title=title, body=body, dedupe_key=dedupe_key)
-        self.labels_known(repo, labels)
-        if dedupe_key:
-            tag = f"<!-- {DEDUPE} {dedupe_key} -->"
-            for issue in self.github.issues(repo):
-                author = (issue.get("author") or {}).get("login")
-                if issue["state"] == "open" and author == self.config.bot and tag in issue["body"]:
-                    return success(
-                        {"number": issue["number"], "created": False},
-                        reasoning=f"Issue {issue['number']} is already open under {dedupe_key}",
-                    )
-            body = f"{body}\n\n{tag}"
-        self.spend("issue-create")
-        number = self.github.create_issue(repo, title, body, labels)
-        return success({"number": number, "created": True}, reasoning=f"Filed issue {number}")
 
     # ── pushes and pull requests ─────────────────────────────────────────
 
@@ -1009,6 +993,7 @@ class Gateway:
                 "Call pr-status, then pr-merge with cancel again; GitHub may be re-queueing it",
                 number=number,
                 dequeued=dequeued,
+                **({"refused": refused} if refused else {}),
             )
         done = [  # In the order they ran.
             *(["turned auto-merge off"] if disabled else []),

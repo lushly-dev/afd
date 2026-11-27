@@ -279,6 +279,9 @@ class GitHubApp:
         if node is None:
             return None
         issue = self._issue_shape(repo, node)
+        issue["type"] = (node.get("issueType") or {}).get("name")
+        issue["parent"] = _parent(node.get("parent"), repo)
+        issue["subIssues"] = int((node.get("subIssuesSummary") or {}).get("total") or 0)
         closing = (node.get("closedByPullRequestsReferences") or {}).get("nodes") or []
         issue["closedBy"] = sorted(
             pull["number"]
@@ -441,11 +444,41 @@ class GitHubApp:
         row = self._call("POST", f"/repos/{repo}/issues/{number}/comments", json={"body": body})
         return _rest_comment(row)
 
-    def create_issue(self, repo: str, title: str, body: str, labels: list[str]) -> int:
-        row = self._call(
-            "POST", f"/repos/{repo}/issues", json={"title": title, "body": body, "labels": labels}
-        )
+    def create_issue(
+        self, repo: str, title: str, body: str, labels: list[str], type: str | None = None
+    ) -> int:
+        fields: dict[str, Any] = {"title": title, "body": body, "labels": labels}
+        if type is not None:
+            fields["type"] = type  # REST takes the type's name.
+        row = self._call("POST", f"/repos/{repo}/issues", json=fields)
         return int(row["number"])
+
+    def issue_types(self, repo: str) -> list[str]:
+        data = self._graphql(_ISSUE_TYPES, **_owner_name(repo))
+        types = ((data.get("repository") or {}).get("issueTypes") or {}).get("nodes") or []
+        # A type the organization disabled is refused by GitHub, so it is not offered.
+        return [row["name"] for row in types if row and row.get("isEnabled", True)]
+
+    def set_issue_type(self, repo: str, number: int, type: str | None) -> None:
+        self._call("PATCH", f"/repos/{repo}/issues/{number}", json={"type": type})
+
+    def _issue_id(self, repo: str, number: int) -> int:
+        """The issue's database id, which the sub-issue endpoints take, not its number."""
+        return int(self._call("GET", f"/repos/{repo}/issues/{number}")["id"])
+
+    def add_sub_issue(self, repo: str, parent: int, child: int) -> None:
+        self._call(
+            "POST",
+            f"/repos/{repo}/issues/{parent}/sub_issues",
+            json={"sub_issue_id": self._issue_id(repo, child), "replace_parent": True},
+        )
+
+    def remove_sub_issue(self, repo: str, parent: int, child: int) -> None:
+        self._call(
+            "DELETE",
+            f"/repos/{repo}/issues/{parent}/sub_issue",
+            json={"sub_issue_id": self._issue_id(repo, child)},
+        )
 
     def update_ref(self, repo: str, ref: str, head: str, expected: str | None = None) -> None:
         """Push ``head`` from the mirror to ``ref``, only if GitHub still has ``expected``
@@ -644,6 +677,14 @@ def _login(user: dict[str, Any] | None) -> str | None:
     return f"{login}[bot]" if bot and login and not login.endswith("[bot]") else login
 
 
+def _parent(node: dict[str, Any] | None, repo: str) -> int | str | None:
+    """A parent's number in ``repo``, or ``owner/name#number`` for one in another repository."""
+    if not node:
+        return None
+    where = (node.get("repository") or {}).get("nameWithOwner", "")
+    return int(node["number"]) if where.lower() == repo.lower() else f"{where}#{node['number']}"
+
+
 def _comment_shape(node: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": node["databaseId"],
@@ -811,10 +852,17 @@ _PULL_FIELDS = """number state title body headRefName headRefOid mergeable merge
     labels(first: 100) { nodes { name } }
     closingIssuesReferences(first: 20) { nodes { number } }"""
 
-#: Only the one-issue read asks who closes it: in a scan it would multiply every page's cost.
+#: Only the one-issue read asks who closes it, and its type, parent and sub-issues: in a scan
+#: they would multiply every page's cost.
 _CLOSED_BY = """closedByPullRequestsReferences(first: 50, includeClosedPrs: true) {
       nodes { number repository { nameWithOwner } }
-    }"""
+    }
+    issueType { name }
+    parent { number repository { nameWithOwner } }
+    subIssuesSummary { total }"""
+_ISSUE_TYPES = """query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) { issueTypes(first: 100) { nodes { name isEnabled } } }
+}"""
 _ISSUE_QUERY = f"""query($owner: String!, $name: String!, $number: Int!) {{
   repository(owner: $owner, name: $name) {{
     issue(number: $number) {{ {_ISSUE_FIELDS} {_CLOSED_BY} }}

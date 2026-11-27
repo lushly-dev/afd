@@ -1,0 +1,142 @@
+# JTBD scenario for the Factory Gateway's issue types and parents (#2729). The data is invented.
+# Runs against the foreman endpoint, which files epics and moves their parts; the owner's route
+# serves the same commands. Issues and pull requests share numbers, so the epic is 105 and its
+# part 106. `expect` cannot reference an earlier step; only `input` can.
+name: File an epic and its parts, and move a part between epics
+description: >-
+  When the foreman opens an epic for a body of work and files or moves its parts, I want the
+  gateway to set each issue's type and parent as it files it, move a part to another parent or
+  detach it, and refuse a type the organization does not define or a parent that does not exist
+  before it files anything, so that epics keep their real sub-issues without a `gh` write and a
+  retry after a timeout finishes the filing instead of leaving an orphan.
+job: file-an-epic-and-its-parts
+tags: [mvp]
+fixture:
+  file: fixtures/gateway.json
+steps:
+  - description: The epic is filed with its type
+    command: issue-create
+    input:
+      repo: example-org/example-repo
+      title: "Epic: clearer parser errors"
+      body: The parser's errors name the line and the token.
+      labels: [area:core]
+      type: Epic
+      dedupe_key: epic-parser-errors
+    expect:
+      success: true
+      data:
+        created: true
+        number: 105
+        type: Epic
+        parent: { exists: false }
+  - description: A part is filed as the epic's sub-issue
+    command: issue-create
+    input:
+      repo: example-org/example-repo
+      title: Name the token in an unexpected-token error
+      body: Say which token the parser did not expect.
+      labels: [area:core]
+      type: Task
+      parent: "${{ steps[0].data.number }}"
+      dedupe_key: parser-errors-token
+    expect:
+      success: true
+      data:
+        created: true
+        number: 106
+        type: Task
+        parent: 105
+  - description: A retry of that filing returns the same part, still under the epic
+    command: issue-create
+    input:
+      repo: example-org/example-repo
+      title: Name the token in an unexpected-token error
+      body: Say which token the parser did not expect.
+      labels: [area:core]
+      type: Task
+      parent: "${{ steps[0].data.number }}"
+      dedupe_key: parser-errors-token
+    expect:
+      success: true
+      data:
+        created: false
+        number: 106
+        parent: 105
+  - description: An issue already open joins the epic
+    command: issue-set
+    input:
+      repo: example-org/example-repo
+      number: 102
+      parent: "${{ steps[0].data.number }}"
+    expect:
+      success: true
+      data:
+        changed: true
+        parent: 105
+        previous: { parent: { exists: false } }
+  - description: The epic counts both parts
+    command: issue-get
+    input: { repo: example-org/example-repo, number: "${{ steps[0].data.number }}" }
+    expect:
+      success: true
+      data:
+        type: Epic
+        subIssues: { total: 2 }
+  - description: An issue filed without a type is typed as an epic, its parent left as it was
+    command: issue-set
+    input: { repo: example-org/example-repo, number: 101, type: Epic }
+    expect:
+      success: true
+      data:
+        changed: true
+        type: Epic
+        parent: { exists: false }
+        previous: { type: { exists: false } }
+  - description: A part moves to another parent, which replaces the old one
+    command: issue-set
+    input: { repo: example-org/example-repo, number: 102, parent: 101 }
+    expect:
+      success: true
+      data:
+        changed: true
+        parent: 101
+        previous: { parent: 105 }
+  - description: A part is detached from its parent
+    command: issue-set
+    input: { repo: example-org/example-repo, number: 102, parent: null }
+    expect:
+      success: true
+      data:
+        changed: true
+        parent: { exists: false }
+        previous: { parent: 101 }
+  - description: Detaching it again changes nothing
+    command: issue-set
+    input: { repo: example-org/example-repo, number: 102, parent: null }
+    expect:
+      success: true
+      data:
+        changed: false
+  - description: A type the organization does not define is refused, naming the ones it does
+    command: issue-set
+    input: { repo: example-org/example-repo, number: 103, type: Epik }
+    expect:
+      success: false
+      error:
+        code: TYPE_UNKNOWN
+        message: Epik
+        suggestion: { contains: Epic }
+  - description: A parent that does not exist is refused before anything is filed
+    command: issue-create
+    input:
+      repo: example-org/example-repo
+      title: An orphan part
+      body: Its parent does not exist.
+      parent: 999
+      dedupe_key: orphan-part
+    expect:
+      success: false
+      error:
+        code: PARENT_NOT_FOUND
+        message: "999"
