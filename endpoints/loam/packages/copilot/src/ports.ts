@@ -63,8 +63,13 @@ interface Sink {
 	controller: ReadableStreamDefaultController<Uint8Array>;
 }
 
+interface OpenedStream {
+	stream: string;
+	readable: ReadableStream<Uint8Array>;
+}
+
 interface Answer {
-	resolve(stream: string): void;
+	resolve(opened: OpenedStream): void;
 	reject(error: Error): void;
 }
 
@@ -94,7 +99,21 @@ export class ModelPort implements ModelPortV1 {
 					const error = new Error(message.error?.message ?? 'The model port refused the request');
 					(error as Error & { code?: string }).code = message.error?.code ?? 'COPILOT_PORT_REFUSED';
 					answer.reject(error);
-				} else answer.resolve(message.stream);
+				} else {
+					const stream = message.stream;
+					// Register the sink before resolving so chunks or `done` delivered before the next microtask
+					// are buffered in the stream rather than dropped (#2811).
+					const readable = new ReadableStream<Uint8Array>({
+						start: (controller) => {
+							this.#streams.set(stream, { controller });
+						},
+						cancel: () => {
+							this.port.postMessage({ key: 'cancel', stream });
+							this.#streams.delete(stream);
+						},
+					});
+					answer.resolve({ stream, readable });
+				}
 				return;
 			}
 			const sink = message.stream ? this.#streams.get(message.stream) : undefined;
@@ -122,7 +141,7 @@ export class ModelPort implements ModelPortV1 {
 			const request = new Request(input as RequestInfo, init);
 			const body = JSON.parse(await request.text()) as Record<string, unknown>;
 			const id = this.#next++;
-			const stream = await new Promise<string>((resolve, reject) => {
+			const { stream, readable } = await new Promise<OpenedStream>((resolve, reject) => {
 				this.#answers.set(id, { resolve, reject });
 				this.port.postMessage({
 					id,
@@ -132,28 +151,18 @@ export class ModelPort implements ModelPortV1 {
 					...(options.unit !== undefined ? { unit: options.unit } : {}),
 				});
 			});
-			const readable = new ReadableStream<Uint8Array>({
-				start: (controller) => {
-					this.#streams.set(stream, { controller });
-				},
-				cancel: () => {
-					this.port.postMessage({ key: 'cancel', stream });
-					this.#streams.delete(stream);
-				},
-			});
+			const abort = () => {
+				const sink = this.#streams.get(stream);
+				if (!sink) return;
+				this.port.postMessage({ key: 'cancel', stream });
+				this.#streams.delete(stream);
+				try {
+					sink.controller.error(new DOMException('Aborted', 'AbortError'));
+				} catch {}
+			};
 			const signal = init?.signal ?? undefined;
-			signal?.addEventListener(
-				'abort',
-				() => {
-					const sink = this.#streams.get(stream);
-					this.port.postMessage({ key: 'cancel', stream });
-					this.#streams.delete(stream);
-					try {
-						sink?.controller.error(new DOMException('Aborted', 'AbortError'));
-					} catch {}
-				},
-				{ once: true }
-			);
+			if (signal?.aborted) abort();
+			else signal?.addEventListener('abort', abort, { once: true });
 			// The answer's status is the provider's, known before its first chunk only to the trusted host; a stream
 			// that ends in an error carries an `error` event, which the provider adapter reads as a failure.
 			return new Response(readable, {

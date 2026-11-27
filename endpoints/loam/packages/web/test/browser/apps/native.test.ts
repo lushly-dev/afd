@@ -25,6 +25,12 @@ import {
 
 let browser: Browser;
 let site: DeploymentSite;
+/**
+ * Explicit poll ceiling inside `vitest.engines.config.ts`'s 30 s `testTimeout`: Vitest's 1 s
+ * default is too short when Firefox loads native app modules and syncs surfaces under host load (#2743).
+ */
+const POLL = { timeout: 10_000 };
+
 beforeAll(async () => {
 	site = await serveDeployment({
 		config: deploymentFile(
@@ -47,7 +53,7 @@ describe('P2-E13: E1: hello loads native', () => {
 			site.log.filter(({ path }) => path.startsWith(`/apps/${app}/dist/`));
 
 		// The rail lists it, and no module is requested before first use.
-		await expect.poll(() => page.locator('loam-rail loam-app-entry').count()).toBe(2);
+		await expect.poll(() => page.locator('loam-rail loam-app-entry').count(), POLL).toBe(2);
 		expect(await page.locator('loam-main h1').textContent()).toBe('Choose an app');
 		expect(native('hello')).toEqual([]);
 		expect(native('tally')).toEqual([]);
@@ -74,14 +80,18 @@ describe('P2-E13: E1: hello loads native', () => {
 		expect(await page.evaluate(() => customElements.get('hello-main') === undefined)).toBe(true);
 		expect(await page.evaluate(() => customElements.get('x-card') === undefined)).toBe(true);
 		await expect
-			.poll(() =>
-				page
-					.locator('hello-main x-card')
-					.evaluate((card) => (card as unknown as { app?: string }).app)
+			.poll(
+				() =>
+					page
+						.locator('hello-main x-card')
+						.evaluate((card) => (card as unknown as { app?: string }).app),
+				POLL
 			)
 			.toBe('hello');
 		// Exactly one status item, as the first open renders it, whatever raced to set it.
-		await expect.poll(() => page.locator('[data-status-item="count"]').textContent()).toBe('0');
+		await expect
+			.poll(() => page.locator('[data-status-item="count"]').textContent(), POLL)
+			.toBe('0');
 		expect(await page.locator('[data-status-item="count"]').count()).toBe(1);
 		// Amended by phase 2's step 6: `<app or section> · <project> · <workspace>` (7.4).
 		expect(await page.title()).toBe('Hello · Personal');
@@ -96,10 +106,10 @@ describe('P2-E13: E1: hello loads native', () => {
 		// From main, through the kit's text field and button.
 		await page.locator('hello-main violet-text-field input').fill('Ada');
 		await page.locator('hello-main violet-button.greet').click();
-		await expect.poll(greets).toBe(1);
-		await expect.poll(names).toEqual([expect.stringContaining('Ada')]);
+		await expect.poll(greets, POLL).toBe(1);
+		await expect.poll(names, POLL).toEqual([expect.stringContaining('Ada')]);
 		await expect
-			.poll(() => page.locator('loam-statusbar [data-status-item="count"]').textContent())
+			.poll(() => page.locator('loam-statusbar [data-status-item="count"]').textContent(), POLL)
 			.toBe('1');
 		expect(await page.locator('hello-main .greeting').textContent()).toBe('Hello, Ada!');
 
@@ -108,18 +118,21 @@ describe('P2-E13: E1: hello loads native', () => {
 		await page.locator('loam-palette input').fill('Greet someone');
 		// The whole list is there before the search narrows it, and Enter runs its first row.
 		await expect
-			.poll(() => page.locator('loam-palette violet-option').first().getAttribute('data-command'))
+			.poll(
+				() => page.locator('loam-palette violet-option').first().getAttribute('data-command'),
+				POLL
+			)
 			.toBe('hello-greet');
 		await page.keyboard.press('Enter');
-		await expect.poll(greets).toBe(2);
+		await expect.poll(greets, POLL).toBe(2);
 		await expect
-			.poll(names)
+			.poll(names, POLL)
 			.toEqual([expect.stringContaining('Ada'), expect.stringContaining('friend')]);
 
 		// From an agent, which is labeled by its interface.
 		await agentCall(page, 'hello-greet', { name: 'Bot' });
-		await expect.poll(greets).toBe(3);
-		await expect.poll(async () => (await names()).length).toBe(3);
+		await expect.poll(greets, POLL).toBe(3);
+		await expect.poll(async () => (await names()).length, POLL).toBe(3);
 		const entries = (await journal(page)).filter(({ command }) => command === 'hello-greet');
 		expect(entries.map((entry) => entry.interface)).toEqual(['palette', 'palette', 'agent']);
 
@@ -154,10 +167,10 @@ describe('P2-E13: E1: hello loads native', () => {
 		);
 		await page.locator('loam-list violet-option').first().click();
 		await expect
-			.poll(() => page.locator('hello-main x-card.selected').textContent())
+			.poll(() => page.locator('hello-main x-card.selected').textContent(), POLL)
 			.toContain('Selected: Ada');
 		await expect
-			.poll(() => page.locator('hello-inspector x-card').textContent())
+			.poll(() => page.locator('hello-inspector x-card').textContent(), POLL)
 			.toContain('Greeted Ada');
 		const selection = (await agentCall(page, 'app-selection-get', { instance: 'hello' })) as {
 			data: { id: string };
@@ -179,9 +192,11 @@ describe('P2-E13: E1: hello loads native', () => {
 			await shell.kernel.agent.call('app-selection-set', { instance: 'hello', id: 'Ada' });
 		});
 		await expect
-			.poll(() => page.locator('hello-main x-card.selected').textContent())
+			.poll(() => page.locator('hello-main x-card.selected').textContent(), POLL)
 			.toContain('Selected: Ada');
-		await expect.poll(() => page.locator('loam-list violet-option[selected]').count()).toBe(1);
+		await expect
+			.poll(() => page.locator('loam-list violet-option[selected]').count(), POLL)
+			.toBe(1);
 		await opened.context.close();
 	});
 
@@ -192,15 +207,30 @@ describe('P2-E13: E1: hello loads native', () => {
 		await agentCall(page, 'hello-greet', { name: 'Ada' });
 		await page.evaluate(async () => {
 			const shell = document.querySelector('loam-shell') as unknown as {
-				kernel: { agent: { call(name: string, input: unknown): Promise<unknown> } };
+				kernel: {
+					subscribe(listener: (event: { command?: string }) => void): () => void;
+					agent: { call(name: string, input: unknown): Promise<unknown> };
+				};
 			};
-			await Promise.all([
-				shell.kernel.agent.call('app-open', { instance: 'hello' }),
-				shell.kernel.agent.call('app-selection-set', { instance: 'hello', id: 'Ada' }),
-			]);
+			// Fire `app-selection-set` synchronously in `app-open`'s own emit task (after `open()`'s
+			// `unselect(record)`, before `AppSurfaces`' queued microtask `#sync()` starts) so the two
+			// calls cannot invert through async autonomy-gate reads under load (#2743).
+			let select: Promise<unknown> | undefined;
+			const stop = shell.kernel.subscribe((event) => {
+				if (event.command === 'app-open' && !select) {
+					select = shell.kernel.agent.call('app-selection-set', { instance: 'hello', id: 'Ada' });
+				}
+			});
+			try {
+				await shell.kernel.agent.call('app-open', { instance: 'hello' });
+				if (!select) throw new Error('app-open did not emit before resolving');
+				await select;
+			} finally {
+				stop();
+			}
 		});
 		await expect
-			.poll(() => page.locator('hello-main x-card.selected').textContent())
+			.poll(() => page.locator('hello-main x-card.selected').textContent(), POLL)
 			.toContain('Selected: Ada');
 		await opened.context.close();
 	});
@@ -216,7 +246,7 @@ describe('P2-E13: E1: hello loads native', () => {
 
 		await openApp(page, 'hello');
 		await page.keyboard.press('ControlOrMeta+Shift+H');
-		await expect.poll(greets).toBe(1);
+		await expect.poll(greets, POLL).toBe(1);
 
 		await openApp(page, 'tally');
 		await page.keyboard.press('ControlOrMeta+Shift+H');

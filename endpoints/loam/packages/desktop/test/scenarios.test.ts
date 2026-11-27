@@ -46,11 +46,15 @@ describe("P5-A1: the slice's scenarios on the desktop", () => {
 				deployment: await p5Deployment(seedOf(scenario, 'p5-base'), model),
 			});
 			try {
-				// A step waits for its turn to settle, up to the kernel's 50 s, past WebDriver's default 30 s for a script.
-				await desktop.browser.setTimeout({ script: 120_000 });
+				const traceStart = model.trace.length;
 				await seedDesktop(desktop);
 				const { passed, detail } = await runScenario(scenario, desktopHost(desktop));
-				expect(passed, detail).toBe(true);
+				expect(
+					passed,
+					passed
+						? detail
+						: `${detail}\nmodel trace: ${JSON.stringify(model.trace.slice(traceStart))}\napp stderr: ${JSON.stringify(desktop.stderr.lines.slice(-10))}`
+				).toBe(true);
 			} finally {
 				await desktop.close();
 				desktop = undefined;
