@@ -1,0 +1,179 @@
+name: Health history
+
+# The dated Health history (#1387 step 8, #2829). When CI's daily whole-workspace run on main
+# finishes, `measure` checks out main as it stands then (the workflow's own commit), runs every
+# measures producer, with coverage from that CI run's `coverage-report` artifact, and audits the
+# repository with Health. `publish` then commits the report as reports/<YYYY-MM-DD>.json, the UTC
+# day the CI run started, to the `health-history` branch, so main carries no churn
+# (scripts/health-history.mjs; the branch's README states the retention). Each commit names the
+# commit measured and the CI run, and the commit that run tested. A manual run, from main only,
+# uses the newest scheduled CI run that finished.
+#
+# Neither job checks out a commit chosen at run time: in the default branch's scope that could
+# poison its caches (CodeQL actions/cache-poisoning), so both check out the workflow's own commit.
+#
+# Only `publish` holds a token that can write, and it runs nothing but the publish script from a
+# sparse checkout: the producers, their dependencies and installs never see it.
+#
+# `branches` filters on the branch of the run that completed, as in scheduled-failure-issue.yml:
+# only main's completions start this, and `measure` skips all but the scheduled one.
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: health-history
+  cancel-in-progress: false
+
+jobs:
+  measure:
+    name: Measure the day's main
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.event == 'schedule' &&
+      github.event.workflow_run.conclusion != 'cancelled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # Reads CI's run, its jobs and its coverage artifact.
+      actions: read
+    outputs:
+      day: ${{ steps.source.outputs.day }}
+      head_sha: ${{ steps.source.outputs.head_sha }}
+      run_id: ${{ steps.source.outputs.run_id }}
+    steps:
+      - name: Choose the CI run
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh run list --repo "$REPO" --workflow ci.yml --event schedule --branch main \
+              --status completed --limit 20 --json databaseId,conclusion \
+              --jq '[.[] | select(.conclusion != "cancelled")][0].databaseId // empty')
+          fi
+          if [ -z "$RUN_ID" ]; then
+            echo "::error::No finished scheduled CI run on main to record."
+            exit 1
+          fi
+          read -r HEAD_SHA CREATED < <(gh api "repos/$REPO/actions/runs/$RUN_ID" \
+            --jq '"\(.head_sha) \(.created_at)"')
+          # A report is filed under its CI run's day; a manual run on a later day would put a
+          # later main under that day's name.
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "${CREATED:0:10}" != "$(date -u +%F)" ]; then
+            echo "::error::The newest finished scheduled CI run ($RUN_ID) started on ${CREATED:0:10}, not today; run this after today's scheduled CI run finishes."
+            exit 1
+          fi
+          # The coverage comes from the .nvmrc leg; a leg that failed partway uploads only part.
+          LEG=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
+            --jq '[.jobs[] | select(.name == "TypeScript (Node 26.x)")][0].conclusion // "missing"')
+          if [ "$LEG" != "success" ]; then
+            echo "::error::CI run $RUN_ID's TypeScript (Node 26.x) job is $LEG, so its coverage is not whole; no report is recorded."
+            exit 1
+          fi
+          {
+            echo "run_id=$RUN_ID"
+            echo "head_sha=$HEAD_SHA"
+            echo "day=${CREATED:0:10}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Recording CI run $RUN_ID at $HEAD_SHA, started $CREATED"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The test-change report compares with the day before; the bloat sweep reads churn.
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Download CI's coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage-report
+          path: ${{ runner.temp }}/coverage
+          run-id: ${{ steps.source.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      # No cache in this job: it runs in the default branch's cache scope on a commit chosen at
+      # run time, so it restores and saves none (CodeQL actions/cache-poisoning).
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run the producers and the audit
+        env:
+          # Read-only here; the bloat sweep lists open pull requests with it.
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/health-history.mjs run --work "$RUNNER_TEMP/health-history" --coverage "$RUNNER_TEMP/coverage"
+
+      - name: Keep the report for publish
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: health-report
+          path: ${{ runner.temp }}/health-history/report/health-report.json
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Commit the report to health-history
+    needs: measure
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      # The only write in this workflow: the push of the health-history branch.
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            .nvmrc
+            scripts/health-history.mjs
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Download the report
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: health-report
+          path: ${{ runner.temp }}/report
+
+      - name: Commit and push
+        env:
+          DAY: ${{ needs.measure.outputs.day }}
+          HEAD_SHA: ${{ needs.measure.outputs.head_sha }}
+          RUN_ID: ${{ needs.measure.outputs.run_id }}
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: >-
+          node scripts/health-history.mjs publish --report "$RUNNER_TEMP/report/health-report.json"
+          --day "$DAY" --source "main at $GITHUB_SHA, coverage from CI run $RUN_ID of $HEAD_SHA"

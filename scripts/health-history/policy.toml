@@ -1,0 +1,16 @@
+# The Health history's checks: the repository-wide ones that read files (scripts/health-history.mjs,
+# #2829). The report records their statuses each day beside the producers' measures; nothing
+# reads its verdict as a gate.
+schema_version = "1.0"
+checks = [
+    "agent_skills_mirror",
+    "changesets_configured",
+    "ci_present",
+    "commitlint_configured",
+    "dependabot_configured",
+    "dependency_version_drift",
+    "gitattributes_lf",
+    "last_commit",
+    "lefthook_configured",
+    "node_version_alignment",
+]

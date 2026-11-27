@@ -1,0 +1,7 @@
+# The Health history's one target: this repository (scripts/health-history.mjs, #2829).
+schema_version = "1.0"
+
+[[targets]]
+id = "afd"
+path = "../.."
+language = "typescript"
