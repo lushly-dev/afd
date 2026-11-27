@@ -20,7 +20,7 @@
 | --- | --- |
 | Epic | [#1110](https://github.com/lushly-dev/afd/issues/1110) |
 | Units likely touched | `foundations/specimen` (the host and the review page), `integrations/specimen-afd`, `endpoints/specimen-cli`, `endpoints/specimen-server`; for Slice 3 preview, Specimen's Violet work (T09, [#1211](https://github.com/lushly-dev/afd/issues/1211)) and `integrations/violet-afd` |
-| Related | [Design Decisions](../design-decisions/design-decisions.proposal.md), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Patterns](../patterns/patterns.proposal.md), [Specimens status](../../complete/specimens/STATUS.md) (T09, T10) |
+| Related | [Design Decisions](../design-decisions/design-decisions.proposal.md), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Patterns](../../active/patterns/patterns.proposal.md), [Specimens status](../../complete/specimens/STATUS.md) (T09, T10) |
 | Rank among the four | Third. Pointing starts on Specimen's review page (Slice 1 ships independently of Design Decisions); Design Decisions' review adopts it later |
 
 ## 1. Problem

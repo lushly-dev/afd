@@ -1,6 +1,6 @@
 # Python name parity: status
 
-Epic: [#1551](https://github.com/lushly-dev/afd/issues/1551) (this plan is part of Language parity closure). File new work for this area as its sub-issue.
+Epic: [#1551](https://github.com/lushly-dev/afd/issues/1551) (this plan was part of Language parity closure), closed 2026-11-26. The five colliding root names are the standalone issue [#550](https://github.com/lushly-dev/afd/issues/550).
 
 Read this before the [plan](python-parity.plan.md). Last reconciled 2026-11-25 against `main`
 after [#1535](https://github.com/lushly-dev/afd/issues/1535) and [#550](https://github.com/lushly-dev/afd/issues/550) PR 1. A fresh Alfred run finds **10 missing Python names** (5 colliding root names kept behind one-minor deprecation shims for PR 2 until Botcore migrates off `#2455`, plus 5 approval-display helpers tracked in [#1466](https://github.com/lushly-dev/afd/issues/1466)), matching the lowered budget of 10 in `alfred/tests/test_parity.py`. All four contract constants
@@ -20,7 +20,11 @@ match `1.0-rc`, and the wire/vector loader checks report zero coverage gaps.
 
 The broader [parity closure plan](../parity-closure/STATUS.md) owns behavior and includes this
 export cleanup. Name cleanup is tracked in [#550](https://github.com/lushly-dev/afd/issues/550).
-`missing_from_python` is now 10 (below the 20-name threshold), and this subplan stays active only
-until `#550` PR 2 swaps the 5 colliding root names to `afd.core` once Botcore migrates off the
+`missing_from_python` is now 10 (below the 20-name threshold), and this subplan stayed active only
+(superseded 2026-11-26: see [Closed](#closed)) until `#550` PR 2 swaps the 5 colliding root names to `afd.core` once Botcore migrates off the
 `#2455` deprecation shim. Use `uv run --project alfred alfred --workspace . parity --path .` for a
 fresh measurement and the [matrix](../../../language-parity.md) for intended differences.
+
+## Closed
+
+2026-11-26: `missing_from_python` is 10, below the 20-name threshold, so this folder moved from `active/` to `complete/` when epic [#1551](https://github.com/lushly-dev/afd/issues/1551) closed. The five colliding root names remain in [#550](https://github.com/lushly-dev/afd/issues/550); the approval display helpers in [#1466](https://github.com/lushly-dev/afd/issues/1466).

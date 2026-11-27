@@ -145,7 +145,7 @@ their tracking issues and skipped by that language's suite until closed.
 | Language | Suite | Known gaps in `dispatch.json` |
 | --- | --- | --- |
 | TypeScript | `packages/server/src/dispatch-vectors.test.ts` | None |
-| Python | `python/tests/test_dispatch_vectors.py` | `hooks` (`onCommand`/`onError`, [#1551](https://github.com/lushly-dev/afd/issues/1551)) |
+| Python | `python/tests/test_dispatch_vectors.py` | `hooks` (`onCommand`/`onError`, [#2788](https://github.com/lushly-dev/afd/issues/2788)) |
 | Rust | `packages/rust/tests/dispatch_vectors.rs` | `stamping` & `hooks` ([#546](https://github.com/lushly-dev/afd/issues/546)) |
 | C++ | `packages/cpp/tests/dispatch_vectors_test.cpp` | None |
 <!-- generated:capabilities:spec.dispatch.conformance:end -->

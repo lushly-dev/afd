@@ -66,7 +66,7 @@ AFD commands are **request-response**. But real applications need:
 The checklist below preserves the original proposed API spelling. The delivered contract lives in
 `packages/core/src/handoff.ts`, client transports in `packages/client/src`, and the working example
 in `packages/examples/chat`. Subsequent cross-language gaps belong to the
-[parity plan](../../active/parity-closure/STATUS.md).
+[parity plan](../../complete/parity-closure/STATUS.md).
 
 - [ ] `HandoffResult` is a standard type in `@afd/core`
 - [ ] Commands can declare `handoff: true` in their definition

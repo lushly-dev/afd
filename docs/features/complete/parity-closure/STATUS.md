@@ -1,6 +1,6 @@
 # Language parity closure: status
 
-Epic: [#1551](https://github.com/lushly-dev/afd/issues/1551). File new work for this area as its sub-issue.
+Epic: [#1551](https://github.com/lushly-dev/afd/issues/1551), closed 2026-11-26. The remaining gaps are standalone issues: Rust runtime items [#546](https://github.com/lushly-dev/afd/issues/546) (metadata stamping, `on_command`/`on_error`, `list_by_tags`, example validation), Python names [#550](https://github.com/lushly-dev/afd/issues/550), Python hooks [#2788](https://github.com/lushly-dev/afd/issues/2788) and the core 1.0 declaration [#1926](https://github.com/lushly-dev/afd/issues/1926). [Language Parity](../../../language-parity.md) tracks every gap from here.
 
 Read this before the [plan](parity-closure.plan.md). Last reconciled 2026-11-13 against `main`
 at `1024546b`, using the [capability matrix](../../../language-parity.md), merged history and
@@ -11,7 +11,7 @@ the linked tracking issues. This audit did not rerun the four language suites.
 | Wave | State | Evidence / remaining scope |
 | --- | --- | --- |
 | 0. Original in-flight fixes | Done | The plan records #286, #289, #301, #304 to #306 and #315 |
-| 1. Shared contract | Implemented at `1.0-rc`; core 1.0 decided, declaration open | The stabilization candidate merged in #367; all four suites load the validation, executor-control and pipeline-reference vectors. The owner decided on 2026-11-21 to declare core 1.0 now ([#541](https://github.com/lushly-dev/afd/issues/541); [the record](../architecture-review/decisions.md), AR2); the declaration is [#1926](https://github.com/lushly-dev/afd/issues/1926) |
+| 1. Shared contract | Implemented at `1.0-rc`; core 1.0 decided, declaration open | The stabilization candidate merged in #367; all four suites load the validation, executor-control and pipeline-reference vectors. The owner decided on 2026-11-21 to declare core 1.0 now ([#541](https://github.com/lushly-dev/afd/issues/541); [the record](../../active/architecture-review/decisions.md), AR2); the declaration is [#1926](https://github.com/lushly-dev/afd/issues/1926) |
 | 2. Engine alignment | Partial | Python runtime API/boundary candidate [#545](https://github.com/lushly-dev/afd/issues/545), remaining executor consolidation [#1535](https://github.com/lushly-dev/afd/issues/1535), and [name cleanup](../python-parity/STATUS.md); Python reserves the bootstrap and context names as TypeScript does ([#1731](https://github.com/lushly-dev/afd/issues/1731)); Rust runtime [#546](https://github.com/lushly-dev/afd/issues/546); C++ Wave 2 ([#547](https://github.com/lushly-dev/afd/issues/547): `list_by_tags`, `compose_middleware`, retry/rate-limit/telemetry middleware and telemetry types, `_meta` from #341), approval admission (`APPROVAL_UNAVAILABLE`, [#1886](https://github.com/lushly-dev/afd/issues/1886): #1895, #1892, #2029, dispatch gap in #2200) and Approvals rule 6 MCP token-delivery defaults ([#1665](https://github.com/lushly-dev/afd/issues/1665)) merged in #2200; TypeScript MockServer [#544](https://github.com/lushly-dev/afd/issues/544). The matrix distinguishes landed fixes from remaining gaps |
 | 3. Surfaces | Partial | TypeScript/Python dual-era MCP and clients landed in #391 to #393. Rust's optional server landed in #394 and its strategies, meta-tools and contexts in #526. C++'s opt-in `afd::mcp_stdio` target and command-to-tool helpers landed for [#341](https://github.com/lushly-dev/afd/issues/341) (stdio, with individual tools at first; the grouped, lazy and hybrid strategies with the meta-tools ([#1202](https://github.com/lushly-dev/afd/issues/1202)) and contexts ([#1425](https://github.com/lushly-dev/afd/issues/1425)) followed); Python's defaults (D5, [#542](https://github.com/lushly-dev/afd/issues/542)) merged in #1807, and the Python CLI's `batch` and `stream` ([#548](https://github.com/lushly-dev/afd/issues/548)) in #1826 |
 | 4. Remaining decisions | Done | Intended differences and D6 N/A rows are recorded in the matrix; Python application auth (`afd.auth`) implemented for [#549](https://github.com/lushly-dev/afd/issues/549) |
@@ -90,3 +90,7 @@ They do not close the runtime, client, tooling or contract-declaration gaps abov
 Close or explicitly disposition every remaining matrix gap, keep the four languages' vector
 loaders in step, and declare core 1.0 ([#1926](https://github.com/lushly-dev/afd/issues/1926)). New cross-language features keep their own
 plans; their presence on one server does not close this plan.
+
+## Closed
+
+2026-11-26: epic [#1551](https://github.com/lushly-dev/afd/issues/1551) closed by the owner and this folder moved from `active/` to `complete/`. The gate above is carried by the standalone issues [#546](https://github.com/lushly-dev/afd/issues/546), [#550](https://github.com/lushly-dev/afd/issues/550), [#2788](https://github.com/lushly-dev/afd/issues/2788) and [#1926](https://github.com/lushly-dev/afd/issues/1926), and by the matrix.

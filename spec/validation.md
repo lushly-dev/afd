@@ -174,7 +174,7 @@ With several issues, the `". "` follows the last issue line.
 
 ## Length units
 
-Decision D3 of the [parity closure plan](../docs/features/active/parity-closure/parity-closure.plan.md)
+Decision D3 of the [parity closure plan](../docs/features/complete/parity-closure/parity-closure.plan.md)
 sets these units.
 
 - **`minLength` and `maxLength` count Unicode code points,** as JSON Schema defines.

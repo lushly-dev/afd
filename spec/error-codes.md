@@ -2,7 +2,7 @@
 
 Every `CommandError.code` an AFD engine emits: what it means, whether it is retryable, and which
 layer emits it. It also fixes how an engine answers a call to an unknown or unexposed command
-(decision D4 of the [parity closure plan](../docs/features/active/parity-closure/parity-closure.plan.md)).
+(decision D4 of the [parity closure plan](../docs/features/complete/parity-closure/parity-closure.plan.md)).
 Which codes each language defines today is tracked in the
 [language parity matrix](../docs/language-parity.md).
 

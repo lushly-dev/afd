@@ -13,7 +13,7 @@ const jobSourceUrl = pathToFileURL(resolve(packageRoot, 'dist/job-source.js')).h
 
 /**
  * Self-contained Slice 1 verification app matching the Notes scenarios in
- * docs/features/active/screens-from-jobs/scenarios/ (Jobs 1, 2, 3, 6, 8, 9).
+ * docs/features/complete/screens-from-jobs/scenarios/ (Jobs 1, 2, 3, 6, 8, 9).
  */
 const APP_MODULE_SOURCE = `
 function createHandler(options = {}) {

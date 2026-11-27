@@ -12,7 +12,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Requested by | [Umbel](../../../../endpoints/umbel/docs/STATUS.md), decision [D27](../../../../endpoints/umbel/docs/decisions.md): the owner chose the hybrid strategy as Umbel's execution model on 2026-10-31; under [D25](../../../../endpoints/umbel/docs/decisions.md) it lands in AFD, spec first, for every language |
 | Packages | `spec/`, `packages/server`, `python/`, `packages/rust`, `packages/cpp` (with the todo backends) |
-| Related | [Lazy loading and discovery](../../complete/lazy-loading-discovery/lazy-loading-discovery.spec.md), which deferred this strategy ("Hybrid strategy (lazy + selected individual tools) ... Deferred to avoid complexity"); [Contextual tool loading](../../complete/contextual-tool-loading/); [MCP confirmations](../mcp-confirmations/mcp-confirmations.proposal.md); [Language parity closure](../../active/parity-closure/parity-closure.plan.md) items D1 (Rust server) and D2 (C++ `afd::mcp_stdio`) |
+| Related | [Lazy loading and discovery](../../complete/lazy-loading-discovery/lazy-loading-discovery.spec.md), which deferred this strategy ("Hybrid strategy (lazy + selected individual tools) ... Deferred to avoid complexity"); [Contextual tool loading](../../complete/contextual-tool-loading/); [MCP confirmations](../mcp-confirmations/mcp-confirmations.proposal.md); [Language parity closure](../../complete/parity-closure/parity-closure.plan.md) items D1 (Rust server) and D2 (C++ `afd::mcp_stdio`) |
 
 ## Problem
 

@@ -10,7 +10,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Spec | [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28), [key changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog), [Cloudflare: The next generation of MCP](https://blog.cloudflare.com/mcp-v2/) |
 | Packages | `packages/server`, `packages/client`, `packages/core`, `packages/testing`, `packages/cli`, `python/`, `packages/rust` (D1 server feature), `packages/cpp` (D2 stdio target), `packages/examples/todo`, `spec/` |
-| Related | [Language parity closure](../../active/parity-closure/parity-closure.plan.md) (D1, D2, D7), [protocol conformance tier](../../../../spec/protocol-conformance.md), [#341](https://github.com/lushly-dev/afd/issues/341) (C++ `afd::mcp_stdio`), [2026-09-23 quality review](../../../reviews/2026-09-23-quality-review.md) (Wave 2: "MCP-conformant HTTP via the SDK") |
+| Related | [Language parity closure](../../complete/parity-closure/parity-closure.plan.md) (D1, D2, D7), [protocol conformance tier](../../../../spec/protocol-conformance.md), [#341](https://github.com/lushly-dev/afd/issues/341) (C++ `afd::mcp_stdio`), [2026-09-23 quality review](../../../reviews/2026-09-23-quality-review.md) (Wave 2: "MCP-conformant HTTP via the SDK") |
 | Supersedes | The "current protocol version" wording of parity decision D7: this proposal pins it to `2026-07-28`, served dual-era |
 
 ## Summary

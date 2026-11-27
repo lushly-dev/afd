@@ -81,8 +81,7 @@ for `prepare-pr`'s step 9 reason, naming that reason.
 
 - **Untracked findings** become GitHub issues (`gh issue create`) or an explicit
   decline; "not worth tracking" is a recorded verdict, not a skipped step. File
-  parity gaps against the Language Parity Closure plan
-  (`docs/features/active/parity-closure/`).
+  a parity gap as its own issue and record it in `docs/language-parity.md`.
 - **Open items go to issues, not prose.** A dated document (an audit, an evidence
   record, a review) keeps no "still open" list: file each item and link the issue
   there, since nobody rereads a dated document. A living document (a `STATUS.md`, a

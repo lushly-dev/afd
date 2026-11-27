@@ -16,7 +16,7 @@ const specimenAfdUrl = pathToFileURL(
 ).href;
 const canonicalSlice3ScenarioPath = resolve(
 	repoRoot,
-	'docs/features/active/screens-from-jobs/scenarios/11-find-what-no-job-reaches.scenario.yaml'
+	'docs/features/complete/screens-from-jobs/scenarios/11-find-what-no-job-reaches.scenario.yaml'
 );
 
 type ExecuteSpecimenCommand = (
