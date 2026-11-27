@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 /**
  * The version step and the check for the tracks Changesets versions and something else publishes:
- * Python (`python-v*` to PyPI), Botcore (`botcore-v*` to PyPI) and the contract changelog.
+ * Python (`python-v*` to PyPI), Botcore (`botcore-v*` to PyPI), the Rust crate (`rust-v*` to
+ * crates.io) and the contract changelog.
  *
- *   node scripts/release-track.mjs version <python|botcore|spec> [--date YYYY-MM-DD] [--skip-tools]
+ *   node scripts/release-track.mjs version <python|botcore|rust|spec> [--date YYYY-MM-DD] [--skip-tools]
  *   node scripts/release-track.mjs check
  *
  * `version` consumes the track's fragments in `.changeset/`: Changesets bumps the private stub in
  * a disposable worktree that holds nothing else, and this script copies the version to the
- * project's own files, writes the dated changelog section, locks the uv projects that depend on
- * it and records the rewritten imported files. It never tags or publishes; that is the
+ * project's own files (for Rust, `Cargo.toml` and every `Cargo.lock` that builds the crate from
+ * its path), writes the dated changelog section, locks the uv projects that depend on it and
+ * records the rewritten imported files. It never tags or publishes; that is the
  * maintainer's, on the merged release commit (the cut-release skill).
  *
  * `check` fails on a hand edit where a fragment belongs, and on a stub that could publish or that
@@ -153,6 +155,11 @@ export function checkTracks({ root, tracks = TRACKS, pendingUnreleased = PENDING
 				`PENDING_UNRELEASED lists ${file} (${issue}), which is not a published package's changelog`,
 				'Remove the entry'
 			);
+		else if (!existsSync(join(root, file)))
+			problem(
+				`PENDING_UNRELEASED lists ${file} (${issue}), which does not exist`,
+				'Remove the entry: there is no section left to remove'
+			);
 	for (const pattern of config.ignore ?? []) {
 		// Changesets reads these as globs; this check reads names and `*`, so nothing else may hide
 		// an exception to the list (a `!` pattern would take a package back out of it).
@@ -204,8 +211,10 @@ export function checkTracks({ root, tracks = TRACKS, pendingUnreleased = PENDING
 				'The npm release must never select a track stub'
 			);
 
-		for (const { file, kind } of track.versionFiles) {
-			const stated = existsSync(join(root, file)) ? readVersion(read(root, file), kind) : null;
+		for (const { file, kind, crate } of versionFilesOf(root, track)) {
+			const stated = existsSync(join(root, file))
+				? readVersion(read(root, file), kind, crate)
+				: null;
 			if (stated !== stub.version)
 				problem(
 					`${file} has version ${stated}, but ${stubPath} has ${stub.version}`,
@@ -302,6 +311,23 @@ const commandLine = (step) =>
 		.map((argument) => (/^[\w./:=@-]+$/.test(argument) ? argument : JSON.stringify(argument)))
 		.join(' ')}`;
 
+/**
+ * The files that state `track`'s version: its own, and for a Rust crate each tracked `Cargo.lock`
+ * that builds the crate from its path, whichever project it belongs to.
+ */
+export function versionFilesOf(root, track) {
+	if (!track.cargoCrate) return track.versionFiles;
+	const locks = run('git', ['ls-files', '-z', '--', 'Cargo.lock', '*/Cargo.lock'], root)
+		.split('\0')
+		.filter(Boolean)
+		// A lockfile deleted from the checkout but not yet from git states nothing.
+		.filter((file) => existsSync(join(root, file)))
+		.filter((file) => readVersion(read(root, file), 'cargo-lock', track.cargoCrate) !== null)
+		.sort()
+		.map((file) => ({ file, kind: 'cargo-lock', crate: track.cargoCrate }));
+	return [...track.versionFiles, ...locks];
+}
+
 /** The uv projects that lock `directory` as an editable source, itself included. */
 export function lockDirectories(root, directory) {
 	return run('git', ['ls-files', '-z', '--', 'uv.lock', '*/uv.lock'], root)
@@ -368,8 +394,8 @@ export function versionTrack({
 		throw new Error(`Changesets left ${track.package} at ${version}, from ${previous}`);
 
 	const writes = new Map();
-	for (const { file, kind } of track.versionFiles)
-		writes.set(file, setVersion(read(root, file), kind, version, file));
+	for (const { file, kind, crate } of versionFilesOf(root, track))
+		writes.set(file, setVersion(read(root, file), kind, version, file, crate));
 	const changelogPath = changelogFile(track);
 	const contract =
 		track.contractLine || track.contractVersionFile ? read(root, 'spec/VERSION').trim() : null;

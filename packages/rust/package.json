@@ -1,0 +1,6 @@
+{
+	"name": "afd-rust",
+	"version": "0.3.0",
+	"private": true,
+	"description": "Changesets stub for the Rust afd crate's release track. It holds the version that pnpm version-track rust copies to Cargo.toml and every Cargo.lock that builds the crate from its path; it is never published to npm, and Cargo.toml excludes it from the crate."
+}

@@ -1,7 +1,7 @@
 /**
  * The release tracks that Changesets versions and something else publishes.
  *
- * Python, Botcore and the contract have no npm package. Each has a private stub `package.json`
+ * Python, Botcore, the Rust crate and the contract have no npm package. Each has a private stub `package.json`
  * that holds its version, so a pull request records its change as one file in `.changeset/`
  * instead of a line every other pull request also inserts in the same changelog. `pnpm
  * version-track <track>` (scripts/release-track.mjs) consumes the fragments. This module is the
@@ -46,6 +46,19 @@ export const TRACKS = {
 		// An imported unit: every file the version step rewrites is recorded again.
 		provenance: 'scripts/record_provenance.py',
 		provenanceRecords: 'provenance/adaptations.json',
+	},
+	rust: {
+		package: 'afd-rust',
+		unit: 'afd-rust-changes',
+		directory: 'packages/rust',
+		format: 'keep-a-changelog',
+		tagPrefix: 'rust-v',
+		// Each section names the contract the release implements, as Python's does (cut-release).
+		contractLine: true,
+		versionFiles: [{ file: 'packages/rust/Cargo.toml', kind: 'cargo' }],
+		// Every Cargo.lock that builds this crate from its path records its version too, and
+		// `cargo --locked` refuses one that disagrees: the version step rewrites each it finds.
+		cargoCrate: 'afd',
 	},
 	spec: {
 		package: 'afd-spec',
@@ -276,41 +289,66 @@ export function foldContractChangelog(changelog, { contract, bodies }) {
 	return `${text.slice(0, first)}## ${contract}\n\n${entries}\n\n${text.slice(first)}`;
 }
 
-/** `text` with its version set, for the two places a Python project states one. */
-export function setVersion(text, kind, version, file) {
+/** The TOML table each manifest kind states its version in. */
+const VERSION_TABLES = { pyproject: 'project', cargo: 'package' };
+const TOML_VERSION = /^version\s*=\s*"([^"]*)"/;
+const DUNDER_VERSION = /^__version__\b[^=\n]*=\s*(['"])([^'"\n]*)\1/;
+
+/**
+ * The index of the line that states the version, or -1: `version = "…"` in the manifest's table
+ * (`[project]` for `pyproject`, `[package]` for `cargo`), `__version__ = '…'` for `dunder`, and for
+ * `cargo-lock` the `version` of the `[[package]]` entry named `crate` that has no `source`, the
+ * crate built from its path rather than downloaded from a registry.
+ */
+function versionLine(lines, kind, crate) {
+	if (kind === 'dunder') return lines.findIndex((line) => DUNDER_VERSION.test(line));
+	if (kind === 'cargo-lock') {
+		const starts = lines.flatMap((line, index) => (/^\s*\[/.test(line) ? [index] : []));
+		for (const [position, start] of starts.entries()) {
+			if (!/^\[\[package\]\]\s*$/.test(lines[start])) continue;
+			const end = starts[position + 1] ?? lines.length;
+			const body = lines.slice(start + 1, end);
+			if (!body.includes(`name = "${crate}"`) || body.some((line) => /^source\s*=/.test(line)))
+				continue;
+			const at = body.findIndex((line) => TOML_VERSION.test(line));
+			return at < 0 ? -1 : start + 1 + at;
+		}
+		return -1;
+	}
+	const table = VERSION_TABLES[kind];
+	if (!table) fail(`Unknown version file kind: ${kind}`);
+	let inTable = false;
+	return lines.findIndex((line) => {
+		// A table or an array-of-tables header (`[[bin]]`), with an optional comment after it.
+		const header = line.match(/^\s*(\[\[?)([^\]]+)\]\]?\s*(?:#.*)?$/);
+		if (header) inTable = header[1] === '[' && header[2].trim() === table;
+		return inTable && TOML_VERSION.test(line);
+	});
+}
+
+/** `text` with its version set: see `versionLine` for where each kind states it. */
+export function setVersion(text, kind, version, file, crate) {
 	const eol = text.includes('\r\n') ? '\r\n' : '\n';
 	const lines = text.split(/\r?\n/);
-	let index = -1;
-	if (kind === 'pyproject') {
-		let inProject = false;
-		index = lines.findIndex((line) => {
-			const header = line.match(/^\s*\[([^\]]+)\]\s*$/);
-			if (header) inProject = header[1].trim() === 'project';
-			return inProject && /^version\s*=\s*"[^"]*"/.test(line);
-		});
-		if (index >= 0) lines[index] = lines[index].replace(/"[^"]*"/, `"${version}"`);
-	} else if (kind === 'dunder') {
-		index = lines.findIndex((line) => /^__version__\b[^=]*=\s*(['"])[^'"]*\1/.test(line));
-		if (index >= 0) lines[index] = lines[index].replace(/(['"])[^'"]*\1/, `$1${version}$1`);
-	} else fail(`Unknown version file kind: ${kind}`);
+	const index = versionLine(lines, kind, crate);
 	if (index < 0) fail(`${file} states no version to set`);
+	lines[index] =
+		kind === 'dunder'
+			? lines[index].replace(/(['"])[^'"]*\1/, `$1${version}$1`)
+			: lines[index].replace(/"[^"]*"/, `"${version}"`);
 	return lines.join(eol);
 }
 
 /** The version `text` states, or null. */
-export function readVersion(text, kind) {
-	if (kind === 'dunder')
-		return text.match(/^__version__\b[^=\n]*=\s*(['"])([^'"\n]*)\1/m)?.[2] ?? null;
-	let inProject = false;
-	for (const line of text.split(/\r?\n/)) {
-		const header = line.match(/^\s*\[([^\]]+)\]\s*$/);
-		if (header) inProject = header[1].trim() === 'project';
-		else if (inProject) {
-			const value = line.match(/^version\s*=\s*"([^"]*)"/);
-			if (value) return value[1];
-		}
-	}
-	return null;
+export function readVersion(text, kind, crate) {
+	const lines = text.split(/\r?\n/);
+	const index = versionLine(lines, kind, crate);
+	if (index < 0) return null;
+	return (
+		(kind === 'dunder'
+			? lines[index].match(DUNDER_VERSION)?.[2]
+			: lines[index].match(TOML_VERSION)?.[1]) ?? null
+	);
 }
 
 /** Whether an `ignore` pattern is only a name with `*` for part of it, which `ignores` can read. */

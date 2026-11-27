@@ -19,7 +19,7 @@ packages:
   - "packages/examples/pond"
   - "packages/examples/showcase/backend"
   # Private stubs that hold a release track's version for Changesets (scripts/release/tracks.mjs);
-  # endpoints/botcore is the third, under "endpoints/*".
+  # endpoints/botcore and packages/rust are the others, under "endpoints/*" and "packages/*".
   - "python"
   - "spec"
 

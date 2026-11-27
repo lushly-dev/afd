@@ -13,6 +13,10 @@
 			"reason": "not a distribution: the private Changesets stub that holds this track's version (scripts/release/tracks.mjs); the pyproject.toml beside it is the classified unit"
 		},
 		{
+			"path": "packages/rust/package.json",
+			"reason": "not a distribution: the private Changesets stub that holds this track's version (scripts/release/tracks.mjs); the Cargo.toml beside it is the classified unit"
+		},
+		{
 			"path": "packages/rust/fuzz/Cargo.toml",
 			"reason": "cargo-fuzz harness for packages/rust; built with nightly Rust and libFuzzer outside the published crate (#1765)"
 		}
