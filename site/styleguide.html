@@ -97,7 +97,7 @@
 					goes between them.
 				</p>
 				<div class="sg-sides">
-					<div class="sg-on sg-on--signal">
+					<div data-scheme="light" class="sg-on sg-on--signal">
 						<span class="section-index">afd.dev</span>
 						<p class="area-name">Development</p>
 						<p>Opens on red, the colour of a person and the UI. It shows commands, code and packages.</p>
@@ -107,7 +107,7 @@
 							</nav>
 						</div>
 					</div>
-					<div class="sg-on sg-on--agent">
+					<div data-scheme="light" class="sg-on sg-on--agent">
 						<span class="section-index">afd.design</span>
 						<p class="area-name">Design</p>
 						<p>Opens on mint, the colour of an agent. It shows what a person sees and what an agent is told.</p>
@@ -127,19 +127,19 @@
 					colour fields so the page never runs two loud fields, or two light ones, back to back.
 				</p>
 				<div class="sg-fields">
-					<div class="sg-field" style="background: var(--field-signal); --numeral-fill: var(--numeral-on-signal)">
+					<div class="sg-field" data-scheme="light" style="background: var(--field-signal); --numeral-fill: var(--numeral-on-signal)">
 						<span class="big-numeral" aria-hidden="true">01</span>
 						<h3>Signal</h3>
 						<p>A dev-side hero only. The single loudest statement on the page.</p>
 						<code>--field-signal</code>
 					</div>
-					<div class="sg-field" style="background: var(--field-rule); --numeral-fill: var(--numeral-on-rule)">
+					<div class="sg-field" data-scheme="light" style="background: var(--field-rule); --numeral-fill: var(--numeral-on-rule)">
 						<span class="big-numeral" aria-hidden="true">05</span>
 						<h3>Rule</h3>
 						<p>The one-line slab. A step lighter than signal; never on screen with the hero.</p>
 						<code>--field-rule</code>
 					</div>
-					<div class="sg-field" style="background: var(--field-agent); --numeral-fill: var(--numeral-on-agent)">
+					<div class="sg-field" data-scheme="light" style="background: var(--field-agent); --numeral-fill: var(--numeral-on-agent)">
 						<span class="big-numeral" aria-hidden="true">03</span>
 						<h3>Agent</h3>
 						<p>A design-side hero, and any section that is about the agent. Mint always means agent.</p>
@@ -208,7 +208,7 @@
 					one small picture as proof, and three facts.
 				</p>
 				<h3>A tool's page</h3>
-				<div class="sg-on sg-on--signal sg-hero">
+				<div data-scheme="light" class="sg-on sg-on--signal sg-hero">
 					<div class="opening-label">
 						<span class="crumb"><a href="#sg-heroes">Agent-First Development</a> / <b>Violet</b></span>
 						<span data-maturity="violet" class="edition">Preview, on npm</span>

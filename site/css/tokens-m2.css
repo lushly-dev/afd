@@ -36,7 +36,7 @@
 	/* Signal reds: the hero red, a deeper tone-on-tone, a readable
 	   red for small text on light, and the lighter salmon */
 	--afd-red: #f74431;
-	--afd-red-700: #e0321e;
+	--afd-red-700: #e4371f;
 	--afd-red-ink: #c42a1a;
 	--afd-red-300: #ff897a;
 	--afd-red-200: #ffab99;
@@ -53,6 +53,11 @@
 	--afd-mint-ink: #2c5e4b;
 
 	--afd-blue-ink: #146ba0;
+	--afd-blue-300: #7cc0ef;
+
+	/* The dark scheme's rest: a step below the ink field, so the two stay apart */
+	--afd-night: #121513;
+	--afd-night-raised: #1c201e;
 
 	/* ── 2. Semantic colour ────────────────────────────────── */
 
@@ -73,6 +78,15 @@
 
 	/* Lines on saturated fields (red, salmon, mint) */
 	--color-on-color-line: color-mix(in srgb, var(--afd-ink) 22%, transparent);
+
+	/* Text on the signal field. Black, not ink: ink on the hero's darker
+	   slash measured 3.84:1, black holds AA (4.87:1) across the band. */
+	--color-on-signal: var(--afd-black);
+
+	/* Text on a mint or red fill (a chip, a chosen tab, a verdict), and the
+	   alert mark's fill: the same in both schemes. */
+	--color-on-accent: var(--afd-ink);
+	--color-alert: var(--afd-red-ink);
 
 	/* Section fields. Each colour has one job; see the skill. */
 	--field-signal: var(--afd-red); /* the hero only: the loudest statement */
@@ -172,6 +186,63 @@
 	--layer-marks: 2; /* crop marks */
 	--layer-nav: 100;
 	--layer-dialog: 13000;
+
+	color-scheme: light dark;
+}
+
+/* ── 8. Dark scheme ─────────────────────────────────────────
+   Follows the reader's setting. Only the light surfaces turn: the page,
+   the rests, their text, lines and accents. The colour fields (signal,
+   rule, agent) keep their colour and their dark text, and the dark
+   fields (ink, deep) were already dark. `data-theme="light"` on <html>
+   opts a page out. */
+:root[data-theme="light"] {
+	color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--color-page: var(--afd-night);
+		--color-surface: var(--afd-night-raised);
+		--color-text: var(--afd-paper);
+		--color-text-muted: var(--afd-stone-400);
+		--color-text-subtle: var(--afd-stone-500);
+		--color-line: color-mix(in srgb, var(--afd-paper) 18%, transparent);
+		--color-rule: var(--afd-paper);
+		--field-rest: var(--afd-night);
+		--accent-human-text: var(--afd-red-300);
+		--accent-agent-text: var(--afd-mint);
+		--color-link: var(--afd-blue-300);
+
+		/* refined.css's wells, raised to the dark variants */
+		--well: var(--well-dark);
+		--well-line: var(--well-line-dark);
+		--shadow-well: var(--shadow-well-dark);
+	}
+
+	/* Fields that keep their colour in both schemes, and the light demo
+	   windows drawn inside them, take the light set
+	   back, so their text stays dark on red, salmon and mint. Zero
+	   specificity, so a field's own --muted or --line still wins. */
+	:where(:root:not([data-theme="light"])) :where(.opening, .slab, .agent-design, .d-section--agent, .surface-toolbar, .surface-stage, .recovery-lab, .ux-art, [data-scheme="light"]) {
+		--color-page: var(--afd-paper);
+		--color-surface: var(--afd-paper-bright);
+		--color-text: var(--afd-ink);
+		--color-text-muted: var(--afd-stone-600);
+		--color-text-subtle: var(--afd-stone-500);
+		--color-line: var(--afd-stone-200);
+		--color-rule: var(--afd-ink);
+		--accent-human-text: var(--afd-red-ink);
+		--accent-agent-text: var(--afd-mint-ink);
+		--color-link: var(--afd-blue-ink);
+		--well: color-mix(in srgb, var(--afd-paper-bright) 80%, white);
+		--well-line: var(--afd-stone-600);
+		--shadow-well: inset 0 1px 0 var(--well-line), inset 0 2px 4px -1px rgb(0 0 0 / 0.12);
+		--muted: var(--color-text-muted);
+		--line: var(--color-line);
+		color-scheme: light;
+		color: var(--color-text);
+	}
 }
 
 @media (min-width: 1600px) {

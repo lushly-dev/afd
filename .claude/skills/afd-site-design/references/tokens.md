@@ -23,6 +23,9 @@ Source of truth: `site/css/tokens-m2.css`. Rendered live at `site/styleguide.htm
 | `--color-on-dark-muted` | green-200 | Secondary text on dark |
 | `--color-on-dark-line` | paper at 18% | Hairlines on dark |
 | `--color-on-color-line` | ink at 22% | Hairlines on red, salmon, mint |
+| `--color-on-signal` | black | Text on the red hero (ink fails AA on its slash) |
+| `--color-on-accent` | ink | Text on a mint or red fill: chips, chosen tabs, verdicts |
+| `--color-alert` | red-ink | The alert mark's fill |
 | `--accent-human` / `--accent-human-text` | red / red-ink | People and UI; small red text |
 | `--accent-agent` / `--accent-agent-text` | mint / mint-ink | Agents; mint-coloured text on light |
 | `--color-code-bg` / `--color-code-text` | ink / paper | Code and terminal panels |

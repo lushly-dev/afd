@@ -158,12 +158,12 @@
 /* What the agent is shown, then what it chose to read: the agent's colour. */
 .bc-seg[data-kind="list"] {
 	background: var(--accent-agent);
-	color: var(--color-text);
+	color: var(--color-on-accent);
 }
 
 .bc-seg[data-kind="read"] {
-	background: color-mix(in srgb, var(--accent-agent) 45%, var(--color-surface));
-	color: var(--color-text);
+	background: color-mix(in srgb, var(--accent-agent) 45%, var(--afd-paper-bright));
+	color: var(--color-on-accent);
 }
 
 .bc-measure {

@@ -17,7 +17,7 @@ The same repository holds the rest of the AFD family: Violet, FAST-AF, Specimen,
 - Errors carry `code`, `message`, `suggestion` and `retryable`, so an agent can recover instead of stalling.
 - Command naming is `domain-action` kebab-case: `todo-create`, `user-get`, `order-list`.
 - Testing targets the job, not the UI: YAML JTBD scenarios call commands step by step, and surface validation audits the command set for collisions, schema drift and prompt injection.
-- One contract across languages: a 34-case conformance suite runs in CI against TypeScript, Python, Rust and C++ backends.
+- One contract across languages: a 50-case conformance suite runs in CI against TypeScript, Python, Rust and C++ backends.
 - AFD is UX design for non-human users. Each classic interface pattern has an agent equivalent that AFD ships as command metadata (see "Agent UX" below).
 
 ## Install

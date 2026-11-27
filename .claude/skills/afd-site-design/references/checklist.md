@@ -23,6 +23,11 @@ Run this before committing a site design change.
 - [ ] Numerals only on colour fields, with the matching `--numeral-on-*` fill.
 - [ ] Figure numbers run in page order.
 
+- [ ] Text meets AA (4.5:1, 3:1 for large) in both schemes, measured against what is
+      painted under it, the hero's slash included. Emulate `prefers-color-scheme: dark`.
+- [ ] `node scripts/check-site.mjs` passes: the conformance count and the sitemap follow
+      the repository.
+
 ## Layout and motion
 
 - [ ] Hero headline is two lines at 1440×900 and larger than section headlines at 375px.

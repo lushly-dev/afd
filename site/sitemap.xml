@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Every indexable page on afd.dev. scripts/check-site.mjs refuses a page missing here,
+     or one listed that is noindex, a redirect or gone. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+	<url><loc>https://afd.dev/</loc></url>
+</urlset>
