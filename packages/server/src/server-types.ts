@@ -82,9 +82,9 @@ export interface McpServerOptions {
 	 * validation errors are verbose. When false (the default) they are redacted.
 	 *
 	 * It changes no HTTP check: Host and Origin validation and CORS headers are the same either
-	 * way, so a page the developer visits cannot reach a dev server. To call the server from a
-	 * browser app on another origin (such as a dev server on another port), list that origin in
-	 * `allowedOrigins` and set `cors: true`.
+	 * way, so a browser page on another origin is refused in development as in production. To
+	 * call the server from a browser app on another origin (such as a dev server on another
+	 * port), list that origin in `allowedOrigins` and set `cors: true`.
 	 */
 	devMode?: boolean;
 
