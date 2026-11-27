@@ -224,7 +224,7 @@ The design review and phases 0, 1, 2 and 4 are done or exited: their detail is a
 
   - 9, plugin engines, in the parts of [the amendment's 13.3](phases/5-copilot/no-terminal-install.amendment.md#133-implementation-breakdown-for-step-9):
     - 9a, the plugin manifest (`loam-plugin.v1.json`, `readPluginManifest`), `loam plugin check` and `loam plugin pack` for a directory bundle, and the golden projection fixture's CLI half: merged as [#2735](https://github.com/lushly-dev/afd/pull/2735) ([its record](phases/5-copilot/spec.md#step-9a-2026-11-26)).
-    - 9a2, `.loam-plugin` archives in `plugin pack` and `plugin check` (4.4's archive rules): in progress in [#2754](https://github.com/lushly-dev/afd/pull/2754).
+    - 9a2, `.loam-plugin` archives in `plugin pack` and `plugin check` (4.4's archive rules): merged as [#2754](https://github.com/lushly-dev/afd/pull/2754).
     - 9b, the Rust keychain, the headless materializer and `bearer_keychain` with the pre-bearer proof, in three parts (split 2026-11-26, one reviewable pull request each):
       - 9b1, the headless materializer's core and the golden fixture's Rust half: `desktop-state.json`'s shape and owner-only read, `deployment.json`, `models.json`, `mounts.json` (`bearer_keychain`, `proof_key`) and `frame-src` from it in pure Rust, byte for byte as `loam deployment write`, and the staged write with `desktop-state.json` last: merged as [#2814](https://github.com/lushly-dev/afd/pull/2814) ([its record](phases/5-copilot/spec.md#step-9b1-2026-11-26)).
       - 9b2, `keychain.rs` `write` and `delete` on the three systems with profile-scoped services, and `mounts.rs` resolving `bearer_keychain` with the pre-bearer `/health` proof: merged as [#2860](https://github.com/lushly-dev/afd/pull/2860) ([its record](phases/5-copilot/spec.md#step-9b2-2026-11-27)).
@@ -233,7 +233,7 @@ The design review and phases 0, 1, 2 and 4 are done or exited: their detail is a
     - 9d, the `host-setup` window, `setup_*`, the Models and Plugins screens, P5-S9-1 to P5-S9-7, and the amendment's deferred changes to phases 1 and 6 and D56, D63, D106 and D108: not started.
     - Mail's `loam-plugin.toml`, `pair`, `unpair` and `/health` (in Mail's folder): not started.
 
-  - 10, the bus (native `calls`, `event-list`, `shell-open`): merged as [#2714](https://github.com/lushly-dev/afd/pull/2714), [#2748](https://github.com/lushly-dev/afd/pull/2748) and [#2768](https://github.com/lushly-dev/afd/pull/2768) ([its record](phases/5-copilot/spec.md#step-10-the-bus-2026-11-26)); `shell-open`'s mounted view is not rendered yet ([#2719](https://github.com/lushly-dev/afd/issues/2719)), so P5-B3's Chromium half waits for it.
+  - 10, the bus (native `calls`, `event-list`, `shell-open`): merged as [#2714](https://github.com/lushly-dev/afd/pull/2714), [#2748](https://github.com/lushly-dev/afd/pull/2748) and [#2768](https://github.com/lushly-dev/afd/pull/2768) ([its record](phases/5-copilot/spec.md#step-10-the-bus-2026-11-26)); `shell-open`'s mounted view renders in main's slot, with P5-B3's Chromium half, in [#2719](https://github.com/lushly-dev/afd/issues/2719), in progress.
 
   - B0b, milestone B's remaining amendment (section 9.5's exact tables, scenarios and P5-B5 onward, before step 11): not started.
 

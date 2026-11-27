@@ -143,6 +143,57 @@ describe('streamable-http transport', () => {
 		expect(result.success).toBe(false);
 	});
 
+	it('passes resources/list and resources/read through, in both eras', async () => {
+		const resourceServer = () => {
+			const server = new Server(
+				{ name: 'resource-server', version: '1.0.0' },
+				{ capabilities: { resources: {} } }
+			);
+			server.setRequestHandler('resources/list', async () => ({
+				resources: [
+					{ uri: 'ui://probe/view', name: 'view', mimeType: 'text/html;profile=mcp-app' },
+				],
+			}));
+			server.setRequestHandler('resources/read', async (request) => ({
+				contents: [
+					{ uri: request.params.uri, mimeType: 'text/html;profile=mcp-app', text: '<p>view</p>' },
+				],
+			}));
+			return server;
+		};
+		const handler = createMcpHandler(() => resourceServer());
+		cleanups.push(() => handler.close());
+		const url = await listen(toNodeHandler(handler));
+		for (const mode of ['modern', 'legacy'] as const) {
+			const transport = new StreamableHttpTransport(url, {
+				clientName: 'test',
+				clientVersion: '1',
+				mode,
+			});
+			await transport.connect();
+			cleanups.push(async () => transport.disconnect());
+			const listed = await transport.send({
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'resources/list',
+				params: {},
+			} as never);
+			expect(listed.error, mode).toBeUndefined();
+			expect((listed.result as { resources: Array<{ uri: string }> }).resources[0]?.uri).toBe(
+				'ui://probe/view'
+			);
+			const read = await transport.send({
+				jsonrpc: '2.0',
+				id: 2,
+				method: 'resources/read',
+				params: { uri: 'ui://probe/view' },
+			} as never);
+			expect((read.result as { contents: Array<{ text: string }> }).contents[0]?.text, mode).toBe(
+				'<p>view</p>'
+			);
+		}
+	});
+
 	it('is also available through createTransport', async () => {
 		const url = await dualEraServer();
 		const transport = createTransport('streamable-http', url);

@@ -315,6 +315,22 @@ package = "hello"
 		expect(readFileSync(join(noView.out, 'index.html'), 'utf8')).toContain("frame-src 'none'");
 	});
 
+	it('sets frame-src to the sandbox origin for a mounted entry that lets its views render, and only then (D169)', async () => {
+		const mounted = (views: string) =>
+			layout(
+				`deployment_version = 4\n\n[sandbox]\norigin = "https://sandbox.example.com"\n\n[apps.mail]\napp = "mailfix"\npackage = "mailfix"\nprefix = "mailfix"\naudience = "person"\ntransport = "http"\nurl = "http://127.0.0.1:1/mcp"\n${views}`,
+				{ mailfix: mountedPackage('mailfix') }
+			);
+		const opted = await mounted('views = true\n');
+		expect(await write_(opted)).toMatchObject({ ok: true });
+		expect(readFileSync(join(opted.out, 'index.html'), 'utf8')).toContain(
+			'frame-src https://sandbox.example.com;'
+		);
+		const not = await mounted('');
+		expect(await write_(not)).toMatchObject({ ok: true });
+		expect(readFileSync(join(not.out, 'index.html'), 'utf8')).toContain("frame-src 'none'");
+	});
+
 	it("writes the site with the sandbox origin it is given, in the projection and frame-src, the file's own replaced", async () => {
 		const paths = await layout(SPEC_FILE, SPEC_PACKAGES);
 		const written = await writeDeployment({

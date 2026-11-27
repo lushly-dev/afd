@@ -595,9 +595,12 @@ export async function writeDeployment(
 			),
 		]);
 	}
-	// The sandbox origin frames a view, and the copilot's runtime (phase 5 specification, 3.2): a deployment that
-	// lists a provider names it, since `'none'` would refuse the frame.
-	const anyView = analysis.instances.some(({ rawKind }) => rawKind === 'view');
+	// The sandbox origin frames a view, a mounted instance's `ui://` view where the deployer let it render one
+	// (`views = true`, phase 5 specification, 9.3; D169), and the copilot's runtime (3.2): a deployment that lists a
+	// provider names it, since `'none'` would refuse the frame.
+	const anyView =
+		analysis.instances.some(({ rawKind }) => rawKind === 'view') ||
+		projection.apps.some((app) => (app as { views?: unknown }).views === true);
 	const frameSrc =
 		(anyView || projection.copilot !== undefined) && projection.sandbox_origin
 			? projection.sandbox_origin

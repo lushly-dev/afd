@@ -86,6 +86,8 @@ export interface ViewFrameOptions {
 	theme(): ViewHostContext['theme'];
 	/** The view has sent `initialized`, or failed. */
 	onSettled?(failed: boolean): void;
+	/** `shell-open`'s mounted-ui slot (phase 5's 9.3): a third party's view, whose messages the page never logs. */
+	mounted?: true;
 }
 
 export interface ViewFrameFailure {
@@ -327,6 +329,7 @@ export class LoamViewFrame extends FASTElement {
 			hostVersion: options.hostVersion,
 			resource: options.resource,
 			...(options.command !== undefined ? { command: options.command } : {}),
+			...(options.mounted ? { quiet: true } : {}),
 			context: () => this.#context(),
 			// Only a document's editor, never its embed: an embed holds no draft and selects nothing (9.2).
 			...(options.document?.readOnly === false

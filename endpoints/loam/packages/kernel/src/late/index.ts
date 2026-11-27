@@ -499,7 +499,7 @@ export async function createLateParts(
 			}
 			await editor?.settle(name, call);
 			const s = deps.scope.seen.get(call.traceId as string);
-			shellOpen?.settled(name, s);
+			shellOpen?.settled(name, s, call.traceId);
 			if (/^(editor-|document-)/.test(name) || s?.mainChanged || s?.scopeChanged || s?.experiments)
 				await declare();
 		},

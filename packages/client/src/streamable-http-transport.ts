@@ -242,6 +242,9 @@ export class StreamableHttpTransport implements Transport {
 				case 'tasks/get':
 				case 'tasks/update':
 				case 'tasks/cancel':
+				// Resources (spec/mcp-resources.md, R3 and R4), such as an MCP Apps `ui://` view.
+				case 'resources/list':
+				case 'resources/read':
 				// The Skills extension (spec/mcp-resources.md, S3 and S4).
 				case 'skills/list':
 				case 'skills/get':
