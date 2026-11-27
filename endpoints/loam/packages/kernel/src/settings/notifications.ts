@@ -28,7 +28,13 @@ import type { OverlayStore } from '../overlays/store.js';
 import type { AccessActorV1 } from '../scope/access.js';
 import type { DocumentKit } from '../scope/command-kit.js';
 import type { ScopeV1 } from '../scope/records.js';
-import { KERNEL_ONLY_FIELDS, ownedBy, stateNow, summaryOf } from './confirmations.js';
+import {
+	KERNEL_ONLY_FIELDS,
+	listedPreviewOf,
+	ownedBy,
+	stateNow,
+	summaryOf,
+} from './confirmations.js';
 import type { NotificationPrefsV1, SettingsKit } from './settings.js';
 
 /** The workspace store's table of notices (10.1), one row per notice, listed by `person`. */
@@ -663,6 +669,8 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			if (!reader.one && record.input !== undefined) record.input = summaryOf(record.input);
 			// And its stored outcome, as its input (step 6's second round, 8): a large result never breaks a page.
 			if (!reader.one && record.result !== undefined) record.result = summaryOf(record.result);
+			// And its preview, up to 64 KiB, whatever its state (#2801): a list never refuses a notice the shell asked for.
+			if (!reader.one && record.preview) record.preview = listedPreviewOf(record.preview, body);
 		}
 		const from = deps.fromOf(copy.source);
 		if (from) copy.from = from;
@@ -749,7 +757,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 					return fail(
 						'OUTPUT_BUDGET_EXCEEDED',
 						`The notice '${row.id}' does not fit the list's ${NOTIFICATION_LIST_BUDGET} bytes`,
-						'List without body, then read the notice by its id'
+						`Read it by its id, which shows it whole: notification '${row.id}' with body: true`
 					);
 				}
 				page.push(item);

@@ -1537,3 +1537,72 @@ describe("the orphan notice's recipients (4.2, 10.2; step 8's seam)", () => {
 		);
 	});
 });
+
+describe("#2801: a list bounds a confirmation's preview, and its one refusal names a read that works", () => {
+	/** A confirmation whose mounted preview is `bytes` of JSON (`PREVIEW_MAX_BYTES` is 64 KiB), in `state`. */
+	const previewed = (id: number, bytes: number, state = 'pending') => {
+		const made = pending(id);
+		const data = { text: 'x'.repeat(bytes - '{"text":""}'.length) };
+		expect(new TextEncoder().encode(JSON.stringify(data)).length).toBe(bytes);
+		Object.assign(made.confirmation as object, {
+			state,
+			preview: { command: 'probe-show', digest: 'd'.repeat(43), labels: 'whole', data },
+		});
+		return { made, data };
+	};
+
+	it('lists a 65,536-byte preview as the bell and the inbox read it, pending or ended, and by id whole', async () => {
+		const { kernel, store } = await boot();
+		const waiting = previewed(1, 64 * 1024);
+		const declined = previewed(2, 64 * 1024, 'declined');
+		await store.create(NOTIFICATION_TABLE, waiting.made as never);
+		await store.create(NOTIFICATION_TABLE, declined.made as never);
+		const bare = { command: 'probe-show', digest: 'd'.repeat(43), labels: 'whole' };
+		// The bell's read (`chrome/src/apps/inbox-bell.ts`): counted, and the preview without its data.
+		const bell = await kernel.call<Listed>('notification-list', { limit: 1, unread: true });
+		expect(bell.success, JSON.stringify(bell.error)).toBe(true);
+		expect(bell.data?.unread).toBe(2);
+		expect(bell.data?.notifications.map((each) => each.confirmation?.preview)).toEqual([bare]);
+		// The inbox's read, with body: both rows on one page, each preview's size in place of its data.
+		const page = await listed(kernel, { body: true });
+		expect(page.notifications.map((each) => each.confirmation?.preview)).toEqual([
+			{ ...bare, truncated: true, bytes: 64 * 1024 },
+			{ ...bare, truncated: true, bytes: 64 * 1024 },
+		]);
+		expect(page.cursor).toBeNull();
+		// By its id, whole.
+		const [whole] = (await listed(kernel, { notification: waiting.made.id, body: true }))
+			.notifications;
+		expect(whole?.confirmation?.preview).toEqual({ ...bare, data: waiting.data });
+		// An agent's read names the preview's read alone: no data, digest or size.
+		const theirs = await kernel.agent.call<Listed>('notification-list', { body: true });
+		expect(theirs.data?.notifications.map((each) => each.confirmation?.preview)).toEqual([
+			{ command: 'probe-show' },
+			{ command: 'probe-show' },
+		]);
+	});
+
+	it('lists a preview of up to 8,192 bytes whole with body, and without its data otherwise', async () => {
+		const { kernel, store } = await boot();
+		const small = previewed(1, 8_192);
+		await store.create(NOTIFICATION_TABLE, small.made as never);
+		const [withBody] = (await listed(kernel, { body: true })).notifications;
+		expect(withBody?.confirmation?.preview?.data).toEqual(small.data);
+		const [without] = (await listed(kernel)).notifications;
+		expect(without?.confirmation?.preview).not.toHaveProperty('data');
+	});
+
+	it("refuses a row past the page's budget alone, suggesting the read by id, which then answers", async () => {
+		const { kernel, store } = await boot();
+		// Written straight to the store, past what any push allows: the refusal is the list's backstop.
+		const huge = row(1, { body: 'y'.repeat(NOTIFICATION_LIST_BUDGET) });
+		await store.create(NOTIFICATION_TABLE, huge as never);
+		const refused = await kernel.call('notification-list', { body: true });
+		expect(refused.error).toMatchObject({
+			code: 'OUTPUT_BUDGET_EXCEEDED',
+			suggestion: `Read it by its id, which shows it whole: notification '${huge.id}' with body: true`,
+		});
+		const followed = await listed(kernel, { notification: huge.id, body: true });
+		expect(followed.notifications.map((each) => each.body)).toEqual([huge.body]);
+	});
+});

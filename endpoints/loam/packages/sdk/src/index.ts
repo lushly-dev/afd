@@ -163,7 +163,7 @@ export type ConfirmationStateV1 = 'pending' | 'confirmed' | 'declined' | 'expire
 /**
  * A confirmation as the inbox keeps it (10.1, 7.2): the command and input asked for, who asked, and how it ended. Raised
  * by the kernel alone, for a command whose manifest declares a `confirm_prompt`, when an agent or an app that is not
- * active calls it. `input` is listed only with `notification-list { body: true }`.
+ * active calls it. `input`, and a preview's `data`, are listed only with `notification-list { body: true }` (#2801).
  */
 export interface ConfirmationRecordV1 {
 	command: string;
@@ -213,10 +213,19 @@ export interface ConfirmationPreviewV1 {
 	command: string;
 	digest: string;
 	changed?: true;
-	/** The preview's data as its server returned it: the person's alone. */
+	/**
+	 * The preview's data as its server returned it: the person's alone. A list gives it only with `body: true`, and
+	 * past 8,192 bytes gives `truncated` and `bytes` in its place (#2801); a read by id gives it whole.
+	 */
 	data?: unknown;
 	/** Whose word labels its parts: `per-part` reads each part's `"trust": "content"`, `whole` is content throughout. */
 	labels?: 'whole' | 'per-part';
+	/**
+	 * Set by a list read whose data was too long to list (#2801): `data` is left out and `bytes` is its size, which a
+	 * read by id (`notification-list` with `notification`) shows whole.
+	 */
+	truncated?: true;
+	bytes?: number;
 }
 
 /** Why the kernel asked an agent's call (phase 5 specification, 6.2). */

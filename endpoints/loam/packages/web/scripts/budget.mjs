@@ -967,7 +967,7 @@ export const CEILINGS = Object.freeze({
 	editorMoveMinified: 6_400,
 	overlaysMinified: 12_200, // D115: phase 5 step 10's 9.3 (ResourceLinkV2's links): 11,304 to 11,808.
 	// Phase 5's step 5: 12,050 (the preview's lines), set to 12,300 under D115.
-	inboxMinified: 12_700,
+	inboxMinified: 13_400, // D115: #2801's cut preview, shown whole before Confirm: 12,366 to 13,076.
 });
 
 /** Group a module id by the package it belongs to. */

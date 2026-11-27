@@ -703,7 +703,7 @@ describe("D175: a reply set's slim preview within the shell's ceiling (#2410)", 
 		answerPreview(made, preview);
 		const { turn } = await send(kernel, 'script:reply-thr-1');
 		expect(turn.calls.map((call) => call.outcome)).toEqual(['ok', 'ok', 'pending']);
-		// Read by its id, whole: a notice past `notification-list`'s 32 KiB page is listed no other way.
+		// Read by its id, whole: a list bounds a preview past 8 KiB (#2801).
 		const [row, ...rest] = data<{ notifications: NotificationV1[] }>(
 			await kernel.call('notification-list', {
 				notification: turn.calls.at(-1)?.notification,
@@ -722,6 +722,53 @@ describe("D175: a reply set's slim preview within the shell's ceiling (#2410)", 
 		// The re-read under the hold had the same digest, so the send went once.
 		expect(await sentOf(kernel)).toHaveLength(1);
 		expect(carried(made)).toHaveLength(1);
+	});
+
+	it('lists a 65,536-byte preview bounded, as the bell and the inbox read it, pending and ended (#2801)', async () => {
+		const made = await seed();
+		const { kernel } = made;
+		const preview = previewOfBytes(64 * 1024);
+		answerPreview(made, preview);
+		const { turn } = await send(kernel, 'script:reply-thr-1');
+		const id = turn.calls.at(-1)?.notification;
+		const list = async (input: Record<string, unknown>) =>
+			data<{ notifications: NotificationV1[]; unread: number }>(
+				await kernel.call('notification-list', input)
+			);
+		const listedBoth = async () => {
+			// The bell's read (inbox-bell.ts): the confirmation is counted and first, its preview without data.
+			const bell = await list({ limit: 1, unread: true });
+			expect(bell.unread).toBeGreaterThan(0);
+			expect(bell.notifications.map((each) => each.id)).toEqual([id]);
+			const bare = bell.notifications[0]?.confirmation?.preview;
+			expect(bare).toEqual({
+				command: MAILFIX_SEND_PREVIEW.command,
+				digest: await previewDigest(preview),
+				labels: 'per-part',
+			});
+			// The inbox's read, with body: its size in place of its data, never a refusal.
+			const inbox = await list({ body: true });
+			const listed = inbox.notifications.find((each) => each.id === id)?.confirmation?.preview;
+			expect(listed).toMatchObject({ truncated: true, bytes: 64 * 1024 });
+			expect(listed).not.toHaveProperty('data');
+			// By its id, whole.
+			const [whole] = (await list({ notification: id, body: true })).notifications;
+			expect(whole?.confirmation?.preview?.data).toEqual(preview);
+			expect(whole?.confirmation?.preview).not.toHaveProperty('truncated');
+		};
+		await listedBoth();
+		// Ended, it still lists until archived: an ended confirmation never breaks the inbox.
+		expect(
+			data(await kernel.call('notification-act', { notification: id, answer: 'decline' }))
+		).toMatchObject({ state: 'declined' });
+		const ended = await list({ body: true });
+		const row = ended.notifications.find((each) => each.id === id);
+		expect(row?.confirmation?.state).toBe('declined');
+		expect(row?.confirmation?.preview).toMatchObject({ truncated: true, bytes: 64 * 1024 });
+		expect((await list({ kind: 'confirmation' })).notifications.map((each) => each.id)).toEqual([
+			id,
+		]);
+		expect(await sentOf(kernel)).toEqual([]);
 	});
 
 	it.each([

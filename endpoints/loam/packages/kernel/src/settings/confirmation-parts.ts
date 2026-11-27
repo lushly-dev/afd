@@ -193,8 +193,32 @@ export const LISTED_INPUT_BYTES = 2_048;
 
 /** A confirmation's input as a list shows it: whole when small, else `{ truncated: true, bytes }`. */
 export const summaryOf = (input: unknown): unknown => {
-	const bytes = new TextEncoder().encode(JSON.stringify(input) ?? 'null').length;
+	const bytes = jsonBytes(input);
 	return bytes <= LISTED_INPUT_BYTES ? input : { truncated: true, bytes };
+};
+
+/** `value`'s JSON in UTF-8 bytes, as a list measures what it bounds. */
+const jsonBytes = (value: unknown): number =>
+	new TextEncoder().encode(JSON.stringify(value) ?? 'null').length;
+
+/**
+ * A list's bound on a confirmation's preview data (#2801): past it, a list shows its size, and a read by id the whole. A
+ * preview may be up to 64 KiB (`PREVIEW_MAX_BYTES`), twice a list page's budget, so a list never carries one whole.
+ */
+export const LISTED_PREVIEW_BYTES = 8_192;
+
+/**
+ * A confirmation's preview as a list shows it (#2801): without `body`, never its data, as its input; with `body`, its
+ * data when small, else `truncated` and its size, which a read by id shows whole.
+ */
+export const listedPreviewOf = <T extends { data?: unknown }>(preview: T, body: boolean): T => {
+	const { data, ...rest } = preview;
+	if (data === undefined) return preview;
+	if (!body) return rest as T;
+	const bytes = jsonBytes(data);
+	return bytes <= LISTED_PREVIEW_BYTES
+		? preview
+		: ({ ...rest, truncated: true, bytes } as unknown as T);
 };
 
 /** A run's outcome as a confirmation keeps it: its success, data and error, never its timing (a replay's differs). */

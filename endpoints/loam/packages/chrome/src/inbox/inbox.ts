@@ -12,9 +12,10 @@
  */
 
 import type { KernelEvent, LoamKernel } from '@lushly-dev/loam-kernel';
-import type { NotificationV1 } from '@lushly-dev/loam-sdk';
+import type { ConfirmationRecordV1, NotificationV1 } from '@lushly-dev/loam-sdk';
 import type { LoamShell } from '../elements/shell.js';
 import { previewWords } from '../preview-words.js';
+import { cutWords } from './inbox-cut.js';
 import { accessChanged, ownerWords } from './inbox-words.js';
 
 interface Answer<T = unknown> {
@@ -230,6 +231,8 @@ export class LoamInbox extends HTMLElement {
 	#unread = 0;
 	#target: string | undefined;
 	#reads = 0;
+	/** Moved by each clear: a read by id begun before it shows nothing after it. */
+	#cleared = 0;
 	#list: HTMLElement;
 	#status: HTMLElement;
 	#count: HTMLElement;
@@ -237,8 +240,11 @@ export class LoamInbox extends HTMLElement {
 	#unsubscribe: (() => void) | null = null;
 	/** The notices whose action the person's press is running now. */
 	#acting = new Set<string>();
-	/** A confirmation's whole input, read by its id, where the list cut it (the trust review's blocker 9). */
-	#whole = new Map<string, unknown>();
+	/**
+	 * A confirmation read whole by its id, where the list cut its input (the trust review's blocker 9) or its preview
+	 * (#2801).
+	 */
+	#whole = new Map<string, ConfirmationRecordV1>();
 
 	constructor() {
 		super();
@@ -303,7 +309,9 @@ export class LoamInbox extends HTMLElement {
 	/** Forget every notice shown: a change of person or access, or a read refused, leaves none of them on screen. */
 	#clear(): void {
 		this.#reads++;
+		this.#cleared++;
 		this.#notices = [];
+		this.#whole.clear();
 		this.#cursor = null;
 		this.#unread = 0;
 		this.#render();
@@ -326,10 +334,13 @@ export class LoamInbox extends HTMLElement {
 		if (target === undefined) return;
 		const find = () => this.#list.querySelector<HTMLElement>(`[data-id="${CSS.escape(target)}"]`);
 		if (!find() && this.kernel) {
+			const cleared = this.#cleared;
 			const one = (await this.kernel.call<Page>('notification-list', {
 				notification: target,
 				body: true,
 			})) as Answer<Page>;
+			// A change of person or access since: the notice is theirs no longer (the reviews' item 4).
+			if (cleared !== this.#cleared) return;
 			const found = one.success ? one.data?.notifications[0] : undefined;
 			if (found && !this.#notices.some((each) => each.id === found.id)) {
 				this.#notices = [...this.#notices, found];
@@ -454,12 +465,23 @@ export class LoamInbox extends HTMLElement {
 						el(
 							'p',
 							{ class: 'body input' },
-							this.#cut(notice)
-								? `The input is too long to list (${(asked.input as { bytes: number }).bytes} bytes): show it before you answer`
-								: inputWords(this.#whole.get(notice.id) ?? asked.input)
+							this.#cutInput(notice)
+								? `The input is too long to list (${(asked.input as { bytes: number }).bytes} bytes)${waiting(notice) ? ': show it before you answer' : ''}`
+								: inputWords(this.#whole.get(notice.id)?.input ?? asked.input)
 						),
-						// A released mounted command's preview, as text (phase 5 specification, 7.2).
-						...previewWords(asked.preview).map((line) => el('p', { class: 'body preview' }, line)),
+						// A released mounted command's preview, as text (phase 5 specification, 7.2); a list cuts a long one (#2801).
+						...previewWords(this.#whole.get(notice.id)?.preview ?? asked.preview).map((line) =>
+							el('p', { class: 'body preview' }, line)
+						),
+						...(this.#cutPreview(notice)
+							? [
+									el(
+										'p',
+										{ class: 'body preview' },
+										`The preview is too long to list (${asked.preview?.bytes} bytes)${waiting(notice) ? ': show it before you answer' : ''}`
+									),
+								]
+							: []),
 					]
 				: []),
 			actions
@@ -481,10 +503,12 @@ export class LoamInbox extends HTMLElement {
 			};
 			const decline = this.#button('Decline', answer('decline'), false, true);
 			decline.setAttribute('aria-label', `Decline ${notice.title}`);
-			// The person sees the whole input before Confirm is offered (blocker 9): read by its id, as a list never shows it.
-			if (this.#cut(notice)) {
-				const show = this.#button('Show the full input', () => this.#readWhole(notice.id));
-				show.setAttribute('aria-label', `Show the full input of ${notice.title}`);
+			// The person sees the whole input and preview before Confirm is offered (blocker 9, #2801): read by its id, as a
+			// list never shows a long one.
+			const cut = cutWords(asked, this.#whole.has(notice.id));
+			if (cut) {
+				const show = this.#button(`Show the full ${cut}`, () => this.#readWhole(notice.id));
+				show.setAttribute('aria-label', `Show the full ${cut} of ${notice.title}`);
 				actions.append(decline, show);
 			} else {
 				const confirm = this.#button('Confirm', answer('confirm'), !asked.danger, true);
@@ -535,23 +559,30 @@ export class LoamInbox extends HTMLElement {
 	}
 
 	/** Whether a list cut this confirmation's input, and its whole input is not read yet (10.2, blocker 9). */
-	#cut(notice: NotificationV1): boolean {
-		const input = notice.confirmation?.input as { truncated?: unknown } | undefined;
-		return input?.truncated === true && !this.#whole.has(notice.id);
+	#cutInput(notice: NotificationV1): boolean {
+		return cutWords(notice.confirmation, this.#whole.has(notice.id)).includes('input');
 	}
 
-	/** Read one confirmation by its id, whose input comes whole, then show it. */
+	/** Whether a list cut this confirmation's preview, and its whole preview is not read yet (#2801). */
+	#cutPreview(notice: NotificationV1): boolean {
+		return cutWords(notice.confirmation, this.#whole.has(notice.id)).includes('preview');
+	}
+
+	/** Read one confirmation by its id, whose input and preview come whole, then show it. */
 	async #readWhole(id: string): Promise<void> {
+		const cleared = this.#cleared;
 		const answer = (await this.kernel?.call<Page>('notification-list', {
 			notification: id,
 			body: true,
 		})) as Answer<Page> | undefined;
+		// A change of person or access since: nothing of theirs is kept (the reviews' item 4).
+		if (cleared !== this.#cleared) return;
 		const found = answer?.success ? answer.data?.notifications[0] : undefined;
 		if (!found?.confirmation) {
 			if (answer) this.#say(failed(answer));
 			return;
 		}
-		this.#whole.set(id, found.confirmation.input);
+		this.#whole.set(id, found.confirmation);
 		this.#render();
 	}
 

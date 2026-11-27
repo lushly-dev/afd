@@ -97,6 +97,8 @@ export {
 } from './session.js';
 /** The resolver's collision rule and the overrides' check, which the chrome's settings chunk repeats (step 7). */
 export { keysCollide } from './settings/keybinding-resolve.js';
+/** The notices' table, so a chrome test writes a row as a later step's confirmation would be (#2801). */
+export { NOTIFICATION_TABLE } from './settings/notifications.js';
 export { overridesProblem } from './settings/setting-sections.js';
 export {
 	documentsDeployment,

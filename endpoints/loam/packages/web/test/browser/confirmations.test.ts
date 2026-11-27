@@ -389,6 +389,109 @@ describe('P4-E8: confirmations', () => {
 		}
 	});
 
+	it('#2801: a preview too long to list is shown whole before Confirm is offered, again for a reshown one', async () => {
+		// The browser suite mounts no server that gives a preview, so `notification-list` answers here as the kernel's
+		// does for a 64 KiB preview: listed with its size in place of its data, and whole by its id.
+		const { page, errors } = await openShell(browser, site.origin);
+		try {
+			await page.evaluate(() => {
+				const shell = document.querySelector('loam-shell') as unknown as {
+					kernel: { call(name: string, input?: unknown): Promise<unknown> };
+				};
+				const kernel = shell.kernel;
+				const through = kernel.call.bind(kernel);
+				const data = { text: `${'x'.repeat(65_000)} the end` };
+				const notice = (id: string, createdAt: number) => ({
+					id,
+					workspace: 'personal',
+					person: 'local',
+					source: 'shell',
+					kind: 'confirmation',
+					title: 'Send the reply set',
+					tone: 'info',
+					scope: { workspace: 'personal' },
+					createdAt,
+					confirmation: {
+						command: 'mail-replyset-send',
+						caller: 'agent:copilot',
+						input: {},
+						header: 'Requested by the copilot for you',
+						prompt: 'Send these replies?',
+						title: 'Send',
+						expiresAt: Date.now() + 600_000,
+						state: 'pending',
+						preview: { command: 'mail-replyset-preview', digest: 'd'.repeat(43), labels: 'whole' },
+					},
+				});
+				const held = window as unknown as {
+					rows: ReturnType<typeof notice>[];
+					wholeReads: string[];
+				};
+				held.rows = [notice('ntf_aaaaaaaaaaaaaaaa', Date.now())];
+				held.wholeReads = [];
+				kernel.call = async (name, input) => {
+					if (name !== 'notification-list') return through(name, input);
+					const one = (input as { notification?: string }).notification;
+					const rows = held.rows
+						.filter((row) => one === undefined || row.id === one)
+						.map((row) => {
+							const copy = structuredClone(row);
+							Object.assign(
+								copy.confirmation.preview,
+								one === undefined ? { truncated: true, bytes: 65_020 } : { data }
+							);
+							return copy;
+						});
+					if (one !== undefined) held.wholeReads.push(one);
+					return {
+						success: true,
+						data: { notifications: rows, cursor: null, unread: rows.length },
+					};
+				};
+			});
+			await kernelCall(page, 'section-open', { section: 'inbox' });
+			const item = inbox(page).locator('.notice').first();
+			const show = item.getByRole('button', {
+				name: 'Show the full preview of Send the reply set',
+			});
+			const confirm = item.getByRole('button', { name: 'Confirm Send the reply set' });
+			await expect.poll(() => show.count()).toBe(1);
+			expect(await confirm.count()).toBe(0);
+			expect(await item.locator('.preview').allTextContents()).toContain(
+				'The preview is too long to list (65020 bytes): show it before you answer'
+			);
+			await show.click();
+			// Read by its id, whole: the end of the preview's text shows, and only then Confirm.
+			await expect
+				.poll(() => item.locator('.preview').allTextContents())
+				.toEqual(expect.arrayContaining([expect.stringContaining('the end')]));
+			await expect.poll(() => confirm.count()).toBe(1);
+			expect(
+				await page.evaluate(() => (window as unknown as { wholeReads: string[] }).wholeReads)
+			).toEqual(['ntf_aaaaaaaaaaaaaaaa']);
+			// A changed preview is a new confirmation with a new id (7.2): cut again, and Confirm withheld until it is read.
+			await page.evaluate(() => {
+				const held = window as unknown as { rows: Array<{ id: string; createdAt: number }> };
+				held.rows = [
+					{ ...structuredClone(held.rows[0]), id: 'ntf_bbbbbbbbbbbbbbbb', createdAt: Date.now() },
+				] as never;
+			});
+			await kernelCall(page, 'notification-push', { title: 'Nudge' });
+			const next = inbox(page).locator('.notice[data-id="ntf_bbbbbbbbbbbbbbbb"]');
+			await expect
+				.poll(() =>
+					next.getByRole('button', { name: 'Show the full preview of Send the reply set' }).count()
+				)
+				.toBe(1);
+			expect(await next.getByRole('button', { name: 'Confirm Send the reply set' }).count()).toBe(
+				0
+			);
+			expect(errors).toEqual([]);
+		} finally {
+			await page.context().close();
+		}
+	});
+
 	it("second round's 3: a person's first call during stage B asks in the slot, and is answered through the shell", async () => {
 		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 		let release: () => void = () => {};
