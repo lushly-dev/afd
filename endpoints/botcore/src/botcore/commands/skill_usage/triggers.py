@@ -4,7 +4,10 @@ that opened each one's pull request had loaded it.
 A repository declares which paths require which skill (`[[skills.required]]`). Three things
 are known for certain, and the report uses only those: which merged changes touched those
 paths (git), which session opened each change's pull request and when (the harness says so,
-and the record keeps it), and when that session loaded the skill (the record).
+and the record keeps it), and when that session loaded the skill (the record). A fleet's
+merge lane opens its cells' pull requests itself, so for those the session is the one the
+lane names in the commit it folds the cell's branch into (a `Factory-session:` trailer), and
+the moment is that commit's author time.
 
 Nothing else ties a session to a change. What a session changed turn by turn is not used: a
 checkout is moved under a session by merges, sync scripts and other sessions, and a moved
@@ -16,6 +19,7 @@ Read-only. Where those three cannot settle it, a change is unknown, never a miss
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -78,6 +82,18 @@ LOADED, MISSED = "loaded", "missed"
 CLOCKS = timedelta(minutes=5)
 
 
+# The trailer a fleet's merge lane writes in the commit it folds a cell's branch into, once
+# per thread that worked on the cell: the lane opens the pull request, so no session is
+# recorded as its opener (lushly-dev/afd#1887). Its value is `session_tag` of the thread.
+SESSION_TRAILER = "Factory-session"
+
+
+def session_tag(session_id: str) -> str:
+    """A session's id as the trailer gives it, opaque in public history: `sha256:` and the
+    first 24 hex digits of its SHA-256 (botcore-factory's `squash.session_tag`)."""
+    return "sha256:" + hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:24]
+
+
 @dataclass
 class Change:
     """A change merged to the default branch."""
@@ -85,6 +101,9 @@ class Change:
     at: datetime
     number: int | None  # its pull request, from the subject git gives a merged change
     files: list[str]
+    commit: str = ""
+    authored: datetime | None = None  # a rebasing queue keeps the cell's commit time
+    sessions: tuple[str, ...] = ()  # its `Factory-session:` trailers, as written
 
 
 @dataclass
@@ -121,17 +140,26 @@ def merged_changes(root: Path, since: datetime) -> Merged:
     latest = _parse(git_out(root, "log", "-1", "--format=%cI", ref, timeout=GIT_SECONDS).strip())
     text = git_out(
         root, "log", ref, "--first-parent", f"--since={since.isoformat()}", "--no-renames",
-        "-z", "--name-only", f"--format={_RECORD}%cI{_FIELD}%s", timeout=GIT_SECONDS * 2,
+        "-z", "--name-only",
+        f"--format={_RECORD}%H{_FIELD}%cI{_FIELD}%aI{_FIELD}"
+        f"%(trailers:key={SESSION_TRAILER},valueonly,separator=%x1d){_FIELD}%s",
+        timeout=GIT_SECONDS * 2,
     )  # fmt: skip
     changes: list[Change] = []
     for record in text.split(_RECORD)[1:]:
         head, _, rest = record.partition("\0")
-        stamp, _, subject = head.partition(_FIELD)
+        fields = head.split(_FIELD, 4)
+        if len(fields) != 5:
+            continue
+        commit, stamp, authored, trailers, subject = fields
         moment = _parse(stamp.strip())
         if moment is None:
             continue
         files = [name.strip("\n") for name in rest.split("\0") if name.strip("\n")]
-        changes.append(Change(moment, _number(subject), files))
+        tags = tuple(tag.strip() for tag in trailers.split("\x1d") if tag.strip())
+        changes.append(
+            Change(moment, _number(subject), files, commit.strip(), _parse(authored.strip()), tags)
+        )
     # Over the branch's whole history, so that the answer does not depend on the window
     subjects = git_out(root, "log", ref, "--first-parent", "--format=%s", timeout=GIT_SECONDS * 2)
     carried = Counter(_number(subject) for subject in subjects.splitlines())
@@ -265,6 +293,14 @@ def _judge(
     return verdict, verdict == LOADED and not own_agent
 
 
+def _fleet_openers(change: Change, tags: dict[str, str]) -> dict[str, datetime | None]:
+    """The sessions a change's `Factory-session:` trailers name that the record holds, each
+    with the moment it handed the change over: the commit's author time, which a rebasing
+    queue keeps and a squashing one may not, so never later than the merge."""
+    handed = min(change.authored, change.at) if change.authored else change.at
+    return {tags[tag]: handed for tag in change.sessions if tag in tags}
+
+
 def _fail(code: str, message: str, suggestion: str) -> CommandResult[dict]:
     return error(code, message, suggestion=suggestion)
 
@@ -274,7 +310,9 @@ async def skill_usage_triggers(days: int = 30, repo: str | None = None) -> Comma
     session that opened each one's pull request had loaded the skill by then.
 
     A change is `loaded` when that session had loaded the skill, itself or through a
-    subagent, by the time it opened the pull request. It is `missed` when that session never
+    subagent, by the time it opened the pull request. A fleet cell's change, whose pull
+    request the merge lane opened, is judged by the sessions its commit's `Factory-session:`
+    trailers name, as of the commit's author time. It is `missed` when that session never
     loaded it before the change merged, and names the session. Everything else is `unknown`,
     and `unknown_why` gives the reason: the change has no pull request of its own, no session
     in the record is linked to it, no session linked to it is known to have opened it, the
@@ -443,6 +481,7 @@ def _skill_usage_triggers_sync(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             of_skill.unsure.setdefault(event.thread, []).append(moment)
 
     links = _links(sessions, project)
+    tags = {session_tag(session_id): session_id for session_id in sessions}
     report: list[dict] = []
     for skill, paths in sorted(declared.items()):
         patterns = [_matcher(path) for path in paths]
@@ -456,17 +495,28 @@ def _skill_usage_triggers_sync(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             if any(pattern.match(file) for file in change.files for pattern in patterns)
         ]
         for change in matching:
-            openers = links.opened.get(change.number, {}) if change.number else {}
             # a number two merged changes carry is neither's own: a later push that names it
-            if change.number is None or change.number in merged.shared:
-                verdict = "no_pull_request"
-            elif openers:
+            own = change.number is not None and change.number not in merged.shared
+            openers = links.opened.get(change.number, {}) if own and change.number else {}
+            fleet = not openers and bool(change.sessions)
+            if fleet:
+                # A fleet cell's change: the lane opened its pull request, and the sessions
+                # its fold names made it. They handed it over when the commit was written.
+                openers = _fleet_openers(change, tags)
+            if openers:
                 verdict, only_subagent = _judge(
                     change, openers, loads.get(skill, _Loads({}, {})), sessions
                 )
                 by_subagent += only_subagent
-                if verdict == MISSED and not certain(change):
+                # A miss needs every session its fold names: one no record holds may be the
+                # one that loaded it. A load by any of them stands.
+                unheld = fleet and len(openers) < len(set(change.sessions))
+                if verdict == MISSED and (unheld or not certain(change)):
                     verdict = "incomplete_record"
+            elif change.sessions:
+                verdict = "no_session"  # no machine's record holds a session its fold names
+            elif not own:
+                verdict = "no_pull_request"
             else:
                 attached = change.number in links.attached
                 verdict = "opened_elsewhere" if attached else "no_session"
@@ -474,7 +524,17 @@ def _skill_usage_triggers_sync(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
                 counts[verdict] += 1
             else:
                 unknown[verdict] += 1
-            if verdict == MISSED:
+            if verdict == MISSED and fleet:
+                # its subject may carry no number: the lane merged the commit it validated,
+                # before the pull request had one (lushly-dev/afd#2023)
+                misses.append(
+                    {
+                        "change": change.number if own else None,
+                        "commit": change.commit[:12],
+                        "sessions": sorted(openers),
+                    }
+                )
+            elif verdict == MISSED:
                 misses.append({"change": change.number, "sessions": sorted(openers)})
         judged = counts[LOADED] + counts[MISSED]
         report.append(

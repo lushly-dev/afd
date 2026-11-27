@@ -583,8 +583,19 @@ def test_the_conftest_target_is_afd(make_run):
 async def test_attaching_records_the_thread_and_starts_the_cell(make_run):
     run = make_run()
     await run.call("cell_register", branch="fix/a", issues=[101], route="r")
+    assert run.state()["cells"][-1]["threads"] == []
     cell = (await run.call("cell_attach", branch="fix/a", thread="thread-1")).data["cell"]
     assert (cell["thread"], cell["state"]) == ("thread-1", "working")
+    # A repair by another thread is attached too, and every thread is kept for the fold's
+    # Factory-session trailers (lushly-dev/afd#1887).
+    await run.call("cell_attach", branch="fix/a", thread="thread-2")
+    cell = (await run.call("cell_attach", branch="fix/a", thread="thread-1")).data["cell"]
+    assert (cell["thread"], cell["threads"]) == ("thread-1", ["thread-1", "thread-2"])
+    # A cell registered before the list was kept may have had other threads: it gets none.
+    with run.store.update("legacy") as state:
+        state["cells"][-1].pop("threads")
+    cell = (await run.call("cell_attach", branch="fix/a", thread="thread-3")).data["cell"]
+    assert cell["thread"] == "thread-3" and "threads" not in cell
     missing = await run.call("cell_attach", branch="fix/none", thread="t")
     assert missing.error.code == "NOT_FOUND" and "lane-status" in missing.error.suggestion
 

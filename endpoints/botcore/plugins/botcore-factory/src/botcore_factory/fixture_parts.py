@@ -463,11 +463,14 @@ class FixtureGit:
         self._slot(path).pop("merging", None)
         self.store.save()
 
-    def fold(self, path: str, base: str) -> FoldOutcome:
+    def fold(self, path: str, base: str, sessions: Sequence[str] = ()) -> FoldOutcome:
         """``outcomes.fold[branch]``: ``keep`` (the default: the merged head is taken as one
         commit of its own already), ``folded`` (a new head, ``<head>=1``, with the same tree),
-        ``refuse: why`` or ``fail: ...``."""
+        ``refuse: why`` or ``fail: ...``. The sessions it was given are kept on the slot
+        (``foldSessions``)."""
         slot = self._slot(path)
+        slot["foldSessions"] = list(sessions)
+        self.store.save()
         result = _outcome(self.store, "fold", slot["branch"], "keep")
         if result.startswith("fail"):
             raise WorldError(result.removeprefix("fail").lstrip(": ") or "fold failed")

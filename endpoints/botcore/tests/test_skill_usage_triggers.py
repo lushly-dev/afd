@@ -205,6 +205,80 @@ def test_each_merged_change_is_judged_by_the_session_that_opened_it(
     assert data["warnings"] == []
 
 
+def folded(root: Path, subject: str, threads: list[str], file: str, handed: float) -> None:
+    """A fleet cell's change as its merge lane lands it: the commit the lane folded, naming
+    the cell's threads and authored when the cell handed it over (`handed` days ago), merged
+    now by a queue that rebases, with no number in its subject."""
+    target = root / file
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(target.read_text("utf-8") + "x" if target.exists() else "x", "utf-8")
+    git(root, "add", "-A")
+    body = "\n".join(f"{triggers.SESSION_TRAILER}: {triggers.session_tag(t)}" for t in threads)
+    message = f"{subject}\n\nWhat it does.\n\nAssisted-by: Codex\n{body}\n"
+    authored = (NOW - timedelta(days=handed)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    subprocess.run(
+        ["git", "-C", str(root), "-c", "user.name=T", "-c", "user.email=t@example.com",
+         "-c", "commit.gpgsign=false", "commit", "-q", "-F", "-"],
+        input=message, text=True, check=True, capture_output=True,
+        env={**os.environ, "GIT_AUTHOR_DATE": authored,
+             "GIT_COMMITTER_DATE": NOW.strftime("%Y-%m-%dT%H:%M:%S+00:00")},
+    )  # fmt: skip
+
+
+def test_a_fleet_cells_change_is_judged_by_the_sessions_its_fold_names(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    """#1887: the lane opens a cell's pull request, so nothing links the cell's thread to it.
+    The commit the lane folds names the cell's threads, and its author time is when the cell
+    handed the change over: a load before it counts, one after it is at a repair."""
+    foreman = t3_store.thread("foreman")
+    careful = t3_store.thread("thread:delegated-task:careful", parent=foreman)
+    t3_store.skill_tool(careful, "gate-discipline", stamp(3))
+    careless = t3_store.thread("thread:delegated-task:careless", parent=foreman)
+    late = t3_store.thread("thread:delegated-task:late", parent=foreman)
+    t3_store.skill_tool(late, "gate-discipline", stamp(1))  # after it handed the change over
+    first = t3_store.thread("thread:delegated-task:first", parent=foreman)
+    repairer = t3_store.thread("thread:delegated-task:repairer", parent=foreman)
+    t3_store.skill_tool(repairer, "gate-discipline", stamp(2.5))  # the repair loaded it
+    folded(repo, "feat: a careful hook", [careful], "hooks.yml", handed=2)
+    folded(repo, "feat: a careless check", [careless], "scripts/check-a.mjs", handed=2)
+    folded(repo, "feat: a late hook", [late], "hooks.yml", handed=2)
+    folded(repo, "feat: from elsewhere", ["thread:delegated-task:gone"], "hooks.yml", handed=2)
+    folded(repo, "fix: a repaired hook", [first, repairer], "hooks.yml", handed=2)
+    # One its record does not hold may be the one that loaded it: never a miss, though a load
+    # by another stands.
+    folded(repo, "feat: half held", [careless, "thread:delegated-task:away"], "hooks.yml", 2)
+    folded(repo, "feat: half held, loaded", [careful, "thread:delegated-task:away"], "hooks.yml", 2)
+    run(skill_usage_collect())
+
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    assert judged(found) == (3, 1, 3)
+    assert why(found) == {"no_session": 1, "after_opening": 1, "incomplete_record": 1}
+    (miss,) = found["misses"]
+    commit = subprocess.run(
+        ["git", "-C", str(repo), "log", "-1", "--format=%H", "--grep=careless"],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()  # fmt: skip
+    assert miss == {"change": None, "commit": commit[:12], "sessions": [careless]}
+
+
+def test_a_link_to_the_session_that_opened_it_outranks_a_fold_trailer(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    """A branch published through prepare-pr may carry a trailer from an earlier fleet fold:
+    the session the harness says opened the pull request is the one judged."""
+    opener = session(t3_store, "opener", (101, stamp(2)))
+    t3_store.skill_tool(opener, "gate-discipline", stamp(3))
+    cell = t3_store.thread("thread:delegated-task:cell", parent=t3_store.thread("foreman"))
+    folded(repo, "feat: a hook (#101)", [cell], "hooks.yml", handed=2)
+    run(skill_usage_collect())
+
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    assert judged(found) == (1, 0, 0) and found["misses"] == []
+
+
 def test_a_subagent_loads_for_its_session_and_a_sibling_task_does_not(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:

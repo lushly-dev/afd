@@ -120,6 +120,16 @@ def test_the_commit_validated_pushed_and_merged_is_the_branch_folded_into_one(la
     assert prs(lane)["600"]["mergedHead"] == "b2c3d4e+main-0=1"
 
 
+def test_the_fold_is_given_every_thread_that_worked_on_the_cell(lane):
+    """lushly-dev/afd#1887: the lane opens the pull request, so the commit it folds names the
+    cell's threads, which botcore's skill-usage-triggers judges the change by."""
+    with lane.store.update("repaired") as state:
+        cell = next(c for c in state["cells"] if c["branch"] == "feat/export-csv")
+        cell["threads"] = ["thread-1", cell["thread"]]  # a repair by another thread
+    run_steps(lane)
+    assert lane.world_data()["checkouts"]["1"]["foldSessions"] == ["thread-1", "thread-4"]
+
+
 # B1: the head pushed and merged is the one validated, whatever its slot holds now.
 
 

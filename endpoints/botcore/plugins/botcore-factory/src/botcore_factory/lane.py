@@ -47,7 +47,7 @@ from typing import Any
 
 from botcore_factory import change_report, job, queue
 from botcore_factory.adapter import matches
-from botcore_factory.cells import disk_short
+from botcore_factory.cells import disk_short, threads
 from botcore_factory.events import is_open
 from botcore_factory.lane_base import (
     BAD_REVISION,
@@ -402,7 +402,7 @@ class Step(Merging, Coverage):
             # One commit of its own on the base, with the merged tree: what is validated, pushed
             # and merged (lushly-dev/afd#1809).
             try:
-                folded = self.world.git.fold(path, base)
+                folded = self.world.git.fold(path, base, threads(self.cell(branch)))
             except WorldError as exc:
                 raise LaneTrouble(
                     f"Folding {branch} into one commit on {base} failed: {exc}"

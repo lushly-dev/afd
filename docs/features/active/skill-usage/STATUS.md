@@ -327,7 +327,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 ## Later
 
-- Codex session logs as a source (#1891): not started; 5 of 213 logs measured are outside T3 Code.
+- Codex session logs as a source (#1891): deferred by the owner on 2026-11-26; 18 of 827 logs on three machines are outside T3 Code.
 
 - The same totals whichever machine reads, when checkouts differ (#1904): merged in #2050.
 
@@ -335,13 +335,13 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - A project first seen while git could not read its origin keeps its folder name (#2052): merged in #2337.
 
-- A change's pull request under a queue that rebases (#2023): `pnpm branch:squash` merged in #2088; the fleet lane waits for #1887, to be done with it (the owner, 2026-11-22).
+- A change's pull request under a queue that rebases (#2023): `pnpm branch:squash` merged in #2088; the fleet lane's half is #1887's `Factory-session:` trailer, merged in #2769 (the owner, 2026-11-26).
 
 - A removed checkout's skills leave the reports (#2123): merged in #2152.
 
 - Whether a loaded skill prevents the mistakes it names (#1829): needs its design first.
 
-- Judging a change whose pull request a script opened, as a fleet's merge lane does (#1887): needs its design first.
+- Judging a change whose pull request a script opened, as a fleet's merge lane does (#1887): the lane's `Factory-session:` trailer (the owner, 2026-11-26), merged in #2769.
 
 - Size and the quiet list for skills kept outside a project's skill folders (#1830): merged in #2519.
 
