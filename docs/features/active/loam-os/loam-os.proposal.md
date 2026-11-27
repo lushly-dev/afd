@@ -20,7 +20,9 @@ runs is the software factory's validation of a branch. Originally drafted under 
   in writing, and `pnpm verify --all` on `main` passed 170 of 171
   steps, its one failure a test that fails every check there
   ([#2799](https://github.com/lushly-dev/afd/issues/2799)); M0 exits when a full run passes
-  ([STATUS](STATUS.md#steps)).
+  ([STATUS](STATUS.md#steps)). On 2026-11-27, with #2799 fixed, three more runs each failed one
+  step on an intermittent test ([#2855](https://github.com/lushly-dev/afd/issues/2855),
+  [#2872](https://github.com/lushly-dev/afd/issues/2872)), so M0 has not exited yet.
 - **Origin:** a conversation with the owner on 2026-11-21 about an operating system built on AFD
   from its core, starting as a headless runner for agents in a container image, with
   [Omarchy](https://omarchy.org/) as the example of an opinionated system built on an existing
