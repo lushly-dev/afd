@@ -55,15 +55,15 @@ const ISSUE_URL = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+$/u;
 /**
  * The GitHub writes the gateway serves, as text: the CLI's (`gh issue edit`, with `--repo`, any
  * spacing or backslash continuations), the REST API's writes (a write method, or fields without
- * `GET`, to the issue, pull, label, comment, check, status and variable endpoints) and GraphQL
+ * `GET`, to the issue, pull, label, comment, check, status, variable and ref endpoints) and GraphQL
  * mutations beside `mutation`, `gh api graphql` or `(input:`.
  */
 export const DOOR_PATTERNS = [
 	'\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+issue[\\s\\\\]+(?:edit|comment|create)\\b',
 	'\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+pr[\\s\\\\]+(?:create|merge|edit|ready|comment)\\b',
 	'\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+variable[\\s\\\\]+set\\b',
-	'\\bgh[\\s\\\\]+api\\b(?!(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])[Gg][Ee][Tt]\\b)(?=(?:\\\\\\n|[^\\n;&|`])*/(?:issues|pulls|labels|comments|assignees|check-runs|statuses|variables|merges)\\b)(?=(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])(?:[Pp][Oo][Ss][Tt]|[Pp][Aa][Tt][Cc][Hh]|[Pp][Uu][Tt]|[Dd][Ee][Ll][Ee][Tt][Ee])\\b|(?:\\\\\\n|[^\\n;&|`])*\\s(?:-[fF]|--field|--raw-field|--input)[\\s=])(?:\\\\\\n|[^\\n;&|`])*',
-	'(?:\\bmutation\\b|\\bgh[\\s\\\\]+api[\\s\\\\]+graphql\\b)(?:\\\\\\n|[^\\n])*\\b(?:enqueuePullRequest|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue|updateIssueIssueType|addSubIssue|removeSubIssue)\\b|\\b(?:enqueuePullRequest|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue|updateIssueIssueType|addSubIssue|removeSubIssue)\\s*\\(\\s*input\\s*:',
+	'\\bgh[\\s\\\\]+api\\b(?!(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])[Gg][Ee][Tt]\\b)(?=(?:\\\\\\n|[^\\n;&|`])*/(?:issues|pulls|labels|comments|assignees|check-runs|statuses|variables|merges|git/refs)\\b)(?=(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])(?:[Pp][Oo][Ss][Tt]|[Pp][Aa][Tt][Cc][Hh]|[Pp][Uu][Tt]|[Dd][Ee][Ll][Ee][Tt][Ee])\\b|(?:\\\\\\n|[^\\n;&|`])*\\s(?:-[fF]|--field|--raw-field|--input)[\\s=])(?:\\\\\\n|[^\\n;&|`])*',
+	'(?:\\bmutation\\b|\\bgh[\\s\\\\]+api[\\s\\\\]+graphql\\b)(?:\\\\\\n|[^\\n])*\\b(?:enqueuePullRequest|dequeuePullRequest|enablePullRequestAutoMerge|disablePullRequestAutoMerge|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|clearLabelsFromLabelable|createRef|updateRef|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue|updateIssueIssueType|addSubIssue|removeSubIssue)\\b|\\b(?:enqueuePullRequest|dequeuePullRequest|enablePullRequestAutoMerge|disablePullRequestAutoMerge|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|clearLabelsFromLabelable|createRef|updateRef|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue|updateIssueIssueType|addSubIssue|removeSubIssue)\\s*\\(\\s*input\\s*:',
 ];
 
 /** The CLI's writes as an argument list (`['gh', 'pr', 'merge']`), across lines too. */

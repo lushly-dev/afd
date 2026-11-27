@@ -657,6 +657,24 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
     has been written. Open: the owner's update of `random` (the runbook step), then a real
     `issue-set` on a test issue; `triage-issues`' `references/epics.md` moves to these commands
     when G1's process lands, in both repositories.
+- 2026-11-27: the door check finds `pr-merge`'s own writes
+  ([#2848](https://github.com/lushly-dev/afd/issues/2848), in
+  [#2908](https://github.com/lushly-dev/afd/pull/2908)), superseding the "still misses" line
+  in the issue types entry above. `scripts/check-process.mjs` now
+  refuses `dequeuePullRequest`, `enablePullRequestAutoMerge` and `disablePullRequestAutoMerge`
+  beside `mutation` or `(input:`, as it does `enqueuePullRequest`, and, from the second review,
+  `clearLabelsFromLabelable` (`issue-label`'s GraphQL twin), `createRef` and `updateRef`, and
+  REST writes to `git/refs` (`branch-push`'s API twins). Watched failing: a planted
+  `dequeuePullRequest` mutation in `docs/operations/factory-gateway.md` passed before and was
+  named after, and so did a planted `PATCH .../git/refs/...`, `createRef` and
+  `clearLabelsFromLabelable`; reading a ref stays allowed. Nothing in AFD's scope makes these writes outside the gateway's own code, which
+  `door.exclude` leaves out, so no allow entry is added. `node --test
+  scripts/check-process.test.mjs` passes 22 of 22, and every name is now tested in the bare
+  `name(input:` form too. Lushly's copy follows with `pnpm process:sync`, which also brings
+  #2729's sub-issue names: this script, run against Lushly's half at `4a46cac` with
+  `node scripts/check-process.mjs --manifest Docs/operations/factory-gateway/process.json`,
+  passed (615 files read, 20 allowed), the new names finding only
+  `scripts/merge-lane-queue-github.mjs` and `Docs/operations/merge-lane.md`, both allowed until G1.
 
 ## Follow-ups not yet issues
 
