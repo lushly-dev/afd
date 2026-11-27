@@ -12,7 +12,7 @@
 
 import type { CommandResult, PipelineRequest } from '@lushly-dev/afd-core';
 import { failure, success } from '@lushly-dev/afd-core';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { ZodCommandDefinition } from './schema.js';
 import { createMcpServer, type McpServer } from './server.js';
@@ -595,7 +595,15 @@ describe('Pipeline Integration Tests', () => {
 				options: { timeoutMs: 75 }, // Only enough for ~1-2 steps
 			};
 
-			const result = await server.executePipeline(request);
+			vi.useFakeTimers();
+			let result: Awaited<ReturnType<typeof server.executePipeline>>;
+			try {
+				const pending = server.executePipeline(request);
+				await vi.advanceTimersByTimeAsync(100);
+				result = await pending;
+			} finally {
+				vi.useRealTimers();
+			}
 
 			// At least one step should succeed before timeout
 			const successCount = result.steps.filter((s) => s.status === 'success').length;

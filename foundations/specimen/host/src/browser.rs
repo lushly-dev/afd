@@ -688,15 +688,13 @@ impl Browser {
             "{url}specimen.html?automation=1{}",
             if retained { "&instrument=true" } else { "" }
         );
-        let navigated = page
-            .send(
+        crate::navigate::navigate_with_retry(&address, attempt_deadline, || {
+            page.send(
                 "Page.navigate",
                 json!({ "url": address, "referrerPolicy": "unsafeUrl" }),
             )
-            .await?;
-        if let Some(error) = navigated.get("errorText").and_then(Value::as_str) {
-            return Err(anyhow!("{error} at {address}"));
-        }
+        })
+        .await?;
         // A reply from the document being replaced is retried in the navigated one.
         while page.evaluate(RUNTIME_READY).await.ok() != Some(Value::Bool(true)) {
             sleep(Duration::from_millis(5)).await;

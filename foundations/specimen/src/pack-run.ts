@@ -248,7 +248,8 @@ export async function runPack(
 	if (config.entries.length > 0 || (config.gateCases?.length ?? 0) > 0) {
 		await host.prepare();
 	}
-	const schemas = await runSchemas(host);
+	const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
+	const schemas = await runSchemas(host, undefined, { workers, timeoutMs: request.timeoutMs });
 	const bySchema = new Map(schemas.map((schema) => [schema.tag, schema]));
 	const tags = new Set(libraryTags(pack, schemas));
 	const library = new Map([...bySchema].filter(([tag]) => tags.has(tag)));

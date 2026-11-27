@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { loadConfig } from './config.js';
+import { retryTransientInspect, runSchemas } from './coverage-run.js';
 import { type PackHost, runPack } from './pack-run.js';
 import type { ElementObservation, Observation, PackIndex } from './types.js';
 
@@ -238,5 +239,74 @@ describe('a one-component build', () => {
 		expect(run.index?.bundle).toBe('sha256:bundle');
 		expect(run.index?.cases['example-option']).toEqual(['example-select--default']);
 		expect(run.index?.cases['example-dropdown']).toEqual([]);
+	});
+});
+
+describe('schema inspection during pack and coverage runs (#2767)', () => {
+	it('bounds concurrent inspect calls to workers, forwards timeoutMs, and retries a transient failure once', async () => {
+		const tags: [string, string | undefined][] = [
+			['example-field', 'example-field--default'],
+			['example-select', 'example-select--default'],
+			['example-option', 'example-select--default'],
+			['example-dropdown', 'example-dropdown--default'],
+		];
+		let active = 0;
+		let peak = 0;
+		const seenTimeouts: Array<number | undefined> = [];
+		const attempts = new Map<string, number>();
+		const schemas = await runSchemas(
+			{
+				config,
+				inspect: async (id, timeoutMs) => {
+					active++;
+					peak = Math.max(peak, active);
+					seenTimeouts.push(timeoutMs);
+					try {
+						await new Promise((resolve) => setTimeout(resolve, 10));
+						const count = (attempts.get(id) ?? 0) + 1;
+						attempts.set(id, count);
+						if (id === 'example-field--default' && count === 1) {
+							throw new Error('Specimen deadline exceeded after 15000ms while opening the page');
+						}
+						return null;
+					} finally {
+						active--;
+					}
+				},
+			},
+			tags,
+			{ workers: 2, timeoutMs: 25_000 }
+		);
+		expect(peak).toBeLessThanOrEqual(2);
+		expect(attempts.get('example-field--default')).toBe(2);
+		expect(seenTimeouts.every((timeout) => timeout === 25_000)).toBe(true);
+		expect(schemas.map((schema) => schema.tag)).toEqual(tags.map(([tag]) => tag));
+	});
+
+	it('does not retry a permanent plugin error and caps transient retries at one', async () => {
+		let permanentAttempts = 0;
+		await expect(
+			runSchemas(
+				{
+					config,
+					inspect: async () => {
+						permanentAttempts++;
+						throw new Error('Plugin schema loader crashed');
+					},
+				},
+				[['example-field', 'example-field--default']],
+				{ workers: 1 }
+			)
+		).rejects.toThrow('Plugin schema loader crashed');
+		expect(permanentAttempts).toBe(1);
+
+		let transientAttempts = 0;
+		await expect(
+			retryTransientInspect(async () => {
+				transientAttempts++;
+				throw new Error('net::ERR_NO_BUFFER_SPACE at http://127.0.0.1:9/specimen.html');
+			})
+		).rejects.toThrow('net::ERR_NO_BUFFER_SPACE');
+		expect(transientAttempts).toBe(2);
 	});
 });

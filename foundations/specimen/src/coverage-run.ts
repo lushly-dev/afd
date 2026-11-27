@@ -26,7 +26,7 @@ type Observed = SpecimenEntry['observe'];
 export interface CoverageHost {
 	config: LoadedConfig;
 	prepare(): Promise<void>;
-	inspect(id: string): Promise<ComponentSchema | null>;
+	inspect(id: string, timeoutMs?: number): Promise<ComponentSchema | null>;
 	runStory(
 		id: string,
 		timeoutMs: number | undefined,
@@ -72,14 +72,38 @@ function schemaTags(config: LoadedConfig, component?: string): [string, string |
 	return wanted.map((tag) => [tag, named.get(tag)]);
 }
 
+const TRANSIENT_INSPECT_ERROR = /Specimen(?: host \S+)? deadline exceeded|net::ERR_NO_BUFFER_SPACE/;
+
+/** Whether an `inspect` failure is a transient load or socket error worth one retry (#2767, #2751). */
+export function isTransientInspectError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return TRANSIENT_INSPECT_ERROR.test(message);
+}
+
+/** Run an `inspect` call, retrying at most once on a transient deadline or socket error. */
+export async function retryTransientInspect<T>(run: () => Promise<T>): Promise<T> {
+	try {
+		return await run();
+	} catch (error) {
+		if (!isTransientInspectError(error)) throw error;
+		return await run();
+	}
+}
+
 /** The schemas a run reads: the manifest's, or a plugin's from inspecting a case that names it. */
 export async function runSchemas(
 	{ config, inspect }: Pick<CoverageHost, 'config' | 'inspect'>,
-	tags: [string, string | undefined][] = schemaTags(config)
+	tags: [string, string | undefined][] = schemaTags(config),
+	options: { workers?: number; timeoutMs?: number } = {}
 ): Promise<ComponentSchema[]> {
+	const workers = options.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
 	return (
-		await Promise.all(
-			tags.map(async ([tag, id]) => (id && (await inspect(id))) || config.schemas[tag])
+		await pool(
+			tags,
+			workers,
+			async ([tag, id]) =>
+				(id && (await retryTransientInspect(() => inspect(id, options.timeoutMs)))) ||
+				config.schemas[tag]
 		)
 	).filter((schema) => schema !== undefined);
 }
@@ -103,7 +127,7 @@ export async function collectCases(
 	const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
 	await prepare();
 	const { timeoutMs } = request;
-	const schemas = options.schemas ?? (await runSchemas(host, tags));
+	const schemas = options.schemas ?? (await runSchemas(host, tags, { workers, timeoutMs }));
 	const observe = observedProperties(schemas);
 	const failed: CoverageRun['cases']['failed'] = [];
 	let skipped = 0;

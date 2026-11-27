@@ -97,7 +97,7 @@
 		{
 			"basis": "observed",
 			"from": "conversation-message-media--audio-file",
-			"html": "<violet-message-media allowed-origins alt filename=\"bird-sounds.mp3\" media-type=\"audio/mpeg\" src=\"https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3\"></violet-message-media>"
+			"html": "<violet-message-media allowed-origins alt filename=\"bird-sounds.wav\" media-type=\"audio/wav\" src=\"data:audio/wav;base64,UklGRiwAAABXQVZFZm10IBAAAAABAAEARKwAAESsAAABAAgAZGF0YQgAAACAgICAgICAgA==\"></violet-message-media>"
 		},
 		{
 			"basis": "observed",

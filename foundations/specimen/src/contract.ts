@@ -2,6 +2,7 @@ import { access, readFile } from 'node:fs/promises';
 import { isAbsolute, join, relative as relativePath, resolve, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import type { LoadedConfig } from './config.js';
+import { retryTransientInspect } from './coverage-run.js';
 import type { ComponentSchema } from './plugin.js';
 import { DEFAULT_SUITE_WORKERS, pool, selectEntries } from './suite.js';
 import type {
@@ -31,7 +32,7 @@ const EXCEPTION_COMMENT = /A11Y_EXCEPTION:/;
 export interface ContractHost {
 	config: LoadedConfig;
 	prepare(): Promise<void>;
-	inspect(id: string): Promise<InspectResult>;
+	inspect(id: string, timeoutMs?: number): Promise<InspectResult>;
 	runStory(
 		id: string,
 		timeoutMs: number | undefined,
@@ -165,10 +166,13 @@ export async function runContract(
 			: `./${path.split(sep).join('/')}`;
 	};
 
+	const inspectWithRetry = (id: string): Promise<InspectResult> =>
+		retryTransientInspect(() => inspect(id, request.timeoutMs));
+
 	// The preview's own policy, not any story's: what a story that says nothing inherits.
 	const first = entries[0];
 	if (first) {
-		const policy = (await inspect(first.id)).story?.projectPolicy;
+		const policy = (await inspectWithRetry(first.id)).story?.projectPolicy;
 		if (policy !== 'error')
 			find(
 				'MISSING_GLOBAL_A11Y_ERROR_POLICY',
@@ -247,7 +251,7 @@ export async function runContract(
 			find('MISSING_BASELINE_STORY', 'No story here is named like Overview or Default.', where);
 		let described = false;
 		for (const { entry } of cases) {
-			const docs = (await inspect(entry.id)).story?.parameters.docs as
+			const docs = (await inspectWithRetry(entry.id)).story?.parameters.docs as
 				| { description?: unknown }
 				| undefined;
 			if (docs?.description) {
@@ -261,7 +265,7 @@ export async function runContract(
 		if (off.length) {
 			const documented = EXCEPTION_COMMENT.test(await readFile(file, 'utf8'));
 			for (const { entry } of off) {
-				const parameters = (await inspect(entry.id)).story?.parameters;
+				const parameters = (await inspectWithRetry(entry.id)).story?.parameters;
 				if (!documented && !parameters?.a11yException)
 					find(
 						'UNDOCUMENTED_A11Y_EXCEPTION',

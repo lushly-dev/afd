@@ -877,6 +877,37 @@ export async function createInProcessBench(
 	): Promise<GateRun> =>
 		runGateInRuntime(capture, DEFAULT_STORY_TIMEOUT_MS, gateCase, parsed, options);
 
+	async function inspectEntry(raw: InspectRequest, reuseBundle = false): Promise<InspectResult> {
+		ensureOpen();
+		const parsed = parseCaptureRequest(raw);
+		const entry = config.entries.find((item) => item.id === parsed.id);
+		if (!entry) throw new Error(`Specimen not found: ${parsed.id}`);
+		const timeoutMs =
+			parsed.timeoutMs ??
+			(entry.story ? (config.config.test?.timeoutMs ?? DEFAULT_STORY_TIMEOUT_MS) : 10_000);
+		const provisional = resolveContext(
+			entry.story ? { ...parsed.context, themeMedia: 'browser-default' } : parsed.context
+		);
+		const rendered = (await (
+			await ensureHost()
+		).request(
+			'render',
+			{
+				entry,
+				context: provisional,
+				checkpoint: 'mount',
+				timeoutMs,
+				screenshot: null,
+				requested: parsed.context ?? {},
+				defaults: provisional,
+				...(reuseBundle ? { reuseBundle: true } : {}),
+				inspect: { schema: (entry.component && config.schemas[entry.component]) || null },
+			},
+			timeoutMs + HOST_GRACE
+		)) as HostRender;
+		return rendered.captured as unknown as InspectResult;
+	}
+
 	/** What coverage and a pack need: each case run or rendered on the shared bundle. */
 	const caseHost = (accessibility = false): PackHost => {
 		const render = async (
@@ -908,7 +939,9 @@ export async function createInProcessBench(
 				bundle = prepared?.bundle ?? null;
 			},
 			bundle: () => bundle,
-			inspect: async (id) => (await api.inspect({ id })).schema,
+			inspect: async (id, timeoutMs) =>
+				(await inspectEntry({ id, ...(timeoutMs !== undefined ? { timeoutMs } : {}) }, true))
+					.schema,
 			runStory: (id, timeoutMs, observe) =>
 				runStory(
 					{ id, ...(timeoutMs ? { timeoutMs } : {}) },
@@ -1076,38 +1109,10 @@ export async function createInProcessBench(
 			const request = parseCompareRequest(rawRequest);
 			return runCompare(captureSetHost(), request);
 		},
-		captureCheckpoints(rawRequest: CheckpointsRequest): Promise<CheckpointsRun> {
-			return captureCheckpointsInRuntime(jobDeps, rawRequest);
-		},
-		runJob(rawRequest: JobRunRequest): Promise<JobRun> {
-			return runJobInRuntime(jobDeps, rawRequest);
-		},
-		async inspect(rawRequest: InspectRequest): Promise<InspectResult> {
-			ensureOpen();
-			const parsed = parseCaptureRequest(rawRequest);
-			const entry = config.entries.find((item) => item.id === parsed.id);
-			if (!entry) throw new Error(`Specimen not found: ${parsed.id}`);
-			const timeoutMs = parsed.timeoutMs ?? 10_000;
-			const provisional = entry.story
-				? resolveContext({ ...parsed.context, themeMedia: 'browser-default' })
-				: resolveContext(parsed.context);
-			const runtime = await ensureHost();
-			const inspected = (await runtime.request(
-				'render',
-				{
-					entry,
-					context: provisional,
-					checkpoint: 'mount',
-					timeoutMs,
-					screenshot: null,
-					requested: parsed.context ?? {},
-					defaults: provisional,
-					inspect: { schema: (entry.component && config.schemas[entry.component]) || null },
-				},
-				timeoutMs + HOST_GRACE
-			)) as HostRender;
-			return inspected.captured as unknown as InspectResult;
-		},
+		captureCheckpoints: (rawRequest: CheckpointsRequest): Promise<CheckpointsRun> =>
+			captureCheckpointsInRuntime(jobDeps, rawRequest),
+		runJob: (rawRequest: JobRunRequest): Promise<JobRun> => runJobInRuntime(jobDeps, rawRequest),
+		inspect: (rawRequest: InspectRequest): Promise<InspectResult> => inspectEntry(rawRequest),
 		async run(rawRequest: RunRequest): Promise<StoryRun | GateRun> {
 			ensureOpen();
 			const request = parseRunRequest(rawRequest);
@@ -1318,7 +1323,8 @@ export async function createInProcessBench(
 						const runtime = await ensureHost();
 						await runtime.request('prepare', {}, BUNDLE_GRACE);
 					},
-					inspect: (id) => api.inspect({ id }),
+					inspect: (id, timeoutMs) =>
+						inspectEntry({ id, ...(timeoutMs !== undefined ? { timeoutMs } : {}) }, true),
 					runStory: (id, timeoutMs, observe) =>
 						runStory(
 							{ id, ...(timeoutMs ? { timeoutMs } : {}) },

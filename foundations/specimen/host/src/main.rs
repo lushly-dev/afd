@@ -28,6 +28,7 @@ mod gate;
 mod glob;
 mod isolation;
 mod keyboard;
+mod navigate;
 mod page;
 mod point;
 mod process;
