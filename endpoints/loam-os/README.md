@@ -35,8 +35,10 @@ mkdir -p ~/loam-os && cp examples/umbel.toml ~/loam-os/   # then edit the image 
 ```
 
 The runtime is driven through `docker` or `podman` with fixed arguments (`version`, `ps`,
-`volume ls`), never with a caller's input. Only Docker has been run so far (29.9.3, Hero,
-2026-11-26); the Podman path is the same command line and has not been tried on a Podman host.
+`volume ls`), never with a caller's input. Only Docker has been run so far: 29.9.3 on Hero, and
+29.5.2 in Colima on the lane host, `random`, where the launchd service from the image runbook ran
+too (both 2026-11-26). The Podman path is the same command line and has not been tried on a Podman
+host.
 
 The command line is Umbel's (`loam-os --help`). [`examples/umbel.toml`](examples/umbel.toml) is
 a complete workspace, and `schemas/config.schema.json` says what each key of

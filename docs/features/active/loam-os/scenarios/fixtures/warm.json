@@ -7,7 +7,7 @@
 			"name": "example-repo",
 			"base": "main",
 			"image": "example-image",
-			"note": "M0 settles whether install also prefetches Cargo and uv dependencies so build can run under network: none, or whether build runs under registries.",
+			"note": "M0 found that build runs under network: none, with UV_OFFLINE=1, after an online run has fetched and built; whether an install step alone prefetches enough is M1's to measure, and M2 chooses between none and registries for build here (STATUS, M0 measurements on random).",
 			"checkpointSteps": [
 				{
 					"label": "install",

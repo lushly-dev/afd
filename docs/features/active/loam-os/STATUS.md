@@ -40,7 +40,8 @@ not, so an agent never has to scan the code to learn what is current. It follows
     G4 amended at M1 exit. The proposal's [Decisions](loam-os.proposal.md#decisions) has the full
     table.
 - **Built:** see [Steps](#steps); what has been measured is in
-  [M0 measurements](#m0-measurements).
+  [M0 measurements](#m0-measurements) (Hero) and [M0 measurements on random](#m0-measurements-on-random)
+  (the lane host).
 - **Last verified:** 2026-11-22, the scenario checks below, on `main` at `d91d228a5` on Node 26.13.1.
 
 ## Steps
@@ -53,10 +54,11 @@ not, so an agent never has to scan the code to learn what is current. It follows
 | Walk the paths with readers who did not write them | Walked 2026-11-21 by three readers, one in each seat, a second pass by a fourth after the revision, and a walk of job 18 by a fifth | Proposal, [Walking the paths](loam-os.proposal.md#walking-the-paths) |
 | Independent review of the proposal | Reviewed 2026-11-21 by two reviewers and revised; a focused pass then checked the fixes; end-to-end review merged in [#2121](https://github.com/lushly-dev/afd/pull/2121) | [How it was reviewed](#how-it-was-reviewed) |
 | The owner cuts, adds and ranks the jobs, and answers the proposal's [For the owner](loam-os.proposal.md#for-the-owner) | Approved 2026-11-25; promoted to `active/loam-os` in [#2598](https://github.com/lushly-dev/afd/pull/2598) | Proposal, [Decisions](loam-os.proposal.md#decisions); Epic [#2595](https://github.com/lushly-dev/afd/issues/2595) |
-| M0: stand it up | Planned in [#2596](https://github.com/lushly-dev/afd/issues/2596) | Proposal, [M0](loam-os.proposal.md#m0-stand-it-up) |
+| M0: stand it up | Planned in [#2596](https://github.com/lushly-dev/afd/issues/2596). Not exited: on 2026-11-26 `host-status` answered on the lane host with the image by digest and the "Not verified" items were settled in writing, and `pnpm verify --all` on `main` did not yet pass there in full ([#2799](https://github.com/lushly-dev/afd/issues/2799)); see the exit row below | Proposal, [M0](loam-os.proposal.md#m0-stand-it-up); [M0 measurements on random](#m0-measurements-on-random) |
 | M0: Umbel's seams for the host, a server identity option and plugin configuration checks, and decisions D206 to D208 ([#2616](https://github.com/lushly-dev/afd/issues/2616)) | Merged in [#2629](https://github.com/lushly-dev/afd/pull/2629) | Umbel [decisions](../../../../endpoints/umbel/docs/decisions.md) D206 to D208 |
-| M0: the host unit with `host-status`, configuration checks and a fake runtime ([#2617](https://github.com/lushly-dev/afd/issues/2617)) | Merged in [#2669](https://github.com/lushly-dev/afd/pull/2669) | [`endpoints/loam-os/`](../../../../endpoints/loam-os/README.md); `host-status` answered against Docker 29.9.3 (linux/amd64) on Hero, 2026-11-26; the service files in the [image runbook](../../../operations/loam-os-image.md#install-the-host-as-a-service) are not yet run on any machine |
-| M0: the session image and its runbook ([#2618](https://github.com/lushly-dev/afd/issues/2618)) | Merged in [#2664](https://github.com/lushly-dev/afd/pull/2664). Built and checked on Hero (amd64) 2026-11-26: `pnpm verify --all` on `main` at `4a5118f69` passes in it, 167 of 167 steps. Not yet built or checked on the lane host (`random`, arm64) | [`endpoints/loam-os/image/`](../../../../endpoints/loam-os/image/), [runbook](../../../operations/loam-os-image.md), [M0 measurements](#m0-measurements) |
+| M0: the host unit with `host-status`, configuration checks and a fake runtime ([#2617](https://github.com/lushly-dev/afd/issues/2617)) | Merged in [#2669](https://github.com/lushly-dev/afd/pull/2669) | [`endpoints/loam-os/`](../../../../endpoints/loam-os/README.md); `host-status` answered against Docker 29.9.3 (linux/amd64) on Hero, 2026-11-26; the service files in the [image runbook](../../../operations/loam-os-image.md#install-the-host-as-a-service) are not yet run on any machine (superseded 2026-11-26: the launchd agent ran on `random`, [M0 measurements on random](#m0-measurements-on-random)) |
+| M0: the session image and its runbook ([#2618](https://github.com/lushly-dev/afd/issues/2618)) | Merged in [#2664](https://github.com/lushly-dev/afd/pull/2664). Built and checked on Hero (amd64) 2026-11-26: `pnpm verify --all` on `main` at `4a5118f69` passes in it, 167 of 167 steps. Not yet built or checked on the lane host (`random`, arm64) (superseded 2026-11-26: built, pinned and checked there, [M0 measurements on random](#m0-measurements-on-random)) | [`endpoints/loam-os/image/`](../../../../endpoints/loam-os/image/), [runbook](../../../operations/loam-os-image.md), [M0 measurements](#m0-measurements) |
+| M0: exit on the lane host ([#2596](https://github.com/lushly-dev/afd/issues/2596)): Colima on `random`, the image built and pinned there, `host-status` and the service, `pnpm verify --all` in it, and what M0 settles | Run 2026-11-26 in [#2810](https://github.com/lushly-dev/afd/pull/2810), against the proposal's M0 exit and the "settles" it lists. `host-status` answers on `random` and names the image by digest: holds. The open M0 items and Umbel's outcomes settled in writing: holds. `pnpm verify --all` on `main` passes in a container from the image: does not hold yet. Run 3, on `660ecec09`, passed 170 of 171 steps in 10600 s; the check failed on one test that fails every check on this host, from the disk's sync latency ([#2799](https://github.com/lushly-dev/afd/issues/2799)). The criterion holds when a full run passes | [M0 measurements on random](#m0-measurements-on-random), [What is not verified](#what-is-not-verified), [runbook](../../../operations/loam-os-image.md#container-runtime-on-random) |
 | M1: validation in a machine | Not started | Proposal, [M1](loam-os.proposal.md#m1-mvp-validation-in-a-machine) |
 | M2: warm starts | Not started | Proposal, [M2](loam-os.proposal.md#m2-warm-starts) |
 | M3 to M5 | Direction only, with no scenarios and no exit. M3 is specified when M1 exits, M4 when M3 exits and M5 when M4 exits | Proposal, [Milestones](loam-os.proposal.md#milestones) |
@@ -67,7 +69,8 @@ not, so an agent never has to scan the code to learn what is current. It follows
 
 Measured on Hero (Windows 11, Docker Desktop with BuildKit 0.34.2, a linux/amd64 engine given
 32 processors and 31 GiB). **These are not the lane host's numbers:** `random` is Apple silicon,
-so its machines are arm64, and nothing has been built or run there yet. Other sessions used
+so its machines are arm64, and nothing has been built or run there yet (superseded 2026-11-26:
+[M0 measurements on random](#m0-measurements-on-random)). Other sessions used
 Hero, and at times its container engine, throughout, so durations are upper bounds.
 
 **The image**, built from [`endpoints/loam-os/image/Containerfile`](../../../../endpoints/loam-os/image/Containerfile)
@@ -147,7 +150,212 @@ first run left. The same four steps failed both times:
   primary clone, network or not ([#2659](https://github.com/lushly-dev/afd/issues/2659)).
 
 So, given `UV_OFFLINE=1`, this repository validates with no network once its install step has
-fetched. Which hosts that install step reaches is not yet measured.
+fetched (corrected 2026-11-26: runs 3 and 5 reused a container after a full online run, so what is
+shown is no network after an online run has fetched and built; after the install step alone is
+M1's to measure, [What is not verified](#what-is-not-verified)). Which hosts that install step
+reaches is not yet measured (superseded 2026-11-26: measured through a proxy on `random`,
+[M0 measurements on random](#m0-measurements-on-random)).
+
+## M0 measurements on random
+
+### 2026-11-26: the lane host (arm64)
+
+Measured on `random`, the lane host: a Mac mini with an Apple M4 (10 cores, 24 GB), macOS 27.2.
+The runtime is Colima 0.10.3 (Lima 2.3.0, Apple's Virtualization framework with Rosetta,
+virtiofs), installed that day at the owner's word; its engine is Docker 29.5.2 for linux/arm64
+with the containerd image store. Its virtual machine has 6 processors, 16 GB and a 200 GB disk,
+kept on the external Dev volume ([runbook](../../../operations/loam-os-image.md#container-runtime-on-random)).
+The factory's and Lushly's lanes ran throughout: sampled every five minutes during run 1, the
+host's load average was between 14 and 189, and macOS reported 35 to 62 % of memory free. All
+durations are upper bounds.
+
+**The image**, built natively for linux/arm64 from the container file on `main` at `0c3f113c7`,
+with `docker buildx build --platform linux/arm64 --load`:
+
+| | random (arm64, native) |
+| --- | --- |
+| Index digest | `sha256:1403e876e7d7e29def2c85ebd13744736a5d239dbeaeb1c8956a5f513ccb6e67` |
+| Size, unpacked / compressed layers | 5.02 GB / 1.33 GB |
+| Build time | 405 s from an empty cache, unpacking into the image store 108 s of it (Hero's arm64 build under emulation: 607 s) |
+
+This is the digest the lane host pins (`~/loam-os/umbel.toml`).
+
+**The host.** `cargo install --path . --locked --root ~/.local` from `endpoints/loam-os` took
+456 s on four jobs, beside the image build. From the repository's root,
+`cargo install --path endpoints/loam-os` picked the default toolchain (1.94) instead of the unit's
+1.100.0 and refused, so the runbook now says to install from the unit's folder. In the workspace
+`~/loam-os` (`command = "/opt/homebrew/bin/docker"`, one repository, the `afd` checkout as its
+`source`, a size of 6 processors, 14 GB and 80 GB, capacity for one machine and 180 GB with 20 GB
+kept free):
+
+- `workspace-doctor`: every check passes, `plugins.config_checks` included.
+- `host-status`: `runtime` `{ kind: docker, version: 29.5.2, reachable: true, error: null }`, the
+  image by the digest above with its toolchain (Node 26.13.1, pnpm 12.22.0, Rust 1.100.0),
+  `unlisted` `{ containers: 0, volumes: 0, error: null }`, the journal `best-effort` (Umbel D208),
+  0.4 s a call.
+- **The service.** The runbook's launchd agent on `127.0.0.1:7420` ran as written: launchd kept it
+  up, `host-status` over MCP answered with the runtime reachable, a call without the bearer token
+  got HTTP 401, and `loam-os call host-status` still answered beside it. The workspace stays on
+  the internal disk: a job launchd starts cannot read the external Dev volume until macOS has its
+  consent for that binary ([runbook](../../../operations/loam-os-image.md#container-runtime-on-random)). The
+  Docker client still reaches Colima's socket there.
+
+**`pnpm verify --all` in it**, as on Hero: as `agent` in a container (`--init --shm-size=2g`, the
+default seccomp profile, no added privileges), from a clean clone made inside it, with
+`--keep-going`:
+
+| Run | `main` | Result | Time |
+| --- | --- | --- | --- |
+| 1 | `0c3f113c7` | 167 of 170 steps pass | Clone 14 s, install 6 s, verify 12716 s (3 h 32 min) |
+| 2 | Run 1's container, network removed, `UV_OFFLINE=1` | 167 of 170 pass | Every `node_modules` removed, `pnpm install --frozen-lockfile --offline` 4 s, verify 7113 s (1 h 59 min) |
+| 3 | `660ecec09`, a fresh container | 170 of 171 pass | Clone 16 s, install 6 s, verify 10600 s (2 h 57 min) |
+
+Run 3's one failure was the check, on the todo backend's thousand-writes test alone
+([#2799](https://github.com/lushly-dev/afd/issues/2799)): every other step passed, among them
+`test:stories` ([#2767](https://github.com/lushly-dev/afd/issues/2767)) and Umbel's store tests
+([#2800](https://github.com/lushly-dev/afd/issues/2800)). By then `main` had
+[#2701](https://github.com/lushly-dev/afd/pull/2701) (the child processes' lock wait) and
+[#2731](https://github.com/lushly-dev/afd/pull/2731) (the pack check's remounting), though neither
+addresses #2800 or the page deadline of #2767, so passing here shows less load, not a fix. In the same container, `pnpm check:all` on its own failed on that test again (15,483 ms) at a
+host load average of 8 to 12, so the check's own parallel tests are load enough; with
+`TMPDIR=/dev/shm`, where the test's database syncs cost nothing, the check did not fail on it.
+Run 3 took 10600 s against run 1's 12716 s, with the host less loaded in the evening: `loam.yml`
+3206 s, `loam-plugins.yml` 2103, `specimen.yml` 1162, `umbel.yml` 1147, `rust.yml` 836.
+
+Run 1's time by workflow, in seconds: `loam.yml` 3633 (`test:browser` 1746 and `test:walk` 1182
+of it), `umbel.yml` 2094 (its workspace tests 1257), `loam-plugins.yml` 2087 (the mail engine's
+two debug test runs, 969 and 893), `rust.yml` 1365, `specimen.yml` 1029, `conformance.yml` 386,
+the check 369, `cpp.yml` 364, `loam-desktop.yml` 311, `fast-af.yml` 285, `botcore-factory.yml`
+280, `botcore.yml` 176, `python.yml` 115, `hosted-fixtures.yml` 84, `violet.yml` 68, and under
+40 each for `health-dashboard.yml`, `auth-browser.yml`, `alfred.yml` and `health.yml`. Against
+Hero's run 4 (6612 s on 32 processors), this machine took about twice as long on 6: the Rust
+and browser suites, which use every processor, grew the most.
+
+The container peaked at 12.2 GB of memory (Umbel's workspace tests) and held 54.8 GB beyond the
+image after the run. The virtual machine's data disk then took 63 GB on the Dev volume.
+
+**Run 1's three failures, each re-run on its own in the same container:**
+
+- The check: `src/store/sqlite.test.ts > SqliteStore > keeps order past a thousand writes in one
+  millisecond` in the TypeScript todo backend timed out at Vitest's 5 s while the check ran every
+  package's tests at once. Alone it passed three times out of three, and the package's whole suite
+  passed. It makes 1,500 writes, each synced to disk (local-db's SQLite adapter sets
+  `synchronous = FULL`), on a virtual disk that is a file on an external USB SSD, and it failed in
+  every full run here: [#2799](https://github.com/lushly-dev/afd/issues/2799). **Load on the
+  disk**: run 3 below shows the check alone fails it, and that it passes with its temporary files
+  on tmpfs.
+- `umbel.yml`'s `cargo test -p umbel-store -p umbel-store-embedded`: four tests failed on
+  `busy: a lock wait ran past the lock timeout`. Their writers in child processes are
+  [#2637](https://github.com/lushly-dev/afd/issues/2637), and
+  [#2701](https://github.com/lushly-dev/afd/pull/2701), merged after `0c3f113c7`, gives those
+  children 60 s. One of them, `memory_conformance::the_memory_groups_pass`, failed on both a child
+  process case (`two_processes_write_densely`) and `two_threads_write_densely_and_read_their_writes`,
+  which contends between two threads in one process on the default 5 s that #2701 does not change:
+  [#2800](https://github.com/lushly-dev/afd/issues/2800). Alone the command failed once and passed
+  once. **Load**; the child-process part fixed on `main` since.
+- `specimen.yml`'s `pnpm test:stories`: all 410 stories passed, then opening a page ran past
+  Specimen's 10 s deadline. It failed the same way re-run alone, in a sequence of re-runs that began at a
+  host load average of 33 (one-minute), passed when the host's was between 6 and 13 (536 s), and passed again with six
+  busy loops inside the container (983 s; the host's 11 at its start). So it follows the load
+  outside the virtual machine, not inside it; that is an inference from four runs, not a
+  measurement of the cause.
+  [#2767](https://github.com/lushly-dev/afd/issues/2767). **Load.**
+
+No step failed because it ran on arm64 or on Linux.
+
+**With no network (run 2).** After run 1 and its re-runs, the container's network was removed
+(a request to the npm registry failed), every `node_modules` removed and relinked offline, and
+`pnpm verify --all --keep-going` run with `UV_OFFLINE=1`. Nothing failed for want of the network:
+the three steps that build a wheel with build isolation (health-dashboard's
+`verify-health-isolation.mjs`, the `package_smoke.py` of Botcore and Health) passed, as on Hero
+with `UV_OFFLINE=1`, and so did `pnpm test:stories`, whose `violet-message-media` story asks MDN
+for audio ([#2752](https://github.com/lushly-dev/afd/issues/2752)). botcore-factory's tests passed
+too: run 1 failed, so it wrote no verify record for them to read
+([#2659](https://github.com/lushly-dev/afd/issues/2659), fixed since by
+[#2692](https://github.com/lushly-dev/afd/pull/2692)). Three steps failed, each on a timing limit.
+The failing tests of the first two passed alone in the same container with no network; the steps
+themselves were not re-run whole after run 2:
+
+- The check: the todo backend's thousand-writes test again ([#2799](https://github.com/lushly-dev/afd/issues/2799)), and the Loam kernel's
+  `mounted-approvals.test.ts` > `P5-A6` > `asks once with the preview; …` at Vitest's 5 s. Alone,
+  three times each, they passed: the todo test in 2.8 to 3.3 s, over half its limit, and the
+  kernel test file in about 4 s. The kernel package's whole suite passed too (34 s); the todo
+  package's had passed alone after run 1. **Load.**
+- `fast-af.yml`'s `violet-elements test:browser`: `violet-data-grid.spec.ts` > `bounds 10k by 61
+  presentation work and reuses sort keys across direction changes` measured 546.8 ms against its
+  500 ms budget. Alone it passed three times, and the whole suite once. **Load.**
+- Umbel's store tests: only `two_threads_write_densely_and_read_their_writes`
+  ([#2800](https://github.com/lushly-dev/afd/issues/2800)) failed, behind
+  `conformance::the_suite_passes`. It was not re-run after run 2; its only re-run alone is run 1's
+  (failed once, passed once). **Load.**
+
+Run 2 took 7113 s against run 1's 12716 s because every Rust build and the C++ build were already
+done: `loam.yml` 2644 s, `loam-plugins.yml` 1501, `specimen.yml` 920, `umbel.yml` 706.
+
+So on this host too, given `UV_OFFLINE=1`, this repository validates with no network once an
+online run has fetched and built.
+
+**Through a proxy.** In a second container on an internal network whose only way out was a
+logging proxy (tinyproxy, `HTTPS_PROXY` and `HTTP_PROXY` set), the install step alone, on `main`
+at `0c3f113c7`, took 159 s, and every part passed: the clone (38 s), `pnpm install
+--frozen-lockfile` (30 s), `uv sync` in the six uv projects, `cargo fetch --locked` in the seven
+Cargo workspaces, and CMake's configure of `packages/cpp`. A direct connection from it was
+refused. pnpm, git, uv, Cargo and CMake all honoured the proxy. It opened connections to eight
+hosts: `registry.npmjs.org` (876), `files.pythonhosted.org` (198), `static.crates.io` (10),
+`index.crates.io` (7), `pypi.org` (2), and three that the example's `registries` policy does not
+list: `github.com` (the clone, and CMake's `FetchContent`), `release-assets.githubusercontent.com`
+and `raw.githubusercontent.com` (CMake's `FetchContent` of the C++ dependencies). Nothing reached
+`cdn.playwright.dev`: the browsers are in the image. In M1 the clone comes from the host's mirror,
+but CMake still asks `github.com` first (`packages/cpp/cmake/AfdDependencies.cmake` downloads from
+`github.com/…/releases/download/…`, which redirects), so `registries` needs all three GitHub hosts
+beyond what it lists, or the C++ dependencies in the image.
+
+**Disk limits and which disk.** With the containerd snapshotter on ext4, Docker accepts
+`--storage-opt size=1G` and ignores it: a container started with it wrote 1.5 GB into its root.
+The engine's data disk is one ext4 file system for every container, so a machine's disk limit
+cannot come from the runtime here. Inside the virtual machine, `df` on `/var/lib/docker` is what
+the machines use. On the host, the data disk is a sparse file that grows as the machine writes
+and does not shrink when it deletes: after run 1's container was removed, the virtual machine's
+file system went from 59 GB used to 8 GB, while the file on the Dev volume stayed at 73 GB until
+`fstrim -v /var/lib/docker` in the virtual machine (6 s, 65 GB trimmed) brought it to 9.5 GB. The
+file system is mounted without `discard`; Ubuntu's weekly `fstrim.timer` is the only trim. So the
+host must measure inside the virtual machine, or trim after it destroys a machine, before it
+compares disk use with its level before a run (M1's exit).
+
+**Checkpoints.** The engine has no experimental mode and no CRIU, so `docker checkpoint` is not
+available: a checkpoint here is a file system, not a process. `docker commit` of run 1's
+container after both runs (about 55 GB of changes beyond the image: dependencies, every `target`
+and the caches) had written about 8 GB into the image store after 21 minutes, when it was
+cancelled; the virtual machine's disk went back to where it was. It did not finish in 21 minutes;
+at that rate, an estimate, a whole-container commit would take more than two hours. So a committed
+container is not a usable checkpoint here. Keeping the warm state in volumes that can be
+snapshotted or copied (the dependency stores and build directories) is untried; M2 measures it.
+
+**The journal.** Twenty `host-status` calls added 1,420 bytes each to `state/journal.jsonl`: the
+whole result is written, not a digest. A lane that reads `host-status` every 10 s would add about
+12 MB a day.
+
+**A cell's commit that is not queued.** A commit made with `git commit-tree` in a worktree, with no
+ref anywhere, sits in the object store the worktrees share with the lane's checkout. Into an empty
+bare mirror, `git fetch <the lane's checkout> <sha>` over protocol version 2 (Git 2.54's default)
+fetched it with its history in 3 s; into a mirror already holding `main`, in 0.07 s. (The source
+was the lane host's primary checkout, which the worktrees' objects live in.) Protocol
+version 0 refuses it (`Server does not allow request for unadvertised object`), so the host must not
+force version 0.
+
+**Copying a checkout's history.** `main`'s history is 1,911 commits in a 47 MB pack. On the host,
+from that mirror, a clone took about 5 s (49 MB of `.git`, 162 MB with the working tree), a
+shallow clone 8 s (28 MB) and `--shared` 10 s; the host's load made those noisy, and checking the
+tree out costs the most. A clone of every branch from GitHub inside the container took 14 s (351
+MB of `.git`). Either is negligible beside a validation of more than three hours.
+
+**The cost of the runtime.** The virtual machine took 43 s to start the first time. Apple's
+Virtualization framework showed its full 16 GB resident while it ran, leaving the lanes about 8 GB.
+Nothing it keeps is on the internal disk except Colima's 322 MB download cache. Its LaunchAgent
+(`dev.lushly.colima`) runs `colima start` under launchd. Its first run waited about nine minutes,
+most likely for macOS's consent to read the external volume, given at the screen, and then found
+the virtual machine already up; with the virtual machine stopped, a kick of the agent started it
+within 25 s. Logging in again has not been tried ([runbook](../../../operations/loam-os-image.md#container-runtime-on-random)).
 
 ## How the jobs were checked
 
@@ -165,7 +373,9 @@ after job 18 was added and revised, after the independent reviews' revision, and
   and the 19 error codes: 15 of 16 commands used (`run-settle` is called only by the host's own
   supervisor), all 19 error codes used, and no scenario calls an undrafted command.
 
-Nothing runs the scenarios: no host exists. No CI job reads scenario files under `docs/`.
+Nothing runs the scenarios: no host exists (superseded: M0 built the host with `host-status` in
+[#2669](https://github.com/lushly-dev/afd/pull/2669); the scenarios' commands arrive from M1, and
+still nothing runs them). No CI job reads scenario files under `docs/`.
 
 ## How the paths were walked
 
@@ -212,20 +422,43 @@ repository and approved it with four minor polish improvements, all applied.
 
 ## What is not verified
 
-The proposal's [Status](loam-os.proposal.md#status) lists what nobody has measured, and M0
-settles it. The rows of [What Umbel and AFD need](loam-os.proposal.md#what-umbel-and-afd-need)
+The proposal's [Status](loam-os.proposal.md#status) listed what nobody had measured, for M0 to
+settle. On 2026-11-26 the M0 exit session settled each as far as M0 can, from Hero's measurements
+and the lane host's ([M0 measurements on random](#m0-measurements-on-random)):
+
+| Item | What M0 found | Left for |
+| --- | --- | --- |
+| Which runtime the lane host runs, and its cost | Colima 0.10.3 with Docker 29.5.2 (linux/arm64) in a virtual machine of 6 processors, 16 GB and 200 GB on the Dev volume. It holds its 16 GB resident and roughly doubles a cold validation against Hero's 32 processors | Settled. Podman is untried |
+| Whether the suites pass on its processor | No full run has passed yet. No failure was owed to arm64 or Linux: each was a timing limit, and each failing test passed in a run of its own. One, the todo backend's thousand-writes test, fails every check here, even the check run alone, because of the virtual disk's sync latency ([#2799](https://github.com/lushly-dev/afd/issues/2799), [#2767](https://github.com/lushly-dev/afd/issues/2767), [#2637](https://github.com/lushly-dev/afd/issues/2637)) | M1: the lane's size and load, so that timing limits hold |
+| A proxy as the only way out | The install step passes through one, and pnpm, git, uv, Cargo and CMake all honour it. It reaches eight hosts, three of them GitHub's: `github.com` for the clone and CMake, and two content hosts for CMake's C++ dependencies | M1: the host's proxy and its `registries` list; a full validation through it |
+| Verify with no network after a fetch | Yes on both hosts, given `UV_OFFLINE=1`, after an online run has fetched and built. Not yet after the install step alone | M1: install step under `registries`, validate under `none` |
+| How long a cold validation takes | 2 h 57 min to 3 h 32 min on the lane host (runs 3 and 1, as its other lanes' load varied), 1 h 50 min on Hero; a second run in the same container, with the builds done, 1 h 59 min | M2: warm starts |
+| How a disk limit is enforced, and which disk is measured | The runtime enforces none: `--storage-opt size` is accepted and ignored. Measure inside the virtual machine; the host's sparse file shrinks only after `fstrim` | M1: the host's own limit (for example a fixed-size volume per machine) and its measurement |
+| How a checkpoint is made and started from | No process checkpoint (no CRIU). Committing a whole post-validation container had written 8 GB after 21 minutes and was cancelled: too slow to use | M2: warm state in volumes, untried |
+| How fast the journal grows | 1,420 bytes a `host-status` call, because the whole result is journaled; about 12 MB a day at one read every 10 s | M1: reads journaled as digests |
+| Fetching a cell's commit that is not queued | Yes, over Git's protocol version 2, from the object store the worktrees share: 0.07 s into a mirror that holds `main` | Settled |
+| What copying a checkout's history costs | `main`'s history is a 47 MB pack; a clone from a local mirror takes about 5 s, one of every branch from GitHub 14 s | Settled |
+
+The rows of [What Umbel and AFD need](loam-os.proposal.md#what-umbel-and-afd-need)
 were read from Umbel's code on 2026-11-21 and re-verified on 2026-11-22 against `main` at
-`39ca857fd`, and have not been built against yet.
+`39ca857fd`, and have not been built against yet (superseded in part: M0 built the doctor hook
+and the server identity option, Umbel D206, and the host uses both; D207 records the principle 11
+exception; D208 chose a sink-level write-ahead log for the journal, which M1 builds).
 
 ## Follow-ups not yet issues
 
 | Date | Raised by | Follow-up |
 | --- | --- | --- |
 | 2026-11-21 | The drafting session | Readers of the repository for this proposal reported eleven stale statements in READMEs, the parity document, a changelog and a proposal. Corrected the same day, at the owner's request: each was checked against the code and status files, with seven more places that stated the same facts. The ones under `docs/` merged with this proposal in [#1912](https://github.com/lushly-dev/afd/pull/1912); the ones inside units merged in [#1918](https://github.com/lushly-dev/afd/pull/1918) (`6e290b781`). Left as it is: a completed feature's archive (`complete/declared-context-fields/STATUS.md`). The owner kept host-verified confirmation for C++ at N/A in the parity document, 2026-11-21 |
-| 2026-11-26 | The session image session | Build the image on `random` (arm64), run `pnpm verify --all` on `main` in it, pin its digest and record its numbers beside Hero's: whether every suite passes on arm64 is still open ([Platforms](loam-os.proposal.md#platforms)) |
+| 2026-11-26 | The session image session | Build the image on `random` (arm64), run `pnpm verify --all` on `main` in it, pin its digest and record its numbers beside Hero's: whether every suite passes on arm64 is still open ([Platforms](loam-os.proposal.md#platforms)). Done the same day by the M0 exit session ([M0 measurements on random](#m0-measurements-on-random)) |
 | 2026-11-26 | The session image session | M1's validate step under `none` needs `UV_OFFLINE=1` in its environment ([M0 measurements](#m0-measurements)); the host, not the image, sets it, since the install step needs uv online |
 | 2026-11-26 | The session image session | The Specimen host keeps Chromium's sandbox when the kernel allows user namespaces but the container runtime's seccomp profile refuses them, and then fails instead of retrying without it, as it does under AppArmor's restriction. The image sets `SPECIMEN_CHROMIUM_SANDBOX=0`; whether the host should detect this case is Specimen's call |
 | 2026-11-26 | The session image session | Better Auth's hosted-fixture contract tests start their runner with only `PATH`, `HOME` and `TMPDIR`, so a `PLAYWRIGHT_BROWSERS_PATH` does not reach it and the browsers must be in the default cache. The image keeps them there |
+| 2026-11-26 | The M0 exit session | At the next login or restart of `random`, check that Colima's LaunchAgent started the virtual machine (`colima list`, `~/Library/Logs/dev.lushly.colima.log`); after `brew upgrade colima`, macOS may ask for consent to the external volume again ([runbook](../../../operations/loam-os-image.md#container-runtime-on-random)). Until then a session started from Terminal or an agent app starts it |
+| 2026-11-26 | The M0 exit session | The install step reaches `github.com`, `release-assets.githubusercontent.com` and `raw.githubusercontent.com` for CMake's C++ dependencies. M1's `registries` policy lists them, or the image carries those dependencies |
+| 2026-11-26 | The M0 exit session | Timing limits fail under the lane host's load: the todo backend's thousand-writes test (2.8 to 3.3 s alone, against 5 s; [#2799](https://github.com/lushly-dev/afd/issues/2799)), the Loam kernel's `P5-A6` test, `violet-data-grid`'s 500 ms budget and Specimen's page deadline ([#2767](https://github.com/lushly-dev/afd/issues/2767)). Each passed alone. M1 decides how much of the host a lane machine gets, and whether a step that fails on a limit is repeated once |
+| 2026-11-26 | The M0 exit session | M1's host measures disk inside the runtime's virtual machine, or trims after destroying a machine: Colima's data disk does not give space back to the host until `fstrim` |
+| 2026-11-26 | The M0 exit session | The warm-start scenarios' fixtures (`warm.json`, `warm-red.json`) give the checkpoint's `build` step (`pnpm verify --all`) a 7200 s timeout, and a cold run took 12716 s on the lane host. M2 sets it from these measurements |
 
 ## Session log
 
@@ -236,3 +469,4 @@ were read from Umbel's code on 2026-11-21 and re-verified on 2026-11-22 against 
 | 2026-11-25 | Promotion session | Recorded the owner's 10 remaining decisions (named Loam OS, web-based Loam shell as the far end, lives under `endpoints/` for M0–M4), moved `proposed/agent-os/` to `active/loam-os/`, updated `docs/features/README.md`, and opened Epic [#2595](https://github.com/lushly-dev/afd/issues/2595) and M0 sub-issue [#2596](https://github.com/lushly-dev/afd/issues/2596) |
 | 2026-11-26 | Session image session ([#2618](https://github.com/lushly-dev/afd/issues/2618)) | Wrote the session image's container file and the operator runbook, built it for amd64 and arm64 on Hero, ran `pnpm verify --all` on `main` in it five times (twice with no network), fixed the image until it passed, moved it from Ubuntu 24.04 to 26.04 after review, and filed [#2636](https://github.com/lushly-dev/afd/issues/2636), [#2637](https://github.com/lushly-dev/afd/issues/2637) and [#2659](https://github.com/lushly-dev/afd/issues/2659) |
 | 2026-11-26 | M0 session | Opened M0's sub-issues ([#2616](https://github.com/lushly-dev/afd/issues/2616), [#2617](https://github.com/lushly-dev/afd/issues/2617), [#2618](https://github.com/lushly-dev/afd/issues/2618)); landed Umbel's seams and D206 to D208 ([#2629](https://github.com/lushly-dev/afd/pull/2629)); built the host unit and ran `host-status` against Docker on Hero; fixed a Windows cross-drive failure in the Loam exit check ([#2626](https://github.com/lushly-dev/afd/pull/2626)); filed [#2623](https://github.com/lushly-dev/afd/issues/2623) |
+| 2026-11-26 | M0 exit session on `random` ([#2596](https://github.com/lushly-dev/afd/issues/2596)) | Installed Colima on the lane host at the owner's word, built the session image there natively for arm64 and pinned it, installed the host with `host-status` and its launchd service, ran `pnpm verify --all` in the image three times (once with no network), re-ran each failing test alone (Umbel's store tests after run 1 only), measured the proxy, disk, checkpoint, journal, Git fetch and clone questions, settled the proposal's "Not verified" list, and filed [#2767](https://github.com/lushly-dev/afd/issues/2767) and [#2799](https://github.com/lushly-dev/afd/issues/2799) |

@@ -14,13 +14,60 @@ Nothing builds or publishes one automatically.
 
 ## What you need
 
-- A container runtime with BuildKit: Docker Desktop or Docker Engine with `docker buildx`. On
-  macOS and Windows it runs the machines in a Linux virtual machine.
+- A container runtime with BuildKit: Docker Desktop, Colima or Docker Engine with
+  `docker buildx`. On macOS and Windows it runs the machines in a Linux virtual machine. The lane
+  host's is Colima ([Container runtime on random](#container-runtime-on-random)).
 - About 10 GB free for the build and its cache. The image is about 5.2 GB unpacked (1.4 GB of
   compressed layers).
 - About 70 GB more for each check below: one `pnpm verify --all` leaves its dependencies, build
   output and caches in the container (53 to 67 GB on 2026-11-26).
 - A checkout of `main`, fresh (`git fetch origin main`, then build from `origin/main`'s tree).
+
+### Container runtime on random
+
+The lane host (`random`, a Mac mini M4 with 10 cores and 24 GB) runs Colima, installed on
+2026-11-26:
+
+- **What:** `brew install colima docker docker-buildx` (Colima 0.10.3 on Lima 2.3.0, the Docker
+  29.10.1 client, buildx 0.39.1). The engine in the virtual machine is Docker 29.5.2 (linux/arm64)
+  with the containerd image store, so `--load` keeps the image index and its digest. `buildx` is
+  registered with `"cliPluginsExtraDirs": ["/opt/homebrew/lib/docker/cli-plugins"]` in
+  `~/.docker/config.json`.
+- **Where its disk is:** `export COLIMA_HOME=/Volumes/Dev/colima` (in `~/.zprofile`; a shell that
+  does not read it, such as an agent's tool shell, needs the same `export`), on the
+  external Dev volume, never the internal disk, which has about 35 GB free. The virtual machine's
+  20 GB boot disk is `$COLIMA_HOME/_lima/colima/disk` and its 200 GB data disk, which holds
+  `/var/lib/docker` and every image, container and volume, is
+  `$COLIMA_HOME/_lima/_disks/colima/datadisk`. Both are sparse: they take on the volume only what
+  has been written. Only Colima's download cache of the base system image (about 320 MB) is on
+  the internal disk, in `~/Library/Caches/colima`.
+- **Limits:** 6 processors, 16 GB of memory and 200 GB of disk, which leaves the lanes four
+  processors and 8 GB. It was started once with
+  `colima start --vm-type vz --vz-rosetta --arch aarch64 --cpu 6 --memory 16 --disk 200 --mount-type virtiofs`,
+  and Colima keeps those settings in `$COLIMA_HOME/default/colima.yaml`, so a plain
+  `colima start` uses them again. Change them with `colima stop`, then
+  `colima start --cpu <n> --memory <gb>` (the disk can grow but not shrink).
+- **Start and stop:** in a shell with `COLIMA_HOME` set, `colima start`, `colima stop` and
+  `colima status`. `colima start` on a running machine prints `already running, ignoring` and
+  starts nothing. `docker context ls` shows the `colima` context as current.
+- **At login:** the LaunchAgent `~/Library/LaunchAgents/dev.lushly.colima.plist` runs
+  `/opt/homebrew/bin/colima start` with `COLIMA_HOME=/Volumes/Dev/colima` and a `PATH` with
+  `/opt/homebrew/bin`, at load (`RunAtLoad`) and again whenever a volume mounts (`StartOnMount`),
+  so a Dev volume that mounts after login still starts it. It is not `brew services`, which would
+  not pass `COLIMA_HOME`. If the volume is not mounted, `colima start` should fail, since it cannot
+  create `/Volumes/Dev` in the root-owned `/Volumes`, so no machine lands on the internal disk;
+  that case has not been tried. Its log is
+  `~/Library/Logs/dev.lushly.colima.log`; load it with
+  `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.lushly.colima.plist`.
+- **macOS privacy:** a process launchd starts needs macOS's consent to read the external volume.
+  On 2026-11-26 a shell under launchd got `Operation not permitted` listing `/Volumes/Dev`, and the
+  agent's first `colima start` waited with no output for about nine minutes, most likely for that
+  consent, given at the screen (System Settings → Privacy & Security → Files & Folders lists what
+  has it), and then found the machine already running. Every run after that worked, and with the
+  virtual machine stopped, `launchctl kickstart gui/$(id -u)/dev.lushly.colima` started it within
+  25 s. macOS ties the
+  consent to the binary, so after `brew upgrade colima` it may ask again: check the agent's log,
+  and answer the prompt or allow `colima` there.
 
 ## Build it
 
@@ -92,6 +139,9 @@ docker run --name loam-os-check --init --shm-size=2g loam-os-session@sha256:<hex
 - The container needs the network for the clone and the install, and for the first build of
   Rust, Python and C++ dependencies. What a second run without it needs (`UV_OFFLINE=1`) is in
   the STATUS's M0 measurements.
+- Pass anything else on standard input (`docker run -i … bash -s < script.sh`), not with a bind
+  mount: Colima shares only the home folder with its virtual machine, so a path on another
+  volume, such as `/Volumes/Dev`, mounts as an empty folder.
 
 The check passes when the summary has no `FAIL`. Record its duration and per-suite result. A
 suite that fails only in this image and not on CI's Linux runners is the image's to fix; a suite
@@ -140,13 +190,18 @@ Run it as an ordinary account that can reach the container runtime, never as roo
 the runtime's socket mounted into a machine. That account is only as unprivileged as the runtime
 lets it be: on Linux, membership of the `docker` group for rootful Docker is equivalent to root, so
 use rootless Podman or rootless Docker where the boundary matters. On macOS, Docker Desktop's
-runtime runs in its own virtual machine.
+runtime, and Colima's, runs in its own virtual machine.
 
-The service files below have not been run yet, neither on the lane host nor on Linux. Only
-`serve --http --bind 127.0.0.1:7420` has been run (on Windows, 2026-11-26). Record the first
-install's result in the [Loam OS status](../features/active/loam-os/STATUS.md).
+The macOS agent below ran on the lane host on 2026-11-26: launchd kept it up, it answered
+`host-status` over MCP on `127.0.0.1:7420` with the runtime reachable, refused a call without the
+token with HTTP 401, and `loam-os call` still worked beside it. The systemd unit has not been run
+yet. Record each first install's result in the [Loam OS status](../features/active/loam-os/STATUS.md).
 
 ### Build and configure
+
+Install from the unit's own folder, so rustup reads its `rust-toolchain.toml`. From the
+repository's root, `cargo install --path endpoints/loam-os` takes the default toolchain, which
+may be older than the 1.97 the crates require, and fails.
 
 ```sh
 cd endpoints/loam-os
@@ -158,7 +213,10 @@ In `~/loam-os/umbel.toml`, set the image's `reference` to the digest pinned abov
 `source`, the sizes, the policies and `capacity`. Under `[plugins.loamos.config.runtime]`, set
 `kind = "podman"` on a Podman host (the default is `docker`), and set `command` to the runtime's
 absolute path so the service does not depend on its `PATH` (Docker Desktop's per-user install puts
-it in `~/.docker/bin`). Then check it:
+it in `~/.docker/bin`; Homebrew's, which Colima uses, in `/opt/homebrew/bin`). Keep the workspace
+on the internal disk, as `~/loam-os` is: a job launchd starts cannot read an external volume until
+macOS has its consent for that binary (see [Container runtime on random](#container-runtime-on-random)). The Docker
+client reaches Colima's socket on the Dev volume from launchd all the same. Then check it:
 
 ```sh
 loam-os --workspace ~/loam-os call workspace-doctor   # plugins.config_checks must pass
@@ -192,9 +250,9 @@ loam-os --workspace ~/loam-os call host-status        # runtime.reachable: true,
 ```
 
 Replace `OPERATOR`, and make sure `PATH` reaches the runtime's `docker` or `podman`. Then
-`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.lushly.loam-os.plist`. Docker Desktop
-must start at login before the agent's first call. Until it does, `host-status` answers
-`reachable: false`, and the doctor warns.
+`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.lushly.loam-os.plist`. The runtime
+(Docker Desktop, or Colima's own agent on the lane host) must start at login before the agent's
+first call. Until it does, `host-status` answers `reachable: false`, and the doctor warns.
 
 ### Linux: a systemd user unit
 
