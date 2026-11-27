@@ -161,6 +161,7 @@ export {
 	type LocalWorkspaceBackup,
 	type McpTool,
 	type McpToolCallResult,
+	type MountedUiSlotV1,
 	type MountTransport,
 	type OverlayAnchors,
 	type PersonaV1,

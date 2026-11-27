@@ -781,7 +781,10 @@ export interface MountedHost {
 	/** Register what a journal recorded, with no network (7.6). */
 	applyCatalog(catalog: unknown): void;
 	approvalOf(command: string): 'required' | undefined;
-	/** A `ui://` view for `shell-open` (phase 5 specification, 9.3), read within its bounds; never a tool call. */
+	/**
+	 * A `ui://` view for `shell-open` (phase 5 specification, 9.3), read within its bounds; never a tool call. Its data is
+	 * `{ instance, uri, bytes, html, origin }`, and `html` goes nowhere but the slot.
+	 */
 	view(uri: string): Promise<CommandResult>;
 	dispose(): Promise<void>;
 }
@@ -1241,7 +1244,15 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 				return unavailable('it is not HTML');
 			const bytes = new TextEncoder().encode(content.text).length;
 			if (bytes > MOUNTED_VIEW_LIMITS.bytes) return unavailable('it is larger than 2 MiB');
-			return success({ instance, uri, bytes });
+			// `html` stays in memory: `shell-open` hands it to the slot alone, and never answers or journals it (9.3). `origin`
+			// is the sandbox's, where the slot renders it.
+			return success({
+				instance,
+				uri,
+				bytes,
+				html: content.text,
+				origin: host.deployment.sandbox_origin,
+			});
 		} catch {
 			return unavailable('it could not be read within 10 seconds');
 		}

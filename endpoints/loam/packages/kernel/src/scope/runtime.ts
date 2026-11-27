@@ -4,6 +4,7 @@
  * learns of its scope.
  */
 
+import type { MountedUiSlotV1 } from '../types.js';
 import { type AccessActorV1, decideAccess, type MembershipV1 } from './access.js';
 import { createRecordCache, type RecordCache } from './cache.js';
 import { NO_MEMBERS, type PrincipalLookup } from './principal.js';
@@ -44,6 +45,8 @@ export interface ScopeSeen {
 	scope?: ScopeV1;
 	scopeChanged?: ScopeChangeV2;
 	mainChanged?: 'push' | 'replace';
+	/** `shell-open`'s mounted-ui slot changed: its view, or `null` (phase 5 specification, 9.3). */
+	mountedUi?: MountedUiSlotV1 | null;
 	/** The person the kernel decides for changed, by `session-settle` (phase 3 specification, 4.4). */
 	actorChanged?: true;
 	/** The active persona changed, by `persona-set` or `persona-remove` (phase 3 specification, 6.3). */

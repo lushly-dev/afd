@@ -158,7 +158,16 @@ export class AppSurfaces implements ShellApps {
 			(owner, anchor) => this.#findAnchor(owner, anchor),
 			(instance, element, scope) => this.#overlayMount(instance, element, scope)
 		);
-		this.#cleanup.push(kernel.subscribe((event) => this.#onEvent(event)));
+		this.#cleanup.push(
+			kernel.subscribe((event) => this.#onEvent(event)),
+			// `shell-open`'s mounted-ui slot, in the view chunk (phase 5 specification, 9.3).
+			kernel.subscribe(({ mountedUi }) => {
+				if (mountedUi !== undefined)
+					void import('../view/view.js')
+						.then((view) => view.showMountedView(shell, mountedUi, kernel.version))
+						.catch(reportError);
+			})
+		);
 		this.#listen(APP_OPEN_EVENT, ({ instance }) => {
 			void kernel.call('app-open', { instance });
 		});

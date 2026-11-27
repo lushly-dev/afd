@@ -805,7 +805,7 @@ export const CEILINGS = Object.freeze({
 	// measured 139,141 against `main` at `804e17cc`; set to 139,700 under D115.
 	// #2107 (moved `journal-provenance.ts` and `redactWrapped` from first paint into `late/journal-wrappers.ts`):
 	// measured 144,170 against `main` at `bd30d790b` (+4,850 moved from first paint); set to 144,700 under D115.
-	lateMinified: 171_400, // D115: 150,050 (5ade6c0f4); step 10's 9.1 to 150,062, its 9.2 to 163,695, its 9.3 to 171,015.
+	lateMinified: 173_100, // D115: 150,050 (5ade6c0f4); step 10's 9.1 to 150,062, its 9.2 to 163,695, its 9.3 to 171,015; its mounted-ui slot (#2719), 171,002 to 172,785.
 	// #2117 (`recordOrder` calls in `documents.ts`): measured 13,584 against `main` at `804e17cc`; set to 13,800 under D115.
 	lateDocumentsMinified: 13_800,
 	// Bug batch #2113: 17,514 (`closeApp` across persisted scopes with R14 dirty re-check, `document-open` gated refusal, `isTypeGated`, `Editors.projects()`); set to 18,000 under D115.
@@ -908,7 +908,7 @@ export const CEILINGS = Object.freeze({
 	// measured 99,613 against `main` at `a5e79aab`; set to 100,100 under D115.
 	// #2235 (explicit empty value and element-identity option tracking in `violet-option`/`violet-listbox`,
 	// imported by `surfaces`): measured 100,335 against `main` at `44e711eb`; set to 100,800 under D115.
-	surfacesMinified: 104_200, // #2755 (D174's floor): 103,036 at `7d0135d8`; phase 5 step 10's 9.2 to 103,680, raised.
+	surfacesMinified: 104_500, // #2755 (D174's floor): 103,036 at `7d0135d8`; phase 5 step 10's 9.2 to 103,680, raised; D115: its mounted-ui slot (#2719), 104,121 to 104,299.
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's

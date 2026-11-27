@@ -156,6 +156,11 @@ export interface KernelEvent {
 	/** What main shows changed, and how the URL should follow. */
 	mainChanged?: 'push' | 'replace';
 	/**
+	 * `shell-open`'s mounted-ui slot changed (phase 5 specification, 9.3): the view it now shows, or `null` once
+	 * another call moved main or the scope and so replaced it. Absent: the slot is as it was.
+	 */
+	mountedUi?: MountedUiSlotV1 | null;
+	/**
 	 * The document an instance command that is a mutation changed, when it succeeded, so every open
 	 * editor of it re-reads.
 	 */
@@ -368,6 +373,18 @@ export interface LinkedCall {
 	result: McpToolCallResult;
 	/** The call's own signal, so the view that started a bound call can tell that call from another. */
 	signal?: AbortSignal;
+}
+
+/**
+ * The view `shell-open` opened in main's mounted-ui slot (phase 5 specification, 9.3, T32), held in memory alone, so a
+ * reload shows none and fetches nothing. Its HTML is read only through `source`, and its broker calls no tool.
+ */
+export interface MountedUiSlotV1 {
+	readonly instance: string;
+	readonly uri: string;
+	readonly scope: ScopeV1;
+	readonly source: { read(uri: string): Promise<{ html: string }> };
+	readonly view: ViewBroker;
 }
 
 /**

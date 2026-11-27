@@ -7,10 +7,12 @@
  */
 
 import type { CommandResult } from '@lushly-dev/afd-core';
+import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KEPT } from '../../scenarios/mailfix-mount.js';
 import {
+	P4_PERSON,
 	P4_PROJECTS,
 	P4_SEED,
 	P5_CALLER,
@@ -19,8 +21,10 @@ import {
 } from '../../scenarios/seeds.js';
 import type { AppsRuntime } from '../apps-runtime.js';
 import { createCopilotParts } from '../copilot/commands.js';
+import type { MembershipV1 } from '../scope/access.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import { replayKernel } from '../testing.js';
+import type { KernelEvent } from '../types.js';
 import { APP_CALLABLE_SHELL_COMMANDS_V3 } from '../types.js';
 import { canOpenInboxTarget } from './shell-open.js';
 
@@ -533,8 +537,269 @@ describe('P5-B3: shell-open’s mounted views, after the deployer’s opt-in', (
 			// connects a mounted instance, so it could not fetch one), and main where the live open left it.
 			expect(replayed.report.diverged).toBe(false);
 			expect(await scopeOf(replayed.kernel as SeededKernel['kernel'])).toBe('prj_beacon');
+			// A live open of the same view in the kept kernel is no "same view": the replay made no slot, so this one does.
+			const kept = replayed.kernel as SeededKernel['kernel'];
+			await kept.startInstances();
+			const events: KernelEvent[] = [];
+			kept.subscribe((event) => events.push(event));
+			const live = await kept.call<{ changed: boolean }>('shell-open', {
+				target: viewOf('ui://mailfix/thread'),
+			});
+			expect(live.success, JSON.stringify(live.error)).toBe(true);
+			expect(live.data?.changed).toBe(true);
+			expect(events.findLast((event) => event.command === 'shell-open')?.mountedUi).toMatchObject({
+				uri: 'ui://mailfix/thread',
+			});
 		} finally {
 			await replayed.kernel?.dispose();
+		}
+	});
+
+	it('P5-B3: hands the opened view to the page alone, transiently, with a broker that calls no tool (T32)', async () => {
+		const { mountedMailfix } = await import('../../scenarios/mailfix-mount.js');
+		const resources = lane();
+		const read = vi.spyOn(resources, 'read');
+		seeded = await p5Base({
+			provider: false,
+			mailfix: mountedMailfix({ resources }),
+			mailfixEntry: { views: true },
+		});
+		const events: KernelEvent[] = [];
+		seeded.kernel.subscribe((event) => events.push(event));
+		const opened = await open(seeded, viewOf('ui://mailfix/thread'));
+		expect(opened.success, JSON.stringify(opened.error)).toBe(true);
+		// The HTML reaches the slot alone: never the answer, nor the journal.
+		expect(JSON.stringify(opened)).not.toContain('A thread');
+		expect(JSON.stringify(await seeded.journal.read())).not.toContain('A thread');
+		const slot = events.findLast((event) => event.command === 'shell-open')?.mountedUi;
+		if (!slot) throw new Error('The open named no slot');
+		expect(slot).toMatchObject({ instance: 'mailfix', uri: 'ui://mailfix/thread' });
+		expect(await slot.source.read(slot.uri)).toEqual({ html: PAGE });
+		expect(slot.view.sandboxOrigin).toBe(seeded.deployment?.sandbox_origin);
+		// Zero tools: none of its own instance, none of another, and no bound command.
+		for (const name of ['mailfix-thread-list', 'mailfix-draft-send', 'app-list', 'shell-open']) {
+			await expect(slot.view.toolsCall({ name, arguments: {} })).rejects.toMatchObject({
+				code: 'VIEW_CALL_REFUSED',
+			});
+		}
+		await expect(
+			slot.view.runBound('mailfix-thread-list', new AbortController().signal)
+		).rejects.toMatchObject({ code: 'VIEW_CALL_REFUSED' });
+		expect(slot.view.overlayResult).toBeUndefined();
+		// Reads: a listed ui:// HTML view alone, through the open's own checks and bounds.
+		expect(await slot.view.resourcesRead({ uri: 'ui://mailfix/thread' })).toEqual({
+			contents: [{ uri: 'ui://mailfix/thread', mimeType: 'text/html;profile=mcp-app', text: PAGE }],
+		});
+		for (const uri of [
+			'ui://mailfix/none',
+			'ui://mailfix/plain',
+			'ui://mailfix/large',
+			'https://example.com/x',
+			'file:///etc/passwd',
+			undefined,
+		]) {
+			await expect(slot.view.resourcesRead({ uri })).rejects.toMatchObject({
+				code: 'VIEW_CALL_REFUSED',
+			});
+		}
+		// At most four reads in flight: a fifth is refused at once, and a slot is free again once they end.
+		const clock = new AbortController();
+		const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(clock.signal);
+		try {
+			const slow = Array.from({ length: 4 }, () =>
+				slot.view.resourcesRead({ uri: 'ui://mailfix/slow' }).catch((cause) => cause)
+			);
+			await expect(slot.view.resourcesRead({ uri: 'ui://mailfix/thread' })).rejects.toMatchObject({
+				code: 'VIEW_CALL_REFUSED',
+			});
+			clock.abort(new DOMException('timed out', 'TimeoutError'));
+			for (const ended of await Promise.all(slow))
+				expect(ended).toMatchObject({ code: 'VIEW_CALL_REFUSED' });
+		} finally {
+			timeout.mockRestore();
+		}
+		expect((await slot.view.resourcesRead({ uri: 'ui://mailfix/thread' })).contents).toHaveLength(
+			1
+		);
+		const reads = read.mock.calls.length;
+		// The same view again changes nothing, and names no new slot.
+		events.length = 0;
+		await open(seeded, viewOf('ui://mailfix/thread'));
+		expect(events.find((event) => event.command === 'shell-open')?.mountedUi).toBeUndefined();
+		// Another call that moves main replaces it: the page is told to drop it, once.
+		events.length = 0;
+		await seeded.kernel.call('section-open', { section: 'inbox' });
+		expect(events.findLast((event) => event.command === 'section-open')?.mountedUi).toBeNull();
+		events.length = 0;
+		await seeded.kernel.call('section-open', { section: 'projects' });
+		expect(events.some((event) => 'mountedUi' in event)).toBe(false);
+		// Another kind's open replaces it too.
+		await open(seeded, viewOf('ui://mailfix/thread'));
+		events.length = 0;
+		await open(seeded, { kind: 'section', section: 'inbox', scope: WS });
+		expect(events.findLast((event) => event.command === 'shell-open')?.mountedUi).toBeNull();
+		// Each fetch was a command's: the two opens since, and nothing else.
+		expect(read.mock.calls.length).toBe(reads + 2);
+	});
+
+	it('P5-B3: drops the slot at a change of person, with no app open, both ways (T32)', async () => {
+		const { mountedMailfix } = await import('../../scenarios/mailfix-mount.js');
+		seeded = await p5Base({
+			provider: false,
+			mailfix: mountedMailfix({ resources: lane() }),
+			mailfixEntry: { views: true },
+		});
+		const made = seeded;
+		await made.kernel.call('app-close');
+		const events: KernelEvent[] = [];
+		made.kernel.subscribe((event) => events.push(event));
+		const slotOf = async (call: () => Promise<unknown>, command: string) => {
+			events.length = 0;
+			await call();
+			return events.filter((event) => event.command === command && 'mountedUi' in event);
+		};
+		for (const [command, input] of [
+			['auth-sign-in', { method: 'credentials', email: 'person@example.com', password: 'x' }],
+			['auth-sign-out', {}],
+		] as const) {
+			const opened = await slotOf(
+				() => open(made, viewOf('ui://mailfix/thread', WS)),
+				'shell-open'
+			);
+			expect(opened[0]?.mountedUi, command).toMatchObject({ uri: 'ui://mailfix/thread' });
+			expect(
+				(await made.kernel.call<{ active: string | null }>('app-list')).data?.active
+			).toBeNull();
+			const changed = await slotOf(() => made.kernel.call(command, input), command);
+			expect(
+				changed.map((event) => event.mountedUi),
+				command
+			).toEqual([null]);
+			// The next open of it is a new one, with a new slot.
+			expect((await open(made, viewOf('ui://mailfix/thread', WS))).data?.changed, command).toBe(
+				true
+			);
+			await made.kernel.call('section-open', { section: 'projects' });
+		}
+	});
+
+	it('P5-B3: drops the slot at a change of person no command makes, in provider mode (T32)', async () => {
+		const { mountedMailfix } = await import('../../scenarios/mailfix-mount.js');
+		const OLU = 'mock-user-olu@example.com';
+		seeded = await p5Base({
+			provider: false,
+			mailfix: mountedMailfix({ resources: lane() }),
+			mailfixEntry: { views: true },
+			identity: {
+				identity: {
+					mode: 'provider',
+					organization: 'acme',
+					path: 'api/auth',
+					methods: ['passkey', 'password'],
+				} as IdentityV1,
+				membership: {
+					mode: 'provider',
+					members: new Map([
+						[P4_PERSON, 'owner'],
+						[OLU, 'owner'],
+					]),
+					digest: 'd1',
+				} as MembershipV1,
+			},
+		});
+		const made = seeded;
+		await made.kernel.call('app-close');
+		expect((await made.kernel.call<{ active: string | null }>('app-list')).data?.active).toBeNull();
+		const events: KernelEvent[] = [];
+		made.kernel.subscribe((event) => events.push(event));
+		await open(made, viewOf('ui://mailfix/thread', WS));
+		expect(events.findLast((event) => event.command === 'shell-open')?.mountedUi).toMatchObject({
+			uri: 'ui://mailfix/thread',
+		});
+		events.length = 0;
+		// Another tab signs Olu in: `session-settle` notes `actorChanged`, and no `auth-*` call runs here.
+		made.auth?._setUser({ id: OLU, email: 'olu@example.com', name: 'olu' });
+		await vi.waitFor(() =>
+			expect(events.find((event) => event.command === 'session-settle')).toBeDefined()
+		);
+		const settled = events.find((event) => event.command === 'session-settle');
+		expect(settled).toMatchObject({ actorChanged: true });
+		expect(settled?.mainChanged).toBeUndefined();
+		expect(settled?.scopeChanged).toBeUndefined();
+		expect(settled?.mountedUi).toBeNull();
+		expect(events.some((event) => event.command.startsWith('auth-'))).toBe(false);
+	});
+
+	it('P5-B3: drops the slot when an open moves the scope and then fails', async () => {
+		const { mountedMailfix } = await import('../../scenarios/mailfix-mount.js');
+		seeded = await p5Base({
+			provider: false,
+			mailfix: mountedMailfix({ resources: lane() }),
+			mailfixEntry: { views: true },
+		});
+		const made = seeded;
+		await made.kernel.call('scope-set', { project: null });
+		await made.kernel.call('workspace-app-set', { instance: 'hello', enabled: false });
+		expect((await open(made, viewOf('ui://mailfix/thread', WS))).success).toBe(true);
+		const events: KernelEvent[] = [];
+		made.kernel.subscribe((event) => events.push(event));
+		const failed = await open(made, { kind: 'app', instance: 'hello', scope: ATLAS });
+		expect(failed.success).toBe(false);
+		expect(
+			(await made.kernel.call<{ scope: { project?: string } }>('scope-get')).data?.scope.project
+		).toBe('prj_atlas');
+		expect(events.find((event) => event.command === 'shell-open')?.mountedUi).toBeNull();
+	});
+
+	it('P5-B3: the slot reads no URI its instance does not list, gates each message and bounds its reads', async () => {
+		const { mountedMailfix } = await import('../../scenarios/mailfix-mount.js');
+		seeded = await p5Base({
+			provider: false,
+			mailfix: mountedMailfix({ resources: lane() }),
+			mailfixEntry: { views: true },
+		});
+		const events: KernelEvent[] = [];
+		seeded.kernel.subscribe((event) => events.push(event));
+		await open(seeded, viewOf('ui://mailfix/thread'));
+		const slot = events.findLast((event) => event.command === 'shell-open')?.mountedUi;
+		if (!slot) throw new Error('The open named no slot');
+		// Variants of a listed URI, and another instance's, are not it.
+		for (const uri of [
+			'UI://mailfix/thread',
+			'ui://mailfix/thread?x',
+			'ui://mailfix/thread#frag',
+			'ui://mailfix/./thread',
+			'ui://mailfix/thread/',
+			'ui://other/thread',
+			' ui://mailfix/thread',
+		]) {
+			await expect(slot.view.resourcesRead({ uri }), uri).rejects.toMatchObject({
+				code: 'VIEW_CALL_REFUSED',
+			});
+		}
+		// Every message the frame sends is gated by size first.
+		expect(slot.view.admit?.({ jsonrpc: '2.0', id: 1, method: 'ping' })).toBeUndefined();
+		expect(
+			slot.view.admit?.({ jsonrpc: '2.0', id: 1, method: 'ping', params: 'x'.repeat(1_048_577) })
+		).toMatchObject({ code: 'INPUT_TOO_LARGE', rpcCode: -32602 });
+		// Ten reads in ten seconds, then none until the window passes.
+		// A fresh window, past the one the reads above opened.
+		const start = Date.now() + 60_000;
+		const clock = vi.spyOn(Date, 'now').mockReturnValue(start);
+		try {
+			const { SLOT_READS } = await import('./shell-open.js');
+			for (let index = 0; index < SLOT_READS; index++)
+				await slot.view.resourcesRead({ uri: 'ui://mailfix/thread' });
+			await expect(slot.view.resourcesRead({ uri: 'ui://mailfix/thread' })).rejects.toMatchObject({
+				code: 'RATE_LIMITED',
+				details: { limit: SLOT_READS },
+			});
+			clock.mockReturnValue(start + 10_000);
+			expect((await slot.view.resourcesRead({ uri: 'ui://mailfix/thread' })).contents).toHaveLength(
+				1
+			);
+		} finally {
+			clock.mockRestore();
 		}
 	});
 

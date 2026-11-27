@@ -81,6 +81,8 @@ export interface SeededKernel {
 	mailfixb?: ReturnType<typeof mountedMailfix>;
 	/** The copilot's host and the test provider, when the seed configures one. */
 	copilot?: { host: CopilotHostV1; provider: TestProviderV1 };
+	/** The Mock the kernel signs in through, for a test whose change of person no command makes (another tab's). */
+	auth?: MockAuthAdapter;
 	dispose(): Promise<void>;
 }
 
@@ -267,11 +269,12 @@ async function p4Base(
 			...(mailfixb ? [mailfixEntry(920, 'whole', 'mailfixb')] : []),
 		] as never,
 	} as ProjectionV4;
+	const auth = new MockAuthAdapter();
 	const kernel = await createKernel({
 		store,
 		storeKind: 'memory',
 		journal,
-		auth: new MockAuthAdapter(),
+		auth,
 		environment: createFixedEnvironment(),
 		host: 'test',
 		...(extra.copilot ? { copilot: extra.copilot } : {}),
@@ -298,6 +301,7 @@ async function p4Base(
 		...(mailfixb ? { mailfixb } : {}),
 		deployment,
 		ports,
+		auth,
 		dispose: () => kernel.dispose(),
 	};
 }

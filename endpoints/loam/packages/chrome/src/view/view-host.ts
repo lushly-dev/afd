@@ -44,6 +44,8 @@ export interface ViewHostOptions {
 	resource: string;
 	/** `ui.surfaces.main.command`, which runs when the view opens. */
 	command?: string;
+	/** A mounted server's view (phase 5's 9.3): what it logs stays out of the page's console. */
+	quiet?: boolean;
 	context(): ViewHostContext;
 	onInitialized(): void;
 	/** A document's editor: `dev.loam/editor-dirty` and `dev.loam/editor-selection` (5.6). Absent, both are ignored. */
@@ -192,7 +194,8 @@ export class ViewHost {
 		}
 		if (method === 'notifications/message') {
 			const { level, data } = (params ?? {}) as { level?: unknown; data?: unknown };
-			if (level === 'error') reportError(new Error(`The view of ${instance}: ${logged(data)}`));
+			if (level === 'error' && !this.#options.quiet)
+				reportError(new Error(`The view of ${instance}: ${logged(data)}`));
 			return;
 		}
 		if (method !== 'ui/notifications/initialized' || this.#initialized) return;
