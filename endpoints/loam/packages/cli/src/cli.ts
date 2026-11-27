@@ -71,13 +71,13 @@ const SUBCOMMANDS: Record<string, Subcommand> = {
 	// The phase 5 no-terminal amendment, 10: a plugin author's tools; installing is the desktop's.
 	'plugin check': {
 		command: pluginCheckCommand,
-		usage: 'loam plugin check [<dir>]',
+		usage: 'loam plugin check [<dir|name.loam-plugin>]',
 		options: {},
 		positionals: ['dir'],
 	},
 	'plugin pack': {
 		command: pluginPackCommand,
-		usage: 'loam plugin pack [<dir>] --out <dir>',
+		usage: 'loam plugin pack [<dir>] --out <dir|name.loam-plugin>',
 		options: { out: 'out' },
 		positionals: ['dir'],
 	},
