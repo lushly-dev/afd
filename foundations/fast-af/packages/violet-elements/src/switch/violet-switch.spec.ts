@@ -398,4 +398,57 @@ describe("violet-switch", () => {
       expect(descriptor?.set).toBeUndefined();
     });
   });
+
+  describe("in right-to-left", () => {
+    it("keeps the checked thumb inside the track and moves it toward the inline-end edge", async () => {
+      document.body.innerHTML = "";
+      const wrapper = document.createElement("div");
+      wrapper.setAttribute("dir", "rtl");
+
+      const unchecked = document.createElement("violet-switch") as VioletSwitch;
+      unchecked.textContent = "Unchecked";
+      const checked = document.createElement("violet-switch") as VioletSwitch;
+      checked.checked = true;
+      checked.textContent = "Checked";
+
+      wrapper.append(unchecked, checked);
+      document.body.append(wrapper);
+      await customElements.whenDefined("violet-switch");
+      await nextFrame();
+      await nextFrame();
+
+      const uncheckedShadow = unchecked.shadowRoot as ShadowRoot;
+      const checkedShadow = checked.shadowRoot as ShadowRoot;
+      const uncheckedTrack = (
+        uncheckedShadow.querySelector(".track") as HTMLElement
+      ).getBoundingClientRect();
+      const uncheckedThumb = (
+        uncheckedShadow.querySelector(".thumb") as HTMLElement
+      ).getBoundingClientRect();
+      const checkedTrack = (
+        checkedShadow.querySelector(".track") as HTMLElement
+      ).getBoundingClientRect();
+      const checkedThumb = (
+        checkedShadow.querySelector(".thumb") as HTMLElement
+      ).getBoundingClientRect();
+
+      // Unchecked thumb sits at the right (inline-start) edge inside the track.
+      expect(uncheckedThumb.left).toBeGreaterThanOrEqual(uncheckedTrack.left);
+      expect(uncheckedThumb.right).toBeLessThanOrEqual(uncheckedTrack.right);
+      expect(uncheckedTrack.right - uncheckedThumb.right).toBeLessThan(
+        uncheckedThumb.left - uncheckedTrack.left,
+      );
+
+      // Checked thumb moves leftward toward the inline-end edge and stays inside the track.
+      expect(checkedThumb.left).toBeGreaterThanOrEqual(checkedTrack.left);
+      expect(checkedThumb.right).toBeLessThanOrEqual(checkedTrack.right);
+      expect(checkedThumb.left - checkedTrack.left).toBeLessThan(
+        checkedTrack.right - checkedThumb.right,
+      );
+      expect(checkedThumb.left - checkedTrack.left).toBeCloseTo(
+        uncheckedTrack.right - uncheckedThumb.right,
+        0,
+      );
+    });
+  });
 });

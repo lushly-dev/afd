@@ -656,4 +656,15 @@ describe("violet-data-grid-reference-picker", () => {
     window.dispatchEvent(new Event("resize"));
     expect(bounds).not.toHaveBeenCalled();
   });
+
+  it("keeps a downward caret drawn from physical edges in right-to-left", async () => {
+    const element = await renderReferencePicker();
+    element.setAttribute("dir", "rtl");
+    await nextFrame();
+
+    const caret = getComputedStyle(element.shadowRoot?.querySelector(".caret") as HTMLElement);
+    expect(caret.borderRightStyle).toBe("solid");
+    expect(caret.borderBottomStyle).toBe("solid");
+    expect(caret.borderLeftStyle).toBe("none");
+  });
 });

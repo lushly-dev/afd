@@ -185,4 +185,15 @@ describe("violet-accordion-item", () => {
     expect(headingSlot.assignedElements()[0]?.textContent).toBe("Shipping");
     expect(bodySlot.assignedElements()[0]?.textContent).toBe("Ships in two days.");
   });
+
+  it("keeps a vertical chevron drawn from physical edges in right-to-left", async () => {
+    const item = await renderItem((el) => {
+      el.setAttribute("dir", "rtl");
+    });
+
+    const indicator = getComputedStyle(item.shadowRoot?.querySelector(".indicator") as HTMLElement);
+    expect(indicator.borderRightStyle).toBe("solid");
+    expect(indicator.borderBottomStyle).toBe("solid");
+    expect(indicator.borderLeftStyle).toBe("none");
+  });
 });

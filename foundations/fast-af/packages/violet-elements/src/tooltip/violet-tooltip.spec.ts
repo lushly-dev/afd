@@ -161,22 +161,27 @@ describe("violet-tooltip", () => {
     const trigger = tooltip.querySelector("button") as HTMLButtonElement;
     const popup = tooltip.shadowRoot?.querySelector(".tooltip") as HTMLElement;
 
+    // Firefox can leave the iframe unfocused after earlier specs that never took focus,
+    // which prevents Playwright's Escape key from reaching the focused trigger.
+    window.focus();
     trigger.focus();
-    await nextFrame();
-    expect(tooltip.open).toBe(true);
-    expect(popup.matches(":popover-open")).toBe(true);
+    await vi.waitFor(() => {
+      expect(tooltip.open).toBe(true);
+      expect(popup.matches(":popover-open")).toBe(true);
+    });
 
     await userEvent.keyboard("{Escape}");
-    await nextFrame();
-    expect(popup.matches(":popover-open")).toBe(false);
-    expect(tooltip.open).toBe(false);
+    await vi.waitFor(() => {
+      expect(popup.matches(":popover-open")).toBe(false);
+      expect(tooltip.open).toBe(false);
+    });
 
     // The tooltip listens on its anchor wrapper, and mouseenter does not bubble.
     tooltip.shadowRoot?.querySelector(".anchor")?.dispatchEvent(new MouseEvent("mouseenter"));
-    await new Promise((resolve) => setTimeout(resolve, 60));
-    await nextFrame();
-    expect(tooltip.open).toBe(true);
-    expect(popup.matches(":popover-open")).toBe(true);
+    await vi.waitFor(() => {
+      expect(tooltip.open).toBe(true);
+      expect(popup.matches(":popover-open")).toBe(true);
+    });
   });
 
   it("supports an external anchor trigger by id", async () => {

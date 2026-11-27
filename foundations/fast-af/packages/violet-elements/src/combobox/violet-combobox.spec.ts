@@ -1393,4 +1393,17 @@ describe("violet-combobox", () => {
       expect(new FormData(form).get("source")).toBe("warm");
     });
   });
+
+  describe("in right-to-left", () => {
+    it("keeps a downward caret drawn from physical edges", async () => {
+      const combobox = await renderCombobox();
+      combobox.setAttribute("dir", "rtl");
+      await nextFrame();
+
+      const caret = getComputedStyle(combobox.shadowRoot?.querySelector(".caret") as HTMLElement);
+      expect(caret.borderRightStyle).toBe("solid");
+      expect(caret.borderBottomStyle).toBe("solid");
+      expect(caret.borderLeftStyle).toBe("none");
+    });
+  });
 });

@@ -207,8 +207,9 @@ const styles = css`
         block-size: 0.375rem;
         flex: 0 0 auto;
         margin-inline-start: 0.0625rem;
-        border-inline-end: 1.25px solid currentColor;
-        border-block-end: 1.25px solid currentColor;
+        /* Physical edges: rotated, they draw a downward chevron, which must not mirror in right-to-left. */
+        border-right: 1.25px solid currentColor;
+        border-bottom: 1.25px solid currentColor;
         transform: translateY(-2.5px) rotate(45deg);
         opacity: 0.78;
     }

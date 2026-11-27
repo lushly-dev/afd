@@ -605,4 +605,15 @@ describe("violet-data-grid-multi-picker", () => {
     expect(bounds).not.toHaveBeenCalled();
     vi.restoreAllMocks();
   });
+
+  it("keeps a downward caret drawn from physical edges in right-to-left", async () => {
+    const element = await renderMultiPicker();
+    element.setAttribute("dir", "rtl");
+    await nextFrame();
+
+    const caret = getComputedStyle(element.shadowRoot?.querySelector(".caret") as HTMLElement);
+    expect(caret.borderRightStyle).toBe("solid");
+    expect(caret.borderBottomStyle).toBe("solid");
+    expect(caret.borderLeftStyle).toBe("none");
+  });
 });

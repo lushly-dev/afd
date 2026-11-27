@@ -125,10 +125,10 @@ const styles = css`
         border-radius: var(--_radius-sm);
         background: var(--_surface-card);
         box-shadow: var(--_shadow-control);
-        transform: translate(0, -50%);
+        transform: translateY(-50%);
         transform-origin: center;
         transition:
-            transform var(--_duration-base) var(--_easing-standard),
+            inset-inline-start var(--_duration-base) var(--_easing-standard),
             background-color var(--_duration-fast) var(--_easing-standard);
     }
 
@@ -159,7 +159,8 @@ const styles = css`
     }
 
     .input:checked + .track .thumb {
-        transform: translate(var(--_thumb-offset), -50%);
+        /* Logical offset moves the thumb toward the inline-end edge in both LTR and RTL. */
+        inset-inline-start: calc(var(--_track-padding) + var(--_thumb-offset));
         background: var(--_selection-text);
         box-shadow: none;
     }

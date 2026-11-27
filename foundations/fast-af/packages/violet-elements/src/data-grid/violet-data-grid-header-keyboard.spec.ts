@@ -625,6 +625,67 @@ describe("violet-data-grid role=grid and roving focus (#510)", () => {
     expect(document.activeElement?.id).toBe("after");
   });
 
+  it("handles Option+Tab (altKey) on headers and custom cell widgets for macOS Safari full-keyboard navigation", async () => {
+    const grid = await renderInteractiveGrid({
+      focusMode: "cell",
+      selectionMode: "multiple",
+      rowCount: 2,
+    });
+
+    const activeCell = cell(grid, "row-0", "name");
+    activeCell.focus();
+    await nextFrame();
+    await userEvent.keyboard("{ArrowUp}");
+    const columnHeader = headerTarget(grid, "name");
+    expect(focused(grid)).toBe(columnHeader);
+
+    const headerBack = new KeyboardEvent("keydown", {
+      key: "Tab",
+      altKey: true,
+      shiftKey: true,
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+    });
+    columnHeader.dispatchEvent(headerBack);
+    expect(headerBack.defaultPrevented).toBe(true);
+    expect(focused(grid)).toBe(activeCell);
+
+    await userEvent.keyboard("{ArrowLeft}{ArrowUp}");
+    const selectAll = selectAllCheckbox(grid);
+    expect(focused(grid)).toBe(selectAll);
+    const selectAllBack = new KeyboardEvent("keydown", {
+      key: "Tab",
+      altKey: true,
+      shiftKey: true,
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+    });
+    selectAll.dispatchEvent(selectAllBack);
+    expect(selectAllBack.defaultPrevented).toBe(true);
+    expect(focused(grid)).toBe(selectionCell(grid, "row-0"));
+
+    // Forward Option+Tab from a column header suspends the body roving Tab stop so focus leaves the grid.
+    activeCell.focus();
+    await nextFrame();
+    await userEvent.keyboard("{ArrowUp}");
+    expect(focused(grid)).toBe(columnHeader);
+    const headerForward = new KeyboardEvent("keydown", {
+      key: "Tab",
+      altKey: true,
+      shiftKey: false,
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+    });
+    columnHeader.dispatchEvent(headerForward);
+    expect(headerForward.defaultPrevented).toBe(false);
+    expect(activeCell.getAttribute("tabindex")).toBe("-1");
+    await nextFrame();
+    expect(activeCell.getAttribute("tabindex")).toBe("0");
+  });
+
   it("does not copy or paste into a data cell while a selection cell has focus", async () => {
     const grid = await renderInteractiveGrid({
       focusMode: "cell",
@@ -723,6 +784,32 @@ describe("violet-data-grid role=grid and roving focus (#510)", () => {
     expect(focused(grid)).toBe(checkbox);
     await userEvent.tab();
     expect(focused(grid)).toBe(textInput);
+
+    // Option+Tab (altKey) also cycles custom cell widgets for macOS Safari navigation.
+    const widgetBack = new KeyboardEvent("keydown", {
+      key: "Tab",
+      altKey: true,
+      shiftKey: true,
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+    });
+    textInput?.dispatchEvent(widgetBack);
+    expect(widgetBack.defaultPrevented).toBe(true);
+    expect(focused(grid)).toBe(checkbox);
+
+    const widgetForward = new KeyboardEvent("keydown", {
+      key: "Tab",
+      altKey: true,
+      shiftKey: false,
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+    });
+    checkbox?.dispatchEvent(widgetForward);
+    expect(widgetForward.defaultPrevented).toBe(true);
+    expect(focused(grid)).toBe(textInput);
+
     await userEvent.keyboard("{Escape}");
     expect(focused(grid)).toBe(cell(grid, "r0", "actions"));
   });

@@ -101,8 +101,9 @@ const styles = css`
         block-size: 0.4375rem;
         flex: 0 0 auto;
         margin-inline-end: 2px;
-        border-inline-end: 1.5px solid currentColor;
-        border-block-end: 1.5px solid currentColor;
+        /* Physical edges: rotated, they draw a vertical chevron, which must not mirror in right-to-left. */
+        border-right: 1.5px solid currentColor;
+        border-bottom: 1.5px solid currentColor;
         color: var(--_text-muted);
         transform: rotate(45deg);
         transition: transform var(--_duration-fast) var(--_easing-standard);

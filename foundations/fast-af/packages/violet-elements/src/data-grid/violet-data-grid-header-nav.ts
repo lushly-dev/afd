@@ -95,11 +95,8 @@ export function handleSelectionHeaderKeydownEvent(
     return true;
   }
 
-  if (event.altKey || event.ctrlKey || event.metaKey) {
-    return true;
-  }
-
-  if (event.key === "Tab") {
+  // Option+Tab (altKey) is macOS Safari's shortcut to focus all controls, so Tab allows altKey.
+  if (event.key === "Tab" && !event.ctrlKey && !event.metaKey) {
     if (host.focusMode !== "cell") {
       return true;
     }
@@ -112,6 +109,10 @@ export function handleSelectionHeaderKeydownEvent(
     event.preventDefault();
     host.focusActiveCell({ preventScroll: true });
     return false;
+  }
+
+  if (event.altKey || event.ctrlKey || event.metaKey) {
+    return true;
   }
 
   if (event.shiftKey) {
@@ -170,11 +171,8 @@ export function handleColumnHeaderKeydownEvent(
     return !host.focusColumnResizer(columnId, header);
   }
 
-  if (event.altKey || event.ctrlKey || event.metaKey) {
-    return true;
-  }
-
-  if (event.key === "Tab") {
+  // Option+Tab (altKey) is macOS Safari's shortcut to focus all controls, so Tab allows altKey.
+  if (event.key === "Tab" && !event.ctrlKey && !event.metaKey) {
     if (host.focusMode !== "cell") {
       return true;
     }
@@ -189,6 +187,10 @@ export function handleColumnHeaderKeydownEvent(
     event.preventDefault();
     host.focusActiveCell({ preventScroll: true });
     return false;
+  }
+
+  if (event.altKey || event.ctrlKey || event.metaKey) {
+    return true;
   }
 
   if (event.shiftKey) {
