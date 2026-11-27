@@ -262,8 +262,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   on `random` already, calling `lane-heartbeat` (Lushly's side,
   [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), coordinated with its
   foreman, with a `/heartbeat` token issued only after it merged and the lane reloaded
-  cleanly; it merged and reloaded on 2026-11-25, and the token and the `gateway.url` dial
-  remain), and botcore's lane once it runs for AFD; the factory plugin on the gateway (the
+  cleanly; it merged and reloaded on 2026-11-25, and reports since 2026-11-27, below), and
+  botcore's lane once it runs for AFD; the factory plugin on the gateway (the
   lane loop landed in #1295; `feat/factory-lane-loop` is stale); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));
   the process files and the two process checks.
 - **Not done:** every milestone below.
@@ -594,6 +594,20 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
     needs the owner's sudo on `random`.
   - **Coordination.** Lushly's foreman, which asked to be told before the dial is set, no longer
     runs, so that step is the owner's.
+- 2026-11-27: Lushly's lane reports to the gateway. Superseding "Still off" above.
+  - **The token.** The owner ran sudo on `random`, and the `/heartbeat` token was issued with
+    `token issue --route heartbeat --kind service --actor lane-heartbeat@random`. Its id is
+    `d4c0945d`, issued at 09:54Z.
+  - **Where it lives.** The token went straight into `~/.config/factory-gateway/heartbeat.token`
+    (0600, outside the repository and the lane's worktrees). It was never printed.
+  - **The dial.** Set at 09:54Z, in the same session as the token: `node scripts/merge-lane.mjs
+    dial gateway.url http://100.82.142.64:8787`.
+  - **When it started.** The lane reads its dials only between steps, so the first beat came
+    once the coverage run on `main` it was in had finished.
+  - **Verified.** `gateway-status` (owner route) at 11:12Z: `lushly-dev/lushly` on `random`,
+    `running: true`, `stale: false`, `queued: 5`, `lastMergeAt` 09:48Z. The lane's `lane.log`
+    says `heartbeat: reporting to the gateway`.
+  - **Not yet reporting:** AFD's lane, which reports once botcore's lane runs for AFD.
 
 ## Follow-ups not yet issues
 
