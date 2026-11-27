@@ -22,7 +22,10 @@ runs is the software factory's validation of a branch. Originally drafted under 
   ([#2799](https://github.com/lushly-dev/afd/issues/2799)); M0 exits when a full run passes
   ([STATUS](STATUS.md#steps)). On 2026-11-27, with #2799 fixed, three more runs each failed one
   step on an intermittent test ([#2855](https://github.com/lushly-dev/afd/issues/2855),
-  [#2872](https://github.com/lushly-dev/afd/issues/2872)), so M0 has not exited yet.
+  [#2872](https://github.com/lushly-dev/afd/issues/2872)), so M0 had not exited. **M0 exited on
+  2026-11-27:** with both fixed, `pnpm verify --all` on `main` at `f2d827efa` passed all 171 steps
+  in a container from the pinned image on the lane host, in 2 h 10 min, and `host-status` still
+  answered there with the image by digest ([STATUS](STATUS.md#2026-11-27-run-7-the-exit-run-on-random)).
 - **Origin:** a conversation with the owner on 2026-11-21 about an operating system built on AFD
   from its core, starting as a headless runner for agents in a container image, with
   [Omarchy](https://omarchy.org/) as the example of an opinionated system built on an existing
@@ -36,9 +39,9 @@ runs is the software factory's validation of a branch. Originally drafted under 
 - **Verified:** the facts in [What exists today](#what-exists-today) were read on `main` at
   `a91acface` and re-checked on `39ca857fd`. Until M0 no code was built or run except the
   scenario checks; what M0 built and measured is in the [STATUS](STATUS.md).
-- **Not verified, as M0 found it (2026-11-26):** M0 was to settle which container runtime the
-  lane host can run and what it costs there; whether this repository's suites pass in a Linux
-  machine on that host's processor; whether a proxy can be the only way out for pnpm, cargo, uv
+- **Not verified, as M0 found it (2026-11-26, with the 2026-11-27 runs):** M0 was to settle which
+  container runtime the lane host can run and what it costs there; whether this repository's
+  suites pass in a Linux machine on that host's processor; whether a proxy can be the only way out for pnpm, cargo, uv
   and Playwright; whether `pnpm verify` can run with no network once its dependencies are fetched;
   how long a validation takes from nothing; how a machine's disk limit is enforced, and which disk
   the host measures when the runtime keeps its volumes in a virtual machine; how a checkpoint can
@@ -47,14 +50,16 @@ runs is the software factory's validation of a branch. Originally drafted under 
   run. The STATUS's [What is not verified](STATUS.md#what-is-not-verified) answers each, with what
   is left:
   - **Settled:** the lane host runs Colima (Docker in a virtual machine of 6 processors and 16 GB on
-    Apple silicon); no suite fails there because of arm64 or Linux, and every test that failed in
-    a full run passed alone; one ([#2799](https://github.com/lushly-dev/afd/issues/2799)) fails
-    every check there because of the virtual disk's sync latency (the others: timing limits under
+    Apple silicon); no suite fails there because of arm64 or Linux, and in runs 1 to 3 every test
+    that failed in a full run passed alone (on 2026-11-27 one,
+    [#2872](https://github.com/lushly-dev/afd/issues/2872), failed 4 of 20 alone until it was
+    fixed); one ([#2799](https://github.com/lushly-dev/afd/issues/2799)) failed every check there
+    because of the virtual disk's sync latency, until its fix (the others: timing limits under
     the host's load,
     [#2767](https://github.com/lushly-dev/afd/issues/2767) and
     [#2800](https://github.com/lushly-dev/afd/issues/2800)); with `UV_OFFLINE=1` a validation needs no network once an online run has fetched and
-    built; a cold validation takes 2 h 57 min to 3 h 32 min there (1 h 50 min on Hero's 32
-    processors); the
+    built; a cold validation takes 2 h 10 min to 3 h 32 min there (1 h 50 min on Hero's 32
+    processors), and on 2026-11-27 one passed in full (all 171 steps); the
     host can fetch a commit that no ref names over Git's protocol version 2; and history costs
     about 5 s and 47 MB a clone.
   - **For M1:** the proxy (the install step passes through one, and reaches three GitHub hosts
@@ -62,7 +67,9 @@ runs is the software factory's validation of a branch. Originally drafted under 
     step alone; the disk limit, which the runtime does not enforce (`--storage-opt size` is
     ignored), measured inside the virtual machine, whose disk gives space back to the host only
     after `fstrim`; reads journaled as digests (a `host-status` read journals 1,420 bytes today);
-    and how much of the host a machine gets, since timing limits fail under the lane host's load.
+    and how much of the host a machine gets, since timing limits fail under the lane host's load;
+    and a verify record from a passing run in the image, which a core file from Umbel's crash-point
+    tests prevents today ([#2898](https://github.com/lushly-dev/afd/issues/2898), found 2026-11-27).
   - **For M2:** checkpoints. There is no process checkpoint, and committing a whole
     post-validation container is far too slow (8 GB in 21 minutes); keeping warm state in volumes
     instead is untried.
@@ -465,7 +472,7 @@ keeping time has passed. The journal and the event log follow AFD's own journal 
 
 This repository's validation is heavy: a machine that starts from nothing downloads every
 dependency and compiles every Rust crate before it tests anything, and M0 measures how long that
-takes (2 h 57 min to 3 h 32 min on the lane host, [STATUS](STATUS.md#m0-measurements-on-random)). A checkpoint is a machine's state after a passing run of the steps the operator's
+takes (2 h 10 min to 3 h 32 min on the lane host, [STATUS](STATUS.md#m0-measurements-on-random)). A checkpoint is a machine's state after a passing run of the steps the operator's
 configuration names for it, on the head of the base branch, in a machine that has run nothing
 else. The lane asks for one when `main` moves. Because machines are keyed one per `(repository, for)`, the lane destroys any existing
 `for: main` machine (waiting for an active `coverage` run to settle first) before creating the
