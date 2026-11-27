@@ -247,7 +247,7 @@ The design review and phases 0, 1, 2 and 4 are done or exited: their detail is a
 
   - 15, the WebMCP projection (optional): not started.
 
-  - C0, milestone C's amendment: not started.
+  - C0, milestone C's amendment (section 10 steps 16 and 17, T33 to T38, P5-C1 to P5-C6, P6-X1, D176 to D178): approved 2026-11-27 in [#2851](https://github.com/lushly-dev/afd/pull/2851).
 
   - 16, shell commands over MCP: not started.
 
