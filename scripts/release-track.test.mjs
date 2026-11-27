@@ -15,7 +15,14 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadInventory, parseFragments } from './release/control.mjs';
 import { execTool } from './release/exec-tool.mjs';
-import { ignores, parseEntries, renderSection, unreleasedBody } from './release/tracks.mjs';
+import {
+	ignores,
+	parseEntries,
+	readVersion,
+	renderSection,
+	setVersion,
+	unreleasedBody,
+} from './release/tracks.mjs';
 import { selectRelease, versionSelected } from './release-control.mjs';
 import {
 	changelogDigest,
@@ -70,6 +77,23 @@ const BOTCORE_CHANGELOG = `# Changelog
 
 - An earlier entry.
 `;
+const RUST_CHANGELOG = `# Changelog
+
+## [Unreleased]
+
+## [0.3.0] - 2026-11-24
+
+### Added
+
+- An earlier entry.
+
+[Unreleased]: https://github.com/lushly-dev/afd/compare/rust-v0.3.0...HEAD
+[0.3.0]: https://github.com/lushly-dev/afd/compare/rust-v0.2.1...rust-v0.3.0
+`;
+/** A Cargo.lock entry: built from its path when `source` is null. */
+const cargoPackage = (name, version, source = null) =>
+	`[[package]]\nname = "${name}"\nversion = "${version}"\n${source ? `source = "${source}"\n` : ''}`;
+const REGISTRY = 'registry+https://github.com/rust-lang/crates.io-index';
 const SPEC_CHANGELOG = `# AFD contract changelog
 
 ## Changing the version
@@ -177,6 +201,26 @@ function fixture(t, { fragments = {} } = {}) {
 		'alfred/uv.lock',
 		'source = { editable = "." }\nsource = { editable = "../python" }\nsource = { editable = "../endpoints/botcore" }\n'
 	);
+	write('packages/rust/package.json', { name: 'afd-rust', version: '0.3.0', private: true });
+	write(
+		'packages/rust/Cargo.toml',
+		'[package]\nname = "afd"\nversion = "0.3.0"\n\n[package.metadata.docs.rs]\nversion = "9.9.9"\n'
+	);
+	write('packages/rust/CHANGELOG.md', RUST_CHANGELOG);
+	write(
+		'packages/rust/Cargo.lock',
+		`version = 4\n\n${cargoPackage('afd', '0.3.0')}\n${cargoPackage('serde', '1.0.0', REGISTRY)}`
+	);
+	// A consumer that builds the crate from its path, and one that downloads it: only the first
+	// states this checkout's version.
+	write(
+		'endpoints/host/Cargo.lock',
+		`version = 4\n\n${cargoPackage('host', '0.1.0')}\n${cargoPackage('afd', '0.3.0')}`
+	);
+	write(
+		'endpoints/elsewhere/Cargo.lock',
+		`version = 4\n\n${cargoPackage('afd', '0.1.0', REGISTRY)}\n${cargoPackage('elsewhere', '0.1.0')}`
+	);
 	write('spec/VERSION', '1.0-rc\n');
 	write('spec/CHANGELOG.md', SPEC_CHANGELOG);
 	write('spec/package.json', {
@@ -210,6 +254,7 @@ function fixture(t, { fragments = {} } = {}) {
 			},
 			stubUnit('afd-python-changes', 'afd-python', 'python/package.json', '0.11.0'),
 			stubUnit('botcore-changes', 'lushly-botcore', 'endpoints/botcore/package.json', '0.7.0'),
+			stubUnit('afd-rust-changes', 'afd-rust', 'packages/rust/package.json', '0.3.0'),
 			stubUnit('afd-spec-changes', 'afd-spec', 'spec/package.json', '0.0.0'),
 		],
 	});
@@ -554,6 +599,139 @@ test('version python: Changesets bumps the stub, and the version, section and li
 	assert.deepEqual(messages(f.root), []);
 });
 
+test('version rust: Cargo.toml and every lockfile that builds the crate from its path follow', (t) => {
+	const f = fixture(t, {
+		fragments: {
+			'rust-one': fragment('afd-rust', 'minor', '### Added\n\n- A capability.'),
+			'rust-two': fragment('afd-rust', 'patch', '### Fixed\n\n- A fix.'),
+			'py-one': fragment('afd-python', 'minor', '### Added\n\n- A Python capability.'),
+		},
+	});
+	const elsewhere = f.read('endpoints/elsewhere/Cargo.lock');
+	const ran = [];
+	const result = versionTrack({
+		pendingUnreleased: {},
+		root: f.root,
+		name: 'rust',
+		date: '2026-12-01',
+		invoke: changesets,
+		execute: (command, args, cwd) =>
+			ran.push([command === process.execPath ? 'node' : command, ...args, cwd]),
+	});
+	assert.equal(result.version, '0.4.0');
+	assert.equal(result.tag, 'rust-v0.4.0');
+	assert.deepEqual(result.consumed, ['.changeset/rust-one.md', '.changeset/rust-two.md']);
+	assert.deepEqual(result.changed, [
+		'endpoints/host/Cargo.lock',
+		'packages/rust/CHANGELOG.md',
+		'packages/rust/Cargo.lock',
+		'packages/rust/Cargo.toml',
+		'packages/rust/package.json',
+	]);
+	assert.equal(JSON.parse(f.read('packages/rust/package.json')).version, '0.4.0');
+	assert.match(
+		f.read('packages/rust/Cargo.toml'),
+		/\[package\]\nname = "afd"\nversion = "0\.4\.0"/
+	);
+	// Only the package's version: a table under it is another.
+	assert.match(
+		f.read('packages/rust/Cargo.toml'),
+		/\[package\.metadata\.docs\.rs\]\nversion = "9\.9\.9"/
+	);
+	assert.equal(
+		f.read('packages/rust/Cargo.lock'),
+		`version = 4\n\n${cargoPackage('afd', '0.4.0')}\n${cargoPackage('serde', '1.0.0', REGISTRY)}`
+	);
+	assert.equal(
+		f.read('endpoints/host/Cargo.lock'),
+		`version = 4\n\n${cargoPackage('host', '0.1.0')}\n${cargoPackage('afd', '0.4.0')}`
+	);
+	// A lockfile that downloads the crate from a registry is not this checkout's version.
+	assert.equal(f.read('endpoints/elsewhere/Cargo.lock'), elsewhere);
+	assert.equal(
+		f.read('packages/rust/CHANGELOG.md'),
+		RUST_CHANGELOG.replace(
+			'## [Unreleased]\n',
+			'## [Unreleased]\n\n## [0.4.0] - 2026-12-01\n\nImplements AFD contract `1.0-rc`.\n\n### Added\n\n- A capability.\n\n### Fixed\n\n- A fix.\n'
+		).replace(
+			'[Unreleased]: https://github.com/lushly-dev/afd/compare/rust-v0.3.0...HEAD\n',
+			'[Unreleased]: https://github.com/lushly-dev/afd/compare/rust-v0.4.0...HEAD\n[0.4.0]: https://github.com/lushly-dev/afd/compare/rust-v0.3.0...rust-v0.4.0\n'
+		)
+	);
+	assert.equal(existsSync(join(f.root, '.changeset/py-one.md')), true);
+	assert.equal(JSON.parse(f.read('python/package.json')).version, '0.11.0');
+	// No uv project locks the crate; the parity documents follow its version.
+	assert.deepEqual(ran, [['node', 'scripts/check-versions.mjs', '--write', f.root]]);
+	assert.deepEqual(messages(f.root), []);
+});
+
+test('a Cargo version is read and set where Cargo states it, and nowhere else', () => {
+	// A crate whose name starts with this one's, and a registry copy before the path one.
+	const lock = [
+		'version = 4',
+		'',
+		cargoPackage('afd-macros', '0.1.0'),
+		cargoPackage('afd', '0.2.0', REGISTRY),
+		cargoPackage('afd', '0.3.0'),
+	].join('\n');
+	assert.equal(readVersion(lock, 'cargo-lock', 'afd'), '0.3.0');
+	const set = setVersion(lock, 'cargo-lock', '0.4.0', 'Cargo.lock', 'afd');
+	assert.equal(set, lock.replace(cargoPackage('afd', '0.3.0'), cargoPackage('afd', '0.4.0')));
+	assert.equal(readVersion(cargoPackage('afd', '0.3.0', REGISTRY), 'cargo-lock', 'afd'), null);
+	// CRLF is read and kept.
+	const crlf = lock.replaceAll('\n', '\r\n');
+	assert.equal(
+		setVersion(crlf, 'cargo-lock', '0.4.0', 'Cargo.lock', 'afd'),
+		set.replaceAll('\n', '\r\n')
+	);
+	// A manifest's own table, after a comment on its header; a table or an array of tables after it
+	// ends it, so a manifest whose version is inherited states none.
+	const manifest =
+		'[package] # the crate\r\nname = "afd"\r\nversion = "0.3.0"\r\n\r\n[[bin]]\r\nversion = "9"\r\n';
+	assert.equal(readVersion(manifest, 'cargo'), '0.3.0');
+	assert.equal(
+		setVersion(manifest, 'cargo', '0.4.0', 'Cargo.toml'),
+		manifest.replace('version = "0.3.0"', 'version = "0.4.0"')
+	);
+	assert.equal(readVersion('[package]\nname = "afd"\n\n[[bin]]\nversion = "9"\n', 'cargo'), null);
+	assert.equal(readVersion('[package.metadata]\nversion = "9"\n', 'cargo'), null);
+	assert.throws(() => readVersion('', 'cmake'), /Unknown version file kind: cmake/);
+});
+
+test('the Rust track refuses a hand entry and a path lockfile that disagrees with its stub', (t) => {
+	const f = fixture(t);
+	f.write(
+		'packages/rust/CHANGELOG.md',
+		RUST_CHANGELOG.replace('## [Unreleased]\n', '## [Unreleased]\n\n### Fixed\n\n- By hand.\n')
+	);
+	f.write(
+		'endpoints/host/Cargo.lock',
+		`version = 4\n\n${cargoPackage('host', '0.1.0')}\n${cargoPackage('afd', '0.2.0')}`
+	);
+	// A registry copy of the crate at another version is a dependency, not this checkout.
+	f.write(
+		'endpoints/elsewhere/Cargo.lock',
+		`version = 4\n\n${cargoPackage('afd', '0.9.0', REGISTRY)}\n${cargoPackage('elsewhere', '0.1.0')}`
+	);
+	const problems = check(f.root);
+	assert.deepEqual(
+		problems.map((problem) => problem.message),
+		[
+			'endpoints/host/Cargo.lock has version 0.2.0, but packages/rust/package.json has 0.3.0',
+			'packages/rust/CHANGELOG.md:5 has an entry under "## [Unreleased]"',
+		]
+	);
+	assert.match(problems[1].suggestion, /\.changeset\/.*"afd-rust"/);
+});
+
+test('a pending changelog whose file was deleted is named, though its package remains', (t) => {
+	const f = fixture(t);
+	rmSync(join(f.root, 'packages/a/CHANGELOG.md'));
+	assert.deepEqual(messages(f.root, { pendingUnreleased: { 'packages/a/CHANGELOG.md': '#1' } }), [
+		'PENDING_UNRELEASED lists packages/a/CHANGELOG.md (#1), which does not exist',
+	]);
+});
+
 test('version python records the Botcore lockfile it rewrites', (t) => {
 	const f = fixture(t, {
 		fragments: { 'py-one': fragment('afd-python', 'patch', '### Fixed\n\n- A fix.') },
@@ -694,8 +872,8 @@ test('a refused version step writes nothing', (t) => {
 		/No fragment in \.changeset\/ names afd-python/
 	);
 	assert.throws(
-		() => versionTrack({ pendingUnreleased: {}, root: f.root, name: 'rust' }),
-		/Unknown track rust/
+		() => versionTrack({ pendingUnreleased: {}, root: f.root, name: 'cpp' }),
+		/Unknown track cpp/
 	);
 	f.write('.changeset/py.md', fragment('afd-python', 'patch', '### Fixed\n\n- A fix.'));
 	f.write(

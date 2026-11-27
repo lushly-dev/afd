@@ -150,6 +150,28 @@
 			]
 		},
 		{
+			"id": "afd-rust-changes",
+			"family": "afd",
+			"protocol": "npm-changesets",
+			"sourceRevision": "b317beeb721adce4e77297289791c8921da01f00",
+			"authority": "none: private Changesets stub authored in lushly-dev/afd; it holds the Rust afd crate's version for pnpm version-track rust (the afd-rust unit publishes it, on rust-v tags) and owns that track's fragments in .changeset. The manifest is private: true and cannot publish; the npm release never selects it",
+			"state": "quarantined",
+			"maturity": "internal",
+			"routes": [],
+			"gates": ["pnpm check", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "afd-rust",
+					"registry": "npm",
+					"manifest": "packages/rust/package.json",
+					"format": "npm",
+					"initialVersion": "0.3.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "afd-cpp",
 			"family": "afd",
 			"protocol": "language-tag-v1",
@@ -1609,7 +1631,7 @@
 						"id": "rust",
 						"name": "Rust",
 						"path": "packages/rust",
-						"units": ["afd-rust"]
+						"units": ["afd-rust", "afd-rust-changes"]
 					},
 					{
 						"id": "cpp",

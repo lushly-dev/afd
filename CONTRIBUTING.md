@@ -205,7 +205,7 @@ chore(deps): update dependencies
 3. Verify locally:
    - `pnpm verify` — the quality gate and every area suite your change triggers
    - `alfred lint` — no architecture violations (if adding commands)
-4. If you changed a published package, run `pnpm changeset` and commit the file it creates; for Python, Botcore or the contract, write the fragment by hand ([recording a change](CHANGELOG.md#recording-a-change))
+4. If you changed a published package, run `pnpm changeset` and commit the file it creates; for Python, Botcore, Rust or the contract, write the fragment by hand ([recording a change](CHANGELOG.md#recording-a-change))
 5. Push and open a pull request
 
 ### PR Guidelines

@@ -51,8 +51,8 @@ Specimen's four prebuilt host packages keep changelogs beside them, in `foundati
 ## Recording a change
 
 - **An `@lushly-dev/*` package**, in AFD or in a project above: run `pnpm changeset` and commit the file it creates.
-- **Python, Botcore or the contract in `spec/`:** add a file to `.changeset/` that names its stub (`afd-python`, `lushly-botcore` or `afd-spec`) and holds the entry; [`.changeset/README.md`](.changeset/README.md) has the format. `pnpm version-track` writes the entries into the changelog when a release is prepared, so nothing is added to those three changelogs by hand.
-- **Rust, C++ or Alfred:** add an entry to that changelog, in its unreleased section.
+- **Python, Botcore, Rust or the contract in `spec/`:** add a file to `.changeset/` that names its stub (`afd-python`, `lushly-botcore`, `afd-rust` or `afd-spec`) and holds the entry; [`.changeset/README.md`](.changeset/README.md) has the format. `pnpm version-track` writes the entries into the changelog when a release is prepared, so nothing is added to those four changelogs by hand.
+- **C++ or Alfred:** add an entry to that changelog, in its unreleased section.
 - **Anything else** (CI, docs, examples, unreleased projects) ships in no package, so its pull request is the record.
 
 The [`cut-release` skill](.claude/skills/cut-release/SKILL.md) describes how each one is released.

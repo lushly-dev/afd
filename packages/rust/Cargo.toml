@@ -16,7 +16,9 @@ documentation = "https://github.com/lushly-dev/afd/tree/main/packages/rust"
 readme = "README.md"
 keywords = ["afd", "agent", "mcp", "ai", "commands"]
 categories = ["development-tools", "api-bindings"]
-exclude = ["fuzz/"]
+# package.json is the Changesets stub of the release track (scripts/release/tracks.mjs), not part
+# of the crate.
+exclude = ["fuzz/", "package.json"]
 
 [lints.rust]
 unsafe_code = "deny"
