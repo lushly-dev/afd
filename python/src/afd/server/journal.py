@@ -183,21 +183,26 @@ class JournalRedactInfo:
 _T = TypeVar("_T")
 
 
+def _tapes(source: Any) -> list[JournalTape]:
+    """The tape of every recording layer wrapped around ``source``, outermost reader first."""
+    tapes = []
+    while isinstance(source, (_RecordingClock, _RecordingRandom)):
+        tapes.append(source.tape)
+        source = source.inner
+    return tapes
+
+
 async def _off_tape(context: Any, next_fn: Callable[[], Awaitable[_T]]) -> _T:
     """Run ``next_fn`` off every tape.
 
     A call the journal leaves unrecorded because it may carry a secret reads the clock and
     random source a recording parent wrapped, which would put the values that built the secret
-    on the parent's tape. The parent's tape is marked ``truncated`` instead, so its replay says
-    it cannot restore every value.
+    on the parent's tape. The tape of every recording layer around it is marked ``truncated``
+    instead, so their replays say they cannot restore every value.
     """
     clock = getattr(context, "clock", None)
     random = getattr(context, "random", None)
-    tapes = [
-        source.tape
-        for source in (clock, random)
-        if isinstance(source, (_RecordingClock, _RecordingRandom))
-    ]
+    tapes = [*_tapes(clock), *_tapes(random)]
     if not tapes:
         return await next_fn()
     for tape in tapes:
@@ -211,6 +216,18 @@ async def _off_tape(context: Any, next_fn: Callable[[], Awaitable[_T]]) -> _T:
     finally:
         context.clock = clock
         context.random = random
+
+
+async def run_off_tape(context: Any, next_fn: Callable[[], Awaitable[_T]]) -> _T:
+    """Run ``next_fn``, a call to a command that declares ``secret``, off every recording tape.
+
+    ``create_journal_middleware`` does this itself for a secret call it handles. An engine of its
+    own whose chain may hold no recorder (Botcore's ``CommandHost``, called from inside a call an
+    outer journal records) runs a secret call through this, so the clock and random values it
+    reads on ``context`` reach no parent's tape; every recording layer's tape around it is
+    marked ``truncated`` (``spec/journal.md``). Running a call off tape twice is harmless.
+    """
+    return await _off_tape(context, next_fn)
 
 
 _InfoMode = Literal["positional", "keyword"] | None
@@ -510,6 +527,9 @@ def create_journal_middleware(
             raise thrown
         return result  # type: ignore[no-any-return]
 
+    # Marks the recorder, so an engine that calls the host of a command this one records can tell
+    # that a secret call is already kept off its parents' tapes (`run_off_tape`).
+    middleware.__afd_journal__ = True  # type: ignore[attr-defined]
     return middleware
 
 

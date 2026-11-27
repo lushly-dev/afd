@@ -186,9 +186,21 @@ gets a trace ID, AFD's system clock and random source when it has none. The MCP
 `call` as the host's actor; DirectClient sends its own context, whose actor is
 `human` unless its caller sets one. Middleware receives it, so AFD's journal
 middleware (`afd.server.journal.create_journal_middleware`) runs behind the host
-and records the actor. The host's chain is outside AFD's engine, where the
-journal cannot read a command's `secret` declaration, so it records a call only
-when it is given `redact` (`spec/journal.md`). A handler reads the context with
+and records the actor. A command that takes or returns a secret declares it on
+its policy, `CommandPolicy(..., secret=True)` (a host policy may add the
+declaration to a plugin's but not remove it). With afd 0.14.0 or later,
+`host.execute` binds the declaration to its middleware chain with
+`afd.core.open_dispatch`, so the journal reads it as it does behind AFD's own
+engine: it records other calls without `redact` and never records a secret one
+without it. A secret call runs off every recording tape around it
+(`afd.server.run_off_tape`), even with no journal in the host's chain, such as a
+secret command a handler calls inside a call an outer journal records
+(`spec/journal.md`). Before afd 0.14.0 `secret` has no effect: a journal
+behind the host records the call unless `redact` removes the secret, and
+registering a secret command warns (#2695 raises the floor). The isolation
+assumes one call at a time on a context: calls running concurrently on one
+context object can still see each other's sources (#2703).
+`create_host_mcp_server` declares it on the AFD command it registers too. A handler reads the context with
 `botcore.context.current_call()` instead of taking the caller as an input.
 
 `create_host_mcp_server(host, command_tools=True)` maps to AFD's

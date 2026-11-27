@@ -60,10 +60,8 @@ def build_gateway_host(
             # Journal write commands only (with their failures): pure reads, gateway-wait and
             # lane-heartbeat stay out so polling keeps the journal small (#2413).
             filter=lambda command: command in WRITE_COMMANDS,
-            # The host runs its own middleware chain, outside AFD's engine, so the recorder
-            # cannot read a command's `secret` declaration and records nothing without a
-            # `redact`. Failures are journaled too (a body refused with SECRET_IN_BODY), so keep
-            # only what the audit reads.
+            # No gateway command declares `secret`, but failures are journaled too (a body
+            # refused with SECRET_IN_BODY), so keep only what the audit reads.
             redact=audit_record,
         )
     ]

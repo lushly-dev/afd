@@ -253,7 +253,8 @@ def create_retry_middleware(
     ``retry_mutations`` is set: a failed mutation, such as one whose handler
     returned ``TIMEOUT`` after a downstream write, may already have applied its
     change. The declaration is read from the command the engine runs, never
-    from its name; a call whose declaration cannot be read (outside the engine)
+    from its name; a call whose declaration cannot be read (outside the engine,
+    or behind an outside engine's ``open_dispatch`` that does not declare it)
     counts as a mutation.
 
     Args:
@@ -624,6 +625,9 @@ def compose_middleware(*middlewares: CommandMiddleware) -> CommandMiddleware:
 
     carry_approval_process_state(composed, middlewares)
     carry_auth_middleware_mark(composed, middlewares)
+    # A composition holding AFD's journal is one too, for engines that check (`run_off_tape`).
+    if any(getattr(middleware, "__afd_journal__", False) is True for middleware in middlewares):
+        composed.__afd_journal__ = True  # type: ignore[attr-defined]
     return composed
 
 

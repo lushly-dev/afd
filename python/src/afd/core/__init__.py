@@ -278,6 +278,7 @@ from afd.core.result import (
     is_success,
     success,
 )
+from afd.core.running_command import CommandDispatch, open_dispatch
 from afd.core.similarity import (
     MAX_SIMILARITY_INPUT_LENGTH,
     calculate_similarity,
@@ -407,6 +408,8 @@ __all__ = [
     "CommandExample",
     "CommandHandler",
     "CommandContext",
+    "CommandDispatch",
+    "open_dispatch",
     "CommandExecutor",
     "CommandMiddleware",
     "CommandRegistry",

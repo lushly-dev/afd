@@ -12,14 +12,17 @@ import pytest
 from pydantic import BaseModel
 
 from afd import JournalRecord, MemoryJournalSink, serialize_journal, success
+from afd.core import open_dispatch
 from afd.core.commands import CommandContext, CommandDefinition, create_command_registry
 from afd.core.journal import JournalEntry
+from afd.core.running_command import running_command_secret
 from afd.direct import DirectClient, DirectClientOptions, SimpleRegistry, create_direct_registry
 from afd.server import (
     JournalRedactInfo,
     create_journal_middleware,
     create_server,
     define_command,
+    run_off_tape,
 )
 from afd.server.middleware import compose_middleware
 from afd.testing.fixtures import MockServer
@@ -534,3 +537,211 @@ async def test_a_journal_inside_compose_middleware_still_reads_the_declaration()
     await server.execute("vault-unlock", {"passphrase": "hunter2"})
     await server.execute("dice-roll", {"sides": 6})
     assert [entry.command for entry in await plain.read()] == ["dice-roll"]
+
+
+# ── An engine of its own: open_dispatch ─────────────────────────────────
+
+
+def _own_engine(*middleware: Any) -> Any:
+    """A minimal engine outside AFD's executor (as Botcore's CommandHost is): it opens a dispatch
+    for each call, binds the continuation it hands its composed chain, and closes it after."""
+    chain = compose_middleware(*middleware)
+
+    async def execute(
+        name: str, input: Any, context: CommandContext, handler: Any, *, secret: bool
+    ) -> Any:
+        with open_dispatch(context, secret=secret) as dispatch:
+            return await chain(name, input, context, dispatch.bind(handler))
+
+    return execute
+
+
+async def _unlock() -> Any:
+    return success({"key": "SECRET-VAULT-KEY"})
+
+
+async def _roll() -> Any:
+    return success({"value": 4})
+
+
+async def test_an_engine_of_its_own_binds_the_declaration_with_open_dispatch() -> None:
+    sink = MemoryJournalSink()
+    execute = _own_engine(create_journal_middleware(sink, filter=lambda name: True))
+    await execute("vault-unlock", {"passphrase": "hunter2"}, CommandContext(), _unlock, secret=True)
+    await execute("dice-roll", {"sides": 6}, CommandContext(), _roll, secret=False)
+    entries = await sink.read()
+    assert [entry.command for entry in entries] == ["dice-roll"]
+    assert "hunter2" not in _text(entries) and "SECRET" not in _text(entries)
+
+
+async def test_open_dispatch_tells_redact_which_calls_are_secret() -> None:
+    seen: list[tuple[str, bool | None]] = []
+
+    def redact(record: JournalRecord, info: JournalRedactInfo) -> JournalRecord:
+        seen.append((record.command, info.secret))
+        return record
+
+    execute = _own_engine(create_journal_middleware(MemoryJournalSink(), redact=redact))
+    await execute("vault-unlock", {}, CommandContext(), _unlock, secret=True)
+    await execute("dice-roll", {}, CommandContext(), _roll, secret=False)
+    assert seen == [("vault-unlock", True), ("dice-roll", False)]
+
+
+async def test_a_dispatch_reads_only_on_its_own_context_and_only_while_open() -> None:
+    context = CommandContext()
+    dispatch = open_dispatch(context, secret=False)
+    bound = dispatch.bind(_roll)
+    assert bound is not _roll and dispatch.open and dispatch.secret is False
+    assert running_command_secret(context, bound) is False
+    assert running_command_secret(CommandContext(), bound) is None
+    dispatch.close()
+    assert not dispatch.open
+    assert running_command_secret(context, bound) is None
+    with pytest.raises(RuntimeError, match="closed dispatch"):
+        dispatch.bind(_unlock)
+
+
+def test_open_dispatch_refuses_a_secret_that_is_not_a_boolean() -> None:
+    for wrong in ("yes", 1, None):
+        with pytest.raises(TypeError, match="secret must be a bool"):
+            open_dispatch(CommandContext(), secret=wrong)  # type: ignore[arg-type]
+
+
+async def test_open_dispatch_keeps_a_secret_call_off_a_recording_parents_tape() -> None:
+    random = _CountingRandom()
+    sink = MemoryJournalSink()
+    execute = _own_engine(create_journal_middleware(sink))
+    context = CommandContext(random=random)
+
+    async def mint() -> Any:
+        return success({"token": f"T-{context.random.next()}"})
+
+    async def open_session() -> Any:
+        # The parent's recorder has wrapped context.random; the secret child reads through it.
+        await execute("token-mint", {}, context, mint, secret=True)
+        return success({"opened": True})
+
+    await execute("session-open", {}, context, open_session, secret=False)
+    [entry] = await sink.read()
+    assert entry.command == "session-open"
+    assert entry.tape is not None
+    assert entry.tape.random == []
+    assert entry.tape.truncated is True
+    assert random.draws == 1
+
+
+async def test_each_binding_is_a_new_continuation_so_none_replaces_or_revives_another() -> None:
+    context = CommandContext()
+    with open_dispatch(context, secret=True) as first:
+        kept = first.bind(_unlock)
+        assert running_command_secret(context, kept) is True
+    with open_dispatch(context, secret=False) as second:
+        again = second.bind(_unlock)
+        assert again is not kept
+        assert running_command_secret(context, again) is False
+        # The continuation kept from the closed dispatch stays unknown.
+        assert running_command_secret(context, kept) is None
+    assert (await again()).data == {"key": "SECRET-VAULT-KEY"}
+
+
+async def test_marks_every_recording_layers_tape_around_a_secret_call() -> None:
+    random = _CountingRandom()
+    outer_sink, inner_sink = MemoryJournalSink(), MemoryJournalSink()
+    execute = _own_engine(
+        create_journal_middleware(outer_sink), create_journal_middleware(inner_sink)
+    )
+    context = CommandContext(random=random)
+
+    async def mint() -> Any:
+        return success({"token": f"T-{context.random.next()}"})
+
+    async def open_session() -> Any:
+        await execute("token-mint", {}, context, mint, secret=True)
+        return success({"opened": True})
+
+    await execute("session-open", {}, context, open_session, secret=False)
+    for sink in (outer_sink, inner_sink):
+        [entry] = await sink.read()
+        assert entry.tape is not None and entry.tape.random == []
+        assert entry.tape.truncated is True
+
+
+async def test_run_off_tape_keeps_a_call_off_a_parents_tape_with_no_recorder_of_its_own() -> None:
+    random = _CountingRandom()
+    sink = MemoryJournalSink()
+    execute = _own_engine(create_journal_middleware(sink))
+    context = CommandContext(random=random)
+
+    async def mint() -> Any:
+        return success({"token": f"T-{context.random.next()}"})
+
+    async def open_session() -> Any:
+        # The secret call runs with no recorder in its path, as a host with no journal of its
+        # own runs one inside a call an outer journal records.
+        await run_off_tape(context, mint)
+        return success({"opened": True})
+
+    await execute("session-open", {}, context, open_session, secret=False)
+    [entry] = await sink.read()
+    assert entry.tape is not None
+    assert entry.tape.random == []
+    assert entry.tape.truncated is True
+    assert random.draws == 1
+
+
+async def test_a_dispatch_closes_when_the_chain_raises() -> None:
+    context = CommandContext()
+    kept: list[Any] = []
+
+    async def failing() -> Any:
+        raise RuntimeError("boom")
+
+    dispatch = open_dispatch(context, secret=False)
+    with pytest.raises(RuntimeError, match="boom"), dispatch:
+        kept.append(dispatch.bind(failing))
+        await kept[0]()
+    assert not dispatch.open
+    assert running_command_secret(context, kept[0]) is None
+
+
+def test_a_bound_coroutine_continuation_stays_a_coroutine_function() -> None:
+    import inspect
+
+    def plain() -> Any:
+        return _roll()
+
+    with open_dispatch(CommandContext(), secret=False) as dispatch:
+        assert inspect.iscoroutinefunction(dispatch.bind(_roll))
+        assert not inspect.iscoroutinefunction(dispatch.bind(plain))
+
+
+def test_open_dispatch_leaves_mutation_unknown_unless_told() -> None:
+    from afd.core.running_command import running_command_mutation
+
+    context = CommandContext()
+    with open_dispatch(context, secret=False) as unknown:
+        assert running_command_mutation(context, unknown.bind(_roll)) is None
+    with open_dispatch(context, secret=False, mutation=True) as told:
+        assert running_command_mutation(context, told.bind(_roll)) is True
+    with pytest.raises(TypeError, match="mutation must be a bool or None"):
+        open_dispatch(context, secret=False, mutation="yes")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(("mutation", "attempts"), [(None, 1), (True, 1), (False, 3)])
+async def test_retry_behind_open_dispatch_repeats_only_a_declared_non_mutation(
+    mutation: bool | None, attempts: int
+) -> None:
+    from afd import error
+    from afd.server.middleware import create_retry_middleware
+
+    calls: list[int] = []
+
+    async def flaky() -> Any:
+        calls.append(1)
+        return error("TRANSIENT_ERROR", "temporary", suggestion="Retry")
+
+    chain = compose_middleware(create_retry_middleware(max_retries=2, retry_delay=0))
+    context = CommandContext()
+    with open_dispatch(context, secret=False, mutation=mutation) as dispatch:
+        await chain("probe", {}, context, dispatch.bind(flaky))
+    assert len(calls) == attempts
