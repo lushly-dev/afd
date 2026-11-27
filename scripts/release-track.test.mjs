@@ -218,7 +218,9 @@ function fixture(t, { fragments = {} } = {}) {
 	return { root, write, read };
 }
 
-const messages = (root) => checkTracks({ root }).map((problem) => problem.message);
+/** The fixture holds no package the repository's pending list names, so it lists none. */
+const check = (root, options = {}) => checkTracks({ root, pendingUnreleased: {}, ...options });
+const messages = (root, options) => check(root, options).map((problem) => problem.message);
 const fragment = (name, type, body) => `---\n"${name}": ${type}\n---\n\n${body}\n`;
 
 test('the fixture passes the check, and so does this repository', (t) => {
@@ -236,7 +238,7 @@ test('a hand edit under Unreleased is named with its file and line', (t) => {
 		'endpoints/botcore/CHANGELOG.md',
 		BOTCORE_CHANGELOG.replace('## [Unreleased]\n', '## [Unreleased]\n- By hand.\n')
 	);
-	const problems = checkTracks({ root: f.root });
+	const problems = check(f.root);
 	assert.deepEqual(
 		problems.map((problem) => problem.message),
 		[
@@ -245,6 +247,59 @@ test('a hand edit under Unreleased is named with its file and line', (t) => {
 		]
 	);
 	assert.match(problems[0].suggestion, /\.changeset\/.*"afd-python"/);
+});
+
+test('a published package whose changelog Changesets writes holds no hand-written Unreleased', (t) => {
+	const f = fixture(t);
+	f.write('packages/a/CHANGELOG.md', '# @fixture/a\n\n## Unreleased\n\n- By hand.\n\n## 1.0.0\n');
+	// A private package's changelog is not Changesets': it may keep its own shape.
+	f.write('packages/app/CHANGELOG.md', '# app\n\n## [Unreleased]\n\n- Kept.\n');
+	const problems = check(f.root);
+	assert.deepEqual(
+		problems.map((problem) => problem.message),
+		['packages/a/CHANGELOG.md:3 has a hand-written "Unreleased" section']
+	);
+	assert.match(problems[0].suggestion, /@fixture\/a's changelog from its fragments/);
+	for (const heading of [
+		'## [Unreleased]',
+		'## unreleased  ',
+		'## Unreleased\r',
+		'### Unreleased changes',
+		'##Unreleased:',
+		'# [Unreleased] - 2026-11-27',
+	]) {
+		f.write('packages/a/CHANGELOG.md', `# @fixture/a\n\n${heading}\n`);
+		assert.deepEqual(messages(f.root), [
+			'packages/a/CHANGELOG.md:3 has a hand-written "Unreleased" section',
+		]);
+	}
+});
+
+test('a pending changelog passes while its section remains, and its entry fails once it is gone', (t) => {
+	const f = fixture(t);
+	const pendingUnreleased = { 'packages/a/CHANGELOG.md': '#1' };
+	f.write('packages/a/CHANGELOG.md', '# @fixture/a\n\n## Unreleased\n\n- By hand.\n');
+	assert.deepEqual(messages(f.root, { pendingUnreleased }), []);
+
+	f.write('packages/a/CHANGELOG.md', '# @fixture/a\n');
+	assert.deepEqual(messages(f.root, { pendingUnreleased }), [
+		'packages/a/CHANGELOG.md has no "Unreleased" section, but PENDING_UNRELEASED still lists it (#1)',
+	]);
+
+	const elsewhere = { 'packages/app/CHANGELOG.md': '#2', 'packages/gone/CHANGELOG.md': '#3' };
+	assert.deepEqual(messages(f.root, { pendingUnreleased: elsewhere }), [
+		"PENDING_UNRELEASED lists packages/app/CHANGELOG.md (#2), which is not a published package's changelog",
+		"PENDING_UNRELEASED lists packages/gone/CHANGELOG.md (#3), which is not a published package's changelog",
+	]);
+});
+
+test('an Unreleased heading inside a fenced example in a release note is not a section', (t) => {
+	const f = fixture(t);
+	f.write(
+		'packages/a/CHANGELOG.md',
+		'# @fixture/a\n\n## 1.0.0\n\n- Documents the format:\n\n  ```markdown\n  ## Unreleased\n  ```\n'
+	);
+	assert.deepEqual(messages(f.root), []);
 });
 
 test('an entry under its own heading, or a section written by hand, is not hidden by an empty Unreleased', (t) => {
@@ -291,7 +346,7 @@ test('an entry under its own heading, or a section written by hand, is not hidde
 test('a hand edit to the contract changelog fails until it is a fragment or a pinned correction', (t) => {
 	const f = fixture(t);
 	f.write('spec/CHANGELOG.md', SPEC_CHANGELOG.replace('## 1.0-rc\n', '## 1.0-rc\n\nBy hand.\n'));
-	const [problem, ...rest] = checkTracks({ root: f.root });
+	const [problem, ...rest] = check(f.root);
 	assert.deepEqual(rest, []);
 	assert.equal(problem.message, 'spec/CHANGELOG.md differs from the digest spec/package.json pins');
 	assert.match(problem.suggestion, /"afd-spec": patch/);
@@ -452,6 +507,7 @@ test('version python: Changesets bumps the stub, and the version, section and li
 	});
 	const ran = [];
 	const result = versionTrack({
+		pendingUnreleased: {},
 		root: f.root,
 		name: 'python',
 		date: '2026-12-01',
@@ -504,6 +560,7 @@ test('version python records the Botcore lockfile it rewrites', (t) => {
 	});
 	const ran = [];
 	versionTrack({
+		pendingUnreleased: {},
 		root: f.root,
 		name: 'python',
 		invoke: changesets,
@@ -541,6 +598,7 @@ test('version botcore: every rewritten imported file is recorded, after the lock
 	});
 	const ran = [];
 	const result = versionTrack({
+		pendingUnreleased: {},
 		root: f.root,
 		name: 'botcore',
 		date: '2026-12-01',
@@ -582,6 +640,7 @@ test('version spec folds prose under the contract version and never writes VERSI
 	});
 	const ran = [];
 	const result = versionTrack({
+		pendingUnreleased: {},
 		root: f.root,
 		name: 'spec',
 		invoke: changesets,
@@ -607,7 +666,13 @@ test('version spec folds prose under the contract version and never writes VERSI
 		fragment('afd-spec', 'patch', 'Every language loads every vector.')
 	);
 	commit(f.root, 'contract 1.0');
-	versionTrack({ root: f.root, name: 'spec', invoke: changesets, execute: () => {} });
+	versionTrack({
+		pendingUnreleased: {},
+		root: f.root,
+		name: 'spec',
+		invoke: changesets,
+		execute: () => {},
+	});
 	assert.match(
 		f.read('spec/CHANGELOG.md'),
 		/Steps\.\n\n## 1\.0\n\nEvery language loads every vector\.\n\n## 1\.0-rc\n\nA new vector file\./
@@ -618,10 +683,20 @@ test('version spec folds prose under the contract version and never writes VERSI
 test('a refused version step writes nothing', (t) => {
 	const f = fixture(t);
 	assert.throws(
-		() => versionTrack({ root: f.root, name: 'python', invoke: changesets, execute: () => {} }),
+		() =>
+			versionTrack({
+				pendingUnreleased: {},
+				root: f.root,
+				name: 'python',
+				invoke: changesets,
+				execute: () => {},
+			}),
 		/No fragment in \.changeset\/ names afd-python/
 	);
-	assert.throws(() => versionTrack({ root: f.root, name: 'rust' }), /Unknown track rust/);
+	assert.throws(
+		() => versionTrack({ pendingUnreleased: {}, root: f.root, name: 'rust' }),
+		/Unknown track rust/
+	);
 	f.write('.changeset/py.md', fragment('afd-python', 'patch', '### Fixed\n\n- A fix.'));
 	f.write(
 		'python/CHANGELOG.md',
@@ -629,7 +704,14 @@ test('a refused version step writes nothing', (t) => {
 	);
 	commit(f.root, 'hand edit');
 	assert.throws(
-		() => versionTrack({ root: f.root, name: 'python', invoke: changesets, execute: () => {} }),
+		() =>
+			versionTrack({
+				pendingUnreleased: {},
+				root: f.root,
+				name: 'python',
+				invoke: changesets,
+				execute: () => {},
+			}),
 		/Fix the tracks first: python\/CHANGELOG\.md:5 has an entry/
 	);
 	// Changesets writing anything but the stub is refused before a file changes.
@@ -638,6 +720,7 @@ test('a refused version step writes nothing', (t) => {
 	assert.throws(
 		() =>
 			versionTrack({
+				pendingUnreleased: {},
 				root: f.root,
 				name: 'python',
 				execute: () => {},
@@ -660,7 +743,13 @@ test('without the tools, the step lists the commands it still owes', (t) => {
 	const f = fixture(t, {
 		fragments: { bot: fragment('lushly-botcore', 'patch', '### Fixed\n\n- A fix.') },
 	});
-	const result = versionTrack({ root: f.root, name: 'botcore', invoke: changesets, tools: false });
+	const result = versionTrack({
+		pendingUnreleased: {},
+		root: f.root,
+		name: 'botcore',
+		invoke: changesets,
+		tools: false,
+	});
 	assert.deepEqual(result.ran, []);
 	// Lines to run from the repository root, in any shell. The files to record are the ones
 	// written and the recorded lockfile the owed lock rewrites.
@@ -675,7 +764,13 @@ test('without the tools, the step lists the commands it still owes', (t) => {
 	// The contract fold locks nothing and writes nothing in Botcore, so it owes nothing.
 	const g = fixture(t, { fragments: { spec: fragment('afd-spec', 'patch', 'A paragraph.') } });
 	assert.deepEqual(
-		versionTrack({ root: g.root, name: 'spec', invoke: changesets, tools: false }).owed,
+		versionTrack({
+			pendingUnreleased: {},
+			root: g.root,
+			name: 'spec',
+			invoke: changesets,
+			tools: false,
+		}).owed,
 		[]
 	);
 });
@@ -690,7 +785,14 @@ test('a compare link the step cannot move on stops it before anything is written
 	);
 	commit(f.root, 'another tag scheme');
 	assert.throws(
-		() => versionTrack({ root: f.root, name: 'python', invoke: changesets, execute: () => {} }),
+		() =>
+			versionTrack({
+				pendingUnreleased: {},
+				root: f.root,
+				name: 'python',
+				invoke: changesets,
+				execute: () => {},
+			}),
 		/\[Unreleased\] link does not compare python-vX\.Y\.Z with a branch/
 	);
 	assert.equal(shell(f.root, 'git', ['status', '--porcelain']), '');
@@ -706,6 +808,7 @@ test('a tool that fails says the version is already written', (t) => {
 	assert.throws(
 		() =>
 			versionTrack({
+				pendingUnreleased: {},
 				root: f.root,
 				name: 'python',
 				invoke: changesets,
@@ -808,6 +911,7 @@ test('default versionTrack invoke runs Changesets directly under pnpm 12 without
 		linkType
 	);
 	versionTrack({
+		pendingUnreleased: {},
 		root: f.root,
 		name: 'python',
 		date: '2026-11-24',
