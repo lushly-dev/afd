@@ -94,6 +94,10 @@ const CORE_PEER = workspaceManifest('integrations/violet-afd').peerDependencies[
 	/^workspace:([~^])$/,
 	`$1${VERSION}`
 );
+// Core's and the integration's schemas meet in one command registry and in an application's own
+// schemas, so Zod is a peer of both and the application supplies the one copy (#2628).
+const ZOD = workspaceManifest('foundations/violet/packages/core').peerDependencies.zod;
+const zod = { zod: ZOD };
 const checks = [];
 const passed = (name) => {
 	checks.push(name);
@@ -195,15 +199,22 @@ assert.deepEqual(Object.keys(core.exports), [
 	'./neon',
 ]);
 // The runtime holds the one custom property naming rule the CSS exporter shares (#1786); it has no
-// dependencies of its own (asserted below), so core still installs only zod beside it.
-assert.deepEqual(Object.keys(core.dependencies), [RUNTIME, 'zod']);
+// dependencies of its own (asserted below), so core installs nothing else beside it.
+assert.deepEqual(Object.keys(core.dependencies), [RUNTIME]);
 assert(
 	semver.satisfies(VERSION, core.dependencies[RUNTIME]),
 	`core's runtime range ${core.dependencies[RUNTIME]} rejects ${VERSION}`
 );
 assert.deepEqual(Object.keys(core.optionalDependencies), ['better-sqlite3']);
 // Neon/ws are optional peers, so an installing integration's copies satisfy ./neon in strict layouts.
-assert.deepEqual(Object.keys(core.peerDependencies).sort(), ['@neondatabase/serverless', 'ws']);
+// Zod is a required peer: the application's copy builds the schemas core's own compose with.
+assert.deepEqual(Object.keys(core.peerDependencies).sort(), [
+	'@neondatabase/serverless',
+	'ws',
+	'zod',
+]);
+assert.equal(core.peerDependencies.zod, ZOD);
+assert.deepEqual(Object.keys(core.peerDependenciesMeta).sort(), ['@neondatabase/serverless', 'ws']);
 assert.deepEqual(
 	Object.values(core.peerDependenciesMeta).map((meta) => meta.optional),
 	[true, true]
@@ -222,7 +233,7 @@ for (const path of coreFiles.filter((entry) => /\.(?:js|d\.ts)$/.test(entry))) {
 const runtime = packedManifest(RUNTIME);
 assert.equal(runtime.dependencies, undefined);
 const afd = packedManifest(AFD);
-assert.deepEqual(afd.peerDependencies, { [CORE]: CORE_PEER });
+assert.deepEqual(afd.peerDependencies, { [CORE]: CORE_PEER, ...zod });
 assert(
 	semver.satisfies(VERSION, CORE_PEER),
 	`the integration peer ${CORE_PEER} rejects core ${VERSION}`
@@ -234,8 +245,11 @@ assert.deepEqual(cli.bin, { violet: './dist/bin.js' });
 assert.equal(cli.dependencies[AFD], VERSION);
 // Endpoints depend on core directly: the integration only peers on it.
 assert.equal(cli.dependencies[CORE], VERSION);
+// Endpoints are applications: they supply the Zod that core and the integration peer.
+assert.equal(cli.dependencies.zod, ZOD);
 const server = packedManifest(SERVER);
 assert.equal(server.dependencies[CORE], VERSION);
+assert.equal(server.dependencies.zod, ZOD);
 assert.deepEqual(server.bin, { 'violet-mcp': './dist/bin.js' });
 assert.deepEqual(Object.keys(server.exports), ['.', './server', './api']);
 for (const manifest of [core, runtime, afd, cli, server]) {
@@ -243,13 +257,13 @@ for (const manifest of [core, runtime, afd, cli, server]) {
 	assert(!JSON.stringify(manifest).includes('workspace:'), `${manifest.name} leaks workspace:`);
 }
 passed(
-	`packed manifests: core needs only zod and the dependency-free runtime (storage drivers optional), no AFD text in its files; integration peers core ${CORE_PEER} and depends on afd-core ^2.2.0 || ^3.0.0; binaries preserved; all at ${VERSION}`
+	`packed manifests: core peers zod and needs only the dependency-free runtime (storage drivers optional), no AFD text in its files; integration peers core ${CORE_PEER} and zod and depends on afd-core ^2.2.0 || ^3.0.0; binaries preserved; all at ${VERSION}`
 );
 
 // ---- Violet only: native core without optional drivers, and runtime ---------------------------
 const { root: violetRoot } = await install(
 	'violet-only',
-	{ [CORE]: file(CORE), [RUNTIME]: file(RUNTIME) },
+	{ [CORE]: file(CORE), [RUNTIME]: file(RUNTIME), ...zod },
 	{ optional: false }
 );
 const nativeGraph = await installedPackages(violetRoot);
@@ -595,6 +609,7 @@ passed(
 const { root: integrationRoot } = await install('integration-present', {
 	[CORE]: file(CORE),
 	[AFD]: file(AFD),
+	...zod,
 });
 await writeFile(
 	join(integrationRoot, 'integration.mjs'),
@@ -693,6 +708,7 @@ const { root: sharedRoot } = await install('integration-with-afd-2', {
 	[CORE]: file(CORE),
 	[AFD]: file(AFD),
 	[AFD_CORE]: file(AFD_CORE),
+	...zod,
 });
 const sharedGraph = await installedPackages(sharedRoot);
 const afdVersions = sharedGraph.filter((name) => name.startsWith('@lushly-dev+afd-core@'));
@@ -717,7 +733,7 @@ passed(
 // ---- Integration incompatible and unavailable ----------------------------------------------------
 const missingPeer = await install(
 	'integration-core-missing',
-	{ [AFD]: file(AFD) },
+	{ [AFD]: file(AFD), ...zod },
 	{ expected: false, overrides: false }
 );
 assert.match(missingPeer.log, /ERR_PNPM_PEER_DEP_ISSUES/);
@@ -735,7 +751,7 @@ await writeFile(
 );
 const incompatible = await install(
 	'integration-core-incompatible',
-	{ [AFD]: file(AFD), [CORE]: `file:${fakeCore}` },
+	{ [AFD]: file(AFD), [CORE]: `file:${fakeCore}`, ...zod },
 	{ expected: false, overrides: false }
 );
 assert.match(incompatible.log, /ERR_PNPM_PEER_DEP_ISSUES/);
@@ -753,6 +769,7 @@ passed('integration with violet-core 9.0.0 is rejected (unmet peer)');
 const { root: unavailableRoot } = await install('integration-afd-unavailable', {
 	[CORE]: file(CORE),
 	[AFD]: file(AFD),
+	...zod,
 });
 // Simulate a broken installation: the integration's declared afd-core is gone from the store.
 const store = join(unavailableRoot, 'node_modules/.pnpm');
@@ -778,6 +795,7 @@ const { root: endpointRoot } = await install('endpoints', {
 	[AFD]: file(AFD),
 	[SERVER]: file(SERVER),
 	[CLI]: file(CLI),
+	...zod,
 });
 const tokensDir = join(endpointRoot, 'tokens');
 await mkdir(tokensDir);
