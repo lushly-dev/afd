@@ -104,7 +104,7 @@ When building with AFD:
 - Validate and sanitize the `reasoning` field before logging (may contain sensitive data)
 - Use HTTPS in production
 - Implement proper authorization checks in command handlers
-- Run `npm audit` regularly
+- Audit your dependencies regularly (see [Dependencies](#dependencies) for each language's tool)
 
 ### ❌ Don't
 
@@ -116,11 +116,30 @@ When building with AFD:
 
 ## Dependencies
 
-AFD uses minimal dependencies to reduce attack surface:
+Each implementation keeps its runtime dependencies few, to keep the attack surface small. The lists below are the third-party packages each one pulls in at run time; build and test tools are not listed.
 
-- **zod** - Input validation (actively maintained, security-focused)
-- **The official MCP SDK** (`@modelcontextprotocol/*`) - Protocol transport
-- **jose** - Token signature checks for MCP authorization
-- **yaml** - Reading YAML frontmatter
+- **TypeScript** (npm, `@lushly-dev/afd-*`)
+  - `zod`: input validation (a peer dependency of the server)
+  - The official MCP SDK (`@modelcontextprotocol/*`): the protocol transport in the server and client
+  - `jose`: token signature checks for MCP authorization
+  - `yaml`: reading YAML frontmatter
+  - `eventsource` in the client; `commander`, `chalk`, `ora`, `conf` and `glob` in the CLI
+- **Python** (PyPI, `afd`)
+  - `pydantic`: the only required dependency
+  - `mcp` (the official MCP SDK), `pyyaml`, `httpx` and `websockets` in the `server` and `client` extras; `click` and `rich` in the `cli` extra
+- **Rust** (crates.io, `afd`)
+  - `serde`, `serde_json`, `chrono`, `regex`, `sha2` and a few small helpers always
+  - `tokio`, `hmac`, `subtle` and `getrandom` with the default features (`native` and `approval`); build with `default-features = false` to leave them out
+  - `rmcp` (the official MCP Rust SDK), `http` and a YAML parser with the `server` feature; `jsonwebtoken` (on `aws-lc-rs`), `base64` and the `tower` layer crates with `server-auth`
+  - [`packages/rust/Cargo.toml`](./packages/rust/Cargo.toml) gives each one's reason and feature
+- **C++** (`afd-cpp`, a git tag)
+  - [nlohmann/json](https://github.com/nlohmann/json) is the only runtime dependency. A host's own copy is used when `find_package(nlohmann_json)` finds one; otherwise a pinned release is downloaded and its hash checked. HMAC-SHA256 is built in, so there is no crypto dependency.
 
-Run `npm audit` in the root and all packages to check for known vulnerabilities.
+To check for known vulnerabilities, run the audit tool for the language you use:
+
+| Language   | Command                                                            |
+| ---------- | ------------------------------------------------------------------ |
+| TypeScript | `pnpm audit` (or `npm audit`) in your project                      |
+| Python     | `pip-audit`                                                        |
+| Rust       | `cargo audit`                                                      |
+| C++        | Track [nlohmann/json's advisories](https://github.com/nlohmann/json/security) |
