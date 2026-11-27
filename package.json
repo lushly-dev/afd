@@ -36,6 +36,8 @@
 		"check:boundaries": "node scripts/check-boundaries.mjs",
 		"check:capabilities": "node scripts/check-capabilities.mjs",
 		"capabilities:sync": "node scripts/check-capabilities.mjs --write",
+		"check:maturity": "node scripts/maturity.mjs",
+		"maturity:sync": "node scripts/maturity.mjs --write",
 		"check:ci": "node scripts/sync-ci.mjs --check",
 		"ci:sync": "node scripts/sync-ci.mjs --write",
 		"check:skills": "node scripts/skill-profiles.mjs",

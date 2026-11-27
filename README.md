@@ -12,13 +12,13 @@
 
 | Implementation | Package | Latest release | Status | Contract |
 |---|---|---|---|---|
-| TypeScript | [`@lushly-dev/afd-core`](https://www.npmjs.com/package/@lushly-dev/afd-core) and 8 more `@lushly-dev/*` packages | [![npm](https://img.shields.io/npm/v/@lushly-dev/afd-core?style=flat-square&label=npm)](https://www.npmjs.com/package/@lushly-dev/afd-core) | 🟢 Beta | [1.0-rc](./spec/CHANGELOG.md) |
-| Python | [`afd`](https://pypi.org/project/afd/) | [![PyPI](https://img.shields.io/pypi/v/afd?style=flat-square&label=PyPI)](https://pypi.org/project/afd/) | 🟢 Beta | [1.0-rc](./spec/CHANGELOG.md) |
-| Rust | [`afd`](./packages/rust) crate | [![crates.io](https://img.shields.io/crates/v/afd?style=flat-square&label=crates.io)](https://crates.io/crates/afd) | 🟡 Preview | [1.0-rc](./spec/CHANGELOG.md) |
-| C++ | [`afd-cpp`](./packages/cpp) | [![tag](https://img.shields.io/github/v/tag/lushly-dev/afd?filter=cpp-v*&sort=semver&style=flat-square&label=tag)](https://github.com/lushly-dev/afd/tags) | 🟡 Preview | [1.0-rc](./spec/CHANGELOG.md) |
+| TypeScript | [`@lushly-dev/afd-core`](https://www.npmjs.com/package/@lushly-dev/afd-core) and 8 more `@lushly-dev/*` packages | [![npm](https://img.shields.io/npm/v/@lushly-dev/afd-core?style=flat-square&label=npm)](https://www.npmjs.com/package/@lushly-dev/afd-core) | Beta | [1.0-rc](./spec/CHANGELOG.md) |
+| Python | [`afd`](https://pypi.org/project/afd/) | [![PyPI](https://img.shields.io/pypi/v/afd?style=flat-square&label=PyPI)](https://pypi.org/project/afd/) | Beta | [1.0-rc](./spec/CHANGELOG.md) |
+| Rust | [`afd`](./packages/rust) crate | [![crates.io](https://img.shields.io/crates/v/afd?style=flat-square&label=crates.io)](https://crates.io/crates/afd) | Preview | [1.0-rc](./spec/CHANGELOG.md) |
+| C++ | [`afd-cpp`](./packages/cpp) | [![tag](https://img.shields.io/github/v/tag/lushly-dev/afd?filter=cpp-v*&sort=semver&style=flat-square&label=tag)](https://github.com/lushly-dev/afd/tags) | Preview | [1.0-rc](./spec/CHANGELOG.md) |
 
 
-> 🟢 **Beta:** stable and in active use across multiple projects. APIs are mostly stable; expect targeted iterative improvements. 🟡 **Preview:** tested, but not yet proven in production; the API may change in a minor release before 1.0. **Contract** is the version of the shared AFD contract in [`spec/`](./spec/CHANGELOG.md) that each implementation implements; each package keeps its own version. Feedback welcome!
+> **Status** is one of five words, Stable, Beta, Preview, In development or Internal, defined in [what each status means](#what-each-status-means). This README and [afd.dev](https://afd.dev) use only those words, and the package metadata is checked against them. **Contract** is the version of the shared AFD contract in [`spec/`](./spec/CHANGELOG.md) that each implementation implements; each package keeps its own version. Feedback welcome!
 
 > **More than the libraries.** This repository also holds the projects that grew up around AFD: a component bench, a web component runtime, a design token engine, a plugin host, an application shell and shared agent tooling. [The rest of the repository](#the-rest-of-the-repository) says what each one is and how far along it is.
 
@@ -196,7 +196,7 @@ AFD ships as packages across **TypeScript, Python, Rust, and C++**. All four sha
 | **@lushly-dev/local-db** | Async data adapter with swappable backends (memory, HTTP, IndexedDB, SQLite) for command storage |
 | **afd** *(Python)* | Idiomatic Python AFD: `CommandResult`, MCP server/client, middleware, validation, telemetry, batch, pipelines, stream types, testing, handoff |
 | **afd** *(Rust)* | `CommandResult` types, validating `CommandRegistry`, batch and pipeline execution, stream types, bootstrap commands; WASM-compatible; an MCP server behind the optional `server` feature |
-| **afd-cpp** *(C++20, published preview)* | [`packages/cpp`](./packages/cpp): `CommandResult` types, validating `CommandRegistry`, middleware, `DirectClient`, batch/pipeline/stream execution; engine-free, builds without exceptions or RTTI and for WebAssembly |
+| **afd-cpp** *(C++20)* | [`packages/cpp`](./packages/cpp): `CommandResult` types, validating `CommandRegistry`, middleware, `DirectClient`, batch/pipeline/stream execution; engine-free, builds without exceptions or RTTI and for WebAssembly |
 
 AFD stays framework-agnostic at the command layer. React or browser integrations belong in examples and in the projects around AFD, not in the core parity target.
 
@@ -496,59 +496,68 @@ The [CLI's README](./packages/cli/README.md) covers every option.
 
 ## The Rest of the Repository
 
+These parts used to live in separate repositories, where their versions and the dependencies between them drifted apart. They were brought together so that one change runs one set of gates, and each part still publishes on its own.
+
 AFD started as a method and a set of libraries. Then the method got used, and the same question kept coming back one layer higher. If commands are the product, what does a component library look like when an agent is the one reading it? A design system? A server that gives a model knowledge and memory? A whole application?
 
 Each answer became a project, and those projects now live here, next to the libraries. They share the idea behind AFD: a capability should be reachable as a command, so a person, a test and an agent all get the same software.
 
-The repository is laid out by what a thing is for:
+The map is arranged by what you want to do:
 
+<!-- generated:maturity:map:start -->
 ```mermaid
-graph TB
-    subgraph Endpoints["endpoints/ — things you run"]
-        direction LR
-        Loam["Loam<br/><em>application shell</em>"]
-        Umbel["Umbel<br/><em>plugin host</em>"]
-        Tools["CLIs and servers<br/><em>specimen, violet,<br/>Botcore, Health</em>"]
+graph LR
+    subgraph build["Build commands"]
+        direction TB
+        typescript["TypeScript<br/><em>Beta</em>"]
+        python["Python<br/><em>Beta</em>"]
+        rust["Rust<br/><em>Preview</em>"]
+        cpp["C++<br/><em>Preview</em>"]
     end
-
-    subgraph Integrations["integrations/ — a foundation, as AFD commands"]
-        direction LR
-        SA["specimen-afd"]
-        SF["specimen-fast-af"]
-        VA["violet-afd"]
+    subgraph design["Design for agents"]
+        direction TB
+        violet["Violet<br/><em>Preview</em>"]
+        fastaf["FAST-AF<br/><em>Preview</em>"]
+        specimen["Specimen<br/><em>Preview</em>"]
     end
-
-    subgraph Foundations["foundations/ and packages/ — each stands alone"]
-        direction LR
-        AFD["AFD<br/><em>commands</em>"]
-        Specimen["Specimen<br/><em>component bench</em>"]
-        FastAF["FAST-AF<br/><em>web components</em>"]
-        Violet["Violet<br/><em>design tokens</em>"]
+    subgraph run["Run and operate"]
+        direction TB
+        umbel["Umbel<br/><em>In development</em>"]
+        loam["Loam<br/><em>In development</em>"]
+        botcore["Botcore<br/><em>Beta</em>"]
     end
-
-    Endpoints --> Integrations --> Foundations
-
-    style Endpoints fill:#1a1a2e,stroke:#f59e0b,color:#eee
-    style Integrations fill:#1a1a2e,stroke:#8b5cf6,color:#eee
-    style Foundations fill:#1a1a2e,stroke:#22c55e,color:#eee
+    subgraph tools["This repository's tools"]
+        direction TB
+        alfred["Alfred<br/><em>Internal</em>"]
+        health["Health<br/><em>Internal</em>"]
+    end
+    classDef standalone stroke-dasharray: 5 4
+    class violet,fastaf,specimen standalone
 ```
+
+Each box shows its status. A dashed box's foundation packages depend on nothing in AFD (`pnpm check:boundaries` enforces it), so it can be adopted on its own; its CLI, server and AFD-command packages add AFD on top.
+<!-- generated:maturity:map:end -->
+
+On disk, the folders are layered, and `pnpm check:boundaries` keeps the direction:
 
 - **Foundations** stand on their own. Specimen, FAST-AF and Violet have no dependency on AFD, so you can adopt one without the rest.
 - **Integrations** bind a foundation to AFD: the same operations, exposed as validated commands that return a `CommandResult`.
 - **Endpoints** are what you install and run: a CLI, an MCP server, a host, an app shell. They compose the layers below.
 
-### The families
+### The parts
 
-| Family | What it is | Where it stands |
-|--------|-----------|-----------------|
+In the order of the map. Each status is the most mature of the part's packages.
+
+| Part | What it is | Status |
+|------|-----------|--------|
+| [**Violet**](./foundations/violet/README.md) | A design token engine. Tokens live on nodes in a tree; each node inherits from its parent and adds, overrides or removes. It exports CSS, SCSS, TypeScript, Swift, Kotlin, Dart, Tailwind and more, and ships a browser runtime for loading tokens and switching themes, a [`violet` CLI](./endpoints/violet-cli/README.md) and an [MCP server](./endpoints/violet-server/README.md). | Preview: the engine, runtime, AFD commands, CLI and MCP server are on npm under the `preview` tag |
+| [**FAST-AF**](./foundations/fast-af/README.md) | A web component runtime (`@lushly-dev/fast-element`) and a component library built on it (`@lushly-dev/violet-elements`). The runtime is an independent fork of Microsoft's open-source [FAST](https://github.com/microsoft/fast); FAST-AF is not affiliated with or endorsed by Microsoft. Every component's stories run on Specimen, and each component carries a record of what an agent writing a page needs to know about it. | Preview: both packages are on npm under the `preview` tag |
 | [**Specimen**](./foundations/specimen/README.md) | A component observation bench. It renders a component in Chromium and records what actually happened: geometry, computed styles, native control state, open shadow DOM and ARIA snapshots. Two renders can then be compared on evidence, including changes that identical markup would hide. It runs stories written in Storybook's format, with their plays and accessibility checks, and needs no Storybook installed. | Preview, on npm under the `preview` tag, with its [CLI](./endpoints/specimen-cli/README.md), [AFD commands](./integrations/specimen-afd/README.md) and [FAST-AF plugin](./integrations/specimen-fast-af/README.md) |
-| [**FAST-AF**](./foundations/fast-af/README.md) | A web component runtime (`@lushly-dev/fast-element`) and a component library built on it (`@lushly-dev/violet-elements`). The runtime is an independent fork of Microsoft's open-source [FAST](https://github.com/microsoft/fast); FAST-AF is not affiliated with or endorsed by Microsoft. Every component's stories run on Specimen, and each component carries a record of what an agent writing a page needs to know about it. | Both packages are previews on npm, under the `preview` tag |
-| [**Violet**](./foundations/violet/README.md) | A design token engine. Tokens live on nodes in a tree; each node inherits from its parent and adds, overrides or removes. It exports CSS, SCSS, TypeScript, Swift, Kotlin, Dart, Tailwind and more, and ships a browser runtime for loading tokens and switching themes, a [`violet` CLI](./endpoints/violet-cli/README.md) and an [MCP server](./endpoints/violet-server/README.md). | In the repository; not published from here yet |
-| [**Umbel**](./endpoints/umbel/README.md) | An empty Rust host for capability plugins, reachable over MCP and as a CLI. It ships with no capability of its own: knowledge, memory, context and tools arrive as plugins, and one deployment can hold several isolated spaces. The model calling it does the reasoning; Umbel keeps it informed and remembered, with every answer traceable to its source. | In development, unpublished. The host, the plugin contract, knowledge, memory and context, and the curator are done; sign-in and hosting are in progress ([status](./endpoints/umbel/docs/STATUS.md)) |
-| [**Loam**](./endpoints/loam/README.md) | An application shell: one chrome into which many apps land as plugins, sharing sign-in, projects, documents, settings and a command palette. The shell's own state is commands, so agents and tests drive it the way people do. Its chrome is FAST-AF components on a Violet theme. | In development, unpublished. The kernel and chrome, the app contract, and projects and documents are done; identity and hosting are in progress ([status](./endpoints/loam/docs/STATUS.md)) |
-| [**Botcore**](./endpoints/botcore/README.md) | Shared agent tooling for the repositories you work in: commands, skills, configuration and plugins from one `pip install`, so every repository's agent has the same tools. | `lushly-botcore` is on PyPI, published from this repository |
-| [**Health**](./endpoints/health/README.md) | Repository health audits you point at explicit targets, with a versioned JSON report and a [static dashboard](./endpoints/health-dashboard/README.md) to read it. The audited repository needs no AFD dependency. | In the repository only |
-| [**Alfred**](./alfred/README.md) | This repository's own quality bot: architecture lint, cross-language parity and command description quality, through CLI and MCP. | In the repository only |
+| [**Umbel**](./endpoints/umbel/README.md) | An empty Rust host for capability plugins, reachable over MCP and as a CLI. It ships with no capability of its own: knowledge, memory, context and tools arrive as plugins, and one deployment can hold several isolated spaces. The model calling it does the reasoning; Umbel keeps it informed and remembered, with every answer traceable to its source. | In development. The host, the plugin contract, knowledge, memory and context, and the curator are done; sign-in and hosting are in progress ([status](./endpoints/umbel/docs/STATUS.md)) |
+| [**Loam**](./endpoints/loam/README.md) | An application shell: one chrome into which many apps land as plugins, sharing sign-in, projects, documents, settings and a command palette. The shell's own state is commands, so agents and tests drive it the way people do. Its chrome is FAST-AF components on a Violet theme. | In development. The kernel and chrome, the app contract, and projects and documents are done; identity and hosting are in progress ([status](./endpoints/loam/docs/STATUS.md)) |
+| [**Botcore**](./endpoints/botcore/README.md) | Shared agent tooling for the repositories you work in: commands, skills, configuration and plugins from one `pip install`, so every repository's agent has the same tools. | Beta: `lushly-botcore` is on PyPI. Its plugins are in development and unpublished: the Teams plugin has unit tests against mocks only and has never run against a live tenant, and the Microsoft Graph connectors are a plan with no code yet |
+| [**Alfred**](./alfred/README.md) | This repository's own quality bot: architecture lint, cross-language parity and command description quality, through CLI and MCP. | Internal |
+| [**Health**](./endpoints/health/README.md) | Repository health audits you point at explicit targets, with a versioned JSON report and a [static dashboard](./endpoints/health-dashboard/README.md) to read it. The audited repository needs no AFD dependency. | Internal: built and used here, not published |
 
 ### How they fit together
 
@@ -559,9 +568,19 @@ The projects were built separately, and each one is used by the others:
 - **Umbel and Loam share one plugin manifest.** Its host-neutral core is specified in [`spec/plugin-manifest.md`](./spec/plugin-manifest.md), with a profile for each host, so an Umbel plugin and a Loam app are described the same way. Loam's test suite mounts a stock `umbel` and drives it from the shell.
 - **What they needed went back into AFD.** MCP authorization, output budgets, resources and long-running tasks joined the shared contract in [`spec/`](./spec) because Umbel and Loam needed them, usually with Rust implementing them first.
 
-### What "in the repository" means
+### What each status means
 
-Bringing source into this repository does not publish it. [`scripts/release/inventory.json`](./scripts/release/inventory.json) lists every releasable unit, and a unit publishes only once it has been explicitly admitted there; everything else is held back. So a package can be built, tested and used inside the workspace long before you can install it from a registry. The table above says which is which, and [platform releases](./docs/operations/platform-releases.md) describes the process.
+<!-- generated:maturity:ladder:start -->
+| Status | What it means |
+|--------|---------------|
+| **Stable** | Published on the default tag at 1.0 or later, on a final (not release-candidate) AFD contract; breaking changes only in a major version. None yet. |
+| **Beta** | Published on the registry's default tag; breaking changes only in a major version (below 1.0, the minor is the major). Now: TypeScript, Python, Botcore. |
+| **Preview** | Published, on npm only under the `preview` tag; may change in any release. Now: Rust, C++, Violet, FAST-AF, Specimen. |
+| **In development** | Built and tested here, not published. Now: Umbel, Loam. |
+| **Internal** | This repository's own tooling, not offered for use elsewhere. Now: Alfred, Health. |
+<!-- generated:maturity:ladder:end -->
+
+Version numbers do not carry the status: Specimen is at 2.2 and Python at 0.13. The status comes from [`scripts/release/inventory.json`](./scripts/release/inventory.json), which lists every releasable unit, whether it is admitted to publish and its `maturity`. `node scripts/maturity.mjs` checks this README, [`llms.txt`](./site/llms.txt), the site's status labels and the PyPI classifiers against it, and `--registry` compares the published packages with npm, PyPI and crates.io. Bringing source into this repository does not publish it: a unit publishes only once it is admitted there, so a package can be built, tested and used inside the workspace long before you can install it. [Platform releases](./docs/operations/platform-releases.md) describes the process.
 
 ## Documentation
 

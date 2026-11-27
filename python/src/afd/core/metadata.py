@@ -12,7 +12,7 @@ Example:
     >>> source = create_source(
     ...     "document",
     ...     id="style-guide-v3",
-    ...     title="Microsoft Style Guide",
+    ...     title="Style Guide",
     ...     location="Chapter 3.2",
     ... )
 """
@@ -45,7 +45,7 @@ class Source(WireModel):
         >>> source = Source(
         ...     type="document",
         ...     id="style-guide-v3",
-        ...     title="Microsoft Style Guide",
+        ...     title="Style Guide",
         ...     location="Chapter 3.2 - Capitalization",
         ... )
     """
