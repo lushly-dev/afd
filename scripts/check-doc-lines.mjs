@@ -5,7 +5,7 @@
  * A table cell or sentence that every pull request adds to is one line that every open branch
  * edits, so each merge to `main` puts the others in conflict. Loam's decision-log cell reached
  * 2,049 characters and the parity page's "Updated" cell 2,126 that way
- * (docs/features/active/merge-conflicts/). Such a line names no entry and links to where each has
+ * (docs/features/complete/merge-conflicts/). Such a line names no entry and links to where each has
  * its own line; this check refuses one that grows back, and a line too long to be one entry.
  *
  * Policy: scripts/policy/doc-line-limits.json
