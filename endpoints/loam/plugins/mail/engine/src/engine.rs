@@ -46,6 +46,13 @@ pub struct Engine {
     /// changes them, so that the layer in front of every route never waits
     /// for the store.
     agent_tokens: RwLock<Vec<TokenRow>>,
+    /// The persistent 32-byte non-bearer instance identity key for pre-bearer
+    /// `/health` proof verification (amendment 5.1/5.2): loaded when the store
+    /// opens so `/health` never blocks on the store mutex.
+    proof_key: RwLock<Option<[u8; 32]>>,
+    /// The shared file-backed journal sink for this engine's `home`, shared by
+    /// `CommandRegistry` and `pair`/`unpair` so `seq` stays strictly monotonic.
+    journal_sink: Option<Arc<dyn afd::JournalSink>>,
     /// What a server carries on in the background.
     work: crate::work::Work,
     limits: Limits,
@@ -93,6 +100,7 @@ impl Engine {
     /// An engine over the data directory `home`. Nothing is opened yet.
     #[must_use]
     pub fn new(home: Option<Home>) -> Self {
+        let journal_sink = home.as_ref().map(crate::journal::sink);
         Self {
             home,
             store: Mutex::new(None),
@@ -107,6 +115,8 @@ impl Engine {
             // person's keychain by accident.
             secrets: Arc::new(InMemory::default()),
             agent_tokens: RwLock::new(Vec::new()),
+            proof_key: RwLock::new(None),
+            journal_sink,
             work: crate::work::Work::default(),
             limits: Limits::default(),
             change: ChangeOptions::default(),
@@ -339,7 +349,10 @@ impl Engine {
                     .home
                     .as_ref()
                     .ok_or(StoreError::Home(HomeError::Unknown))?;
-                let store = held.insert(Store::open(home)?);
+                let opened = Store::open(home)?;
+                let key = opened.proof_key()?;
+                self.set_proof_key(key);
+                let store = held.insert(opened);
                 self.owns_store.store(true, Ordering::Release);
                 store
             }
@@ -372,6 +385,14 @@ impl Engine {
             .unwrap_or_else(PoisonError::into_inner) = tokens;
     }
 
+    /// Evicts the token `id` from the in-memory server cache, if present.
+    pub fn remove_agent_token(&self, id: &str) {
+        self.agent_tokens
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .retain(|token| token.id != id);
+    }
+
     /// The id of the agent whose token hashes to `hash`, compared with every
     /// token kept in constant time.
     #[must_use]
@@ -400,5 +421,47 @@ impl Engine {
         tokens
             .iter()
             .any(|token| token.id == id && token.role == TokenRole::Approver)
+    }
+
+    /// Caches the persistent 32-byte non-bearer instance identity proof key.
+    pub fn set_proof_key(&self, key: [u8; 32]) {
+        *self
+            .proof_key
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = Some(key);
+    }
+
+    /// Returns the cached persistent 32-byte instance identity proof key, if
+    /// loaded.
+    #[must_use]
+    pub fn proof_key(&self) -> Option<[u8; 32]> {
+        *self
+            .proof_key
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Returns the shared journal sink for this engine, if `home` is set.
+    #[must_use]
+    pub(crate) fn journal_sink(&self) -> Option<Arc<dyn afd::JournalSink>> {
+        self.journal_sink.as_ref().map(Arc::clone)
+    }
+
+    /// Appends a redacted record to the engine's journal when this process owns
+    /// the store. Failures are reported via [`Self::report`] and never fail the
+    /// completed action, matching [`afd::JournalRecorder`].
+    pub(crate) async fn append_journal(&self, record: afd::JournalRecord) {
+        if !self.owns_store() {
+            return;
+        }
+        let Some(sink) = self.journal_sink() else {
+            return;
+        };
+        let Some(redacted) = crate::journal::redact(record) else {
+            return;
+        };
+        if sink.append(redacted).await.is_err() {
+            self.report("the journal could not be written");
+        }
     }
 }

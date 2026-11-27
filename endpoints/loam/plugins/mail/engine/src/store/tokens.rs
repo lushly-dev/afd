@@ -2,9 +2,32 @@
 //! specification's 3.3 and 3.4, and plugin.spec.md section 4). Only a token's
 //! SHA-256 is kept.
 
-use rusqlite::params;
+use rusqlite::{Connection, OptionalExtension, params};
 
 use super::{Store, StoreError};
+
+/// Ensures the persistent 32-byte non-bearer instance identity key exists in
+/// `instance_proof_key` (phase 5 no-terminal amendment, sections 5.1 and 5.2).
+/// Generated once from the operating system's random source; survives restarts,
+/// rebuilds, and `unpair`.
+pub(super) fn ensure_proof_key(connection: &Connection, now: i64) -> Result<(), StoreError> {
+    let exists: Option<i64> = connection
+        .query_row("SELECT 1 FROM instance_proof_key WHERE id = 1", [], |row| {
+            row.get(0)
+        })
+        .optional()?;
+    if exists.is_some() {
+        return Ok(());
+    }
+    let mut secret = vec![0u8; 32];
+    getrandom::fill(&mut secret).map_err(|_| StoreError::Random)?;
+    connection.execute(
+        "INSERT OR IGNORE INTO instance_proof_key (id, secret, created_at)
+         VALUES (1, ?1, ?2)",
+        params![secret.as_slice(), now],
+    )?;
+    Ok(())
+}
 
 /// Whether a token belongs to an ordinary agent or to a trusted approver
 /// client such as Loam (step F1, M30).
@@ -119,5 +142,37 @@ impl Store {
         self.connection
             .execute("DELETE FROM token WHERE id = ?1", [id])?;
         Ok(token)
+    }
+
+    /// Deletes the token `id` directly by primary key, returning whether a row
+    /// was removed (`false` if already absent).
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn delete_token_by_id(&mut self, id: &str) -> Result<bool, StoreError> {
+        let deleted = self
+            .connection
+            .execute("DELETE FROM token WHERE id = ?1", [id])?;
+        Ok(deleted > 0)
+    }
+
+    /// Reads the persistent 32-byte non-bearer instance identity proof key.
+    ///
+    /// # Errors
+    /// [`StoreError::NotFound`] if the key row is missing or malformed, or when
+    /// the database refuses.
+    pub fn proof_key(&self) -> Result<[u8; 32], StoreError> {
+        let bytes: Vec<u8> = self
+            .connection
+            .query_row(
+                "SELECT secret FROM instance_proof_key WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or(StoreError::NotFound("instance_proof_key"))?;
+        bytes
+            .try_into()
+            .map_err(|_| StoreError::NotFound("instance_proof_key"))
     }
 }

@@ -160,7 +160,7 @@ impl fmt::Display for StoreError {
             Self::InvalidDigest(reason) => {
                 write!(f, "the proposal cannot be digested canonically: {reason}")
             }
-            Self::Random => write!(f, "no random source for the reply-set claim key"),
+            Self::Random => write!(f, "no random source for store key"),
             Self::Sqlite(error) => write!(f, "the store's database refused: {error}"),
         }
     }
@@ -419,6 +419,9 @@ impl Store {
             // `mail-replyset-next` stays a pure read that stores nothing.
             replysets::ensure_claim_key(&connection, wall_clock())?;
             replysets::backfill_source_digests(&connection, &log)?;
+            // Initialize the persistent non-bearer instance identity proof key
+            // once for pre-bearer `/health` verification (amendment 5.1/5.2).
+            tokens::ensure_proof_key(&connection, wall_clock())?;
         }
         // The write-ahead log and its index take the database file's mode
         // when SQLite creates them; this covers ones left from before.

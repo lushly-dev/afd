@@ -37,6 +37,7 @@ pub mod journal;
 pub mod log;
 pub mod operate;
 pub mod operations;
+pub mod pair;
 pub mod parts;
 pub mod policy;
 pub mod provider;

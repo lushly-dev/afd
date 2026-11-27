@@ -1557,7 +1557,8 @@ fn ft9_units_stateless_next_claims_submit_audit_restart_rebuild_and_journal() {
     {
         let conn = rusqlite::Connection::open(home.database()).unwrap();
         conn.execute_batch(
-            "DROP TABLE replyset_claim_key;
+            "DROP TABLE instance_proof_key;
+             DROP TABLE replyset_claim_key;
              ALTER TABLE replyset_event DROP COLUMN instructions_version;
              ALTER TABLE replyset_reply DROP COLUMN known_source_digest;
              ALTER TABLE replyset_reply DROP COLUMN instructions_version;
@@ -1957,7 +1958,8 @@ fn f3_migration_24_preserves_near_limit_v23_replyset_preview() {
     {
         let conn = rusqlite::Connection::open(home.database()).unwrap();
         conn.execute_batch(
-            "DROP TABLE replyset_claim_key;
+            "DROP TABLE instance_proof_key;
+             DROP TABLE replyset_claim_key;
              ALTER TABLE replyset_event DROP COLUMN instructions_version;
              ALTER TABLE replyset_reply DROP COLUMN known_source_digest;
              ALTER TABLE replyset_reply DROP COLUMN instructions_version;

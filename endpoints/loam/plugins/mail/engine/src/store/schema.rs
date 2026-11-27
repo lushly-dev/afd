@@ -1139,6 +1139,17 @@ pub(super) const MIGRATIONS: &[&str] = &[
     ALTER TABLE replyset_reply ADD COLUMN known_source_digest TEXT;
     ALTER TABLE replyset_event ADD COLUMN instructions_version TEXT;
     ",
+    // 25: persistent instance identity proof key for pre-bearer `/health` proof
+    // (phase 5 no-terminal amendment, sections 5.1 and 5.2). Not derived from mail:
+    // survives restarts, rebuilds, and token unpair. Initialized once from the
+    // operating system's random source on store open.
+    "
+    CREATE TABLE instance_proof_key (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        secret BLOB NOT NULL CHECK (length(secret) = 32),
+        created_at INTEGER NOT NULL
+    ) STRICT;
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

@@ -208,6 +208,27 @@ for the full contract.
 Loam's desktop suite mounts the engine with this entry on every Linux run (`test/mail.test.ts`, P5-A9),
 against a test build seeded by `loam-mail test-world --seed loam-desktop`, with the mail app beside it.
 
+## Plugin bundle & no-terminal pairing (Loam step 9)
+
+`loam-plugin.toml` declares the Mail plugin bundle (`apps/mail`, `apps/mailapp`, `loam-mail`
+`http-service` artifacts, `auth.mode = "approver"`, `labels = "per-part"`, `approvals = "shell"`,
+and the command previews and `apps` exposures above) for `loam plugin check` and `loam plugin pack`.
+
+The engine also implements the fixed desktop host invocations from Loam's phase 5 no-terminal
+amendment (sections 5.1 and 5.2):
+
+- `loam-mail pair --role <approver|agent> --name <name> --accept-consent`: non-interactive token
+  creation (`stdin: null`, no TTY) that stores only the token hash, persists a single 32-byte
+  instance identity key `proofKey` (returned unchanged across `pair` calls and preserved across
+  `unpair`), journals creation with secrets redacted (`source: "pair"`), and prints strictly one
+  JSON object (`{"token","tokenId","role","proofKey"}`) to stdout. Works stopped or while
+  `loam-mail serve` is running (forwarding over `/cli`).
+- `loam-mail unpair --token-id <tokenId>`: non-interactive, idempotent token revocation that keeps
+  `proofKey` intact and works stopped or over `/cli`.
+- `GET /health?nonce=<64-lowercase-hex>`: unauthenticated pre-bearer identity endpoint returning
+  HTTP `200` and `X-Loam-Proof: <64-hex HMAC-SHA256(proofKey, nonce)>` (with Host and Origin checks
+  still enforced; `/mcp` and `/cli` keep strict bearer authentication).
+
 ## The mail app
 
 `app/` is `mailapp`, titled Mail, a native Loam app ([the plugin's specification](docs/plugin.spec.md#13-the-native-app)).
