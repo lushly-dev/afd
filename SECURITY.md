@@ -14,38 +14,29 @@ Fixes land on `main` and ship in the next release of the affected package; there
 
 ## Development vs Production Mode
 
-AFD servers support two operating modes with different security behaviors:
+AFD servers take a `devMode` option (`dev_mode` in Python and C++). It is off by default. It decides how much an error tells the caller and, in TypeScript, adds debug output for grouped tools; it changes no Host, Origin or CORS rule:
 
-### 🔧 Development Mode (`devMode: true`)
+| Behavior                   | Production (`devMode: false`, default)                                   | Development (`devMode: true`)                                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Handler exceptions**     | `COMMAND_EXECUTION_ERROR` with the generic "An internal error occurred" | The exception's message; TypeScript adds its stack trace in `details.stack`                                                      |
+| **Invalid input**          | `VALIDATION_ERROR` with field-level issues in `details.errors`           | The same                                                                                                                         |
+| **Schema callback throws** | `VALIDATION_ERROR` whose `suggestion` points at the input schema         | The exception text in `suggestion` instead                                                                                       |
+| **Origin checks and CORS** | As configured (below)                                                    | The same                                                                                                                         |
+| **Logging**                | No debug output                                                          | TypeScript's `grouped` tool strategy (the default) writes each grouped call's tool, action and full arguments to stderr, and an `INVALID_GROUPED_CALL` result carries the arguments in `_debug.receivedArgs`. Arguments can hold secrets |
 
-Enable by setting `NODE_ENV=development` or `devMode: true` in server options.
+Origin checks and CORS do not depend on the mode; what each server accepts is the same in development:
 
-| Behavior              | Development                          |
-| --------------------- | ------------------------------------ |
-| **Error messages**    | Full error details with stack traces |
-| **CORS**              | Permissive (`*` origin allowed)      |
-| **Validation errors** | Verbose with field-level details     |
-| **Logging**           | Verbose by default                   |
+- **TypeScript** (`@lushly-dev/afd-server`): Host and Origin are checked on every HTTP request. Same-origin requests are accepted, and requests without an `Origin` unless their `Sec-Fetch-Site` is `cross-site` or `same-site`; any other browser origin gets HTTP 403 unless it is listed exactly in `allowedOrigins`, which refuses `*` and `null`. CORS headers are sent only with `cors: true` (default `false`), and they echo the accepted request's own origin, never `*`.
+- **Rust** (`afd` with the `server` feature): the Streamable HTTP service refuses any browser `Origin` not listed in `allowed_origins`, including when the list is empty. The server has no `devMode`: a handler panic it catches returns the generic message.
+- **Python** (`afd`): HTTP is served by the MCP SDK's `MCPServer` transports. AFD sets no CORS headers and no Origin rule of its own; the SDK's own Host and Origin settings apply, including any `transport_security` the host passes to `run()` or `streamable_http_app()`.
+- **C++** (`afd-cpp`) serves MCP over stdio only; `dev_mode` on its registry governs error detail only.
 
-**When to use**: Local development, testing, debugging.
-
-### 🔒 Production Mode (`devMode: false`, default)
-
-The default when `NODE_ENV` is not set or is set to `production`.
-
-| Behavior              | Production                                             |
-| --------------------- | ------------------------------------------------------ |
-| **Error messages**    | Generic messages, no stack traces                      |
-| **CORS**              | Restrictive (same-origin unless explicitly configured) |
-| **Validation errors** | Sanitized, no internal details                         |
-| **Logging**           | Minimal by default                                     |
-
-**When to use**: Any environment accessible outside localhost.
+**When to use `devMode`**: local development, testing and debugging. Leave it off anywhere reachable from outside localhost.
 
 ### Configuration
 
 ```typescript
-// Automatic (recommended)
+// The server never reads NODE_ENV itself; map it explicitly
 const DEV_MODE = process.env.NODE_ENV === 'development';
 
 createMcpServer({
@@ -60,7 +51,7 @@ createMcpServer({
 # Start in development mode
 NODE_ENV=development node dist/server.js
 
-# Start in production mode (default)
+# Start in production mode (the default when NODE_ENV is unset)
 node dist/server.js
 ```
 
@@ -70,7 +61,7 @@ AFD is a **methodology and toolkit**, not a complete security framework. The fol
 
 | Concern                | AFD Provides                                  | You Must Implement                      |
 | ---------------------- | --------------------------------------------- | --------------------------------------- |
-| **Authentication**     | Error codes (`UNAUTHORIZED`, `TOKEN_EXPIRED`); [`@lushly-dev/afd-auth`](./packages/auth), an adapter over your provider; bearer-token verification and per-command scopes for HTTP MCP servers in TypeScript and Rust ([`spec/authorization.md`](./spec/authorization.md); [language parity](./docs/language-parity.md) says what each language covers) | An identity provider, its keys and session storage |
+| **Authentication**     | Error codes (`UNAUTHORIZED`, `TOKEN_EXPIRED`); [`@lushly-dev/afd-auth`](./packages/auth), an adapter over your provider; bearer-token verification and per-command scopes for HTTP MCP servers in TypeScript, Python and Rust ([`spec/authorization.md`](./spec/authorization.md); [language parity](./docs/language-parity.md) says what each language covers) | An identity provider, its keys and session storage |
 | **Authorization**      | Middleware pattern                            | Permission checks, RBAC                 |
 | **Encryption**         | —                                             | TLS/HTTPS, data encryption              |
 | **Secrets Management** | —                                             | Vault integration, env var security     |
