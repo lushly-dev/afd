@@ -207,6 +207,36 @@ release, as a fix (I6).
 
 ## Spec changes (first pull request)
 
+As merged, three items below moved to the first implementation, because tests pin each file to
+what the code does today: the new codes' entries in `spec/vectors/error-codes.json` (the rule in
+`spec/error-codes.md`, "Specified, not yet in the catalog"), the `meta` key in
+`spec/meta-tools.json`, and the rows of `spec/recovery.md`'s engine table. The spec pages name
+all three.
+
+The review of the spec added rules this proposal did not have, none of which changes a decision
+below. [`spec/idempotency.md`](../../../../spec/idempotency.md) is the source for each:
+
+- A nested call starts without the key (K6), and `null` is no key (K2).
+- The step compares the declared context fields with the input (S4), so one key under another
+  scope is another call.
+- A command whose handler decides who may call it keeps the promise in its handler (D5).
+- A reservation has an identity, so a late handler cannot settle a key that was reserved again,
+  and `ttlMs` must exceed the default deadline plus `leaseMs` (S5, S8).
+- A caller the server cannot tell apart is refused before any confirmation or approval, and
+  anonymous stdio connections never share a store (S3).
+- The `TIMEOUT` recovery is given only where the step acted on the call (R3), and a client repeats
+  a `keyed` call by itself only where its application told it to (R4).
+- A task run is treated as carrying no key (S11), so a command that may run as a task answers
+  repeats in its handler (D5).
+- The retry rule is an order: `natural` first, then `keyed`, then `mutation` (R1). Section 4
+  below reads otherwise for a `keyed` command that does not declare `mutation`; the spec's order
+  holds.
+- A replayed result replays as `same` from a journal only where the store's history is rebuilt
+  (The journal), which narrows section 5's sentence.
+- The engine checks cancellation again after it reserves a key (S5); the replay marker is the
+  engine's and is never `false` (S9); and a host with several processes shares the store or
+  leaves the step off (S13).
+
 - `spec/command-metadata.md`: the `idempotency` field, its surfaces and the `idempotentHint`
   rule in Annotations.
 - A new `spec/idempotency.md`: the key and its characters, its scope, the derived keys, the

@@ -29,6 +29,7 @@ an unset field stays distinguishable from an explicit `false`.
 | `secret` | boolean | `false` | Not reported. The command takes or returns a secret (a password argument, an issued token): a journal never records a call to it unless the recorder also has `redact`, which removes the secret; a `filter` alone never admits it ([journal](./journal.md#entry)) |
 | `confirmPrompt` | string | None; a frontend MAY show a generic prompt | afd-detail, afd-docs |
 | `undoable` | boolean | `false` | `_meta`, afd-detail, afd-help (full), afd-docs, `DirectRegistry.listCommands()`, `afd tools` |
+| `idempotency` | `natural` or `keyed` | None: nothing is claimed about repeating a call | Specified in [idempotency](./idempotency.md#what-a-command-declares) and in no language yet: `_meta`, afd-detail and afd-help (full) once implemented. `natural` sets the MCP annotation `idempotentHint: true`; `keyed` says a repeat is safe with an idempotency key |
 | `approval` | `required`, `not-required`, or a function of the validated input and context returning one of them | `not-required` | `_meta`, afd-detail, afd-docs, as `required`, `not-required` or `conditional` (a function). `afd validate` warns when a `mutation` or `destructive` command declares none. The approval middleware decides it; without an approval step that admits the call, a server engine refuses a command whose policy is not `not-required` with `APPROVAL_UNAVAILABLE`. See [Approvals](#approvals) |
 | `executionTime` | `instant`, `fast`, `slow` or `long-running` | None | afd-detail |
 | `handoff` | boolean | `false` | afd-detail; adds the `handoff` tag |
@@ -1002,8 +1003,10 @@ default:
 | `mutation: true` | `readOnlyHint: false`, `destructiveHint: <destructive, false when unset>` |
 | `mutation` unset | none (`destructive` alone is reported only in `_meta`) |
 
-`idempotentHint` and `openWorldHint` are not derived. Annotations are hints for clients and are
-never enforced. Grouped and meta-tools carry no annotations, because one tool covers several
+`openWorldHint` is not derived. `idempotentHint: true` is reported only for a command that
+declares `idempotency: "natural"` ([idempotency, D2](./idempotency.md#what-a-command-declares)),
+which no language implements yet, so today it is never reported. Annotations are hints for clients
+and are never enforced. Grouped and meta-tools carry no annotations, because one tool covers several
 commands; their per-command metadata stays in `_meta.actions`. The hybrid strategy's first-class
 tools are command tools and carry annotations as individual tools do.
 

@@ -96,6 +96,15 @@
 			"note": "`command_to_mcp_tool`, no plural helper",
 			"evidence": ["packages/rust/src/commands.rs"]
 		},
+		"command.idempotency": {
+			"status": "planned",
+			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"views": {
+				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+			},
+			"issue": "#2676",
+			"evidence": ["packages/rust/tests/idempotency_vectors.rs"]
+		},
 		"single.dispatch-order": {
 			"status": "partial",
 			"note": "no stamping or hooks",
@@ -330,6 +339,15 @@
 			},
 			"issue": "#2681",
 			"evidence": ["packages/rust/tests/journal_seams_vectors.rs"]
+		},
+		"middleware.idempotency-step": {
+			"status": "planned",
+			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"views": {
+				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+			},
+			"issue": "#2676",
+			"evidence": ["packages/rust/tests/idempotency_vectors.rs"]
 		},
 		"middleware.up-front-approval": {
 			"status": "yes",
@@ -760,6 +778,15 @@
 			},
 			"issue": "#2681",
 			"evidence": ["packages/rust/tests/journal_seams_vectors.rs"]
+		},
+		"single.idempotency-key": {
+			"status": "planned",
+			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"views": {
+				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+			},
+			"issue": "#2676",
+			"evidence": ["packages/rust/tests/idempotency_vectors.rs"]
 		}
 	}
 }

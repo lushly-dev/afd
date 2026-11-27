@@ -13,9 +13,9 @@ Epic: [#2672](https://github.com/lushly-dev/afd/issues/2672).
 Each step has its own line. A session edits only its own step's line, and marks it merged with
 the pull request's number.
 
-- **1. The retry fix,** four languages ([#2673](https://github.com/lushly-dev/afd/issues/2673)): claimed on the issue on 2026-11-26, no pull request yet. Needs nothing else here.
+- **1. The retry fix,** four languages ([#2673](https://github.com/lushly-dev/afd/issues/2673)): merged in #2794: the retry middleware does not repeat a command with `mutation: true` unless the host sets `retryMutations`.
 
-- **2. Spec and vectors** ([#2674](https://github.com/lushly-dev/afd/issues/2674)): not started. Needs nothing else here.
+- **2. Spec and vectors** ([#2674](https://github.com/lushly-dev/afd/issues/2674)): merged in #2803. [`spec/idempotency.md`](../../../../spec/idempotency.md) (D1 to D5, K1 to K6, S1 to S13, R1 to R4), pointers in seven other spec pages, `metadata.idempotentReplay` in the result schema, and `spec/vectors/idempotency.json` (88 cases in nine sections, every language a documented gap). Each language has a loader that skips every case.
 
 - **3. TypeScript** ([#2675](https://github.com/lushly-dev/afd/issues/2675)): not started. Needs step 2.
 
@@ -33,9 +33,14 @@ the pull request's number.
 - The engine step is not a middleware: it sits between the approval admission check and the
   handler, so a repeat passes the same gates as the first call (I2).
 - A lost reservation answers with the existing `OUTCOME_UNKNOWN`, which `spec/error-codes.md`
-  lists as transport-specific and not in the shared catalog. Step 2 decides whether it joins the
-  new profile. Do not add a third new code.
+  lists as transport-specific and not in the shared catalog. It joins the new `idempotency`
+  profile with the first implementation. Do not add a third new code.
 - Umbel's and Factory Gateway's keys travel in command input and stay as they are (I5).
+- Three things the spec leaves for the first implementation, because tests pin them to what the
+  code does today: the two new codes' entries in `spec/vectors/error-codes.json` with their
+  constants in all four languages (the rule in `spec/error-codes.md`, "Specified, not yet in the
+  catalog"), the key in `spec/meta-tools.json`'s `meta` argument, and the rows of
+  `spec/recovery.md`'s engine table.
 
 ## How to keep this file
 

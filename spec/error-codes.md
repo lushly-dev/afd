@@ -314,7 +314,18 @@ Engine codes a `spec/` page defines before any language emits them. Each joins
 it ([Changing this page](#changing-this-page)). `OUTPUT_BUDGET_EXCEEDED` joined the catalog this way
 in Umbel phase 2 step 0b, `INSUFFICIENT_SCOPE` in Umbel phase 5 step 0b and `TASK_TOKEN_EXPIRED` in
 Umbel phase 5 step 0e, and the catalog stands at 50 codes, `APPROVAL_UNAVAILABLE` the latest
-(declared approval policies held without the approval middleware). None is waiting.
+(declared approval policies held without the approval middleware). Two are waiting, both from
+[idempotency](./idempotency.md#errors) and both for a new `idempotency` profile:
+
+| Code | Meaning | Retryable |
+| --- | --- | --- |
+| `IDEMPOTENCY_KEY_REUSED` | The idempotency key is already held for a call with another input | No |
+| `IDEMPOTENCY_IN_PROGRESS` | An earlier call with the same idempotency key and input is still running | Yes |
+
+The same step also sends `OUTCOME_UNKNOWN`, today a client's code
+([transport-specific codes](#transport-specific-codes)), when an earlier call with the key started
+and nobody can say whether it was applied. It joins the profile with the other two, since an
+engine in any language will then emit it.
 
 A refused token is not an error code: it is an HTTP 401 whose body names the existing
 `UNAUTHORIZED`, with a rule code (`audience`, `expired`, `scopes-too-many` and so on) that is logged

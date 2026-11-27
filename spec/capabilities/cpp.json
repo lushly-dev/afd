@@ -107,6 +107,15 @@
 			"note": "`command_to_mcp_tool`, `commands_to_mcp_tools`, `command_tool_meta`, `command_tool_annotations`; `to_json` for afd-detail's shape. `mutation`, `destructive` and `undoable` are plain booleans, so only `true` is reported",
 			"evidence": ["packages/cpp/include/afd/mcp.hpp", "packages/cpp/tests/mcp_tools_test.cpp"]
 		},
+		"command.idempotency": {
+			"status": "planned",
+			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"views": {
+				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+			},
+			"issue": "#2676",
+			"evidence": ["packages/cpp/tests/idempotency_vectors_test.cpp"]
+		},
 		"single.dispatch-order": {
 			"status": "yes",
 			"views": {
@@ -362,6 +371,15 @@
 			},
 			"issue": "#2682",
 			"evidence": ["packages/cpp/tests/journal_seams_vectors_test.cpp"]
+		},
+		"middleware.idempotency-step": {
+			"status": "planned",
+			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"views": {
+				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+			},
+			"issue": "#2676",
+			"evidence": ["packages/cpp/tests/idempotency_vectors_test.cpp"]
 		},
 		"middleware.up-front-approval": {
 			"status": "yes",
@@ -813,6 +831,15 @@
 			},
 			"issue": "#2682",
 			"evidence": ["packages/cpp/tests/journal_seams_vectors_test.cpp"]
+		},
+		"single.idempotency-key": {
+			"status": "planned",
+			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"views": {
+				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+			},
+			"issue": "#2676",
+			"evidence": ["packages/cpp/tests/idempotency_vectors_test.cpp"]
 		}
 	}
 }

@@ -27,6 +27,7 @@ Keys are camelCase. Optional fields that are not set are omitted, never `null`.
 | `seq` | integer ≥ 1 | yes | Position in the journal |
 | `timestamp` | string | yes | When the call started, ISO 8601, from `context.clock` |
 | `traceId` | string | no | `context.traceId` |
+| `idempotencyKey` | string | no | The call's idempotency key ([idempotency](./idempotency.md#the-journal)). Specified and in no language yet |
 | `command` | string | yes | The command name |
 | `input` | JSON | yes | The validated input the handler received |
 | `actor` | object | no | The caller: `kind` (`human`, `agent`, `service`, `script` or `test`), and `id`, `label` and `onBehalfOf` when set. No other actor field is kept |
@@ -64,7 +65,9 @@ members with the same values, and the names they hold leave `keys`:
 ```
 
 When the entry has `outputBudget`, the hashed object gains `"outputBudget": <n>` the same way, and
-the context key that holds the effective budget leaves `keys`. An entry without any of them hashes
+the context key that holds the effective budget leaves `keys`. An entry with `idempotencyKey` hashes
+the same way: the hashed object gains `"idempotencyKey": <key>`, and the context key that holds it
+leaves `keys`. An entry without any of them hashes
 exactly as before, so existing journals and fixture lines keep their hashes. Two calls with the same hash had the same allowlisted values and the same context shape.
 Replay does not compare hashes: the replaying surface builds its own context. Hashes compare only
 within one implementation, because the context key names (`clock`, `random` and the rest) differ
@@ -126,6 +129,7 @@ the recording started from), and compares each result with the recorded one. For
 restores:
 
 - `traceId`, `actor` and `interface` from the entry;
+- `idempotencyKey`, when the entry has one, as the call's idempotency key;
 - each value in `context`, under its field name. The replaying surface validates it as on any call,
   so a value that no longer validates fails the call. A field the surface no longer declares is
   dropped with a note on the entry, and each name in `contextOmitted` gets a note too;

@@ -1,0 +1,1923 @@
+{
+	"description": "Idempotency keys (spec/idempotency.md): what a command declares (D1, D2), the key (K1 to K6), the engine's step (S1 to S11, S13), retrying (R1 to R3) and the journal. Specification-authored. No implementation has any of it yet: each language loads this file, checks that it is still listed in `gaps`, and skips every case with its issue as the reason.",
+	"gaps": {
+		"typescript": "https://github.com/lushly-dev/afd/issues/2675",
+		"python": "https://github.com/lushly-dev/afd/issues/2676",
+		"rust": "https://github.com/lushly-dev/afd/issues/2676",
+		"cpp": "https://github.com/lushly-dev/afd/issues/2676"
+	},
+	"metaKey": "dev.afd/idempotencyKey",
+	"declaration": {
+		"cases": [
+			{
+				"description": "natural reports the idempotent hint",
+				"rule": "D2",
+				"command": {
+					"mutation": true,
+					"idempotency": "natural"
+				},
+				"expect": {
+					"metaIdempotency": "natural",
+					"idempotentHint": true
+				}
+			},
+			{
+				"description": "keyed is reported and sets no hint",
+				"rule": "D2",
+				"command": {
+					"mutation": true,
+					"idempotency": "keyed"
+				},
+				"expect": {
+					"metaIdempotency": "keyed",
+					"idempotentHint": null
+				}
+			},
+			{
+				"description": "an undeclared mutation reports neither",
+				"rule": "D1",
+				"command": {
+					"mutation": true
+				},
+				"expect": {
+					"metaIdempotency": null,
+					"idempotentHint": null
+				}
+			},
+			{
+				"description": "a command that is not a mutation is not thereby natural",
+				"rule": "D1",
+				"command": {},
+				"expect": {
+					"metaIdempotency": null,
+					"idempotentHint": null
+				}
+			}
+		]
+	},
+	"key": {
+		"form": [
+			{
+				"description": "one character",
+				"key": "a",
+				"valid": true
+			},
+			{
+				"description": "every kind of allowed character",
+				"key": "Order-2026.11_26~retry1",
+				"valid": true
+			},
+			{
+				"description": "200 characters",
+				"repeat": "k",
+				"times": 200,
+				"valid": true
+			},
+			{
+				"description": "201 characters",
+				"repeat": "k",
+				"times": 201,
+				"valid": false
+			},
+			{
+				"description": "the empty string",
+				"key": "",
+				"valid": false
+			},
+			{
+				"description": "a colon, which derived keys use",
+				"key": "a:b",
+				"valid": false
+			},
+			{
+				"description": "a space",
+				"key": "a b",
+				"valid": false
+			},
+			{
+				"description": "a slash",
+				"key": "a/b",
+				"valid": false
+			},
+			{
+				"description": "a letter outside ASCII",
+				"key": "café",
+				"valid": false
+			},
+			{
+				"description": "a number, not a string",
+				"key": 42,
+				"valid": false
+			}
+		],
+		"derived": [
+			{
+				"base": "k1",
+				"kind": "batch",
+				"index": 0,
+				"expected": "k1:0"
+			},
+			{
+				"base": "k1",
+				"kind": "batch",
+				"index": 12,
+				"expected": "k1:12"
+			},
+			{
+				"base": "k1",
+				"kind": "pipeline",
+				"index": 0,
+				"expected": "k1:step:0"
+			},
+			{
+				"base": "k1",
+				"kind": "pipeline",
+				"index": 3,
+				"expected": "k1:step:3"
+			}
+		],
+		"delivery": [
+			{
+				"description": "a key in _meta reaches the handler of a command that declares nothing",
+				"rule": "K3",
+				"via": "meta",
+				"key": "k1",
+				"expect": {
+					"success": true,
+					"handlerSeesKey": "k1"
+				}
+			},
+			{
+				"description": "a key in a meta-tool's meta argument reaches the handler",
+				"rule": "K1",
+				"via": "meta-argument",
+				"key": "k1",
+				"expect": {
+					"success": true,
+					"handlerSeesKey": "k1"
+				}
+			},
+			{
+				"description": "a key an in-process caller sets on the context reaches the handler",
+				"rule": "K1",
+				"via": "context",
+				"key": "k1",
+				"expect": {
+					"success": true,
+					"handlerSeesKey": "k1"
+				}
+			},
+			{
+				"description": "a call without a key gives the handler none",
+				"rule": "K3",
+				"via": "meta",
+				"expect": {
+					"success": true,
+					"handlerSeesKey": null
+				}
+			},
+			{
+				"description": "an input member with the key's name is not the key",
+				"rule": "K1",
+				"via": "input",
+				"key": "k1",
+				"expect": {
+					"success": true,
+					"handlerSeesKey": null
+				}
+			},
+			{
+				"description": "an invalid key fails the call before the handler and names the _meta key",
+				"rule": "K2",
+				"via": "meta",
+				"key": "a:b",
+				"expect": {
+					"success": false,
+					"code": "VALIDATION_ERROR",
+					"handlerRuns": 0,
+					"detailsMeta": "dev.afd/idempotencyKey"
+				}
+			},
+			{
+				"description": "each batch item's handler sees its derived key",
+				"rule": "K4",
+				"via": "meta",
+				"kind": "batch",
+				"key": "k1",
+				"items": 2,
+				"expect": {
+					"handlerSeesKeys": ["k1:0", "k1:1"]
+				}
+			},
+			{
+				"description": "each pipeline step's handler sees its derived key",
+				"rule": "K4",
+				"via": "meta",
+				"kind": "pipeline",
+				"key": "k1",
+				"items": 2,
+				"expect": {
+					"handlerSeesKeys": ["k1:step:0", "k1:step:1"]
+				}
+			},
+			{
+				"description": "null is no key, and the call runs without one",
+				"rule": "K2",
+				"via": "meta",
+				"key": null,
+				"keyIsNull": true,
+				"expect": {
+					"success": true,
+					"handlerSeesKey": null
+				}
+			},
+			{
+				"description": "a caller cannot supply a key shaped like a derived one, on the context either",
+				"rule": "K2",
+				"via": "context",
+				"key": "k1:0",
+				"expect": {
+					"success": false,
+					"code": "VALIDATION_ERROR",
+					"handlerRuns": 0,
+					"detailsMeta": "dev.afd/idempotencyKey"
+				}
+			},
+			{
+				"description": "a nested call does not inherit the key the handler was given",
+				"rule": "K6",
+				"via": "meta",
+				"key": "k1",
+				"nested": true,
+				"expect": {
+					"success": true,
+					"handlerSeesKey": "k1",
+					"nestedHandlerSeesKey": null
+				}
+			}
+		]
+	},
+	"step": {
+		"setup": {
+			"options": {
+				"ttlMs": 86400000,
+				"leaseMs": 60000
+			},
+			"clock": "The step's clock is the harness's. It starts at 0 and a call's `at` sets it, in milliseconds, before that call is made.",
+			"commands": [
+				{
+					"name": "order-place",
+					"mutation": true,
+					"idempotency": "keyed",
+					"handler": "Returns success with data { \"placed\": n }, where n counts the handlers that have started in the case, this one included, taken when this handler starts."
+				},
+				{
+					"name": "order-refuse",
+					"mutation": true,
+					"idempotency": "keyed",
+					"handler": "Returns a failure with code CONFLICT, retryable false."
+				},
+				{
+					"name": "order-flaky",
+					"mutation": true,
+					"idempotency": "keyed",
+					"handler": "The first time it runs in a case it returns a failure with code TRANSIENT_ERROR, retryable true. After that it returns what order-place returns."
+				},
+				{
+					"name": "order-timeout",
+					"mutation": true,
+					"idempotency": "keyed",
+					"handler": "Returns a failure with code TIMEOUT, retryable true."
+				},
+				{
+					"name": "order-throw",
+					"mutation": true,
+					"idempotency": "keyed",
+					"handler": "Throws, or panics, where the language can. A language or build that cannot skips the cases that use it."
+				},
+				{
+					"name": "order-approve",
+					"mutation": true,
+					"idempotency": "keyed",
+					"approval": "required",
+					"handler": "As order-place."
+				},
+				{
+					"name": "order-set",
+					"mutation": true,
+					"idempotency": "natural",
+					"handler": "As order-place."
+				},
+				{
+					"name": "order-note",
+					"mutation": true,
+					"handler": "As order-place."
+				},
+				{
+					"name": "order-claims-replay",
+					"mutation": true,
+					"idempotency": "keyed",
+					"handler": "As order-place, with metadata { \"idempotentReplay\": true, \"note\": \"kept\" } on its result."
+				},
+				{
+					"name": "order-task",
+					"mutation": true,
+					"idempotency": "keyed",
+					"task": "optional",
+					"handler": "As order-place. It breaks D5 on purpose: a command that may run as a task must answer repeats in its handler, and this one does not, so the case shows a repeat applied twice."
+				}
+			],
+			"actors": {
+				"agent": {
+					"kind": "agent",
+					"id": "advisor"
+				},
+				"other": {
+					"kind": "agent",
+					"id": "reviewer"
+				}
+			},
+			"input": "Every command takes { \"sku\": string, \"count\"?: integer } and its schema keeps both members.",
+			"contextFields": "One declared context field, `project`, a string, not required. A call's `context` gives its values."
+		},
+		"cases": [
+			{
+				"description": "the first call runs and a repeat is answered from the store",
+				"rule": "S5",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": true
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "another key runs the handler again",
+				"rule": "K5",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k2",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 2
+							},
+							"replay": false
+						}
+					}
+				],
+				"handlerRuns": 2
+			},
+			{
+				"description": "a keyed command without a key runs every time",
+				"rule": "S2",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 2
+							},
+							"replay": false
+						}
+					}
+				],
+				"handlerRuns": 2
+			},
+			{
+				"description": "the same key with another input is refused",
+				"rule": "S5",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "b"
+						},
+						"key": "k1",
+						"expect": {
+							"success": false,
+							"code": "IDEMPOTENCY_KEY_REUSED",
+							"retryable": false,
+							"recovery": {
+								"kind": "stop"
+							}
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "the same input with its keys in another order is the same input",
+				"rule": "S4",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a",
+							"count": 2
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"count": 2,
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": true
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "the same key from another actor is another key",
+				"rule": "K5",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"actor": "agent",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"actor": "other",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 2
+							},
+							"replay": false
+						}
+					}
+				],
+				"handlerRuns": 2
+			},
+			{
+				"description": "the same key on another command is another key",
+				"rule": "K5",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-refuse",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": false,
+							"code": "CONFLICT",
+							"replay": false
+						}
+					}
+				],
+				"handlerRuns": 2
+			},
+			{
+				"description": "the step does not act on a natural command",
+				"rule": "S2",
+				"calls": [
+					{
+						"command": "order-set",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-set",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 2
+							},
+							"replay": false
+						}
+					}
+				],
+				"handlerRuns": 2
+			},
+			{
+				"description": "the step does not act on a command that declares nothing",
+				"rule": "S2",
+				"calls": [
+					{
+						"command": "order-note",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-note",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 2
+							},
+							"replay": false
+						}
+					}
+				],
+				"handlerRuns": 2
+			},
+			{
+				"description": "a failure that is not retryable is stored and replayed",
+				"rule": "S6",
+				"calls": [
+					{
+						"command": "order-refuse",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": false,
+							"code": "CONFLICT",
+							"replay": false
+						}
+					},
+					{
+						"command": "order-refuse",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": false,
+							"code": "CONFLICT",
+							"replay": true
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "a retryable failure releases the key, so a repeat runs",
+				"rule": "S6",
+				"calls": [
+					{
+						"command": "order-flaky",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": false,
+							"code": "TRANSIENT_ERROR",
+							"replay": false
+						}
+					},
+					{
+						"command": "order-flaky",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 2
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-flaky",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 2
+							},
+							"replay": true
+						}
+					}
+				],
+				"handlerRuns": 2
+			},
+			{
+				"description": "a handler that returns TIMEOUT leaves the outcome unknown at once",
+				"rule": "S6",
+				"calls": [
+					{
+						"command": "order-timeout",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": false,
+							"code": "TIMEOUT",
+							"replay": false
+						}
+					},
+					{
+						"command": "order-timeout",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": false,
+							"code": "OUTCOME_UNKNOWN",
+							"retryable": false,
+							"recovery": {
+								"kind": "external"
+							}
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "a handler that throws leaves the outcome unknown at once",
+				"rule": "S6",
+				"calls": [
+					{
+						"command": "order-throw",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": false,
+							"code": "COMMAND_EXECUTION_ERROR",
+							"replay": false
+						}
+					},
+					{
+						"command": "order-throw",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": false,
+							"code": "OUTCOME_UNKNOWN",
+							"retryable": false
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "a second call while the first is in its handler is told to wait, then replays",
+				"rule": "S5",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"heldInHandler": true,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"whileFirstIsHeld": true,
+						"expect": {
+							"success": false,
+							"code": "IDEMPOTENCY_IN_PROGRESS",
+							"retryable": true,
+							"recovery": {
+								"kind": "retry",
+								"afterMs": 1000
+							}
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": true
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "a reservation nobody settled is in progress within its lease and unknown after it",
+				"rule": "S7",
+				"seed": {
+					"reservation": {
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"actor": "agent",
+						"madeAt": 0
+					}
+				},
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 60000,
+						"expect": {
+							"success": false,
+							"code": "IDEMPOTENCY_IN_PROGRESS",
+							"retryable": true
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 60001,
+						"expect": {
+							"success": false,
+							"code": "OUTCOME_UNKNOWN",
+							"retryable": false
+						}
+					}
+				],
+				"handlerRuns": 0
+			},
+			{
+				"description": "a stored result answers until its time is up, and then the key is new",
+				"rule": "S8",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 0,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 86400000,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": true
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 86400001,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 2
+							},
+							"replay": false
+						}
+					}
+				],
+				"handlerRuns": 2
+			},
+			{
+				"description": "a repeat that is not approved is held, and gets no stored result",
+				"rule": "S1",
+				"calls": [
+					{
+						"command": "order-approve",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"approved": true,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-approve",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"approved": false,
+						"expect": {
+							"success": false,
+							"code": "APPROVAL_REQUIRED"
+						}
+					},
+					{
+						"command": "order-approve",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"approved": true,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": true
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "a repeated batch replays each item under its derived key",
+				"rule": "S10",
+				"calls": [
+					{
+						"kind": "batch",
+						"key": "b1",
+						"commands": [
+							{
+								"command": "order-place",
+								"input": {
+									"sku": "a"
+								}
+							},
+							{
+								"command": "order-place",
+								"input": {
+									"sku": "b"
+								}
+							}
+						],
+						"expect": {
+							"items": [
+								{
+									"success": true,
+									"replay": false
+								},
+								{
+									"success": true,
+									"replay": false
+								}
+							]
+						}
+					},
+					{
+						"kind": "batch",
+						"key": "b1",
+						"commands": [
+							{
+								"command": "order-place",
+								"input": {
+									"sku": "a"
+								}
+							},
+							{
+								"command": "order-place",
+								"input": {
+									"sku": "b"
+								}
+							}
+						],
+						"expect": {
+							"items": [
+								{
+									"success": true,
+									"replay": true
+								},
+								{
+									"success": true,
+									"replay": true
+								}
+							]
+						}
+					}
+				],
+				"handlerRuns": 2
+			},
+			{
+				"description": "a server that cannot tell its HTTP callers apart refuses a keyed call that carries a key",
+				"rule": "S3",
+				"surface": "http-without-credentials",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": false,
+							"code": "UNAUTHORIZED",
+							"retryable": false
+						}
+					}
+				],
+				"handlerRuns": 0
+			},
+			{
+				"description": "an input with no canonical form cannot carry a key to a keyed command",
+				"rule": "S4",
+				"calls": [
+					{
+						"command": "order-place",
+						"inputNotCanonical": true,
+						"key": "k1",
+						"expect": {
+							"success": false,
+							"code": "VALIDATION_ERROR",
+							"detailsMeta": "dev.afd/idempotencyKey",
+							"detailsReason": "input-not-canonical"
+						}
+					}
+				],
+				"handlerRuns": 0
+			},
+			{
+				"description": "the same key and input under another declared context is another call",
+				"rule": "S4",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"context": {
+							"project": "p1"
+						},
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"context": {
+							"project": "p2"
+						},
+						"expect": {
+							"success": false,
+							"code": "IDEMPOTENCY_KEY_REUSED",
+							"retryable": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"context": {
+							"project": "p1"
+						},
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": true
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "the replay marker is the engine's, and a replay keeps the handler's own metadata",
+				"rule": "S9",
+				"calls": [
+					{
+						"command": "order-claims-replay",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false,
+							"metadata": {
+								"note": "kept"
+							}
+						}
+					},
+					{
+						"command": "order-claims-replay",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": true,
+							"metadata": {
+								"note": "kept"
+							}
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "a handler that returns after its key became new settles nothing",
+				"rule": "S8",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 0,
+						"heldInHandler": true,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 86400001,
+						"whileFirstIsHeld": true,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 2
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 2
+							},
+							"replay": true
+						}
+					}
+				],
+				"handlerRuns": 2
+			},
+			{
+				"description": "a call cancelled while its key is being reserved releases it and runs nothing",
+				"rule": "S5",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"cancelledDuringReserve": true,
+						"expect": {
+							"success": false,
+							"code": "COMMAND_CANCELLED"
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "an engine that keeps the chain running settles the reservation when the handler returns",
+				"rule": "S7",
+				"engine": "continues",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 0,
+						"timeoutMs": 50,
+						"heldInHandler": true,
+						"expect": {
+							"success": false,
+							"code": "TIMEOUT",
+							"retryable": true,
+							"recovery": {
+								"kind": "retry"
+							}
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"whileFirstIsHeld": true,
+						"at": 51,
+						"expect": {
+							"success": false,
+							"code": "IDEMPOTENCY_IN_PROGRESS",
+							"retryable": true
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": true
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "an engine that waits for the handler stores its result before it answers TIMEOUT",
+				"rule": "S7",
+				"engine": "waits",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 0,
+						"timeoutMs": 50,
+						"outlivesDeadline": true,
+						"expect": {
+							"success": false,
+							"code": "TIMEOUT",
+							"retryable": true
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 51,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": true
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "an engine that cancels the handler leaves the outcome unknown at once",
+				"rule": "S7",
+				"engine": "cancels",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 0,
+						"timeoutMs": 50,
+						"outlivesDeadline": true,
+						"expect": {
+							"success": false,
+							"code": "TIMEOUT",
+							"retryable": true
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 51,
+						"expect": {
+							"success": false,
+							"code": "OUTCOME_UNKNOWN",
+							"retryable": false
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "an engine that drops the call leaves the reservation live for its lease, then unknown",
+				"rule": "S7",
+				"engine": "drops",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 0,
+						"timeoutMs": 50,
+						"outlivesDeadline": true,
+						"expect": {
+							"success": false,
+							"code": "TIMEOUT",
+							"retryable": true
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 60050,
+						"expect": {
+							"success": false,
+							"code": "IDEMPOTENCY_IN_PROGRESS",
+							"retryable": true
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"at": 60051,
+						"expect": {
+							"success": false,
+							"code": "OUTCOME_UNKNOWN",
+							"retryable": false
+						}
+					}
+				],
+				"handlerRuns": 1
+			},
+			{
+				"description": "the step does not act on a task run, so a command that relies on it there is applied twice",
+				"rule": "S11",
+				"calls": [
+					{
+						"command": "order-task",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"asTask": true,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-task",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"asTask": true,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 2
+							},
+							"replay": false
+						}
+					}
+				],
+				"handlerRuns": 2
+			},
+			{
+				"description": "credentials that cannot be bound fail a keyed call that carries a key",
+				"rule": "S3",
+				"surface": "http-with-unbindable-credentials",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"expect": {
+							"success": false,
+							"internalError": true
+						}
+					}
+				],
+				"handlerRuns": 0
+			},
+			{
+				"description": "two anonymous connections that share a host's store do not share a key",
+				"rule": "S3",
+				"surface": "two-stdio-connections",
+				"calls": [
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"actor": null,
+						"connection": 1,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"actor": null,
+						"connection": 2,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 2
+							},
+							"replay": false
+						}
+					},
+					{
+						"command": "order-place",
+						"input": {
+							"sku": "a"
+						},
+						"key": "k1",
+						"actor": null,
+						"connection": 1,
+						"expect": {
+							"success": true,
+							"data": {
+								"placed": 1
+							},
+							"replay": true
+						}
+					}
+				],
+				"handlerRuns": 2
+			}
+		],
+		"options": [
+			{
+				"description": "the defaults, with the default 30 s deadline",
+				"ttlMs": 86400000,
+				"leaseMs": 60000,
+				"defaultTimeoutMs": 30000,
+				"valid": true
+			},
+			{
+				"description": "one millisecond more than the deadline and the lease",
+				"ttlMs": 90001,
+				"leaseMs": 60000,
+				"defaultTimeoutMs": 30000,
+				"valid": true
+			},
+			{
+				"description": "exactly the deadline and the lease",
+				"ttlMs": 90000,
+				"leaseMs": 60000,
+				"defaultTimeoutMs": 30000,
+				"valid": false
+			},
+			{
+				"description": "shorter than the lease",
+				"ttlMs": 1000,
+				"leaseMs": 60000,
+				"defaultTimeoutMs": 30000,
+				"valid": false
+			}
+		]
+	},
+	"retry": {
+		"setup": "The retry middleware with its defaults, around a handler that returns TRANSIENT_ERROR (retryable) the first time it runs and success after that.",
+		"cases": [
+			{
+				"description": "a command that is not a mutation is retried",
+				"rule": "R1",
+				"command": {},
+				"key": false,
+				"expect": {
+					"success": true,
+					"handlerRuns": 2
+				}
+			},
+			{
+				"description": "an undeclared mutation is not retried",
+				"rule": "R1",
+				"command": {
+					"mutation": true
+				},
+				"key": false,
+				"expect": {
+					"success": false,
+					"code": "TRANSIENT_ERROR",
+					"handlerRuns": 1
+				}
+			},
+			{
+				"description": "a key does not make an undeclared mutation retryable",
+				"rule": "R1",
+				"command": {
+					"mutation": true
+				},
+				"key": true,
+				"expect": {
+					"success": false,
+					"code": "TRANSIENT_ERROR",
+					"handlerRuns": 1
+				}
+			},
+			{
+				"description": "a natural mutation is retried without a key",
+				"rule": "R1",
+				"command": {
+					"mutation": true,
+					"idempotency": "natural"
+				},
+				"key": false,
+				"expect": {
+					"success": true,
+					"handlerRuns": 2
+				}
+			},
+			{
+				"description": "a keyed mutation is not retried without a key",
+				"rule": "R1",
+				"command": {
+					"mutation": true,
+					"idempotency": "keyed"
+				},
+				"key": false,
+				"expect": {
+					"success": false,
+					"code": "TRANSIENT_ERROR",
+					"handlerRuns": 1
+				}
+			},
+			{
+				"description": "a keyed mutation is retried with a key",
+				"rule": "R1",
+				"command": {
+					"mutation": true,
+					"idempotency": "keyed"
+				},
+				"key": true,
+				"expect": {
+					"success": true,
+					"handlerRuns": 2
+				}
+			},
+			{
+				"description": "the host's option restores retrying an undeclared mutation",
+				"rule": "R2",
+				"command": {
+					"mutation": true
+				},
+				"key": false,
+				"retryMutations": true,
+				"expect": {
+					"success": true,
+					"handlerRuns": 2
+				}
+			},
+			{
+				"description": "with the step, a keyed retry after a retryable failure runs the handler again",
+				"rule": "R1",
+				"command": {
+					"mutation": true,
+					"idempotency": "keyed"
+				},
+				"key": true,
+				"withStep": true,
+				"expect": {
+					"success": true,
+					"handlerRuns": 2
+				}
+			},
+			{
+				"description": "with the step, a keyed retry after the handler's TIMEOUT stops at an unknown outcome",
+				"rule": "S6",
+				"command": {
+					"mutation": true,
+					"idempotency": "keyed"
+				},
+				"key": true,
+				"withStep": true,
+				"handlerFailsWith": "TIMEOUT",
+				"expect": {
+					"success": false,
+					"code": "OUTCOME_UNKNOWN",
+					"handlerRuns": 1
+				}
+			},
+			{
+				"description": "a keyed command that does not declare mutation is still not retried without a key",
+				"rule": "R1",
+				"command": {
+					"idempotency": "keyed"
+				},
+				"key": false,
+				"expect": {
+					"success": false,
+					"code": "TRANSIENT_ERROR",
+					"handlerRuns": 1
+				}
+			},
+			{
+				"description": "a keyed command that does not declare mutation is retried with a key",
+				"rule": "R1",
+				"command": {
+					"idempotency": "keyed"
+				},
+				"key": true,
+				"expect": {
+					"success": true,
+					"handlerRuns": 2
+				}
+			},
+			{
+				"description": "a natural command that does not declare mutation is retried",
+				"rule": "R1",
+				"command": {
+					"idempotency": "natural"
+				},
+				"key": false,
+				"expect": {
+					"success": true,
+					"handlerRuns": 2
+				}
+			},
+			{
+				"description": "a natural mutation is retried with a key too",
+				"rule": "R1",
+				"command": {
+					"mutation": true,
+					"idempotency": "natural"
+				},
+				"key": true,
+				"expect": {
+					"success": true,
+					"handlerRuns": 2
+				}
+			},
+			{
+				"description": "a command that is not a mutation is retried with a key too",
+				"rule": "R1",
+				"command": {},
+				"key": true,
+				"expect": {
+					"success": true,
+					"handlerRuns": 2
+				}
+			},
+			{
+				"description": "a middleware that cannot read the declaration does not retry",
+				"rule": "R1",
+				"command": {},
+				"key": false,
+				"declarationUnreadable": true,
+				"expect": {
+					"success": false,
+					"code": "TRANSIENT_ERROR",
+					"handlerRuns": 1
+				}
+			},
+			{
+				"description": "a key does not make a task run retryable",
+				"rule": "S11",
+				"command": {
+					"mutation": true,
+					"idempotency": "keyed",
+					"task": "optional"
+				},
+				"key": true,
+				"asTask": true,
+				"expect": {
+					"success": false,
+					"code": "TRANSIENT_ERROR",
+					"handlerRuns": 1
+				}
+			}
+		]
+	},
+	"timeoutRecovery": {
+		"setup": "A server with the engine's step, unless `withStep` is false, and a handler that outlives the call's deadline, so the engine gives the caller TIMEOUT.",
+		"cases": [
+			{
+				"description": "a keyed call that carried a key may be repeated",
+				"rule": "R3",
+				"command": {
+					"mutation": true,
+					"idempotency": "keyed"
+				},
+				"key": true,
+				"expect": {
+					"code": "TIMEOUT",
+					"retryable": true,
+					"recovery": {
+						"kind": "retry"
+					}
+				}
+			},
+			{
+				"description": "a keyed call without a key carries no recovery",
+				"rule": "R3",
+				"command": {
+					"mutation": true,
+					"idempotency": "keyed"
+				},
+				"key": false,
+				"expect": {
+					"code": "TIMEOUT",
+					"retryable": true,
+					"recovery": null
+				}
+			},
+			{
+				"description": "a key on an undeclared mutation carries no recovery",
+				"rule": "R3",
+				"command": {
+					"mutation": true
+				},
+				"key": true,
+				"expect": {
+					"code": "TIMEOUT",
+					"retryable": true,
+					"recovery": null
+				}
+			},
+			{
+				"description": "without the step, a keyed call that carried a key carries no recovery",
+				"rule": "R3",
+				"command": {
+					"mutation": true,
+					"idempotency": "keyed"
+				},
+				"key": true,
+				"withStep": false,
+				"expect": {
+					"code": "TIMEOUT",
+					"retryable": true,
+					"recovery": null
+				}
+			}
+		]
+	},
+	"journal": {
+		"cases": [
+			{
+				"description": "an entry for a call that carried a key records it, and the digest hashes it as a member",
+				"key": "k1",
+				"expect": {
+					"entryIdempotencyKey": "k1",
+					"digestHashHasMember": true
+				}
+			},
+			{
+				"description": "an entry for a call without a key has no such member",
+				"expect": {
+					"entryIdempotencyKey": null
+				}
+			},
+			{
+				"description": "replay gives the handler the recorded key",
+				"key": "k1",
+				"replay": true,
+				"expect": {
+					"handlerSeesKey": "k1",
+					"status": "same"
+				}
+			},
+			{
+				"description": "a batch's derived keys are recorded as derived and restored on replay",
+				"kind": "batch",
+				"key": "b1",
+				"items": 2,
+				"replay": true,
+				"expect": {
+					"entryIdempotencyKeys": ["b1:0", "b1:1"],
+					"handlerSeesKeys": ["b1:0", "b1:1"]
+				}
+			}
+		]
+	}
+}

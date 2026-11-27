@@ -93,6 +93,15 @@
 			"status": "yes",
 			"evidence": ["python/src/afd/server/tools.py", "python/tests/test_mcp_server_tools.py"]
 		},
+		"command.idempotency": {
+			"status": "planned",
+			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"views": {
+				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+			},
+			"issue": "#2676",
+			"evidence": ["python/tests/test_idempotency_vectors.py"]
+		},
 		"single.dispatch-order": {
 			"status": "partial",
 			"note": "matches through the stamp; no `onCommand` hook",
@@ -334,6 +343,15 @@
 			},
 			"issue": "#2682",
 			"evidence": ["python/tests/test_journal_seams_vectors.py"]
+		},
+		"middleware.idempotency-step": {
+			"status": "planned",
+			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"views": {
+				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+			},
+			"issue": "#2676",
+			"evidence": ["python/tests/test_idempotency_vectors.py"]
 		},
 		"middleware.up-front-approval": {
 			"status": "yes",
@@ -802,6 +820,15 @@
 			},
 			"issue": "#2682",
 			"evidence": ["python/tests/test_journal_seams_vectors.py"]
+		},
+		"single.idempotency-key": {
+			"status": "planned",
+			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"views": {
+				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+			},
+			"issue": "#2676",
+			"evidence": ["python/tests/test_idempotency_vectors.py"]
 		}
 	}
 }

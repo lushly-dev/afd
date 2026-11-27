@@ -64,6 +64,18 @@ sets it, and the calls of one request share it on purpose.
 [`vectors/journal-seams.json`](./vectors/journal-seams.json) pins I1 to I4 in its `dispatchId`
 section. No implementation sets the id yet: every language is listed in that file's `gaps`.
 
+## The idempotency step
+
+A server or registry given an idempotency step runs it between stages 9 and 10, for a call that
+carries an idempotency key to a command that declares `idempotency: "keyed"`
+([idempotency, S1 to S13](./idempotency.md#the-engines-step)). The step may return a stored
+result or a refusal in place of running the handler; stages 11 to 13 then run on what it
+returned. Before stage 5 the engine validates the key and sets it on the command context, as it
+does a declared context field in stage 7 ([idempotency, K1 to K6](./idempotency.md#the-key)). A
+call the step would act on from a caller the server cannot tell apart is refused before stage 5
+(S3), and the engine's cancellation check runs again between the step's reservation and the
+handler (S5). No implementation has the key or the step yet.
+
 ## Normative rules
 
 ### Precedence of pre-execution checks
