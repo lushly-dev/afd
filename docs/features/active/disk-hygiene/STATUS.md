@@ -296,6 +296,8 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 - Stable APFS volume-group ID on macOS `/` snapshots (#2267): merged in #2285.
 
+- A git checkout kept inside an `[[aged]]` folder is a warning, not a failure (#2625): merged in #2761.
+
 ## Phase 3. Removing finished worktrees
 
 - Tier 2, `disk-keep` and `disk-restore` (#1694): merged in #1723 on 2026-11-20; off on every machine until `disk-setup --remove-landed`.

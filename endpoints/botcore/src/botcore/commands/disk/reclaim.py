@@ -615,9 +615,15 @@ def _do_remove(action: Action) -> None:
         action.outcome, action.detail = "refused", str(exc)
         return
     action.removed_bytes = removal.removed_bytes
-    if removal.errors:
+    # A checkout kept inside an [[aged]] folder is the rule working, not a failure: a temp
+    # folder a test suite writes to always holds some (#2625). A strip still counts it left.
+    left = removal.errors if action.kind == "aged" else removal.errors + removal.kept
+    if left:
         action.outcome = "partial"
-        action.detail = f"{len(removal.errors)} left: {removal.errors[0]}"
+        action.detail = f"{len(left)} left: {left[0]}"
+    elif removal.kept:
+        action.outcome = "kept"
+        action.detail = f"{len(removal.kept)} kept: {removal.kept[0]}"
     else:
         action.outcome = "done"
 
@@ -887,6 +893,10 @@ def prune_receipts(folder: Path, keep: Path | None = None) -> None:
             path.unlink(missing_ok=True)
 
 
+#: How many kept checkouts status.json names; `kept_count` says how many there were.
+KEPT_IN_STATUS = 10
+
+
 def write_receipt(payload: dict[str, Any]) -> Path:
     folder = state_path() / "receipts"
     folder.mkdir(parents=True, exist_ok=True)
@@ -922,6 +932,9 @@ def write_status(payload: dict[str, Any], receipt: Path) -> None:
         "reclaimed_gb": payload["reclaimed_gb"],
         "still_low": payload["still_low"],
         "free_after": payload.get("free_after", {}),
+        # the first few: the receipt lists them all, and every disk-status answer carries these
+        "kept": payload.get("kept", [])[:KEPT_IN_STATUS],
+        "kept_count": len(payload.get("kept", [])),
     }
     current["volumes"] = payload["volumes_after"]
     # Per repository, and only where its count was established: a run that ran out of time,
@@ -1049,7 +1062,7 @@ def _execute_aged_pressure(run: Run, actions: list[Action], stop_when_recovered:
             continue
         if run.apply and action.outcome == "planned":
             carry_out(action, run)
-            if stop_when_recovered and action.outcome in ("done", "partial"):
+            if stop_when_recovered and action.outcome in ("done", "partial", "kept"):
                 _refresh_volume(action.target, run.ctx)
 
 
@@ -1200,6 +1213,7 @@ def _reclaim(  # noqa: PLR0913 - the command's own arguments
         "free_after": after,
         "volumes_after": [v.as_dict() for v in ctx.volumes.values()],
         **_idle_after(data, run),
+        "kept": [a.target for a in run.actions if a.outcome == "kept"],
         "error": failure,
     }
     # (the volumes and worktrees were read once more for this: a reclaim the job left while

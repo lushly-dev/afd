@@ -246,7 +246,9 @@ removal is recorded, and `disk-restore` recreates the worktree at the same path.
 - **Never delete through a checkout.** A folder holding `.git`, such as a Claude Code worktree
   under `.claude/worktrees/`, is its own worktree with its own age and lock: a pattern walk
   never enters it, a folder holding a registered checkout at any depth is refused, and the
-  deletion code itself stops at any folder holding `.git`.
+  deletion code itself stops at any folder holding `.git`. Inside an `[[aged]]` folder, such
+  as a temp folder a test suite writes fixtures to, the checkout it keeps is reported as kept,
+  a warning that names it, and not as a failure (#2625).
 - **Verify what a folder is.** A registered worktree folder replaced by a link or by another
   repository's checkout is not inspected; a folder that cannot be read is not "missing"; a
   missing folder whose parent is gone too blocks its repository (an unplugged drive).

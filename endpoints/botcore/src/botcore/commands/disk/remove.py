@@ -2,9 +2,9 @@
 
 `remove_inside(path, root)` deletes path only if it resolves inside root. It never follows a
 symbolic link or a Windows junction (a link is removed as a link, its target untouched), never
-deletes through a folder holding `.git` (a nested checkout is left whole and reported), never
-crosses onto another mounted volume, and keeps going past a file it cannot delete, reporting it,
-so a partial strip is visible rather than fatal.
+deletes through a folder holding `.git` (a nested checkout is left whole and listed in `kept`),
+never crosses onto another mounted volume, and keeps going past a file it cannot delete,
+reporting it, so a partial strip is visible rather than fatal.
 
 On macOS and Linux the walk holds an open handle to each folder and deletes by name relative to
 it, so a folder swapped for a link while the walk runs cannot redirect it elsewhere. Windows has
@@ -24,6 +24,7 @@ from botcore.commands.disk.steps import doing, each
 
 REPARSE_POINT = 0x400  # FILE_ATTRIBUTE_REPARSE_POINT
 DIRECTORY = 0x10  # FILE_ATTRIBUTE_DIRECTORY
+KEPT_CHECKOUT = "holds a git checkout; left in place"
 HANDLES = os.name != "nt" and os.unlink in os.supports_dir_fd and hasattr(os, "O_NOFOLLOW")
 
 
@@ -39,14 +40,19 @@ class Removal:
     removed_files: int = 0
     removed_bytes: int = 0
     errors: list[str] = field(default_factory=list)
+    kept: list[str] = field(default_factory=list)  # nested git checkouts, left whole on purpose
 
     @property
     def complete(self) -> bool:
-        return not self.errors
+        return not self.errors and not self.kept
 
     def fail(self, where: str, exc: OSError | str) -> None:
         text = exc if isinstance(exc, str) else (exc.strerror or str(exc))
         self.errors.append(f"{where}: {text}")
+
+    def keep(self, where: str) -> None:
+        """A folder holding `.git`: never deleted through, which is the rule working."""
+        self.kept.append(f"{where}: {KEPT_CHECKOUT}")
 
 
 def _long(path: str) -> str:
@@ -109,7 +115,7 @@ def _clear_at(dir_fd: int, where: str, device: int, out: Removal) -> bool:
     with os.scandir(dir_fd) as entries:
         children = list(each("removing", where, entries))
     if any(child.name == ".git" for child in children):
-        out.fail(where, "holds a git checkout; left in place")
+        out.keep(where)
         return False
     for child in children:
         here = os.path.join(where, child.name)
@@ -227,6 +233,13 @@ def _remove_link_path(path: str, info: os.stat_result, out: Removal) -> None:
     out.removed_files += 1
 
 
+def _holds_reported(folder: str, out: Removal) -> bool:
+    """Whether something under folder is already in out's errors or kept: then the folder
+    is left because of it, as the handle walk leaves it, and needs no line of its own."""
+    inside = os.path.join(folder, "")
+    return any(line.startswith(inside) for line in (*out.kept, *out.errors))
+
+
 def _remove_dir_path(top: str, device: int, out: Removal) -> bool:
     expected = os.lstat(top)
     stack: list[tuple[str, bool, tuple[int, int]]] = [
@@ -242,8 +255,9 @@ def _remove_dir_path(top: str, device: int, out: Removal) -> bool:
             except FileNotFoundError:
                 pass
             except OSError as exc:
-                out.fail(current, exc)
                 ok = False
+                if not _holds_reported(current, out):  # what is left in it is already told
+                    out.fail(current, exc)
             continue
         try:
             info = os.lstat(current)
@@ -262,7 +276,7 @@ def _remove_dir_path(top: str, device: int, out: Removal) -> bool:
             ok = False
             continue
         if ".git" in names:
-            out.fail(current, "holds a git checkout; left in place")
+            out.keep(current)
             ok = False
             continue
         stack.append((current, True, identity))
@@ -271,7 +285,11 @@ def _remove_dir_path(top: str, device: int, out: Removal) -> bool:
             doing("looking at", child)  # every file; each removal says "removing" right before
             try:
                 child_info = os.lstat(child)
-            except OSError:
+            except FileNotFoundError:
+                continue
+            except OSError as exc:  # said, so that a kept checkout beside it hides nothing
+                out.fail(child, exc)
+                ok = False
                 continue
             if _is_link(child_info):
                 _remove_link_path(child, child_info, out)

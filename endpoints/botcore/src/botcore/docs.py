@@ -707,7 +707,9 @@ manage that hold nothing unique and whose work has landed (`git worktree remove`
 commits pinned under refs/botcore/removed/ first, after the same just-before rechecks);
 include_restorable also removes those that hold nothing unique but have not landed. Tier 2 is
 off while T3 Code's settings cannot be read. The hourly job uses tier 2 only after
-`disk_setup(remove_landed=True)`.
+`disk_setup(remove_landed=True)`. A folder holding `.git` is never deleted through: inside an
+aged folder it is `kept`, an outcome of its own that is not a failure, and the receipt's
+`kept` lists each such action; inside a strip it leaves the strip `partial`.
 
 ## disk_setup(uninstall=False, repos=None, install_schedule=True)
 Registers the repository holding the working directory (and `repos`) in the machine settings,
@@ -734,7 +736,9 @@ Session preflights read this. `warnings` do not affect `healthy`: each registere
 idle-worktree warning from the last reclaim that counted it fully (older than 48 hours, it
 says when) and Cargo output no `[[aged]]` folder clears, both of which Botcore Factory's
 `lane_status` shows to the foreman as `diskWarnings`; and a skill usage collection that has
-failed for less than a day. `skill_usage` is the job's last collection: `ok`, `ok_at`, and
+failed for less than a day; and the git checkouts the last applied run kept inside aged
+folders (`last_apply.kept`, the first ten, and `kept_count`). `skill_usage` is the job's last
+collection: `ok`, `ok_at`, and
 when it failed `error` and `failing_since`. `disk_work` is the same for the disk work, with
 `waiting_on` (`what`, `path`) when it never came back: that is a problem at once, since only
 the owner's answer or the drive will change it; a disk step that came back failed is a

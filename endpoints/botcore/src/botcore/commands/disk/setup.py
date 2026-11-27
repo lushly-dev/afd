@@ -724,6 +724,16 @@ async def disk_status() -> CommandResult[dict[str, Any]]:
         if now
         else _counted_warnings(settings, status, registered_only=False)
     )
+    checkouts = last_apply.get("kept") if isinstance(last_apply, dict) else None
+    if isinstance(checkouts, list) and checkouts:
+        count = last_apply.get("kept_count")
+        count = count if isinstance(count, int) and count >= len(checkouts) else len(checkouts)
+        more = f" and {count - 1} more (its receipt lists them)" if count > 1 else ""
+        warnings.append(
+            f"the last run kept {checkouts[0]}{more}: an [[aged]] folder holds a git checkout, "
+            "which is never deleted. It may be another repository's worktree: check what it "
+            "holds (git -C <path> status), then narrow or remove that [[aged]] folder's path"
+        )
     work = check.get("disk_work")
     work = work if isinstance(work, dict) else None
     if work and not work.get("ok"):
