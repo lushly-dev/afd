@@ -14,8 +14,13 @@ runs is the software factory's validation of a branch. Originally drafted under 
   2026-11-21 against `main` at `a91acface`, revised after five readers walked its jobs in three
   passes and two independent reviewers read it ([#1912](https://github.com/lushly-dev/afd/pull/1912)),
   and revised again on 2026-11-22 after a fresh end-to-end review against `main` at `39ca857fd`
-  ([#2121](https://github.com/lushly-dev/afd/pull/2121)). Nothing is built yet; M0 is planned in
-  [#2596](https://github.com/lushly-dev/afd/issues/2596).
+  ([#2121](https://github.com/lushly-dev/afd/pull/2121)). M0 ([#2596](https://github.com/lushly-dev/afd/issues/2596))
+  built the session image, the host with `host-status` and Umbel's seams. On 2026-11-26 on the lane
+  host `host-status` answered with the image by digest and the "Not verified" items were settled
+  in writing, and `pnpm verify --all` on `main` passed 170 of 171
+  steps, its one failure a test that fails every check there
+  ([#2799](https://github.com/lushly-dev/afd/issues/2799)); M0 exits when a full run passes
+  ([STATUS](STATUS.md#steps)).
 - **Origin:** a conversation with the owner on 2026-11-21 about an operating system built on AFD
   from its core, starting as a headless runner for agents in a container image, with
   [Omarchy](https://omarchy.org/) as the example of an opinionated system built on an existing
@@ -27,15 +32,38 @@ runs is the software factory's validation of a branch. Originally drafted under 
   cannot reach a credential") by another means. [The problem](#the-problem) names what stays on the
   lane host.
 - **Verified:** the facts in [What exists today](#what-exists-today) were read on `main` at
-  `a91acface` and re-checked on `39ca857fd`. No code was built or run except the scenario checks.
-- **Not verified:** which container runtime the lane host can run and what it costs there;
-  whether this repository's suites pass in a Linux machine on that host's processor; whether a
-  proxy can be the only way out for pnpm, cargo, uv and Playwright; whether `pnpm verify` can run
-  with no network once its dependencies are fetched; how long a validation takes from nothing;
-  how a machine's disk limit is enforced, and which disk the host measures when the runtime keeps
-  its volumes in a virtual machine; how a checkpoint can be made and started from; how fast the
-  journal grows under the lane's reads; whether the host can fetch a cell's commit that is not
-  queued; what copying a checkout's history costs each run. M0 settles these.
+  `a91acface` and re-checked on `39ca857fd`. Until M0 no code was built or run except the
+  scenario checks; what M0 built and measured is in the [STATUS](STATUS.md).
+- **Not verified, as M0 found it (2026-11-26):** M0 was to settle which container runtime the
+  lane host can run and what it costs there; whether this repository's suites pass in a Linux
+  machine on that host's processor; whether a proxy can be the only way out for pnpm, cargo, uv
+  and Playwright; whether `pnpm verify` can run with no network once its dependencies are fetched;
+  how long a validation takes from nothing; how a machine's disk limit is enforced, and which disk
+  the host measures when the runtime keeps its volumes in a virtual machine; how a checkpoint can
+  be made and started from; how fast the journal grows under the lane's reads; whether the host
+  can fetch a cell's commit that is not queued; and what copying a checkout's history costs each
+  run. The STATUS's [What is not verified](STATUS.md#what-is-not-verified) answers each, with what
+  is left:
+  - **Settled:** the lane host runs Colima (Docker in a virtual machine of 6 processors and 16 GB on
+    Apple silicon); no suite fails there because of arm64 or Linux, and every test that failed in
+    a full run passed alone; one ([#2799](https://github.com/lushly-dev/afd/issues/2799)) fails
+    every check there because of the virtual disk's sync latency (the others: timing limits under
+    the host's load,
+    [#2767](https://github.com/lushly-dev/afd/issues/2767) and
+    [#2800](https://github.com/lushly-dev/afd/issues/2800)); with `UV_OFFLINE=1` a validation needs no network once an online run has fetched and
+    built; a cold validation takes 2 h 57 min to 3 h 32 min there (1 h 50 min on Hero's 32
+    processors); the
+    host can fetch a commit that no ref names over Git's protocol version 2; and history costs
+    about 5 s and 47 MB a clone.
+  - **For M1:** the proxy (the install step passes through one, and reaches three GitHub hosts
+    beyond `registries` for CMake's C++ dependencies); validating under `none` after the install
+    step alone; the disk limit, which the runtime does not enforce (`--storage-opt size` is
+    ignored), measured inside the virtual machine, whose disk gives space back to the host only
+    after `fstrim`; reads journaled as digests (a `host-status` read journals 1,420 bytes today);
+    and how much of the host a machine gets, since timing limits fail under the lane host's load.
+  - **For M2:** checkpoints. There is no process checkpoint, and committing a whole
+    post-validation container is far too slow (8 GB in 21 minutes); keeping warm state in volumes
+    instead is untried.
 - **Jobs:** eighteen for M0 to M2, written as scenarios and checked ([Checks](#checks)). Three
   readers who did not write them walked the first fourteen, and the revision added three. A
   fourth made a second pass over the seventeen. The eighteenth came from the owner's answer and
@@ -69,7 +97,7 @@ The owner's answers of 2026-11-25, settling [For the owner](#for-the-owner) and 
 | Validation on Linux only | Run the lane's `coverage` in a Linux machine too, and rely on CI's macOS and Windows jobs for those systems | Both `validate` and `coverage` run in machines once `validate_in = "machine"` is active |
 | Images | Hand-built and pinned by digest by the operator in M0–M1 | No image-building command or CI image pipeline until the steps are proven |
 | Base distribution | Minimal headless Ubuntu LTS for M0–M4; M5 reopens the choice | Matches CI and Playwright support without fighting desktop bloat inside session containers |
-| Container runtime | No preference before M0 benchmarks | M0 measures candidate runtimes on the lane hosts and records the choice |
+| Container runtime | No preference before M0 benchmarks | M0 measures candidate runtimes on the lane hosts and records the choice. On 2026-11-26 the owner chose Colima for the lane host, `random`; no other runtime was measured there ([STATUS](STATUS.md#m0-measurements-on-random)) |
 | Gateway G4 | Amend G4 at M1 exit | Records the validation half met by Loam OS (install, tests, and hook-free push) and what remains: regeneration during a merge (closed by M3 or G4), and G4's half about agents' own users, kept until M3 |
 | Hook-free lane push | Approved for M1 | Lane verifies the host's observed passing run and `main`'s `acceptRecord` on the external output file, then pushes with the branch's pre-push hook off |
 
@@ -373,9 +401,11 @@ list of hosts (job 03). The machine's only route out is the host's proxy, which 
 each connection by name and counts both, so a result lists what a step tried to reach.
 
 `pnpm verify` builds Rust and runs Python through uv, and both fetch what is missing. The aim is
-an install step that fetches everything under `registries` and a validate step under `none`. M0
-finds whether this repository can run that way; if it cannot, validate runs under `registries`,
-which still refuses every other host.
+an install step that fetches everything under `registries` and a validate step under `none`; if
+this repository cannot run that way, validate runs under `registries`, which still refuses every
+other host. M0 found that it validates under no network, with `UV_OFFLINE=1`, after an online run
+has fetched and built. Whether the install step alone fetches enough, and so which of the two
+validate runs under, is M1's to measure ([STATUS](STATUS.md#what-is-not-verified)).
 
 ### Images
 
@@ -433,7 +463,7 @@ keeping time has passed. The journal and the event log follow AFD's own journal 
 
 This repository's validation is heavy: a machine that starts from nothing downloads every
 dependency and compiles every Rust crate before it tests anything, and M0 measures how long that
-takes. A checkpoint is a machine's state after a passing run of the steps the operator's
+takes (2 h 57 min to 3 h 32 min on the lane host, [STATUS](STATUS.md#m0-measurements-on-random)). A checkpoint is a machine's state after a passing run of the steps the operator's
 configuration names for it, on the head of the base branch, in a machine that has run nothing
 else. The lane asks for one when `main` moves. Because machines are keyed one per `(repository, for)`, the lane destroys any existing
 `for: main` machine (waiting for an active `coverage` run to settle first) before creating the
@@ -456,7 +486,10 @@ store and Cargo registry have today. M2 removes it.
 ### What Umbel and AFD need
 
 Read in the code on 2026-11-21 by the reader in the calling agent's seat, and re-verified on
-2026-11-22 against `main` at `39ca857fd`.
+2026-11-22 against `main` at `39ca857fd`. The table is that reading. Since then (superseded in
+part): M0 built the plugin doctor hook and the server identity option (Umbel D206), and the host
+uses both; D207 records the principle 11 exception; D208 chose an Umbel sink-level durable
+write-ahead log for the journal row, not a `spec/journal.md` change, for M1 to build.
 
 | Need | Today | Change | When |
 |---|---|---|---|
@@ -572,7 +605,8 @@ machine, which also puts a second boundary around them. The lane's validation th
 Linux, as CI's does, and no longer on the lane host's own system; on 2026-11-25 the owner decided
 to run the lane's `coverage` in a Linux machine too and rely on CI's macOS and Windows jobs for
 those systems ([Decisions](#decisions)). On Apple silicon the machines are arm64 while CI's runners
-are x86-64, and whether every suite passes there is M0's to find out.
+are x86-64, and whether every suite passes there is M0's to find out. M0 found none that fails
+because of arm64 (STATUS, [M0 measurements on random](STATUS.md#m0-measurements-on-random)).
 
 ## Commands (draft)
 
@@ -974,7 +1008,7 @@ Declined, with the reason:
   reads the whole log from `log.location`, as it reads a log path today.
 - **A wait on several runs, and a time to retry after `HOST_FULL`.** The lane's loop reads on
   each pass and cannot block, and the host cannot know when a seat will free. M0 measures what
-  the reads cost the journal.
+  the reads cost the journal (1,420 bytes a `host-status` read, [STATUS](STATUS.md#m0-measurements-on-random)).
 - **An AFD surface inside the machine in M1.** A validation has no agent in it. It is M3's.
 - **Folding job 14 into job 11.** They serve different moments: an incident and a review after
   one.
@@ -1073,7 +1107,7 @@ remains open for when Loam OS is announced publicly).
 7. **Base distribution (answered 2026-11-25).** Minimal headless Ubuntu LTS for M0–M4; M5 reopens
    the choice.
 8. **The container runtime (answered 2026-11-25).** No owner preference; M0 measures candidates on
-   the lane hosts.
+   the lane hosts. On 2026-11-26 the owner chose Colima for `random`, and M0 measured it alone.
 9. **G4 (answered 2026-11-25).** Amend Factory Gateway G4 at M1 exit to record the validation half
    met here (install, tests, and hook-free push) and what remains: regeneration during a merge
    (closed by M3 or G4), and G4's half about agents' own users, kept until M3.
