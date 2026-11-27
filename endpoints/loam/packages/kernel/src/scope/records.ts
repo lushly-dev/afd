@@ -43,6 +43,8 @@ export interface WorkspaceAppV1 {
 	labels?: 'whole' | 'per-part';
 	/** A mounted entry's `approvals` (phase 5 specification, 7.2). */
 	approvals?: 'none' | 'shell';
+	/** A mounted entry's `views` (phase 5 specification, 9.3; D169). */
+	views?: boolean;
 	expose?: Record<string, boolean>;
 	commands?: Record<string, unknown>;
 	order?: number;

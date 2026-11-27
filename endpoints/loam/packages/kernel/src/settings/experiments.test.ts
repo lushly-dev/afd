@@ -988,6 +988,21 @@ describe('P4-E5: R14: an unload never loses a dirty tab', () => {
 		expect(await notices(store)).toContain('Probe has closed');
 	});
 
+	it('notes that main moved when an unload closes the active app, as every call that moves main does (9.3)', async () => {
+		const { kernel } = await workspace();
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		await kernel.call('app-open', { instance: 'probe' });
+		const events: Array<{ command: string; mainChanged?: string }> = [];
+		kernel.subscribe((event) => {
+			events.push(event as { command: string; mainChanged?: string });
+		});
+		await kernel.call('experiment-disable', { experiment: BETA, audience: 'person' });
+		expect(await stateOf(kernel)).toBe('gated');
+		expect(events.find(({ command }) => command === 'experiment-disable')?.mainChanged).toBe(
+			'replace'
+		);
+	});
+
 	it("cancels the app's open dialogs when it unloads", async () => {
 		const { kernel } = await workspace();
 		await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });

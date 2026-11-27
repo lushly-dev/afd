@@ -34,6 +34,8 @@ export function appCallable(
 		'experiment-check',
 		// Phase 5's step 10 (9.2): whatever the grants, so an app without `events` hears `GRANT_REQUIRED` from its handler.
 		'event-list',
+		// And its 9.3: the active app's or the active document editor's alone, which its handler checks.
+		'shell-open',
 		...(grants.has('projects') ? ['project-list', 'project-get'] : []),
 		// Kernel interface 4's (phase 4 specification, 3.8 and 12): the app's own sections, `SETTING_NOT_OWNED` past them.
 		...(grants.has('settings') ? ['setting-get', 'setting-list'] : []),

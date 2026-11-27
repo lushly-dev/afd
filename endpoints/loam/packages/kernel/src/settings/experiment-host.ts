@@ -9,6 +9,7 @@ import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { EditorDraftsV1 } from '../documents/editor-state.js';
 import type { OverlayStore } from '../overlays/store.js';
+import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
 import type { StoredConfirmation } from './confirmation-parts.js';
 
@@ -17,6 +18,8 @@ export interface ExperimentHostDeps {
 	apps(): AppsRuntime;
 	overlays: OverlayStore;
 	state: Pick<ShellState, 'activeApp'>;
+	/** Where an unload that closes the active app notes that main moved, as any call that moves it does. */
+	scope?: Pick<ScopeRuntime, 'note' | 'seen'>;
 	drafts: EditorDraftsV1;
 	/** The document table. */
 	documentTable: string;
@@ -106,7 +109,14 @@ export function experimentHost(deps: ExperimentHostDeps) {
 				if (overlay.kind !== 'toast') deps.overlays.close(overlay.overlayId, 'cancel', 'withdrawn');
 			}
 			if (context) await deps.confirmations.withdraw(context, owns(instance));
-			if (deps.state.activeApp() === instance) deps.apps().close();
+			if (deps.state.activeApp() === instance) {
+				deps.apps().close();
+				// Main moved, noted on the call as `app-open`'s close is, so what follows main hears it (the mounted view, 9.3);
+				// a move the call already noted keeps its own history (`editor-close`'s `push`, whose settle unloads).
+				const traceId = context?.traceId;
+				if (traceId !== undefined && !deps.scope?.seen.get(traceId)?.mainChanged)
+					deps.scope?.note(traceId, { mainChanged: 'replace' });
+			}
 			return true;
 		},
 	};

@@ -473,6 +473,37 @@ export function createMountTransport(
 			)) as McpToolCallResult;
 		},
 		/**
+		 * `MountTransportV3` (phase 5 specification, 9.3): the server's resources, for `shell-open`'s mounted view, which the
+		 * kernel bounds; a lane that refuses them (the hosted relay's) refuses the view.
+		 */
+		async listResources(signal) {
+			const listed = (await request('resources/list', {}, signal)) as {
+				resources?: Array<{ uri?: unknown; mimeType?: unknown }>;
+			} | null;
+			return (Array.isArray(listed?.resources) ? listed.resources : []).flatMap((resource) =>
+				typeof resource?.uri === 'string'
+					? [
+							{
+								uri: resource.uri,
+								...(typeof resource.mimeType === 'string' ? { mimeType: resource.mimeType } : {}),
+							},
+						]
+					: []
+			);
+		},
+		async readResource(uri, signal) {
+			const read = (await request('resources/read', { uri }, signal)) as {
+				contents?: unknown;
+			} | null;
+			return {
+				contents: (Array.isArray(read?.contents) ? read.contents : []) as Array<{
+					uri: string;
+					mimeType?: string;
+					text?: string;
+				}>,
+			};
+		},
+		/**
 		 * `disconnect()` is synchronous, and sends nothing: the SDK 2.4.0 client's `close()` does not call
 		 * `terminateSession()`, so no session `DELETE` leaves the page. On the hosted lane the relay ends an idle
 		 * upstream session itself (phase 6 specification, 8.1 step 16). This resolves when no further call can go out.

@@ -149,6 +149,8 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'notification-list': {},
 	// Phase 5's 9.2: the bus, in the call's scope; a restricted project's events are not the reader's.
 	'event-list': {},
+	// And its 9.3: open a project the reader cannot enter answers as a missing one.
+	'shell-open': { target: { kind: 'project', project: PROJECT, scope: { workspace: 'personal' } } },
 	'notification-read': { all: true },
 	'notification-archive': { all: true },
 	'notification-act': { notification: 'ntf_0000000000000000' },

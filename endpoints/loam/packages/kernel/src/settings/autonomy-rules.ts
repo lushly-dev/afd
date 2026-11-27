@@ -112,12 +112,17 @@ export const above = (mode: AutonomyModeV1, bound: AutonomyModeV1): boolean =>
 
 /**
  * The default (4.2 step 3, D156): act on reads, ask before changes, ask before any tool of a mounted server, but the
- * reads of one whose entry says `labels = "per-part"` (phase 5 specification, 6.1).
+ * reads of one whose entry says `labels = "per-part"` (phase 5 specification, 6.1), and `shell-open`, navigation that
+ * holds no data (9.3), which acts.
  */
 export const defaultMode = (
-	command: Pick<AutonomyCommandV1, 'mutation' | 'mounted' | 'vouched'>
+	command: Pick<AutonomyCommandV1, 'mutation' | 'mounted' | 'vouched'> & { name?: string }
 ): AutonomyModeV1 =>
-	command.mutation || (command.mounted && command.vouched !== true) ? 'ask' : 'act';
+	command.name === 'shell-open'
+		? 'act'
+		: command.mutation || (command.mounted && command.vouched !== true)
+			? 'ask'
+			: 'act';
 
 /** The strictest default, a general or instance project row's bound when the workspace sets neither (F8). */
 export const STRICTEST_DEFAULT: AutonomyModeV1 = 'ask';

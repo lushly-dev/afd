@@ -82,7 +82,7 @@ const RUNS: Readonly<Record<string, string>> = Object.freeze({
 	'app-call-needs-grant': 'now',
 	'events-since-cursor': 'now',
 	'plugin-catches-up-from-engine': 'now',
-	'open-what-was-asked': "step 10's third part: shell-open",
+	'open-what-was-asked': 'now',
 });
 
 /** Milestone B's bus jobs, 10 to 13 (the specification's 18, P5-B4): each file's run is that row's. */

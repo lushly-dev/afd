@@ -575,6 +575,13 @@ export function copilotPartsOf(
 		mountOf: (name) => mountOf(deps.apps(), name),
 		// 5.3: a native or view app whose `http` grant is served.
 		holdsHttp: (name) => holdsGrant(deps.apps(), name, 'http'),
+		instanceHoldsHttp: (instance) => {
+			const detail = deps.apps().detail(instance);
+			return (
+				detail.success === true &&
+				(detail.data?.grants ?? []).some((each) => each.name === 'http' && each.served)
+			);
+		},
 		// B1: a shell read listing a mounted catalog carries its servers' words.
 		mountWordsOf: (name, input, result) => mountWordsIn(deps.apps(), name, input, result),
 		agentCommands: () => deps.agentCommands?.() ?? [],

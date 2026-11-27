@@ -805,7 +805,7 @@ export const CEILINGS = Object.freeze({
 	// measured 139,141 against `main` at `804e17cc`; set to 139,700 under D115.
 	// #2107 (moved `journal-provenance.ts` and `redactWrapped` from first paint into `late/journal-wrappers.ts`):
 	// measured 144,170 against `main` at `bd30d790b` (+4,850 moved from first paint); set to 144,700 under D115.
-	lateMinified: 163_800, // D115: 150,050 (5ade6c0f4); step 10's 9.1 to 150,062, its 9.2 (the bus) to 163,695.
+	lateMinified: 171_400, // D115: 150,050 (5ade6c0f4); step 10's 9.1 to 150,062, its 9.2 to 163,695, its 9.3 to 171,015.
 	// #2117 (`recordOrder` calls in `documents.ts`): measured 13,584 against `main` at `804e17cc`; set to 13,800 under D115.
 	lateDocumentsMinified: 13_800,
 	// Bug batch #2113: 17,514 (`closeApp` across persisted scopes with R14 dirty re-check, `document-open` gated refusal, `isTypeGated`, `Editors.projects()`); set to 18,000 under D115.
@@ -894,7 +894,7 @@ export const CEILINGS = Object.freeze({
 	// `276855fc`: set to 474,000 under D115.
 	// Bug batch #2179/#2119/#2118/#2016/#1952 merged with `main` at `b868f8c1`: 474,014 (+217 over its 473,797 at
 	// `a5e79aab`, main's changes since); set to 474,500 under D115.
-	appsMinified: 479_000, // D115: phase 5 step 10's 9.1, 473,988 to 478,337; its 9.2 (onBusEvent), to 478,642.
+	appsMinified: 481_000, // D115: phase 5 step 10's 9.1, 473,988 to 478,337; its 9.2, to 478,642; its 9.3 (mounted views), to 480,912.
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
 	// Phase 5's step 3 with phase 3's step 8 merged (`main` at `46f7ab11`; step 8's `surface-calls`, shared with
@@ -955,7 +955,7 @@ export const CEILINGS = Object.freeze({
 	// measured 72,452 against `main` at `a5e79aab` (vs 54,560 before #1484); set to 73,000 under D115.
 	documentsMinified: 73_000,
 	newMinified: 17_366,
-	embedMinified: 6_500,
+	embedMinified: 7_000, // D115: phase 5 step 10's 9.3 (ResourceLinkV2's links): 6,334 to 6,838.
 	// Phase 4's step 9, measured in one tree against `main` at `0ab76415`: 47,028 to 50,336 (+3,308: `loam-experiments-section` and its words); set to 50,800 under
 	// D115.
 	// Phase 5's step 3 merged on top, the combined build: 51,470 (+1,134: approval health beside the autonomy rules); set
@@ -965,7 +965,7 @@ export const CEILINGS = Object.freeze({
 	// #1484 (Refined primary/secondary `.action` key styles and transitions in `LoamEditorHeld`):
 	// measured 5,476 against `main` at `a5e79aab`; set to 5,900 under D115.
 	editorMoveMinified: 6_400,
-	overlaysMinified: 11_700,
+	overlaysMinified: 12_200, // D115: phase 5 step 10's 9.3 (ResourceLinkV2's links): 11,304 to 11,808.
 	// Phase 5's step 5: 12,050 (the preview's lines), set to 12,300 under D115.
 	inboxMinified: 12_700,
 });

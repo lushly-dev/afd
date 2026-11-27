@@ -196,7 +196,7 @@ export function projectionOf(
 	identity: IdentityV1 = { mode: 'local' },
 	kind: HostKindV1 = 'static'
 ): ProjectionV4 {
-	const apps: Array<ProjectionAppV2 & Pick<ProjectionAppV4, 'labels' | 'approvals'>> =
+	const apps: Array<ProjectionAppV2 & Pick<ProjectionAppV4, 'labels' | 'approvals' | 'views'>> =
 		instances.map((effect) => {
 			const { id, entry, mounted, prefix, transport } = effect;
 			return {
@@ -228,6 +228,8 @@ export function projectionOf(
 				(entry.approvals === 'none' || entry.approvals === 'shell')
 					? { approvals: entry.approvals }
 					: {}),
+				// Whether `shell-open` may render its `ui://` views (phase 5 specification, 9.3; D169): the deployer's opt-in.
+				...(mounted && 'views' in entry && entry.views === true ? { views: true } : {}),
 				...(entry.expose !== undefined ? { expose: entry.expose } : {}),
 				...(entry.commands !== undefined ? { commands: entry.commands } : {}),
 				boot: bootRecordOf(effect, findings),

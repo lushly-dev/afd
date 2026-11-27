@@ -214,7 +214,17 @@ export interface MountTransport {
 		meta?: Record<string, unknown>
 	): Promise<McpToolCallResult>;
 	close(): Promise<void>;
+	/** Kernel interface 6's (`MountTransportV3`, phase 5 specification, 9.3): the server's resources, `resources/list`. */
+	listResources?(signal?: AbortSignal): Promise<Array<{ uri: string; mimeType?: string }>>;
+	/** And one resource's contents, `resources/read`. Absent on a lane that reads none, as the hosted relay's. */
+	readResource?(
+		uri: string,
+		signal?: AbortSignal
+	): Promise<{ contents: Array<{ uri: string; mimeType?: string; text?: string }> }>;
 }
+
+/** Kernel interface 6's name for the transport with its resource reads (phase 5 specification, 9.4). */
+export type MountTransportV3 = MountTransport;
 
 /**
  * A message a frame sent that the kernel refused at the boundary, before anything read it: what a
@@ -463,10 +473,11 @@ export const APP_CALLABLE_SHELL_COMMANDS = [
 	'experiment-check',
 ] as const;
 
-/** Kernel interface 6's (phase 5 specification, 9.4): interface 4's, and `event-list`, whatever the app's grants. */
+/** Kernel interface 6's (phase 5 specification, 9.4): interface 4's, `event-list` and `shell-open`, whatever the grants. */
 export const APP_CALLABLE_SHELL_COMMANDS_V3 = [
 	...APP_CALLABLE_SHELL_COMMANDS,
 	'event-list',
+	'shell-open',
 ] as const;
 
 export type AppBaseState = 'ready' | 'loading' | 'failed' | 'refused' | 'gated';

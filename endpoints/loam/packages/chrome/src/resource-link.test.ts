@@ -89,3 +89,47 @@ describe('P2-E9: resourceLinkUrl', () => {
 		).toBeUndefined();
 	});
 });
+
+describe('P5-B3: resourceLinkUrl for ResourceLinkV2 (phase 5 specification, 9.3)', () => {
+	const ws = { workspace: 'personal' };
+	it('P5-B3: formats a project, a section, a settings key and a confirmation by formatRoute, and no mounted view', () => {
+		expect(
+			resourceLinkUrl({ kind: 'project', project: 'prj_atlas', scope: ws }, BASE, lookup)
+		).toBe('https://loam.example/loam/personal/p/atlas/~/projects');
+		expect(
+			resourceLinkUrl(
+				{ kind: 'section', section: 'inbox', path: 'ntf_1', scope: atlas },
+				BASE,
+				lookup
+			)
+		).toBe('https://loam.example/loam/personal/p/atlas/~/inbox/ntf_1');
+		expect(
+			resourceLinkUrl(
+				{ kind: 'section', section: 'settings', target: 'loam.appearance.theme', scope: ws },
+				BASE,
+				lookup
+			)
+		).toBe('https://loam.example/loam/personal/~/settings/loam.appearance#theme');
+		expect(
+			resourceLinkUrl({ kind: 'confirmation', notification: 'ntf_2', scope: ws }, BASE, lookup)
+		).toBe('https://loam.example/loam/personal/~/inbox/ntf_2');
+		expect(
+			resourceLinkUrl(
+				{ kind: 'mounted-ui', instance: 'mail', uri: 'ui://mail/thread', scope: ws },
+				BASE,
+				lookup
+			)
+		).toBeUndefined();
+		// A project the reader does not know, or a scope naming another, has no URL.
+		expect(
+			resourceLinkUrl({ kind: 'project', project: 'prj_vault', scope: ws }, BASE, lookup)
+		).toBe(undefined);
+		for (const link of [
+			{ kind: 'project' as const, project: 'prj_atlas', scope: ws },
+			{ kind: 'confirmation' as const, notification: 'ntf_2', scope: atlas },
+		]) {
+			const url = resourceLinkUrl(link, BASE, lookup) as string;
+			expect(parseRoute(url, BASE)).not.toEqual({ kind: 'not-found' });
+		}
+	});
+});

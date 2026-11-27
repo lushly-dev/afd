@@ -20,6 +20,7 @@ import type { StoreQuota } from './apps/store.js';
 import type { KernelFieldContext } from './context-fields.js';
 import { kernelFailure, LoamKernelError } from './errors.js';
 import type { AppKeybinding } from './keybindings.js';
+import type { ScopeV1 } from './scope/records.js';
 import type {
 	AppDetail,
 	AppInstance,
@@ -85,6 +86,11 @@ export interface AppsRuntime {
 	clearSelections(): void;
 	/** After hydration: close what a record persisted before its manifest dropped a part. */
 	reconcileLayouts(): void;
+	/**
+	 * A mounted instance's `ui://` view for `shell-open` (phase 5 specification, 9.3): the deployer's `views = true`, the
+	 * sandbox origin, the advertised URI and the fetch's bounds, read through its transport. Absent: none is served.
+	 */
+	mountedView?(instance: string, uri: string, scope: ScopeV1): Promise<CommandResult>;
 	/** The mounted instances, for `startInstances`. */
 	mountedInstances(): string[];
 	/**

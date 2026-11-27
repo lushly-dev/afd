@@ -76,6 +76,8 @@ export const DESKTOP_MCP_COMMANDS = Object.freeze([
 	'confirmation-withdraw',
 	// Phase 5's step 10 (D170): what changed since a cursor, as `loam-inbound` may read it.
 	'event-list',
+	// And `shell-open`, governed by the agent's autonomy, default `act` (D170).
+	'shell-open',
 ] as const);
 
 /**

@@ -795,3 +795,33 @@ describe("P6-E5: a call's event stream that ends without its response fails the 
 		await port.close();
 	});
 });
+
+describe('P5-B3: MountTransportV3 on the http lane (phase 5 specification, 9.3)', () => {
+	it('P5-B3: lists and reads ui:// resources, and refuses with the lane when it refuses them', async () => {
+		const sent: Array<{ method?: string; params?: unknown }> = [];
+		const { Fake } = fakeTransport({
+			send: async (request: { method?: string; params?: unknown }) => {
+				sent.push(request);
+				return request.method === 'resources/list'
+					? {
+							result: {
+								resources: [{ uri: 'ui://mail/thread', mimeType: 'text/html' }, { uri: 7 }],
+							},
+						}
+					: { result: { contents: [{ uri: 'ui://mail/thread', text: '<p>hi</p>' }] } };
+			},
+		});
+		const transport = createMountTransport('u', Fake);
+		expect(await transport.listResources?.()).toEqual([
+			{ uri: 'ui://mail/thread', mimeType: 'text/html' },
+		]);
+		expect(await transport.readResource?.('ui://mail/thread')).toEqual({
+			contents: [{ uri: 'ui://mail/thread', text: '<p>hi</p>' }],
+		});
+		expect(sent.map((request) => request.method)).toEqual(['resources/list', 'resources/read']);
+		const { Fake: Refusing } = fakeTransport({
+			send: async () => ({ error: { code: -32601, message: 'refused' } }),
+		});
+		await expect(createMountTransport('u', Refusing).listResources?.()).rejects.toBeDefined();
+	});
+});

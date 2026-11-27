@@ -155,4 +155,6 @@ export const SHELL_COMMAND_NAMES = [
 	'shell-project-switcher',
 	// Phase 5's step 10 (its 9.2): what changed since a cursor, for a person, an agent and an app with `events`.
 	'event-list',
+	// And its 9.3: open a document, an app, a project, a section, a confirmation or a mounted view in main.
+	'shell-open',
 ] as const;

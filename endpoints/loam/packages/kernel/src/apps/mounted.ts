@@ -775,8 +775,17 @@ export interface MountedHost {
 	/** Register what a journal recorded, with no network (7.6). */
 	applyCatalog(catalog: unknown): void;
 	approvalOf(command: string): 'required' | undefined;
+	/** A `ui://` view for `shell-open` (phase 5 specification, 9.3), read within its bounds; never a tool call. */
+	view(uri: string): Promise<CommandResult>;
 	dispose(): Promise<void>;
 }
+
+/** `shell-open`'s bounds on a mounted view (9.3): its HTML at most 2 MiB, read within 10 seconds, as HTML alone. */
+export const MOUNTED_VIEW_LIMITS = Object.freeze({
+	bytes: 2 * 1024 * 1024,
+	ms: 10_000,
+	mime: Object.freeze(['text/html', 'text/html;profile=mcp-app']),
+});
 
 export interface MountedHostOptions {
 	record: AppRecord;
@@ -1190,8 +1199,51 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		}
 	}
 
+	/** A view of this instance (9.3): the deployer's opt-in, the sandbox origin, a listed URI and the fetch's bounds. */
+	async function view(uri: string): Promise<CommandResult> {
+		// One refusal whatever failed (not listed, not HTML, too large, unreadable), so no caller probes a server's
+		// resources by the words: `why` stays in this function.
+		const unavailable = (_why: string) =>
+			kernelFailure(
+				'VIEW_RESOURCE_UNAVAILABLE',
+				`'${instance}' serves no such view`,
+				'Open a ui:// resource this instance lists'
+			);
+		if ((entry as { views?: unknown }).views !== true)
+			return kernelFailure(
+				'MOUNT_VIEWS_DISABLED',
+				`'${instance}' does not let the shell render its views`,
+				'Ask the deployer to set views = true on its entry in loam.deployment.toml'
+			);
+		if (!host.deployment.sandbox_origin)
+			return kernelFailure(
+				'VIEW_SANDBOX_ORIGIN_INVALID',
+				'This deployment has no sandbox origin, so no view can render',
+				'Set sandbox_origin in loam.deployment.toml'
+			);
+		if (record.state !== 'ready' || !transport?.listResources || !transport.readResource)
+			return unavailable('it is not connected, or its lane reads no resources');
+		const signal = AbortSignal.timeout(MOUNTED_VIEW_LIMITS.ms);
+		try {
+			const listed = await transport.listResources(signal);
+			if (!listed.some((resource) => resource.uri === uri))
+				return unavailable('it does not list it');
+			const read = await transport.readResource(uri, signal);
+			const content = read.contents.find((each) => each.uri === uri);
+			const mime = content?.mimeType?.replace(/\s+/g, '').toLowerCase();
+			if (content?.text === undefined || !MOUNTED_VIEW_LIMITS.mime.includes(mime ?? ''))
+				return unavailable('it is not HTML');
+			const bytes = new TextEncoder().encode(content.text).length;
+			if (bytes > MOUNTED_VIEW_LIMITS.bytes) return unavailable('it is larger than 2 MiB');
+			return success({ instance, uri, bytes });
+		} catch {
+			return unavailable('it could not be read within 10 seconds');
+		}
+	}
+
 	return {
 		reading,
+		view,
 		refresh() {
 			// A second call while one runs shares its answer, so two never race over the registries.
 			// Never while a confirmation holds the instance: its preview and its send go to one connection (7.2).

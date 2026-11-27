@@ -494,6 +494,32 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 		owners,
 		keybindings,
 		appCallRegistry: (given, options) => createAppCallRegistry(given, { ...options, callGrant }),
+		// `shell-open`'s mounted view (phase 5 specification, 9.3): a connected instance enabled here, read by its host.
+		async mountedView(instance, uri, scope) {
+			const record = records.get(instance);
+			if (record?.kind !== 'mounted' || !record.mounted)
+				return kernelFailure(
+					'APP_NOT_FOUND',
+					`There is no mounted instance '${instance}'`,
+					'Open a mounted instance this deployment lists'
+				);
+			if (host.scope.workspaceApps.get(instance)?.overrides.enabled === false)
+				return kernelFailure(
+					'APP_DISABLED',
+					`The app '${instance}' is disabled in this workspace`,
+					`Enable it with workspace-app-set { instance: "${instance}", enabled: true }`
+				);
+			// Enabled where the target is (9.3): its levels and, for a mounted entry, its project list.
+			if (!host.scope.opensIn(instance, record.scopeLevels, scope.project))
+				return kernelFailure(
+					'SCOPE_PROJECT_REQUIRED',
+					scope.project === undefined
+						? 'Open a project first'
+						: `The app '${instance}' is not available in this project`,
+					'Run scope-set'
+				);
+			return record.mounted.view(uri);
+		},
 		async dispose() {
 			await Promise.allSettled(hosts.map((held) => held.dispose()));
 		},
