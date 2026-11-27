@@ -11,7 +11,6 @@ import contextlib
 import difflib
 import inspect
 import uuid
-import warnings
 from collections.abc import Awaitable, Callable, Iterator
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, replace
@@ -27,20 +26,13 @@ from afd import (
     system_clock,
     system_random,
 )
-from afd.core.commands import CommandContext, CommandMiddleware
+from afd.core import open_dispatch
+from afd.core.commands import CommandContext, CommandMiddleware, declared_secret
 from afd.core.result import ResultMetadata
 from afd.direct import CommandContext as DirectCommandContext
 from afd.direct import CommandInfo
+from afd.server.journal import run_off_tape
 from afd.server.middleware import compose_middleware
-
-try:  # afd 0.14.0 or later: the journal behind the host reads a command's `secret`.
-    from afd.core import open_dispatch
-    from afd.core.commands import declared_secret
-    from afd.server.journal import run_off_tape
-except ImportError:  # pragma: no cover - an older afd cannot honour `secret` (#2695)
-    open_dispatch = None  # type: ignore[assignment]
-    declared_secret = None  # type: ignore[assignment]
-    run_off_tape = None  # type: ignore[assignment]
 
 from botcore.context import (
     PROFILE_EFFECTS,
@@ -50,10 +42,6 @@ from botcore.context import (
     use_context,
 )
 from botcore.host_inputs import check_arguments, describe_inputs, summary, validate_arguments
-
-#: Whether the installed afd reads ``secret`` declarations (0.14.0 or later); before that its
-#: ``define_command`` takes no ``secret`` and its journal behind the host reads unknown.
-SECRET_AWARE = open_dispatch is not None
 
 VERDICTS = {"passed", "failed", "skipped", "unavailable", "error"}
 EFFECTS = {
@@ -233,18 +221,10 @@ class CommandHost:
         declared = policy.declared()
         if (callable(policy.effects) and not declared) or set(declared) - EFFECTS:
             raise ValueError(f"Declare known effects for {name}")
-        if declared_secret is not None:
-            # A handler decorated with define_command(secret=True) is secret whatever the policy.
-            secret = declared_secret(name, handler, policy.secret)
-            if secret != policy.secret:
-                policy = replace(policy, secret=secret)
-        elif policy.secret:  # afd before 0.14.0
-            warnings.warn(
-                f"{name} declares secret, but the installed afd predates 0.14.0 and its journal "
-                "records the call unless a redact removes the secret; upgrade afd",
-                RuntimeWarning,
-                stacklevel=2,
-            )
+        # A handler decorated with define_command(secret=True) is secret whatever the policy.
+        secret = declared_secret(name, handler, policy.secret)
+        if secret != policy.secret:
+            policy = replace(policy, secret=secret)
         self._commands[name] = handler
         self._policies[name] = policy
 
@@ -452,23 +432,20 @@ class CommandHost:
                 use_call(call),
                 serving_host(self.serves_as or self),
                 _not_isolated(),
-                _dispatch(call, policy.secret) as dispatch,
+                open_dispatch(call, secret=policy.secret) as dispatch,
             ):
 
                 async def run() -> Any:
                     if not self.middleware:
                         return await invoke()
-                    chain_next = dispatch.bind(invoke) if dispatch is not None else invoke
                     return await compose_middleware(*self.middleware)(
-                        served, kwargs, cast(CommandContext, call), chain_next
+                        served, kwargs, cast(CommandContext, call), dispatch.bind(invoke)
                     )
 
                 # A secret call reads no recording parent's tape, even when no journal is in
                 # the host's own chain (an outer journal records the call that runs it).
                 result = (
-                    await run_off_tape(call, run)
-                    if policy.secret and not isolated and run_off_tape is not None
-                    else await run()
+                    await run_off_tape(call, run) if policy.secret and not isolated else await run()
                 )
             if not isinstance(result, CommandResult):
                 return error(
@@ -536,13 +513,6 @@ def _not_isolated() -> Iterator[None]:
         yield
     finally:
         _ISOLATED.reset(token)
-
-
-def _dispatch(call: Any, secret: bool) -> Any:
-    """The dispatch binding ``secret`` for AFD's journal, or none on an older afd."""
-    if open_dispatch is None:  # pragma: no cover - afd before 0.14.0
-        return contextlib.nullcontext(None)
-    return open_dispatch(call, secret=secret)
 
 
 def create_host_policy_middleware(host: CommandHost) -> CommandMiddleware:

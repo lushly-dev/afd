@@ -8,7 +8,7 @@ only the owner pushes (see `docs/features/complete/platform-monorepo/botcore-han
 other five distributions remain quarantined; source import authorizes no publishing.
 
 Use the repository Python AFD source through `[tool.uv.sources]`. Distribution
-metadata retains `afd>=0.9.0`. Run
+metadata requires `afd>=0.14.0`. Run
 `uv sync --frozen --extra dev --extra mcp --extra cdp --group packages`,
 `uv run --frozen ruff check src/ tests/ scripts/ packages/ botcore-connectors/src/ botcore-connectors/tests/ plugins/botcore-teams/`,
 `uv run --frozen ruff format --check src/ tests/ scripts/ packages/ botcore-connectors/src/ botcore-connectors/tests/ plugins/botcore-teams/`,

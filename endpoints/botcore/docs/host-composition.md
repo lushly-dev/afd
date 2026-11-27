@@ -203,16 +203,13 @@ call calls as the host's actor, else as `Actor(kind="agent")`; the CLI
 middleware (`afd.server.journal.create_journal_middleware`) runs behind the host
 and records the actor. A command that takes or returns a secret declares it on
 its policy, `CommandPolicy(..., secret=True)` (a host policy may add the
-declaration to a plugin's but not remove it). With afd 0.14.0 or later,
-`host.execute` binds the declaration to its middleware chain with
+declaration to a plugin's but not remove it). `host.execute` binds the declaration to its middleware chain with
 `afd.core.open_dispatch`, so the journal reads it as it does behind AFD's own
 engine: it records other calls without `redact` and never records a secret one
 without it. A secret call runs off every recording tape around it
 (`afd.server.run_off_tape`), even with no journal in the host's chain, such as a
 secret command a handler calls inside a call an outer journal records
-(`spec/journal.md`). Before afd 0.14.0 `secret` has no effect: a journal
-behind the host records the call unless `redact` removes the secret, and
-registering a secret command warns (#2695 raises the floor). The isolation
+(`spec/journal.md`). The isolation
 assumes one call at a time on a context: calls running concurrently on one
 context object can still see each other's sources (#2703).
 `create_host_mcp_server` declares it on the AFD command it registers too. A handler reads the context with
@@ -266,8 +263,8 @@ other distributions remain quarantined until a separately approved release plan.
 extra for wildcard discovery; requesting that integration while unavailable
 returns actionable INTEGRATION_UNAVAILABLE before creating an LLM session.
 
-The local-source bootstrap uses Python AFD 0.13 and MCP SDK 2.3. Managed hosts
-(`create_host_mcp_server`) require the `mcp` extra (`afd[server]>=0.13.0` and
+The local-source bootstrap uses Python AFD 0.14 and MCP SDK 2.3. Botcore requires `afd>=0.14.0`. Managed hosts
+(`create_host_mcp_server`) require the `mcp` extra (`afd[server]>=0.14.0` and
 `mcp>=2.3,<3`). Legacy `create_mcp_server` keeps its small lazy import adapter
 supporting MCP SDK 1 and 2 while retaining tool names and wire payloads.
 SDK-level Python `call_tool` return objects follow the installed SDK version;

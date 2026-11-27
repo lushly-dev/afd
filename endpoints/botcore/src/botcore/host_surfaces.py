@@ -8,7 +8,7 @@ import inspect
 import json
 import warnings
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import click
 from afd import Actor, CommandResult, error, success
@@ -16,7 +16,6 @@ from afd.core.commands import CommandContext
 from afd.core.result import failure
 
 from botcore.host import (
-    SECRET_AWARE,
     CommandHost,
     create_host_policy_middleware,
     isolated_call,
@@ -199,8 +198,7 @@ def _register_host_command(afd_server: AfdMCPServer, host: CommandHost, served_n
             # Every effect the command may have, so afd-detail shows them and afd-discover
             # filters on them (they were the catalog rows the retired `-start` returned).
             tags=[f"effect:{effect}" for effect in policy.declared()],
-            # An afd before 0.14.0 has no `secret` here.
-            **cast(dict[str, Any], {"secret": policy.secret} if SECRET_AWARE else {}),
+            secret=policy.secret,
             expose=ExposeOptions(mcp=True),
         )(host_command_handler)
         afd_server.register(decorated)
@@ -299,26 +297,12 @@ def _build_run_handlers(
     return {f"{host.name}-run": handle_run}
 
 
-def _install_alias_tools(
-    sdk_server: Any,
-    afd_server: AfdMCPServer,
-    alias_defs: list[dict[str, Any]],
-) -> None:
+def _install_alias_tools(afd_server: AfdMCPServer, alias_defs: list[dict[str, Any]]) -> None:
     """Give the SDK the extra tools' input schemas (``{name}-run``), for Mcp-Param header checks.
 
-    afd 0.14 answers the SDK's ``_tool_input_schema`` from its own table
-    (``_add_tool_input_schemas``, lushly-dev/afd#1756); afd 0.13 read the SDK's tool manager.
+    afd answers the SDK's ``_tool_input_schema`` from its own table (lushly-dev/afd#1756).
     """
-    add_schemas = getattr(afd_server, "_add_tool_input_schemas", None)
-    if add_schemas is not None:
-        add_schemas(alias_defs)
-        return
-    tool_manager = getattr(sdk_server, "_tool_manager", None)
-    create_tool = getattr(afd_server, "_create_fastmcp_tool", None)
-    if tool_manager is None or create_tool is None:
-        return
-    for definition in alias_defs:
-        tool_manager._tools[definition["name"]] = create_tool(definition)
+    afd_server._add_tool_input_schemas(alias_defs)
 
 
 def _decide_alias_scope(
@@ -437,9 +421,9 @@ def _attach_host_bridge(
             registered_names.add(name)
             added = True
         if added:
-            _install_alias_tools(sdk_server, afd_server, alias_defs)
+            _install_alias_tools(afd_server, alias_defs)
 
-    _install_alias_tools(sdk_server, afd_server, alias_defs)
+    _install_alias_tools(afd_server, alias_defs)
 
     base_list_tools = sdk_server.list_tools
     base_call_tool = sdk_server.call_tool
@@ -529,7 +513,7 @@ def create_host_mcp_server(
 
     Applies the host's policy, execution profile and path bounds as AFD middleware
     (``create_host_policy_middleware``), while routing every admitted command through
-    ``host.execute``. Requires the ``mcp`` extra (``afd[server]>=0.13.0``, ``mcp>=2.3,<3``).
+    ``host.execute``. Requires the ``mcp`` extra (``afd[server]>=0.14.0``, ``mcp>=2.3,<3``).
 
     - ``command_tools=False`` (default) uses AFD's ``"lazy"`` strategy: AFD's five meta-tools,
       ``afd-discover``, ``afd-detail``, ``afd-call``, ``afd-batch`` and ``afd-pipe``. The

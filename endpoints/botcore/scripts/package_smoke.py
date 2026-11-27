@@ -95,7 +95,7 @@ def audit(artifacts: Path) -> list[dict]:
                     for dependency in requires
                 )
             if name == "lushly-botcore":
-                assert "afd>=0.9.0" in requires
+                assert "afd>=0.14.0" in requires
                 assert "botcore/py.typed" in names
                 assert (
                     sum(

@@ -17,7 +17,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "afd>=0.9.0",
+    "afd>=0.14.0",
     "pydantic>=2.5.0",
     "click>=8.1.0",
     "pyyaml>=6.0.0",
@@ -44,7 +44,7 @@ quality = [
     "httpx>=0.24.0",
 ]
 mcp = [
-    "afd[server]>=0.13.0",
+    "afd[server]>=0.14.0",
     "mcp>=2.3,<3",
 ]
 all = [
@@ -149,7 +149,7 @@ exclude_lines = [
     "raise NotImplementedError",
 ]
 
-# Development bootstrap only; built distributions retain afd>=0.9.0 metadata.
+# Development bootstrap only; built distributions require afd>=0.14.0.
 [tool.uv.sources]
 afd = { path = "../../python", editable = true }
 
