@@ -1151,9 +1151,10 @@ export const APP_CALLABLE_SHELL_COMMANDS_V1 = [
 - **The support floor (D174, amended).** Before the first native app activates, and before the
   console loads, the chrome calls `supportsScopedRegistries()` from `@lushly-dev/fast-element/scoped.js`.
   In the desktop app's webview, which `main.ts` marks when Tauri's IPC is present at boot, an engine
-  without them takes D34's polyfill (`ensureScopedRegistrySupport()`, after the app's module and before
-  the console's chunk), as WebKitGTK 2.52 on Linux needs; `packages/desktop/test/scoped.test.ts` fails
-  if it stops working there. In a browser nothing is polyfilled: an engine without scoped registries
+  without them has D34's polyfill, which the desktop host runs as a top-frame initialization script
+  before the page's first script (#2793), as WebKitGTK 2.52 on Linux needs; `ensureScopedRegistrySupport()`
+  stays as the fallback where the host did not. `packages/desktop/test/scoped.test.ts` fails if it stops
+  working there. In a browser nothing is polyfilled: an engine without scoped registries
   (below Chromium 146, Firefox 159 or Safari 26) does not activate the app: its module is not requested until a command runs, and
   main says the browser has no scoped custom element registries and which versions to use. Its commands
   still run for an agent or the palette, through the kernel's lazy handlers. The console, views and
@@ -2289,8 +2290,8 @@ E1, E2 and phase 4's I8 chord now run in Firefox 157.0 and WebKit 27.2 as well a
   WebKitGTK 2.52.6 in `loam-desktop.yml`, which has no scoped registries either: P6-D3's diagnostic measured
   `new CustomElementRegistry()` throwing "Illegal constructor" (#2755). The native Mail app (P5-A9) ran there through
   D34's polyfill, which mounts native apps in Tauri's webview though not in Playwright's GTK build, so the desktop keeps it (D174,
-  amended) and `scoped.test.ts` asserts that path on Linux. The page still throws #2254's error twice there, for elements
-  defined before the polyfill loads, which no test had read before; loading it first on the desktop is #2793. E1's D174 case fails by name in a run whose engine lacks
+  amended) and `scoped.test.ts` asserts that path on Linux. Loaded at activation it still threw #2254's error twice, for
+  elements defined before it; since #2793 the host runs it before the page's first script and the test allows no error. E1's D174 case fails by name in a run whose engine lacks
   them.
 - **Scoped registries in Firefox.** Playwright's Firefox 157 has them behind
   `dom.scoped-custom-element-registries.enabled`, the preference Firefox 159 turned on, and the Firefox job sets it, so

@@ -29,6 +29,7 @@
 		"@lushly-dev/local-db": "workspace:*",
 		"@tauri-apps/cli": "2.12.4",
 		"@types/node": "^26.6.6",
+		"@webcomponents/scoped-custom-element-registry": "0.0.10",
 		"axe-core": "4.14.0",
 		"rimraf": "^6.1.4",
 		"typescript": "^7.0.2",

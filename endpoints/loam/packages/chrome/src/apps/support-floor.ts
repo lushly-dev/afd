@@ -28,9 +28,19 @@ const desktopWebview = (): boolean => {
 /** Whether native apps can run here: natively, or through the polyfill in the desktop's webview. */
 export const nativeAppsSupported = (): boolean => supportsScopedRegistries() || desktopWebview();
 
-/** Load the polyfill where it is kept and needed (the desktop's WebKitGTK webview); elsewhere, nothing. */
+/** Whether the desktop host ran the polyfill before the page's scripts (#2793): then nothing loads it again. */
+const appliedAtBoot = (): boolean =>
+	(globalThis as { __scopedRegistryPolyfillApplied?: boolean }).__scopedRegistryPolyfillApplied ===
+	true;
+
+/**
+ * Load the polyfill where it is kept and needed (the desktop's WebKitGTK webview) and the desktop host has not already
+ * run it before the page's scripts, as it does (#2793); elsewhere, nothing. After the host's run
+ * `supportsScopedRegistries()` answers true anyway; the flag says so without the probe.
+ */
 export async function prepareScopedRegistries(): Promise<void> {
-	if (!supportsScopedRegistries() && desktopWebview()) await ensureScopedRegistrySupport();
+	if (!supportsScopedRegistries() && desktopWebview() && !appliedAtBoot())
+		await ensureScopedRegistrySupport();
 }
 
 /** Whether `cause` is the floor's own activation failure: explained where the app opens, so not a page error. */

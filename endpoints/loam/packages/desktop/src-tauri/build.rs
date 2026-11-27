@@ -15,6 +15,39 @@ fn main() {
         .expect("../dist/index.html");
     }
     println!("cargo:rerun-if-changed=../dist");
+    // D34's polyfill, which the main window runs before any page script where the webview has no scoped custom
+    // element registries (D174, #2793). From the pinned devDependency; without an install it is empty, so `cargo
+    // test` needs no `pnpm install`, an app or installer build refuses, and `scoped.test.ts` fails on Linux.
+    let polyfill = Path::new(
+        "../node_modules/@webcomponents/scoped-custom-element-registry/scoped-custom-element-registry.min.js",
+    );
+    println!("cargo:rerun-if-changed={}", polyfill.display());
+    // pnpm links the file with its store's older time, so an install alone would not rerun this: its own record
+    // (rewritten by every install) and the pinned version do.
+    println!("cargo:rerun-if-changed=../package.json");
+    println!("cargo:rerun-if-changed=../../../../../node_modules/.modules.yaml");
+    let source = match std::fs::read(polyfill) {
+        Ok(source) => source,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            // The app must have it: `build:app` turns on `custom-protocol`, and `tauri build` (the installers) builds
+            // the release profile with Tauri's own feature, not this package's. A `cargo test` or `clippy` needs none.
+            assert!(
+                std::env::var_os("CARGO_FEATURE_CUSTOM_PROTOCOL").is_none()
+                    && std::env::var("PROFILE").as_deref() != Ok("release"),
+                "{} is missing: run `pnpm install` before building the app (#2793)",
+                polyfill.display()
+            );
+            println!(
+                "cargo:warning=no scoped-registry polyfill ({} missing): this build runs none (#2793)",
+                polyfill.display()
+            );
+            Vec::new()
+        }
+        Err(error) => panic!("{}: {error}", polyfill.display()),
+    };
+    let out =
+        Path::new(&std::env::var("OUT_DIR").expect("OUT_DIR")).join("scoped-registry-polyfill.js");
+    std::fs::write(&out, source).expect("the polyfill's copy");
     println!("cargo:rerun-if-env-changed=LOAM_UPDATER_PUBKEY");
     println!("cargo:rerun-if-env-changed=LOAM_UPDATER_ENDPOINT");
     // A test binary that links Tauri's mock runtime needs Common Controls 6 on Windows, as the app has through

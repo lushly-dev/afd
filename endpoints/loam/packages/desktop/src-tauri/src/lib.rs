@@ -346,6 +346,28 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     Menu::with_items(app, &[&loam])
 }
 
+/// D34's scoped-registry polyfill, run before any of the page's scripts (D174, #2793), so it is in place before the
+/// chrome and Violet define their elements. Only in the top frame, where the webview has no scoped custom element
+/// registries (WebKitGTK 2.52); WebView2 and WKWebView skip it. WebKitGTK and WKWebView add it to the main frame
+/// alone, but WebView2 adds it to every frame, so the script itself returns in a frame (the sandbox's and a view's).
+/// It sets the flag the chrome's `support-floor.ts` and `loam-mount` read; once it runs, fast-element's
+/// `supportsScopedRegistries()` answers true, so `ensureScopedRegistrySupport()` loads nothing more.
+const SCOPED_REGISTRY_POLYFILL: &str =
+    include_str!(concat!(env!("OUT_DIR"), "/scoped-registry-polyfill.js"));
+
+fn scoped_registry_script() -> String {
+    // An install-less build has no polyfill: then nothing runs, and nothing claims it did.
+    if SCOPED_REGISTRY_POLYFILL.is_empty() {
+        return String::new();
+    }
+    format!(
+        "(() => {{ if (window !== window.top) return; try {{ const registry = new CustomElementRegistry(); \
+         const root = document.createElement('div').attachShadow({{ mode: 'open', customElementRegistry: registry }}); \
+         if (root.customElementRegistry === registry) return; }} catch {{}} \
+         {SCOPED_REGISTRY_POLYFILL}\n; globalThis.__scopedRegistryPolyfillApplied = true; }})();"
+    )
+}
+
 /// What may load in the main window: the shell's own origin. WebView2 asks only of the main frame; WebKitGTK
 /// asks of every frame too, so there the sandbox's origin and a view's `srcdoc` document are admitted as well,
 /// which only the shell's own code could load at the top (a frame has no `allow-top-navigation`).
@@ -474,6 +496,7 @@ pub fn run() {
                 // IndexedDB and the rest of the webview's profile live beside the site, per data directory.
                 .data_directory(data.join("webview"))
                 .on_navigation(may_navigate)
+                .initialization_script(scoped_registry_script())
                 // A reload or a navigation leaves the page that asked for each model stream: none outlives it (phase 5's
                 // 4.2), so no late event of one reaches the next page.
                 .on_page_load(|window, payload| {
@@ -549,6 +572,26 @@ mod tests {
         // WebKitGTK asks of frames as well; WebView2 of the main frame alone.
         assert_eq!(may_navigate(&sandbox), cfg!(not(windows)));
         assert_eq!(may_navigate(&srcdoc), cfg!(not(windows)));
+    }
+
+    /// #2793: the polyfill runs only where the webview has no scoped registries, and says so once it has.
+    #[test]
+    fn the_polyfill_runs_first_and_only_without_scoped_registries() {
+        let script = scoped_registry_script();
+        if SCOPED_REGISTRY_POLYFILL.is_empty() {
+            assert!(
+                script.is_empty(),
+                "nothing runs, or claims to, without the polyfill"
+            );
+            return;
+        }
+        // WebView2 runs an initialization script in every frame; this one returns in all but the top.
+        assert!(script.starts_with(
+            "(() => { if (window !== window.top) return; try { const registry = new CustomElementRegistry();"
+        ));
+        assert!(script.contains("if (root.customElementRegistry === registry) return; } catch {}"));
+        assert!(script.contains(SCOPED_REGISTRY_POLYFILL));
+        assert!(script.ends_with("globalThis.__scopedRegistryPolyfillApplied = true; })();"));
     }
 
     #[test]
