@@ -47,6 +47,11 @@ export interface KernelPartsInternals {
 	replaying?: boolean;
 	/** A replay of a journal whose `workspace-deployment-apply` records a hosted host (phase 6's A5). */
 	hostedReplay?: boolean;
+	/**
+	 * A `shell-open` entry's result for its trace ID, undefined for any other: what answers a replayed `mounted-ui` open's
+	 * `mountedView` (its opt-in, origin, projects and fetch) in place of contacting the mounted server (phase 5's 9.3).
+	 */
+	recordedResult?(traceId: string | undefined): CommandResult | undefined;
 	/** The journal's actor for a trace ID, undefined for one it does not hold (10). */
 	actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
 	/** The replay's Mock set to the person a `session-settle` entry records (phase 3 specification, 4.4). */

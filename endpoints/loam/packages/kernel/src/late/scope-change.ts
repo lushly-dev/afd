@@ -92,6 +92,8 @@ export interface LateScopeDeps {
 		drive?(person: string | null): void;
 		/** A replay's, at a reload: its Mock set to the person the page's first settle names (4.4). */
 		startPage?(): void;
+		/** A replay's: a `shell-open` entry's result, which answers a `mounted-ui` open's `mountedView` (phase 5's 9.3). */
+		recordedResult?(traceId: string | undefined): CommandResult | undefined;
 	};
 }
 

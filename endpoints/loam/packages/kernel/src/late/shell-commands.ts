@@ -71,7 +71,7 @@ const GROUPS = new WeakMap<object, number>();
 export const paletteGroupOf = (item: object): number => GROUPS.get(item) ?? 2;
 
 /** Runnable from the palette's interface, never offered in its picker (phase 5 specification, 9.2 and 9.3). */
-const PICKER_HIDDEN: ReadonlySet<string> = new Set(['event-list']);
+const PICKER_HIDDEN: ReadonlySet<string> = new Set(['event-list', 'shell-open']);
 
 /** The kinds `palette-search { kind }` filters by (3.10). */
 const PALETTE_KINDS = ['command', 'document', 'setting'] as const;

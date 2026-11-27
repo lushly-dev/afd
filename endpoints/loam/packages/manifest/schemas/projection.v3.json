@@ -130,6 +130,10 @@
 				"approvals": {
 					"enum": ["none", "shell"]
 				},
+				"views": {
+					"description": "Phase 5's 9.3 (D169): whether shell-open may render this mounted instance's ui:// views, in the sandbox. Default false.",
+					"type": "boolean"
+				},
 				"expose": {
 					"$ref": "#/$defs/expose"
 				},

@@ -115,6 +115,8 @@ export interface EnforcementDeps {
 	labelsOf(name: string): 'whole' | 'per-part' | undefined;
 	/** A native or view app's command whose app holds the `http` grant, served (5.3). */
 	holdsHttp(name: string): boolean;
+	/** Whether an instance, a native or view app, holds the `http` grant, served (phase 5's 9.3: `shell-open`'s route). */
+	instanceHoldsHttp?(instance: string): boolean;
 	personOf(context: CommandContext): string | undefined;
 	now(context: CommandContext): number;
 	/** Recorded for a copilot call, by its trace, before its result returns to the port. */
@@ -206,7 +208,20 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 	}
 
 	/** 5.3's rule: whether a tainted session's call of `name` is lowered to at most `ask`. */
-	function lowers(name: string, sources: readonly string[]): boolean {
+	function lowers(name: string, input: unknown, sources: readonly string[]): boolean {
+		// `shell-open` (9.3, T16, T31, T32): navigation, lowered only where it could carry the session's text out, a
+		// mounted view of an instance outside the taint, or a route into an app that holds `http`.
+		if (name === 'shell-open') {
+			const target = (input as { target?: { kind?: unknown; instance?: unknown; route?: unknown } })
+				?.target;
+			if (target?.kind === 'mounted-ui') return !sources.includes(String(target.instance));
+			return (
+				target?.kind === 'app' &&
+				typeof target.route === 'string' &&
+				target.route.length > 0 &&
+				deps.instanceHoldsHttp?.(String(target.instance)) === true
+			);
+		}
 		const instance = deps.instanceOf(name);
 		const mounted = deps.isMounted(name);
 		// Another mounted instance, reads included: a mounted server may be remote, so an input can carry content out.
@@ -248,7 +263,7 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 			? (recordedTaint as string[])
 			: await deps.taintOf(trace.session);
 		if (sources.length > 0) call.taint = [...sources];
-		const tainted = sources.length > 0 && lowers(name, sources);
+		const tainted = sources.length > 0 && lowers(name, input, sources);
 		// A destructive or approval-held command is at most `ask` on a copilot's behalf, nested too (6.1, the review's B6).
 		const held = deps.heldBy(name);
 		if (!tainted && held === undefined) return next();
@@ -317,11 +332,14 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 		let mode: AutonomyModeV1 = unit
 			? unitMode(resolved)
 			: (resolved?.mode ??
-				defaultMode(
-					deps.isMutation(name),
-					deps.isMounted(name),
-					deps.labelsOf(name) === 'per-part'
-				));
+				// `shell-open` is navigation, no data's: `act` unless a row says otherwise (9.3).
+				(name === 'shell-open'
+					? 'act'
+					: defaultMode(
+							deps.isMutation(name),
+							deps.isMounted(name),
+							deps.labelsOf(name) === 'per-part'
+						)));
 		const chain: ConfirmationAskedV1['chain'] = resolved
 			? structuredClone(resolved.chain)
 			: [{ id: 'default', mode, as: 'mode' }];
@@ -349,7 +367,7 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 			if (session.length > 0) call.taint = [...session];
 			// A unit's submit is treated as tainted by the unit's source (7.3).
 			const tainted = [...new Set([...session, ...(unit ? [unit.source] : [])])];
-			if (tainted.length > 0 && lowers(name, tainted)) {
+			if (tainted.length > 0 && lowers(name, input, tainted)) {
 				sources = tainted;
 				chain.push({ id: 'taint', mode: 'ask', as: 'ceiling' });
 				if (mode === 'act') mode = 'ask';

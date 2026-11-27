@@ -53,7 +53,7 @@ import { createProjectSummaryCommand, type ProjectSummaryDeps } from '../scope/p
 import type { ScopeV1 } from '../scope/records.js';
 import type { QueuedTicket } from '../scope/runtime.js';
 import { createScopeCommands, UNAPPLIED } from '../scope/scope-commands.js';
-import { createShellStores, type ShellStores } from '../scope/stores.js';
+import { createShellStores } from '../scope/stores.js';
 import { emptyMeets } from '../settings/empty-meets.js';
 import { experimentHost, isManifestTypeGated, sha256 } from '../settings/experiment-host.js';
 import type { Experiments } from '../settings/experiments.js';
@@ -69,10 +69,12 @@ import type {
 	KernelOptions,
 	KernelPorts,
 } from '../types.js';
+import { type AppliedProjection, applyDeployment } from './apply-deployment.js';
 import { DOCUMENT_KIT } from './command-kit.js';
 import { type Bus, createBus } from './events.js';
 import { createLateScope, documentChainOf, type LateScopeDeps } from './scope-change.js';
 import { createShellCommands, paletteGroupOf, type ShellCommandDeps } from './shell-commands.js';
+import { createShellOpen, type ShellOpenParts } from './shell-open.js';
 import {
 	preparedUnlessRouted,
 	SERVER_UNSETTLED,
@@ -228,42 +230,7 @@ const canonical = canonicalJson;
 const reportLate = (cause: unknown): void =>
 	(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
 
-/** A projection as stage B keeps it in the workspace store (4.1). */
-export interface AppliedProjection {
-	generation: string;
-	workspace: { id: string; name: string };
-	apps: readonly object[];
-	/** A version 4 projection's host (phase 6 specification, 3.3). */
-	host?: { kind: 'static' | 'hosted' | 'desktop' };
-}
-
-/**
- * Stage B's own journaled work (phase 2 specification, 2.2, step 5): `workspace-deployment-apply` when
- * the generation differs from the workspace row's. An empty projection with no row does nothing, so an
- * empty shell's journal is unchanged. `run` is boot's own: `BOOT_FIELDS`, past the queue. True when the
- * store holds the projection's entries afterwards, so a workspace row may take its generation.
- */
-export async function applyDeployment(
-	stores: ShellStores,
-	projection: AppliedProjection,
-	run: (name: string, input: unknown) => Promise<{ success: boolean }>
-): Promise<boolean> {
-	const row = await stores.workspace();
-	// A hosted one is applied even with no app, so its journal records the host a replay reads (phase 6's A5).
-	const empty = projection.apps.length === 0 && projection.host?.kind !== 'hosted';
-	if (row ? row.generation === projection.generation : empty) return true;
-	const result = await run('workspace-deployment-apply', {
-		generation: projection.generation,
-		workspace: projection.workspace,
-		entries: projection.apps.map((entry) => {
-			const { boot: _boot, ...kept } = entry as { boot?: unknown };
-			return kept;
-		}),
-		// The kind alone, journaled with the entries, so a replay reads it from this entry (phase 6's 3.3, A5).
-		...(projection.host ? { host: { kind: projection.host.kind } } : {}),
-	});
-	return result.success;
-}
+export { type AppliedProjection, applyDeployment };
 
 /** What the late chunk gives the kernel (phase 2 specification, 2.2 and 3.4). */
 export interface LateParts {
@@ -414,8 +381,7 @@ export async function createLateParts(
 			deps.definitionOf?.(name)) as (ZodCommandDefinition & { approval?: unknown }) | undefined;
 	/** A native or view app's `confirm_prompt` (phase 4's 7.2); a mounted tool's is refused. */
 	const confirmPromptOf = (command: string) => confirmPromptFor(deps.apps(), command);
-	// The port reads its list from here, so `apps` does not hold it (2.4); set once both chunks have loaded,
-	// before any app, so a late load that fails sets nothing.
+	// The port reads its list from here, so `apps` does not hold it (2.4): set once both chunks load, before any app.
 	deps.scope.callable = appCallable;
 	let sessions: SessionSettle | undefined;
 	let settings: Settings | undefined;
@@ -453,6 +419,8 @@ export async function createLateParts(
 	deps.scope.agents = agentMembers.cache;
 	// The editor owner after a call that may move it (documents specification, 5.4); built below, with its scope.
 	let editor: EditorParts | undefined;
+	/** `shell-open`'s, told of each call's moves of main (9.3); made with the commands below. */
+	let shellOpen: ShellOpenParts | undefined;
 	// `loam.layout.~documents` declares the inspector while the editor owner, the active tab's plugin, has a
 	// type with one (5.1): recomputed after a call that may move the active tab, main or the scope, and at boot.
 	let inspector = false;
@@ -531,6 +499,7 @@ export async function createLateParts(
 			}
 			await editor?.settle(name, call);
 			const s = deps.scope.seen.get(call.traceId as string);
+			shellOpen?.settled(name, s);
 			if (/^(editor-|document-)/.test(name) || s?.mainChanged || s?.scopeChanged || s?.experiments)
 				await declare();
 		},
@@ -1009,6 +978,7 @@ export async function createLateParts(
 			emit: deps.emit,
 		});
 	}
+	shellOpen = createShellOpen(deps, editor.owner, (name) => byName.get(name));
 	const byName: Map<string, ZodCommandDefinition> = new Map(
 		[
 			...boot,
@@ -1085,6 +1055,7 @@ export async function createLateParts(
 			confirmations.settle,
 			...limitCommands.commands,
 			bus.command,
+			shellOpen.command,
 			...keybindingCommands,
 			...createShellKeyCommands(SHELL_KEY_ACTIONS, deps.performShellKey),
 			...(deps.localWorkspace ? createLocalWorkspaceCommands(deps.localWorkspace) : []),

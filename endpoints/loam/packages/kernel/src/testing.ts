@@ -680,6 +680,11 @@ export async function replayKernel(
 		// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
 		// On a principal-gated kernel, `principalGate` sets `context.actor` to the admitted principal's frozen actor
 		// (the WeakMap key `principals.of` reads), so `actorOf` must not replace it with a plain journal copy.
+		// A `shell-open` entry's result alone: what answers a `mounted-ui` open's `mountedView` (phase 5's 9.3).
+		recordedResult(traceId) {
+			const entry = traceId === undefined ? undefined : byTrace.get(traceId);
+			return entry?.command === 'shell-open' ? entry.result : undefined;
+		},
 		actorOf(traceId) {
 			if (options.gate === 'principal') return undefined;
 			const entry = traceId === undefined ? undefined : byTrace.get(traceId);
@@ -909,6 +914,7 @@ export async function replayKernel(
 		delete internals.answerNested;
 		delete internals.nestedUnrecorded;
 		delete internals.actorOf;
+		delete internals.recordedResult;
 		delete internals.drive;
 		delete internals.startPage;
 		delete internals.recordedRun;

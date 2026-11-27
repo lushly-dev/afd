@@ -6,7 +6,7 @@
  * that shows the link, so first paint holds none of it.
  */
 
-import type { ResourceLinkV1 } from '@lushly-dev/loam-kernel';
+import type { ResourceLinkV2 } from '@lushly-dev/loam-kernel';
 import { formatRoute } from './route-format.js';
 import type { RouteV1 } from './router.js';
 
@@ -23,10 +23,11 @@ const INSTANCE = /^(?!p$)[a-z][a-z0-9]{0,31}$/;
 /**
  * The absolute URL `link` navigates to under `base`, or undefined when it cannot be opened in this page:
  * another workspace, a project the reader does not know, an instance the URL cannot name, or a segment that
- * would walk out of the place it names.
+ * would walk out of the place it names. Phase 5's four shell targets (9.3) format as the router reads them; a
+ * `mounted-ui` link has no URL, since only `shell-open` renders one, in a sandboxed slot.
  */
 export function resourceLinkUrl(
-	link: ResourceLinkV1,
+	link: ResourceLinkV2,
 	base: string,
 	projects: ProjectLookup
 ): string | undefined {
@@ -42,6 +43,24 @@ export function resourceLinkUrl(
 		route = { kind: 'app', ...at, instance: link.instance, rest };
 	} else if (link.kind === 'document') {
 		route = { kind: 'section', ...at, section: 'documents', rest: [link.document] };
+	} else if (link.kind === 'project') {
+		const own = projects.slugOf(link.project);
+		if (own === undefined || (slug !== undefined && slug !== own)) return undefined;
+		route = { kind: 'section', workspace, project: own, section: 'projects', rest: [] };
+	} else if (link.kind === 'section') {
+		// A settings target: a section, `<app>.<section>`, or one of its keys after it, the fragment (phase 4's 3.5).
+		const parts = link.target?.split('.') ?? [];
+		const rest =
+			link.section === 'settings' && link.target !== undefined
+				? parts.length > 2
+					? [parts.slice(0, 2).join('.'), parts.slice(2).join('.')]
+					: [link.target]
+				: link.path
+					? link.path.split('/')
+					: [];
+		route = { kind: 'section', ...at, section: link.section, rest };
+	} else if (link.kind === 'confirmation') {
+		route = { kind: 'section', ...at, section: 'inbox', rest: [link.notification] };
 	} else {
 		return undefined;
 	}

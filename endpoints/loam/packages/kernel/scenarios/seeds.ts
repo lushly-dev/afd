@@ -207,6 +207,8 @@ async function p4Base(
 		overlay?: Readonly<Record<string, (manifest: ManifestV3) => ManifestV3>>;
 		/** `provider` identity on a desktop host, with its membership, for a test of a signed-in person's view. */
 		identity?: { identity: IdentityV1; membership: MembershipV1 };
+		/** `false`: a deployment with no sandbox origin, for a test of what needs one. */
+		sandbox?: false;
 	} = {}
 ): Promise<SeededKernel> {
 	const { mailfix, mailfixb } = extra;
@@ -247,7 +249,7 @@ async function p4Base(
 		deployment_version: 2,
 		generation: 'p4-base',
 		workspace: { id: 'personal', name: 'Personal' },
-		sandbox_origin: 'https://sandbox.loam.test',
+		...(extra.sandbox === false ? {} : { sandbox_origin: 'https://sandbox.loam.test' }),
 		...(extra.identity ? { host: { kind: 'desktop' } } : {}),
 		apps: [
 			...served.apps,
@@ -378,6 +380,8 @@ export async function p5Base(options: {
 	overlay?: Readonly<Record<string, (manifest: ManifestV3) => ManifestV3>>;
 	/** `provider` identity on a desktop host, with its membership (the person signs in as in `p4-base`). */
 	identity?: { identity: IdentityV1; membership: MembershipV1 };
+	/** `false`: no sandbox origin. */
+	sandbox?: false;
 }): Promise<SeededKernel> {
 	const provider = createScenarioProvider({
 		...(options.scripts ? { extra: options.scripts } : {}),
@@ -393,6 +397,7 @@ export async function p5Base(options: {
 	});
 	const extra = options.overlay ?? {};
 	const seeded = await p4Base({
+		...(options.sandbox === false ? { sandbox: false as const } : {}),
 		overlay: Object.fromEntries(
 			[...new Set([...Object.keys(P5_OVERLAY), ...Object.keys(extra)])].map((instance) => [
 				instance,

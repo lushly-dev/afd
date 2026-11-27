@@ -509,6 +509,7 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"space",
 			"labels",
 			"approvals",
+			"views",
 			"expose",
 			"commands",
 			"boot"

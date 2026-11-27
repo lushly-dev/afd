@@ -233,3 +233,32 @@ describe('DesktopMountTransport (phase 6 specification, 10.4)', () => {
 		]);
 	});
 });
+
+describe('P5-B3: MountTransportV3 on the desktop lane (phase 5 specification, 9.3)', () => {
+	it('P5-B3: lists and reads ui:// resources through mount_send, keeping only well-formed rows', async () => {
+		const calls = fakeHost((message) =>
+			message.method === 'initialize'
+				? respond(message, { protocolVersion: '2025-06-18', capabilities: {} })
+				: message.method === 'resources/list'
+					? respond(message, {
+							resources: [{ uri: 'ui://mail/thread', mimeType: 'text/html' }, { name: 'no uri' }],
+						})
+					: respond(message, {
+							contents: [{ uri: 'ui://mail/thread', mimeType: 'text/html', text: '<p>hi</p>' }],
+						})
+		);
+		const transport = createDesktopMountTransport('mail');
+		await transport.connect();
+		expect(await transport.listResources?.()).toEqual([
+			{ uri: 'ui://mail/thread', mimeType: 'text/html' },
+		]);
+		expect(await transport.readResource?.('ui://mail/thread')).toEqual({
+			contents: [{ uri: 'ui://mail/thread', mimeType: 'text/html', text: '<p>hi</p>' }],
+		});
+		const sent = calls.flatMap(({ args }) => (args.message ? [args.message] : []));
+		expect(sent.at(-1)).toMatchObject({
+			method: 'resources/read',
+			params: { uri: 'ui://mail/thread' },
+		});
+	});
+});

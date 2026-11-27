@@ -1483,6 +1483,7 @@ export interface ProjectionV2 {
 		};
 		labels?: 'whole' | 'per-part';
 		approvals?: 'none' | 'shell';
+		views?: boolean;
 		expose?: {
 			agent?: boolean;
 			palette?: boolean;
@@ -1761,6 +1762,7 @@ export interface ProjectionV3 {
 		};
 		labels?: 'whole' | 'per-part';
 		approvals?: 'none' | 'shell';
+		views?: boolean;
 		expose?: {
 			agent?: boolean;
 			palette?: boolean;
@@ -1998,6 +2000,7 @@ export interface DeploymentV4 {
 			};
 			labels?: 'whole' | 'per-part';
 			approvals?: 'none' | 'shell';
+			views?: boolean;
 			expose?: {
 				agent?: boolean;
 				palette?: boolean;
@@ -2186,6 +2189,7 @@ export interface ProjectionV4 {
 		};
 		labels?: 'whole' | 'per-part';
 		approvals?: 'none' | 'shell';
+		views?: boolean;
 		expose?: {
 			agent?: boolean;
 			palette?: boolean;

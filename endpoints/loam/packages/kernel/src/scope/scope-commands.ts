@@ -16,6 +16,7 @@ import {
 } from '@lushly-dev/afd-server/define';
 import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { ICONS_V1 } from '@lushly-dev/loam-manifest';
+import type { DataAdapter } from '@lushly-dev/local-db';
 import * as z from 'zod/mini';
 import type { AppsRuntime } from '../apps-runtime.js';
 import { EMPTY_INPUT_JSON, emptyInput } from '../boot-commands.js';
@@ -23,6 +24,7 @@ import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
 import type { ShellState } from '../shell-state.js';
 import { personKey, personOf } from './access.js';
+import { canOpenInboxTarget } from './inbox-target.js';
 import { canOpen, setMain } from './main-state.js';
 import { type LateScope, projectNotFound } from './middleware.js';
 import { isOwner, teamListed } from './owners.js';
@@ -50,6 +52,8 @@ const NOT_A_PERSON = /^(agt_|shell-agent$|signed-out$)/;
 
 export interface ScopeCommandDeps {
 	scope: ScopeRuntime;
+	/** The workspace's store, for an agent's inbox path (phase 5 specification, 9.3's `canOpenInboxTarget`). */
+	store?: DataAdapter;
 	viewState: ViewStateRegistry;
 	state: ShellState;
 	stores: ShellStores;
@@ -204,6 +208,8 @@ const entry = z.strictObject({
 	// Whose word decides a mounted result's labels (phase 5 specification, 5.1).
 	labels: z.optional(z.enum(['whole', 'per-part'])),
 	approvals: z.optional(z.enum(['none', 'shell'])),
+	// Whether `shell-open` may render its `ui://` views (phase 5 specification, 9.3; D169).
+	views: z.optional(z.boolean()),
 	expose: z.optional(z.record(z.string(), z.boolean())),
 	commands: z.optional(z.record(z.string(), z.unknown())),
 });
@@ -239,6 +245,7 @@ const ENTRY_JSON: JsonSchema = {
 		space: RECORD_JSON(STRING),
 		labels: { type: 'string', enum: ['whole', 'per-part'] },
 		approvals: { type: 'string', enum: ['none', 'shell'] },
+		views: { type: 'boolean' },
 		expose: RECORD_JSON({ type: 'boolean' }),
 		commands: RECORD_JSON({}),
 	},
@@ -259,6 +266,7 @@ const KEPT = [
 	'space',
 	'labels',
 	'approvals',
+	'views',
 	'expose',
 	'commands',
 	'order',
@@ -774,6 +782,21 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			}
 			const refused = routeRefusal(path);
 			if (refused) return refused;
+			// An agent's inbox path is `shell-open`'s rule (phase 5 specification, 9.3): only a row it may see opens.
+			if (
+				input.section === 'inbox' &&
+				path !== '' &&
+				deps.store !== undefined &&
+				(context.interface === 'agent' || context.actor?.kind === 'agent')
+			) {
+				const hidden = await canOpenInboxTarget(
+					{ store: deps.store, scope, apps: deps.apps },
+					path,
+					context,
+					{ requireConfirmation: false }
+				);
+				if (hidden) return hidden;
+			}
 			const previous = state.main().section;
 			const closed = deps.apps().close();
 			if (!closed.success) return closed as CommandResult<never>;

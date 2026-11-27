@@ -107,7 +107,19 @@ const asResult = (body: unknown): McpToolCallResult => ({
 /** A transport over `server` in this process: what the kernel's discovery and calls read (the file's header). */
 export function mailfixTransport(
 	server: McpServer,
-	options: { textOnly?: boolean; approver?: boolean; held?: ApprovalRequest[] } = {}
+	options: {
+		textOnly?: boolean;
+		approver?: boolean;
+		held?: ApprovalRequest[];
+		/** A scripted resource lane (`MountTransportV3`, phase 5's 9.3): what it lists, and how it reads one. */
+		resources?: {
+			list: Array<{ uri: string; mimeType?: string }>;
+			read(
+				uri: string,
+				signal?: AbortSignal
+			): Promise<{ contents: Array<{ uri: string; mimeType?: string; text?: string }> }>;
+		};
+	} = {}
 ): MountTransport & {
 	calls: Array<{ tool: string; args: unknown; meta?: Record<string, unknown> }>;
 } {
@@ -151,6 +163,13 @@ export function mailfixTransport(
 		// carrier's era (AFD's rule 3), by the transport's own word. Whether the server names this peer an approver is
 		// `approver`'s, apart.
 		connect: async () => ({ protocolVersion: '2026-07-28', approvals: true as const }),
+		...(options.resources
+			? {
+					listResources: async () => structuredClone(options.resources?.list ?? []),
+					readResource: (uri: string, signal?: AbortSignal) =>
+						(options.resources as NonNullable<typeof options.resources>).read(uri, signal),
+				}
+			: {}),
 		listTools: () => Promise.reject(new Error('Discovery lists no tools')),
 		async callTool(tool, args, _signal, meta) {
 			calls.push({ tool, args, ...(meta ? { meta } : {}) });
@@ -197,10 +216,19 @@ export function mailfixTransport(
  * so a test can look for every token where none may be (P5-A6).
  */
 export function mountedMailfix(
-	options: Omit<MailfixServerOptions, 'approver'> & { textOnly?: boolean; approver?: boolean } = {}
+	options: Omit<MailfixServerOptions, 'approver'> & {
+		textOnly?: boolean;
+		approver?: boolean;
+		resources?: NonNullable<Parameters<typeof mailfixTransport>[1]>['resources'];
+	} = {}
 ) {
 	const held: ApprovalRequest[] = [];
-	const { approver: _approver, textOnly: _textOnly, ...serverOptions } = options;
+	const {
+		approver: _approver,
+		textOnly: _textOnly,
+		resources: _resources,
+		...serverOptions
+	} = options;
 	const server = createMailfixServer({
 		...serverOptions,
 		onApprovalRequired: async (request) => {

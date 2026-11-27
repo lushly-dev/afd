@@ -131,6 +131,8 @@ export interface CopilotDeps {
 		| undefined;
 	/** A native or view app's command whose app holds the `http` grant (5.3). Absent: none does. */
 	holdsHttp?(name: string): boolean;
+	/** Whether an instance holds the `http` grant (9.3: `shell-open`'s route under taint). */
+	instanceHoldsHttp?(instance: string): boolean;
 	/** The mounted instances whose servers' words a shell read's result can carry (a catalog, B1). Absent: none. */
 	mountWordsOf?(
 		name: string,
@@ -386,6 +388,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		unitOf: (trace) => units.unitOf(trace),
 		labelsOf: (name) => deps.mountOf?.(name)?.labels,
 		holdsHttp: (name) => deps.holdsHttp?.(name) === true,
+		instanceHoldsHttp: (instance) => deps.instanceHoldsHttp?.(instance) === true,
 		personOf: (context) => kit.personOf(context),
 		now: (context) => kit.callNow(context),
 		decided(trace, decision) {

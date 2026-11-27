@@ -78,6 +78,15 @@ function exempted(name: string, schema: unknown): unknown {
 		delete copy.properties?.command;
 		return copy;
 	}
+	if (name === 'shell-open') {
+		// An app target's `route` is that app's own route, navigation as a notice's link is (phase 5 specification, 9.3);
+		// never a mounted server's process, which only a deployment entry holds.
+		const copy = structuredClone(schema) as {
+			properties?: { target?: { oneOf?: Array<{ properties?: Record<string, unknown> }> } };
+		};
+		for (const variant of copy.properties?.target?.oneOf ?? []) delete variant.properties?.route;
+		return copy;
+	}
 	if (name === 'notification-push') {
 		// A notice's action names one of the pushing app's own palette commands (10.1), as a menu item does; its link's
 		// `route` is an app's own route, navigation a person follows (documents specification, 9.1).
