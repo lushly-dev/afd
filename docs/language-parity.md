@@ -32,7 +32,7 @@ Versions below describe repository manifests; repository versions alone do not i
 | | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
 | Package | 9 `@lushly-dev/*` packages | `afd` | `afd` crate | `afd-cpp` (`afd::afd`) |
-| Version | 2.5.0 | 0.13.0 | 0.3.0 | 0.3.0 |
+| Version | 2.5.0 | 0.14.0 | 0.3.0 | 0.3.0 |
 | Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
 | Distribution | npm | PyPI | [crates.io](https://crates.io/crates/afd); published 0.3.0 | CMake `FetchContent`, `find_package`, `add_subdirectory`; published [cpp-v0.3.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.3.0) |
 | Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, MCP server (the `mcp` SDK's `MCPServer`), client, DirectClient, CLI, auth (`afd.auth`), testing, platform and connectors | Core library, validating registry, batch, pipeline and stream executors, bootstrap commands, optional MCP server (`server` feature), approval-aware in-process `DirectClient`. No remote client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors, commands as MCP tools (`afd/mcp.hpp`), and an opt-in MCP stdio server (`afd::mcp_stdio`). No client |
