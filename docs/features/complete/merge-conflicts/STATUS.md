@@ -1,6 +1,6 @@
 # Merge conflicts: status
 
-Epic: [#1598](https://github.com/lushly-dev/afd/issues/1598), closed on 2026-11-27 when the feature moved to `docs/features/complete/` ([#2886](https://github.com/lushly-dev/afd/pull/2886)). Its five pull requests and the three follow-ups the owner agreed have merged. Still open, outside the epic: [#2876](https://github.com/lushly-dev/afd/issues/2876) and [#2879](https://github.com/lushly-dev/afd/issues/2879), and the two follow-ups below that are the owner's call. New work in this area is its own issue.
+Epic: [#1598](https://github.com/lushly-dev/afd/issues/1598), closed on 2026-11-27 when the feature moved to `docs/features/complete/` ([#2886](https://github.com/lushly-dev/afd/pull/2886)). Its five pull requests and the three follow-ups the owner agreed have merged. Still open, outside the epic: [#2876](https://github.com/lushly-dev/afd/issues/2876), [#2879](https://github.com/lushly-dev/afd/issues/2879) and [#2892](https://github.com/lushly-dev/afd/issues/2892) (filed from a follow-up below). New work in this area is its own issue.
 
 Progress on the [plan](merge-conflicts.plan.md). This file is kept in the shape the plan argues
 for:
@@ -10,7 +10,7 @@ for:
   line and no other.
 - No sentence summarizes the lines ("1 to 3 done"): read each line's state.
 - "Merged" means on `main`, with the pull request linked. A pull request marks its own line before
-  it merges, so the line links the pull request, where GitHub shows the squash commit.
+  it merges, so the line links the pull request, where GitHub shows the commit that landed.
 
 ## Pull requests
 
@@ -31,7 +31,8 @@ for:
   1,500 over five documents. The 1-week measurement ran on 2026-11-26: see Measure. The feature
   archive and epic closeout ([#2286](https://github.com/lushly-dev/afd/issues/2286)) merged in [#2886](https://github.com/lushly-dev/afd/pull/2886). Left: nothing.
 
-- **5, merge queue.** On for `main` since 2026-11-19: a ruleset that squashes and requires
+- **5, merge queue.** On for `main` since 2026-11-19: a ruleset that rebases (it squashed until
+  2026-11-22, when [#1809](https://github.com/lushly-dev/afd/issues/1809) switched it to rebase so that the owner authors what lands) and requires
   `ci-ok` on the queue's commit. In three parts. [#1615](https://github.com/lushly-dev/afd/pull/1615): CI answers on a merge group (the
   trigger, the path gate, commit credit and the verdict on the queue's commit). [#1627](https://github.com/lushly-dev/afd/pull/1627): the
   factory's lane and gateway enqueue; the live lane was restarted on that code before the queue
@@ -107,5 +108,5 @@ The queue adds a measure the baseline had none of: it removed these 100 pull req
 | --- | --- | --- | --- |
 | 2026-11-26 | The 1-week measurement | Loam's session-log tables take every session's row at the same end, the file's most frequent conflict (20 of 89 base-syncs). Give each row its own insertion point, as Changesets did for the changelogs | Filed as [#2665](https://github.com/lushly-dev/afd/issues/2665): the owner agreed on 2026-11-26. Merged in [#2845](https://github.com/lushly-dev/afd/pull/2845): one file per session in Loam's and Umbel's `sessions/`; a scripted trial merged and rebased two sessions cleanly in both orders, where two table rows conflicted in all four |
 | 2026-11-26 | The 1-week measurement | `foundations/specimen/CHANGELOG.md` is hand-written under `## Unreleased` (6 conflicts); `packages/rust/CHANGELOG.md` likewise (2) | Filed as [#2666](https://github.com/lushly-dev/afd/issues/2666) (Specimen) and [#2667](https://github.com/lushly-dev/afd/issues/2667) (Rust): the owner agreed on 2026-11-26. Merged in [#2877](https://github.com/lushly-dev/afd/pull/2877) (Specimen; `pnpm check:tracks` refuses the section in any published package's changelog) and [#2882](https://github.com/lushly-dev/afd/pull/2882) (Rust, a `rust` track). `violet-elements` holds the same section, filed as [#2876](https://github.com/lushly-dev/afd/issues/2876); `packages/cpp/CHANGELOG.md` would be one more track, filed as [#2879](https://github.com/lushly-dev/afd/issues/2879). Both are outside what the owner agreed, so they stand on their own |
-| 2026-11-26 | The 1-week measurement | The plan's merge count reads 0 for any window after [#1901](https://github.com/lushly-dev/afd/pull/1901). A later measurement counts base-syncs from pushed heads, as Measure does, and the queue's `merge_conflict` removals | Not filed: the owner's call |
-| 2026-11-26 | The 1-week measurement's review | Pull request 5's line above says the ruleset squashes; the queue rebases now (`prepare-pr`'s step 9) | Not filed: the owner's call |
+| 2026-11-26 | The 1-week measurement | The plan's merge count reads 0 for any window after [#1901](https://github.com/lushly-dev/afd/pull/1901). A later measurement counts base-syncs from pushed heads, as Measure does, and the queue's `merge_conflict` removals | Filed as [#2892](https://github.com/lushly-dev/afd/issues/2892), standalone: the owner chose on 2026-11-27 |
+| 2026-11-26 | The 1-week measurement's review | Pull request 5's line above said the ruleset squashes; the queue rebases now (`prepare-pr`'s step 9) | Fixed in place on 2026-11-27, at the owner's choice: the line now says it rebases |
