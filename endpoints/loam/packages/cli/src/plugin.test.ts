@@ -207,6 +207,26 @@ describe('loam plugin check', () => {
 		expect(codes(await pluginCheck({ dir: link }))).toEqual([]);
 	});
 
+	it('refuses a file whose path is longer than 768 bytes, in a source and in a directory bundle', async () => {
+		const { dir } = await source();
+		const out = join(await temporaryDirectory(), 'bundle');
+		expect((await pluginPack({ dir, out })).out).toBe(out);
+		// Each segment within 255 bytes; the whole bundle path, 816, past the 768-byte bound.
+		const long = `apps/mailapp/${['a', 'b', 'c', 'd'].map((c) => c.repeat(200)).join('/')}`;
+		expect(Buffer.byteLength(long)).toBeGreaterThan(768);
+		// A bundle's whole directory is listed too (rule 6), so it names the path a second time from the root.
+		for (const [root, keys] of [
+			[dir, ['apps[1].path']],
+			[out, ['(root)', 'apps[1].path']],
+		] as const) {
+			await write(root, long, 'x');
+			const refused = await pluginCheck({ dir: root });
+			expect(codes(refused).sort(), root).toEqual(keys.map((key) => `PLUGIN_PATH_ESCAPE ${key}`));
+			for (const { message } of refused.refusals)
+				expect(message).toContain('is longer than 768 bytes of UTF-8');
+		}
+	});
+
 	it('refuses a FIFO, where the file system has one', async () => {
 		// Windows has no FIFO in its file system (its named pipes live under `\\.\pipe\`), and the
 		// `mkfifo` found there is Git Bash's, which writes a regular file Node reads as one (#2790).
@@ -248,6 +268,12 @@ describe('loam plugin check', () => {
 			['apps/a', 'apps/a.txt', 'apps/A/b'],
 			['apps/a', 'apps/a/b'],
 			['apps/mail/A', 'apps/mail/a.txt', 'apps/mail/a/b'],
+			// Folded fully: a final sigma and a sigma, a long s and an s, and ẞ, ß and ss. NTFS upper-cases simply and keeps ß
+			// and ss apart; APFS folds them to one name, so a bundle may hold only one of them.
+			['apps/mail/a\u03a3', 'apps/mail/a\u03c3'],
+			['apps/mail/s', 'apps/mail/\u017f'],
+			['apps/mail/stra\u00dfe', 'apps/mail/STRASSE'],
+			['apps/mail/\u1e9e', 'apps/mail/\u00df'],
 		]) {
 			expect(collisionRefusals(paths), paths.join(' ')).toHaveLength(1);
 		}
@@ -324,9 +350,15 @@ describe('loam plugin check', () => {
 		expect(codes(await pluginCheck({ dir: join(root, 'gone') }))[0]).toMatch(
 			/^PLUGIN_MANIFEST_MISSING/
 		);
+		// A `.loam-plugin` file is read as an archive (step 9a2), and refused when it is not one; another file is no bundle.
 		await write(root, 'mail.loam-plugin', 'PK');
-		const file = await pluginCheck({ dir: join(root, 'mail.loam-plugin') });
-		expect(file.refusals[0]?.message).toMatch(/9a2/);
+		expect(codes(await pluginCheck({ dir: join(root, 'mail.loam-plugin') }))).toEqual([
+			'PLUGIN_MANIFEST_INVALID (archive)',
+		]);
+		await write(root, 'mail.zip', 'PK');
+		const file = await pluginCheck({ dir: join(root, 'mail.zip') });
+		expect(codes(file)[0]).toMatch(/^PLUGIN_MANIFEST_MISSING/);
+		expect(file.refusals[0]?.message).toMatch(/not a directory or a `\.loam-plugin` archive/);
 		expect(codes(await pluginCheck({ dir: root }))[0]).toMatch(/^PLUGIN_MANIFEST_MISSING/);
 		await write(root, 'loam-plugin.toml', '');
 		await write(root, 'plugin-manifest.json', '{}');

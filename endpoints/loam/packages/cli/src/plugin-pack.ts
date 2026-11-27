@@ -1,16 +1,28 @@
 /**
  * @fileoverview `loam plugin pack`: `plugin check` over a plugin's source, then a directory bundle the desktop installs
  * (phase 5 no-terminal amendment, 4.1 and 10): `plugin-manifest.json`, each packed app and each engine artifact,
- * nothing else. The bundle is checked again as written, and its digest reported. A `.loam-plugin` archive is step
- * 9a2's.
+ * nothing else. The bundle is checked again as written, and its digest reported. With `--out <name>.loam-plugin` the
+ * checked bundle is written as an archive instead (step 9a2), which is checked again as read back, to the same digest.
  */
 
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import {
+	chmod,
+	lstat,
+	mkdir,
+	readdir,
+	readFile,
+	realpath,
+	rename,
+	rm,
+	writeFile,
+} from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import type { Finding } from './check.js';
+import { archiveOf, checkPluginArchive, PLUGIN_ARCHIVE_EXTENSION } from './plugin-archive.js';
 import {
+	PLUGIN_BUNDLE_LIMITS,
 	PLUGIN_MANIFEST,
 	type PluginCheckReport,
 	packedManifestText,
@@ -21,7 +33,7 @@ import { copyListed, isWithin, realish } from './tree.js';
 export interface PluginPackOptions {
 	/** The plugin's source, holding `loam-plugin.toml`; the working directory when left out. */
 	dir?: string;
-	/** The bundle directory to write. */
+	/** The bundle directory to write, or a `.loam-plugin` archive. */
 	out: string;
 }
 
@@ -53,6 +65,7 @@ export const packRecordOf = (out: string): string =>
  */
 async function replaceableBundle(out: string): Promise<boolean> {
 	if (!existsSync(out)) return true;
+	if (out.endsWith(PLUGIN_ARCHIVE_EXTENSION)) return replaceableArchive(out);
 	const names = await readdir(out).catch(() => undefined);
 	if (names === undefined) return false;
 	if (names.length === 0) return true;
@@ -67,6 +80,36 @@ async function replaceableBundle(out: string): Promise<boolean> {
 	return bundle.ok && bundle.form === 'bundle' && bundle.bundleSha256 === recorded;
 }
 
+/** An archive at `out` is replaced only when it is the one this command wrote, unchanged, as its record shows. */
+async function replaceableArchive(out: string): Promise<boolean> {
+	const stats = await lstat(out).catch(() => undefined);
+	if (!stats?.isFile()) return false;
+	let recorded: unknown;
+	try {
+		recorded = (JSON.parse(await readFile(packRecordOf(out), 'utf8')) as { bundleSha256?: unknown })
+			.bundleSha256;
+	} catch {
+		return false;
+	}
+	const archive = await checkPluginArchive(out, pluginCheck, PLUGIN_BUNDLE_LIMITS);
+	return archive.ok && archive.bundleSha256 === recorded;
+}
+
+/** The checked bundle in `staging`, written as an archive beside `--out` and read back to the digest it was written with. */
+async function stageArchive(
+	staging: string,
+	report: PluginCheckReport
+): Promise<{ archive: string; written: PluginCheckReport }> {
+	const paths = [PLUGIN_MANIFEST, ...(report.files ?? []).map(({ path }) => path)];
+	const files = await Promise.all(
+		paths.map(async (path) => ({ path, data: await readFile(join(staging, ...path.split('/'))) }))
+	);
+	const engines = new Set((report.engines ?? []).map(({ path }) => path));
+	const archive = `${staging}${PLUGIN_ARCHIVE_EXTENSION}`;
+	await writeFile(archive, archiveOf(files, engines), { flag: 'wx' });
+	return { archive, written: await checkPluginArchive(archive, pluginCheck, PLUGIN_BUNDLE_LIMITS) };
+}
+
 export async function pluginPack(options: PluginPackOptions): Promise<PluginPackResult> {
 	const root = await realish(options.dir ?? '.');
 	const out = await realish(resolve(options.out));
@@ -76,6 +119,16 @@ export async function pluginPack(options: PluginPackOptions): Promise<PluginPack
 		files: [],
 	});
 	if (!report.ok || !report.manifest || !report.files) return refused();
+	// A link at `--out` is followed to what it names; one that names nothing is refused, never replaced.
+	const named = await lstat(resolve(options.out)).catch(() => undefined);
+	if (named?.isSymbolicLink() && !(await realpath(resolve(options.out)).catch(() => undefined))) {
+		return refused(
+			outInvalid(
+				'`--out` is a symbolic link that leads to nothing.',
+				'Name the bundle or archive itself, or a link to one that exists.'
+			)
+		);
+	}
 	if (report.form !== 'source') {
 		return refused({
 			code: 'PLUGIN_MANIFEST_INVALID',
@@ -96,8 +149,8 @@ export async function pluginPack(options: PluginPackOptions): Promise<PluginPack
 	if (!(await replaceableBundle(out))) {
 		return refused(
 			outInvalid(
-				'`--out` holds files `loam plugin pack` did not write, or a bundle that changed since it wrote it.',
-				'Choose an empty directory; a bundle `loam plugin pack` wrote there, unchanged, is replaced.'
+				'`--out` holds files `loam plugin pack` did not write, or a bundle or archive that changed since it wrote it.',
+				'Choose an empty directory or a new `.loam-plugin` name; a bundle or archive `loam plugin pack` wrote there, unchanged, is replaced.'
 			)
 		);
 	}
@@ -107,8 +160,10 @@ export async function pluginPack(options: PluginPackOptions): Promise<PluginPack
 		dirname(out),
 		`.${basename(out)}.loam-pack-${randomBytes(6).toString('hex')}`
 	);
+	const asArchive = out.endsWith(PLUGIN_ARCHIVE_EXTENSION);
 	const failed = async (refusals: Finding[]): Promise<PluginPackResult> => {
 		await rm(staging, { recursive: true, force: true });
+		await rm(`${staging}${PLUGIN_ARCHIVE_EXTENSION}`, { force: true });
 		return { report: { ...report, ok: false, refusals }, files: [] };
 	};
 	let written: PluginCheckReport;
@@ -126,6 +181,11 @@ export async function pluginPack(options: PluginPackOptions): Promise<PluginPack
 		}
 		// What was written is what the desktop's inspect reads: check it as a bundle, and as the source checked.
 		written = await pluginCheck({ dir: staging });
+		// An archive is written from the checked directory, and read back and checked as the desktop reads one.
+		if (asArchive && written.ok && written.bundleSha256 === report.bundleSha256) {
+			const staged = await stageArchive(staging, written);
+			written = staged.written;
+		}
 	} catch (cause) {
 		return failed([
 			{
@@ -156,11 +216,18 @@ export async function pluginPack(options: PluginPackOptions): Promise<PluginPack
 			`${JSON.stringify({ written_by: 'loam plugin pack', bundleSha256: written.bundleSha256 }, null, '\t')}\n`
 		);
 		await rm(packRecordOf(out), { force: true });
-		await rm(out, { recursive: true, force: true });
-		await rename(staging, out);
+		if (asArchive) {
+			// A file replaces a file in one rename, so `--out` is the earlier archive or this one, never neither.
+			await rename(`${staging}${PLUGIN_ARCHIVE_EXTENSION}`, out);
+			await rm(staging, { recursive: true, force: true });
+		} else {
+			await rm(out, { recursive: true, force: true });
+			await rename(staging, out);
+		}
 		await rename(record, packRecordOf(out));
 	} catch (cause) {
 		await rm(record, { force: true });
+		await rm(`${staging}${PLUGIN_ARCHIVE_EXTENSION}`, { force: true });
 		return failed([
 			{
 				code: 'PLUGIN_PACK_FAILED',

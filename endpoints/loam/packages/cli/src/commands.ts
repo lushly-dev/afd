@@ -189,7 +189,7 @@ export const pluginCheckCommand = defineCommand({
 	name: 'plugin-check',
 	title: 'Check a plugin',
 	description:
-		"Check a plugin's source or packed bundle: its manifest, its packed apps, its engines' SHA-256s and its bounds, running none of its code.",
+		"Check a plugin's source, packed bundle or .loam-plugin archive: its manifest, its packed apps, its engines' SHA-256s and its bounds, running none of its code.",
 	input: z.object({ dir: z.string().optional() }),
 	mutation: false,
 	expose: EXPOSE,
@@ -206,7 +206,7 @@ export const pluginPackCommand = defineCommand({
 	name: 'plugin-pack',
 	title: 'Pack a plugin',
 	description:
-		"Check a plugin's source, then write the directory bundle the desktop installs: its manifest, packed apps and engines.",
+		"Check a plugin's source, then write the bundle the desktop installs, as a directory or a .loam-plugin archive: its manifest, packed apps and engines.",
 	input: z.object({ dir: z.string().optional(), out: z.string() }),
 	mutation: true,
 	expose: EXPOSE,
