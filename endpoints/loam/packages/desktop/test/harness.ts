@@ -80,6 +80,18 @@ export function desktopDeployment(apps: string[] = []): string {
 	].join('\n');
 }
 
+export interface CallOptions {
+	timeoutMs?: number;
+	signal?: AbortSignal;
+}
+
+export interface PageJobState {
+	status: 'pending' | 'done' | 'failed' | 'missing';
+	value?: string;
+	/** Named `failureMessage`, never `error`: WebDriver treats any top-level `error` key as a protocol failure. */
+	failureMessage?: string;
+}
+
 export interface Desktop {
 	browser: Browser;
 	/** The app's and the drivers' stderr, a line each, the invoke key redacted; and Tauri's key refusals, counted. */
@@ -88,11 +100,160 @@ export interface Desktop {
 	data: string;
 	/** Milliseconds from the session's request to stage A's paint (`data-loam-host` and `loam-stage-b`). */
 	coldStartMs: number;
-	call(name: string, input?: unknown): Promise<CommandResultLike>;
-	agentCall(name: string, input?: unknown): Promise<CommandResultLike>;
+	call(name: string, input?: unknown, options?: CallOptions): Promise<CommandResultLike>;
+	agentCall(name: string, input?: unknown, options?: CallOptions): Promise<CommandResultLike>;
 	/** Waits for the shell after a reload. */
 	ready(): Promise<void>;
 	close(): Promise<void>;
+}
+
+export interface ScriptExecutor {
+	execute(script: (jobId: number) => unknown, jobId: number): Promise<unknown>;
+}
+
+/**
+ * Polls an in-page async job started by a synchronous `browser.execute(...)` call (`POST /execute/sync`).
+ *
+ * WebKitWebDriver on Linux intermittently hangs forever on `POST /execute/async` (the path WebdriverIO
+ * selects whenever an `async` function is passed to `browser.execute`) and wedges every later command in
+ * the session (#2656). Starting the work in one synchronous execute call and polling its slot on `window`
+ * avoids `execute/async` altogether and tells a stalled kernel call apart from a hung WebDriver.
+ */
+export async function pollPageJob(
+	browser: ScriptExecutor,
+	start: () => Promise<number>,
+	options: { label: string; timeoutMs?: number; pollMs?: number; signal?: AbortSignal }
+): Promise<string> {
+	if (options.signal?.aborted) {
+		throw new Error(`${options.label} aborted before starting in the page`);
+	}
+	const timeoutMs = options.timeoutMs ?? 120_000;
+	const basePollMs = options.pollMs ?? 25;
+	const deadline = Date.now() + timeoutMs;
+	const cleanup = (jobId: number) =>
+		browser
+			.execute((id: number) => {
+				(window as unknown as { __loamJobs?: Map<number, PageJobState> }).__loamJobs?.delete(id);
+			}, jobId)
+			.catch(() => undefined);
+	const raceBudget = <T>(
+		promise: Promise<T>,
+		stage: 'start' | 'poll',
+		onCancel?: () => void
+	): Promise<T> => {
+		const remaining = deadline - Date.now();
+		if (options.signal?.aborted) {
+			onCancel?.();
+			return Promise.reject(
+				new Error(`${options.label} aborted while waiting on WebDriver ${stage}`)
+			);
+		}
+		if (remaining <= 0) {
+			onCancel?.();
+			return Promise.reject(
+				new Error(`${options.label} timed out waiting on WebDriver ${stage} after ${timeoutMs} ms`)
+			);
+		}
+		return new Promise<T>((resolve, reject) => {
+			let settled = false;
+			const finish = (fn: () => void) => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timer);
+				options.signal?.removeEventListener('abort', onAbort);
+				fn();
+			};
+			const onAbort = () =>
+				finish(() => {
+					onCancel?.();
+					reject(new Error(`${options.label} aborted while waiting on WebDriver ${stage}`));
+				});
+			const timer = setTimeout(
+				() =>
+					finish(() => {
+						onCancel?.();
+						reject(
+							new Error(
+								`${options.label} timed out waiting on WebDriver ${stage} after ${timeoutMs} ms`
+							)
+						);
+					}),
+				remaining
+			);
+			options.signal?.addEventListener('abort', onAbort, { once: true });
+			promise.then(
+				(value) => finish(() => resolve(value)),
+				(cause) => finish(() => reject(cause))
+			);
+		});
+	};
+	const sleepBudget = (ms: number): Promise<void> => {
+		const wait = Math.min(ms, Math.max(0, deadline - Date.now()));
+		if (wait <= 0) return Promise.resolve();
+		return new Promise<void>((resolve) => {
+			const onAbort = () => {
+				clearTimeout(timer);
+				resolve();
+			};
+			const timer = setTimeout(() => {
+				options.signal?.removeEventListener('abort', onAbort);
+				resolve();
+			}, wait);
+			options.signal?.addEventListener('abort', onAbort, { once: true });
+		});
+	};
+
+	let startCancelled = false;
+	const startPromise = start();
+	// If `start()` finishes after timeout/abort, delete the late job id best-effort.
+	void startPromise.then(
+		(lateId) => {
+			if (startCancelled) void cleanup(lateId);
+		},
+		() => undefined
+	);
+	const id = await raceBudget(startPromise, 'start', () => {
+		startCancelled = true;
+	});
+
+	let attempts = 0;
+	for (;;) {
+		if (options.signal?.aborted) {
+			void cleanup(id);
+			throw new Error(`${options.label} aborted while pending in the page`);
+		}
+		if (attempts > 0 && Date.now() >= deadline) {
+			await cleanup(id);
+			throw new Error(`${options.label} did not settle in the page within ${timeoutMs} ms`);
+		}
+		const state = (await raceBudget(
+			browser.execute((jobId: number): PageJobState => {
+				const jobs = (window as unknown as { __loamJobs?: Map<number, PageJobState> }).__loamJobs;
+				const entry = jobs?.get(jobId);
+				if (!entry) return { status: 'missing' };
+				if (entry.status !== 'pending') jobs?.delete(jobId);
+				return entry;
+			}, id),
+			'poll',
+			() => {
+				void cleanup(id);
+			}
+		)) as PageJobState;
+		if (state.status === 'done') return state.value ?? '';
+		if (state.status === 'failed')
+			throw new Error(state.failureMessage ?? `${options.label} failed`);
+		if (state.status === 'missing') {
+			throw new Error(
+				`${options.label} lost its in-page job ${id} (the page reloaded or navigated while it was pending)`
+			);
+		}
+		if (Date.now() >= deadline) {
+			await cleanup(id);
+			throw new Error(`${options.label} did not settle in the page within ${timeoutMs} ms`);
+		}
+		attempts += 1;
+		await sleepBudget(attempts <= 5 ? 5 : basePollMs);
+	}
 }
 
 export interface CommandResultLike {
@@ -182,22 +343,48 @@ export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
 				(await browser.execute(() => document.documentElement.dataset.loamHost ?? null)) !== null,
 			{ timeout: 30_000, interval: 15 }
 		);
-		await browser.execute(async () => {
-			const shell = document.querySelector('loam-shell') as unknown as {
-				ready?: Promise<void>;
-				booted?: boolean;
-			} | null;
-			await shell?.ready;
-			if (shell?.booted) {
-				await new Promise<void>((resolve) => {
-					const check = () =>
-						performance.getEntriesByName('loam-stage-b').length > 0
-							? resolve()
-							: setTimeout(check, 5);
-					check();
-				});
-			}
-		});
+		let readyFailure: string | undefined;
+		await browser.waitUntil(
+			async () => {
+				const state = (await browser.execute(() => {
+					const shell = document.querySelector('loam-shell') as
+						| (Element & {
+								ready?: Promise<void>;
+								booted?: boolean;
+								__loamReadyHooked?: boolean;
+								__loamReadyDone?: boolean;
+								__loamReadyFailure?: string;
+						  })
+						| null;
+					if (!shell || !shell.ready) return { done: true };
+					if (!shell.__loamReadyHooked) {
+						shell.__loamReadyHooked = true;
+						void shell.ready.then(
+							() => {
+								shell.__loamReadyDone = true;
+							},
+							(cause: unknown) => {
+								shell.__loamReadyFailure = cause instanceof Error ? cause.message : String(cause);
+							}
+						);
+					}
+					// Use `failureMessage` (never `error`): WebDriver treats a top-level `error` key as a protocol failure.
+					if (shell.__loamReadyFailure !== undefined)
+						return { done: true, failureMessage: shell.__loamReadyFailure };
+					if (!shell.__loamReadyDone) return { done: false };
+					return {
+						done: !shell.booted || performance.getEntriesByName('loam-stage-b').length > 0,
+					};
+				})) as { done?: boolean; failureMessage?: string };
+				if (state.failureMessage !== undefined) {
+					readyFailure = state.failureMessage;
+					return true;
+				}
+				return state.done === true;
+			},
+			{ timeout: 30_000, interval: 15 }
+		);
+		if (readyFailure !== undefined) throw new Error(readyFailure);
 	};
 	if (!options.raw) {
 		try {
@@ -211,35 +398,70 @@ export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
 	const coldStartMs = performance.now() - began;
 	const run =
 		(agent: boolean) =>
-		async (name: string, input: unknown = {}): Promise<CommandResultLike> => {
+		async (
+			name: string,
+			input: unknown = {},
+			callOptions: CallOptions = {}
+		): Promise<CommandResultLike> => {
 			// As JSON text: a value with a top-level `error` reads as WebDriver's own error to its client.
-			const text = await browser.execute(
-				async (name, input, agent) => {
-					const shell = document.querySelector('loam-shell') as unknown as {
-						kernel: {
-							call(name: string, input: unknown): Promise<unknown>;
-							agent: { call(name: string, input: unknown): Promise<unknown> };
-						};
-					};
-					// A call that throws answers as a failure with its code, as the console shows it.
-					try {
-						return JSON.stringify(
-							await (agent ? shell.kernel.agent : shell.kernel).call(name, input)
-						);
-					} catch (error) {
-						const { code, message } = error as { code?: unknown; message?: unknown };
-						return JSON.stringify({
-							success: false,
-							thrown: true,
-							error: { code: String(code ?? ''), message: String(message ?? error) },
-						});
-					}
-				},
-				name,
-				input,
-				agent
+			const text = await pollPageJob(
+				browser,
+				() =>
+					browser.execute(
+						(name: string, input: unknown, agent: boolean): number => {
+							const holder = window as unknown as {
+								__loamJobs?: Map<number, PageJobState>;
+								__loamJobSeq?: number;
+							};
+							holder.__loamJobs ??= new Map();
+							const id = (holder.__loamJobSeq ?? 0) + 1;
+							holder.__loamJobSeq = id;
+							const entry: PageJobState = { status: 'pending' };
+							holder.__loamJobs.set(id, entry);
+							const shell = document.querySelector('loam-shell') as unknown as {
+								kernel: {
+									call(name: string, input: unknown): Promise<unknown>;
+									agent: { call(name: string, input: unknown): Promise<unknown> };
+								};
+							};
+							// Mutate `entry` in place so a completion after cleanup never re-inserts a deleted id.
+							// A call that throws answers as a failure with its code, as the console shows it.
+							void Promise.resolve()
+								.then(() => (agent ? shell.kernel.agent : shell.kernel).call(name, input))
+								.then(
+									(result) => {
+										entry.status = 'done';
+										entry.value = JSON.stringify(result);
+									},
+									(cause: unknown) => {
+										const details =
+											cause !== null && typeof cause === 'object'
+												? (cause as { code?: unknown; message?: unknown })
+												: {};
+										entry.status = 'done';
+										entry.value = JSON.stringify({
+											success: false,
+											thrown: true,
+											error: {
+												code: String(details.code ?? ''),
+												message: String(details.message ?? cause),
+											},
+										});
+									}
+								);
+							return id;
+						},
+						name,
+						input,
+						agent
+					),
+				{
+					label: `${agent ? 'agent ' : ''}${name}`,
+					...(callOptions.timeoutMs !== undefined ? { timeoutMs: callOptions.timeoutMs } : {}),
+					...(callOptions.signal !== undefined ? { signal: callOptions.signal } : {}),
+				}
 			);
-			return JSON.parse(text as string) as CommandResultLike;
+			return JSON.parse(text) as CommandResultLike;
 		};
 	return {
 		browser,
@@ -268,29 +490,59 @@ export function pageText(browser: Browser): Promise<string> {
 }
 
 /** Every record of every IndexedDB database, and `localStorage`, as JSON. */
-export function storedText(browser: Browser): Promise<string> {
-	return browser.execute(async () => {
-		const out: unknown[] = [];
-		for (const { name } of await indexedDB.databases()) {
-			if (!name) continue;
-			const db = await new Promise<IDBDatabase>((resolve, reject) => {
-				const request = indexedDB.open(name);
-				request.onsuccess = () => resolve(request.result);
-				request.onerror = () => reject(request.error);
-			});
-			for (const store of Array.from(db.objectStoreNames)) {
-				const rows = await new Promise<unknown[]>((resolve, reject) => {
-					const request = db.transaction(store).objectStore(store).getAll();
-					request.onsuccess = () => resolve(request.result);
-					request.onerror = () => reject(request.error);
-				});
-				out.push({ name, store, rows });
-			}
-			db.close();
+export function storedText(browser: Browser, options: CallOptions = {}): Promise<string> {
+	return pollPageJob(
+		browser,
+		() =>
+			browser.execute((): number => {
+				const holder = window as unknown as {
+					__loamJobs?: Map<number, PageJobState>;
+					__loamJobSeq?: number;
+				};
+				holder.__loamJobs ??= new Map();
+				const id = (holder.__loamJobSeq ?? 0) + 1;
+				holder.__loamJobSeq = id;
+				const entry: PageJobState = { status: 'pending' };
+				holder.__loamJobs.set(id, entry);
+				void (async () => {
+					const out: unknown[] = [];
+					for (const { name } of await indexedDB.databases()) {
+						if (!name) continue;
+						const db = await new Promise<IDBDatabase>((resolve, reject) => {
+							const request = indexedDB.open(name);
+							request.onsuccess = () => resolve(request.result);
+							request.onerror = () => reject(request.error);
+						});
+						for (const store of Array.from(db.objectStoreNames)) {
+							const rows = await new Promise<unknown[]>((resolve, reject) => {
+								const request = db.transaction(store).objectStore(store).getAll();
+								request.onsuccess = () => resolve(request.result);
+								request.onerror = () => reject(request.error);
+							});
+							out.push({ name, store, rows });
+						}
+						db.close();
+					}
+					out.push({ localStorage: { ...localStorage } });
+					return JSON.stringify(out);
+				})().then(
+					(value) => {
+						entry.status = 'done';
+						entry.value = value;
+					},
+					(cause: unknown) => {
+						entry.status = 'failed';
+						entry.failureMessage = cause instanceof Error ? cause.message : String(cause);
+					}
+				);
+				return id;
+			}),
+		{
+			label: 'storedText',
+			...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+			...(options.signal !== undefined ? { signal: options.signal } : {}),
 		}
-		out.push({ localStorage: { ...localStorage } });
-		return JSON.stringify(out);
-	});
+	);
 }
 
 /** Starts collecting CSP violations in the main frame; read them with `violations`. */

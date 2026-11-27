@@ -15,8 +15,9 @@ import {
 	UNIT_PROMPT,
 } from './context.js';
 import { createInProcessLauncher } from './in-process.js';
+import { ModelPort } from './ports.js';
 import { createTestProvider, NO_SCRIPT } from './test-provider.js';
-import type { RuntimePortsV1 } from './types.js';
+import type { PortLike, RuntimePortsV1 } from './types.js';
 
 const decoder = new TextDecoder();
 
@@ -328,6 +329,40 @@ describe('a turn of the runtime over its ports (4.3)', () => {
 		expect(text).toBe('Two notes.');
 		launcher.reset();
 		for (const channel of [agent, model, panel]) channel.port1.close();
+	});
+
+	it('delivers chunks and done sent synchronously after the stream id without dropping them (#2811)', async () => {
+		const encoder = new TextEncoder();
+		let onMessage: ((event: { data: unknown }) => void) | null = null;
+		const port: PortLike = {
+			get onmessage() {
+				return onMessage;
+			},
+			set onmessage(handler) {
+				onMessage = handler;
+			},
+			postMessage(message: unknown) {
+				const { id, key } = message as { id?: number; key?: string };
+				if (key !== 'send' || typeof id !== 'number') return;
+				onMessage?.({ data: { id, stream: 'mst_sync' } });
+				onMessage?.({
+					data: {
+						key: 'chunk',
+						stream: 'mst_sync',
+						chunk: encoder.encode('data: {"ok":true}\n\n'),
+					},
+				});
+				onMessage?.({ data: { key: 'done', stream: 'mst_sync', status: 200 } });
+			},
+			close() {},
+		};
+		const model = new ModelPort(port);
+		const fetchImpl = model.fetchFor({ id: 'test', kind: 'test', model: 'scripted' });
+		const response = await fetchImpl('https://model.local/v1/messages', {
+			method: 'POST',
+			body: JSON.stringify({ messages: [] }),
+		});
+		expect(await response.text()).toBe('data: {"ok":true}\n\n');
 	});
 });
 

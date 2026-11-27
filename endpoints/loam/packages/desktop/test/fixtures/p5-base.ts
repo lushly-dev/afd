@@ -24,7 +24,15 @@ import {
 	writeMailfixPackages,
 } from '../../../kernel/scenarios/host-seed.ts';
 import type { ScenarioHost, ScenarioScope } from '../../../kernel/scenarios/runner.ts';
-import { type Desktop, desktopDeployment, LOAM, packApp, untilInstance } from '../harness';
+import {
+	type Desktop,
+	desktopDeployment,
+	LOAM,
+	type PageJobState,
+	packApp,
+	pollPageJob,
+	untilInstance,
+} from '../harness';
 import { restrict } from './owner-only';
 import { SCENARIO_MODEL, type ScenarioModel } from './scenario-model';
 
@@ -87,43 +95,72 @@ interface InPageCall {
 
 /**
  * A call in the app's webview, as plain data. A call that throws answers as a failure whose code is `THROWN:<code>`,
- * which no scenario expects, so a throw fails its step here as it fails the kernel's units.
+ * which no scenario expects, so a throw fails its step here as it fails the kernel's units. Runs over `pollPageJob`
+ * (`POST /execute/sync`) so long copilot turns never depend on WebKitWebDriver's `execute/async` path (#2656, #2811).
  */
 export async function inApp(desktop: Desktop, call: InPageCall): Promise<CommandResult<unknown>> {
 	// As JSON text: a value with a top-level `error` reads as WebDriver's own error to its client.
-	const text = await desktop.browser.execute(async (call: InPageCall) => {
-		type Port = { call(name: string, input: unknown): Promise<unknown> };
-		const shell = document.querySelector('loam-shell') as unknown as {
-			kernel: {
-				call(name: string, input: unknown, options?: object): Promise<unknown>;
-				agent: { call(name: string, input: unknown, options?: object): Promise<unknown> };
-				appPort(instance: string): Port & { surface(binding: object): Port };
-			};
-		};
-		const { kernel } = shell;
-		const options = call.scope ? { scope: call.scope } : {};
-		try {
-			if (call.kind === 'agent')
-				return JSON.stringify(await kernel.agent.call(call.command, call.input, options));
-			if (call.kind === 'port') {
-				const port = kernel.appPort(call.instance as string);
-				return JSON.stringify(
-					await (call.scope ? port.surface({ scope: call.scope }) : port).call(
-						call.command,
-						call.input
-					)
-				);
-			}
-			return JSON.stringify(await kernel.call(call.command, call.input, options));
-		} catch (error) {
-			const { code, message } = error as { code?: unknown; message?: unknown };
-			return JSON.stringify({
-				success: false,
-				error: { code: `THROWN:${String(code ?? '')}`, message: String(message ?? error) },
-			});
-		}
-	}, call);
-	return JSON.parse(text as string) as CommandResult<unknown>;
+	const text = await pollPageJob(
+		desktop.browser,
+		() =>
+			desktop.browser.execute((call: InPageCall): number => {
+				const holder = window as unknown as {
+					__loamJobs?: Map<number, PageJobState>;
+					__loamJobSeq?: number;
+				};
+				holder.__loamJobs ??= new Map();
+				const id = (holder.__loamJobSeq ?? 0) + 1;
+				holder.__loamJobSeq = id;
+				const entry: PageJobState = { status: 'pending' };
+				holder.__loamJobs.set(id, entry);
+				type Port = { call(name: string, input: unknown): Promise<unknown> };
+				const shell = document.querySelector('loam-shell') as unknown as {
+					kernel: {
+						call(name: string, input: unknown, options?: object): Promise<unknown>;
+						agent: { call(name: string, input: unknown, options?: object): Promise<unknown> };
+						appPort(instance: string): Port & { surface(binding: object): Port };
+					};
+				};
+				const { kernel } = shell;
+				const options = call.scope ? { scope: call.scope } : {};
+				// Mutate `entry` in place so a completion after cleanup never re-inserts a deleted id.
+				void Promise.resolve()
+					.then(() => {
+						if (call.kind === 'agent') return kernel.agent.call(call.command, call.input, options);
+						if (call.kind === 'port') {
+							const port = kernel.appPort(call.instance as string);
+							return (call.scope ? port.surface({ scope: call.scope }) : port).call(
+								call.command,
+								call.input
+							);
+						}
+						return kernel.call(call.command, call.input, options);
+					})
+					.then(
+						(result) => {
+							entry.status = 'done';
+							entry.value = JSON.stringify(result);
+						},
+						(cause: unknown) => {
+							const details =
+								cause !== null && typeof cause === 'object'
+									? (cause as { code?: unknown; message?: unknown })
+									: {};
+							entry.status = 'done';
+							entry.value = JSON.stringify({
+								success: false,
+								error: {
+									code: `THROWN:${String(details.code ?? '')}`,
+									message: String(details.message ?? cause),
+								},
+							});
+						}
+					);
+				return id;
+			}, call),
+		{ label: `${call.kind}:${call.command}`, timeoutMs: 120_000 }
+	);
+	return JSON.parse(text) as CommandResult<unknown>;
 }
 
 /** The runner's host over the app's kernel; `[caller: <instance>, inactive]` opens `checklist`. */

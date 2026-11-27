@@ -127,17 +127,28 @@ function answer(round: Round, response: ServerResponse, turn: number): void {
 	response.end('data: [DONE]\n\n');
 }
 
+export interface ScenarioModelEvent {
+	turn: number;
+	messages: number;
+	outcome: 'tools' | 'text' | 'aborted' | 'error';
+	tools?: string[];
+	durationMs: number;
+}
+
 export interface ScenarioModel {
 	/** The provider's endpoint, `http://127.0.0.1:<port>/v1`. */
 	url: string;
 	/** How many requests it answered or held. */
 	readonly requests: number;
+	/** Structural metadata for each request (no message content), for failure diagnostics (#2811). */
+	readonly trace: readonly ScenarioModelEvent[];
 	close(): Promise<void>;
 }
 
 export async function startScenarioModel(): Promise<ScenarioModel> {
 	const provider = createScenarioProvider();
 	let requests = 0;
+	const trace: ScenarioModelEvent[] = [];
 	const server = createServer((request, response) => {
 		let text = '';
 		request.setEncoding('utf8');
@@ -147,19 +158,35 @@ export async function startScenarioModel(): Promise<ScenarioModel> {
 		request.on('end', async () => {
 			requests += 1;
 			const turn = requests;
+			const began = Date.now();
 			const stop = new AbortController();
 			// The Rust host drops the request on a stop (`model_cancel`): the held round ends with it.
 			response.on('close', () => stop.abort());
 			response.writeHead(200, { 'content-type': 'text/event-stream' });
+			let messages = 0;
 			try {
 				const body = JSON.parse(text) as Record<string, unknown>;
+				messages = Array.isArray(body.messages) ? body.messages.length : 0;
 				const answered = await provider.send(anthropicShape(body), stop.signal);
 				let stream = '';
 				const decoder = new TextDecoder();
 				for await (const part of answered.body) stream += decoder.decode(part, { stream: true });
-				if (stop.signal.aborted) return;
-				answer(roundOf(stream), response, turn);
+				if (stop.signal.aborted) {
+					trace.push({ turn, messages, outcome: 'aborted', durationMs: Date.now() - began });
+					return;
+				}
+				const round = roundOf(stream);
+				const tools = round.tools.filter(Boolean).map((tool) => tool.name);
+				trace.push({
+					turn,
+					messages,
+					outcome: tools.length > 0 ? 'tools' : 'text',
+					...(tools.length > 0 ? { tools } : {}),
+					durationMs: Date.now() - began,
+				});
+				answer(round, response, turn);
 			} catch (cause) {
+				trace.push({ turn, messages, outcome: 'error', durationMs: Date.now() - began });
 				// The turn's reply carries it, so a test fails with the reason in view.
 				if (!response.writableEnded)
 					answer(
@@ -179,6 +206,9 @@ export async function startScenarioModel(): Promise<ScenarioModel> {
 		url: `http://127.0.0.1:${port}/v1`,
 		get requests() {
 			return requests;
+		},
+		get trace() {
+			return trace;
 		},
 		close: () =>
 			new Promise<void>((resolve) => {

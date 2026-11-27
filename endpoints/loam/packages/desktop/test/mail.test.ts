@@ -155,26 +155,31 @@ function pendingNote(): string {
 }
 
 /** `run`, failing once `COMMAND_MS` passes, and every later command at once, rather than waiting out each test. */
-async function bounded<T>(what: string, run: () => Promise<T>): Promise<T> {
+async function bounded<T>(what: string, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
 	if (hung !== undefined)
 		throw new Error(`the WebDriver session stopped answering at ${hung}; ${what} was not sent`);
+	const controller = new AbortController();
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const deadline = new Promise<never>((_, reject) => {
 		timer = setTimeout(() => {
 			hung = what;
+			controller.abort();
 			reject(new Error(`WebDriver did not answer ${what} in ${COMMAND_MS} ms: ${pendingNote()}`));
 		}, COMMAND_MS);
 	});
 	try {
-		return await Promise.race([run(), deadline]);
+		return await Promise.race([run(controller.signal), deadline]);
 	} finally {
 		clearTimeout(timer);
 	}
 }
 
-const call = (name: string, input?: unknown) => bounded(name, () => desktop.call(name, input));
+const call = (name: string, input?: unknown) =>
+	bounded(name, (signal) => desktop.call(name, input, { timeoutMs: COMMAND_MS - 2_000, signal }));
 const agentCall = (name: string, input?: unknown) =>
-	bounded(`${name} as the agent`, () => desktop.agentCall(name, input));
+	bounded(`${name} as the agent`, (signal) =>
+		desktop.agentCall(name, input, { timeoutMs: COMMAND_MS - 2_000, signal })
+	);
 
 /**
  * A new session, and the turn the person's text starts in it, once it settles or waits. Sent without waiting and read
@@ -607,7 +612,9 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 
 	it('P5-A9: no approval token or bearer is in the page, its storage, the site, the app’s log or the engine’s', async () => {
 		const page = await bounded('the page text', () => pageText(desktop.browser));
-		const stored = await bounded('the stored text', () => storedText(desktop.browser));
+		const stored = await bounded('the stored text', (signal) =>
+			storedText(desktop.browser, { timeoutMs: COMMAND_MS - 2_000, signal })
+		);
 		const logged = desktop.stderr.lines.join('\n');
 		// The engine's own log, and every file the deployment wrote for the webview to serve.
 		const engineLogged = engine.stderr.join('\n');
