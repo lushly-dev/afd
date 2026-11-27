@@ -86,7 +86,7 @@ function proseLines(body) {
  * A line reader that says whether a line is a code fence or inside one. A fence closes only on its
  * own character, at least as long: `~~~` inside a backtick fence is text.
  */
-function fences() {
+export function fences() {
 	let open = null;
 	return (line) => {
 		const marker = line.match(/^\s*(`{3,}|~{3,})/)?.[1];

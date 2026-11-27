@@ -39,7 +39,9 @@ This directory contains package-to-semver fragments only. Botcore's own category
 (`botcore changeset-create`, for repositories without Changesets) use separately owned storage.
 See [platform release controls](../docs/operations/platform-releases.md).
 
-- If you changed one or more `@lushly-dev/*` packages, add a changeset.
+- If you changed one or more `@lushly-dev/*` packages, add a changeset. It is the change's only
+  record: Changesets writes each package's `CHANGELOG.md` from it, so never add an `Unreleased`
+  section there by hand (`pnpm check:tracks` fails).
 - If you changed `python/`, `endpoints/botcore/` or `spec/` in a way a user sees, add a fragment
   that names its stub. Never add to `python/CHANGELOG.md`, `endpoints/botcore/CHANGELOG.md` or
   `spec/CHANGELOG.md` by hand: `pnpm check:tracks` fails.

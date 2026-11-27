@@ -13,7 +13,9 @@
  * maintainer's, on the merged release commit (the cut-release skill).
  *
  * `check` fails on a hand edit where a fragment belongs, and on a stub that could publish or that
- * disagrees with the project it versions.
+ * disagrees with the project it versions. A hand edit includes a hand-written `Unreleased` section
+ * in the changelog Changesets writes for a published npm package: the change is recorded twice,
+ * and every pull request inserts at the section's one line (#2666).
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -25,6 +27,7 @@ import { loadInventory, parseFragments, safePath } from './release/control.mjs';
 import {
 	assertTrackEntry,
 	changelogFile,
+	fences,
 	foldContractChangelog,
 	fragmentBody,
 	ignores,
@@ -46,17 +49,34 @@ const read = (root, file) => readFileSync(safePath(root, file), 'utf8');
 const lf = (text) => text.replace(/\r\n/g, '\n');
 /** The digest the contract stub pins: of the changelog as git stores it. */
 export const changelogDigest = (text) => sha256(lf(text));
-/** The workspace's packages with their manifests. */
+/** The workspace's packages with their directories and manifests. */
 const workspacePackages = (root) =>
 	readWorkspace(root).map(({ name, dir }) => ({
 		name,
+		dir: dir.split('\\').join('/'),
 		manifest: json(join(root, dir, 'package.json')),
 	}));
+
+/**
+ * Published packages' changelogs that still hold a hand-written `Unreleased` section, each with the
+ * issue that removes it. An entry fails once its section is gone, so the list only shrinks.
+ */
+export const PENDING_UNRELEASED = {
+	'foundations/fast-af/packages/violet-elements/CHANGELOG.md': '#2876',
+};
+/** The line of a heading that opens with Unreleased (`## [Unreleased]`, `# Unreleased changes`), or 0. */
+export function unreleasedLine(changelog) {
+	const inFence = fences();
+	const index = lf(changelog)
+		.split('\n')
+		.findIndex((line) => !inFence(line) && /^#{1,6}[ \t]*\[?unreleased\b/i.test(line));
+	return index + 1;
+}
 
 // ─── Check ───────────────────────────────────────────────────────────────────
 
 /** Every way the tracks can be wrong, as `{ message, suggestion }`. */
-export function checkTracks({ root, tracks = TRACKS }) {
+export function checkTracks({ root, tracks = TRACKS, pendingUnreleased = PENDING_UNRELEASED }) {
 	const problems = [];
 	const problem = (message, suggestion) => problems.push({ message, suggestion });
 	let inventory;
@@ -104,6 +124,35 @@ export function checkTracks({ root, tracks = TRACKS }) {
 				'Add it: only the track stubs are versioned among private packages'
 			);
 	}
+	for (const { name, dir, manifest } of workspace) {
+		// A track keeps Keep a Changelog with an empty Unreleased, checked below.
+		if (manifest.private || stubs.has(name)) continue;
+		const changelogPath = posix.join(dir, 'CHANGELOG.md');
+		if (!existsSync(join(root, changelogPath))) continue;
+		const line = unreleasedLine(read(root, changelogPath));
+		const issue = pendingUnreleased[changelogPath];
+		if (line && !issue)
+			problem(
+				`${changelogPath}:${line} has a hand-written "Unreleased" section`,
+				`Changesets writes ${name}'s changelog from its fragments: delete the section and record the change only as a file in .changeset/ (prepare-pr step 3)`
+			);
+		else if (!line && issue)
+			problem(
+				`${changelogPath} has no "Unreleased" section, but PENDING_UNRELEASED still lists it (${issue})`,
+				'Remove its entry from PENDING_UNRELEASED in scripts/release-track.mjs'
+			);
+	}
+	for (const [file, issue] of Object.entries(pendingUnreleased))
+		if (
+			!workspace.some(
+				({ name, dir, manifest }) =>
+					!manifest.private && !stubs.has(name) && posix.join(dir, 'CHANGELOG.md') === file
+			)
+		)
+			problem(
+				`PENDING_UNRELEASED lists ${file} (${issue}), which is not a published package's changelog`,
+				'Remove the entry'
+			);
 	for (const pattern of config.ignore ?? []) {
 		// Changesets reads these as globs; this check reads names and `*`, so nothing else may hide
 		// an exception to the list (a `!` pattern would take a package back out of it).
@@ -272,6 +321,7 @@ export function versionTrack({
 	root,
 	name,
 	tracks = TRACKS,
+	pendingUnreleased = PENDING_UNRELEASED,
 	date = new Date().toISOString().slice(0, 10),
 	tools = true,
 	invoke = runChangesetVersion,
@@ -280,7 +330,7 @@ export function versionTrack({
 	const track = tracks[name];
 	if (!track) throw new Error(`Unknown track ${name}; expected ${Object.keys(tracks).join(', ')}`);
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`--date takes YYYY-MM-DD: ${date}`);
-	const problems = checkTracks({ root, tracks });
+	const problems = checkTracks({ root, tracks, pendingUnreleased });
 	if (problems.length)
 		throw new Error(`Fix the tracks first: ${problems.map((entry) => entry.message).join('; ')}`);
 	const fragments = parseFragments(root, loadInventory(root)).filter((fragment) =>

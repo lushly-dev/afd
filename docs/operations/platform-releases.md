@@ -61,7 +61,7 @@ The stubs are not release units of the npm workflow. Their inventory units (`afd
 
 The contract stub's version is not the contract version. `spec/VERSION` (`1.0-rc`) is not semver, which Changesets requires, and changes only through the specification process, so the stub's number merely counts the folds of `spec/CHANGELOG.md`, and no version step writes `spec/VERSION` or a contract constant.
 
-`pnpm check:tracks`, in `pnpm check` and the pre-push hook, fails on an entry under `Unreleased` in the Python or Botcore changelog, on a `spec/CHANGELOG.md` that differs from the digest its stub pins, on a stub that disagrees with `pyproject.toml` or `__version__`, on a stub or inventory unit that could publish, and on a private package missing from the `ignore` list.
+`pnpm check:tracks`, in `pnpm check` and the pre-push hook, fails on an entry under `Unreleased` in the Python or Botcore changelog, on a hand-written `Unreleased` section in a published npm package's `CHANGELOG.md`, which Changesets writes (a removal still pending is listed in `PENDING_UNRELEASED` with its issue), on a `spec/CHANGELOG.md` that differs from the digest its stub pins, on a stub that disagrees with `pyproject.toml` or `__version__`, on a stub or inventory unit that could publish, and on a private package missing from the `ignore` list.
 
 ## Holds and recovery
 
