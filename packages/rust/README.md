@@ -571,6 +571,14 @@ impl HumanRelay for PersonPage {
 let server = McpServer::new(registry, "todo", "1.0.0").with_human_relay(PersonPage);
 ```
 
+A client without URL-mode elicitation is never sent the link. By default its call is
+`CONFIRMATION_REQUIRED`. A relay that keeps a list of the person's pending decisions can implement
+`HumanRelay::pending_list` instead. It returns `PendingListOutcome::Pending(RelayPending::new(id, url,
+list))`, which the agent is told to pass on to the person, or `Approved` once the person has
+decided, after which the same call runs (`spec/command-metadata.md`, "The pending list"). No state
+travels, so the relay's lookup must bind the command, the input digest and
+`RelayCall::principal_binding()`.
+
 A command that outlives a request declares `with_task(TaskSupport::Optional)` (or `Required`;
 `task` in `_meta` and `afd-detail`), and the server then serves it as an MCP task under the Tasks
 extension, `io.modelcontextprotocol/tasks` (`spec/command-metadata.md`, "Tasks"). Only a call to

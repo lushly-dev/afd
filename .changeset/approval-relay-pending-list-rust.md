@@ -1,0 +1,7 @@
+---
+"afd-rust": minor
+---
+
+### Added
+
+- **The relay's pending list for clients without URL-mode elicitation (`server` feature; `spec/command-metadata.md`, "The pending list"; [#2010](https://github.com/lushly-dev/afd/issues/2010)).** `HumanRelay::pending_list(call)` is optional and defaults to `None`, which keeps today's refusal. A relay that answers it is asked only when the client did not declare URL-mode elicitation, after validation and before `begin` or `resume`. `PendingListOutcome::Pending(RelayPending { decision, url, list })` fails the call with `CONFIRMATION_REQUIRED`, `retryable: true`, `recovery: external` and `details: { commands, reason: "pending-list", decision, url, list }`, with a suggestion that names the list first. `Approved { decision_id }` runs the command with the same relay evidence and `approved_context` fields as a resumed approval. `Declined` is `CONFIRMATION_DECLINED`. A decision id that is not 1 to 128 of `[A-Za-z0-9_-]`, or a URL that is not an absolute `https` URL without user information, is an internal error. URL mode is stricter too: a prompt URL with a malformed host or a port outside 1 to 65535, and a `resume` `Approved` whose `decision_id` is not 1 to 128 of `[A-Za-z0-9_-]`, are now internal errors (`spec/command-metadata.md`, the relay's guarantees). `ERROR_CODE_CATALOG` lists `CONFIRMATION_REQUIRED` with `retryable: None` (varies), as `spec/error-codes.md` now does.

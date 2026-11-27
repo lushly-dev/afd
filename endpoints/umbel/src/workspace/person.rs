@@ -1,7 +1,7 @@
 //! What configuration version 7 adds (the Ideas host-review specification, sections 4, 6.1 and
-//! 6.5; D180): `[person]` with `decision_ttl_s`, `[person.local]` with `enabled`, `bind` and
-//! `public_origin` (added later, additively, as D188 adds keys to version 7), and a space's
-//! `verified_levels`.
+//! 6.5; D180): `[person]` with `decision_ttl_s` and `pending_list` (#2010), `[person.local]` with
+//! `enabled`, `bind` and `public_origin` (`pending_list` and `public_origin` added later,
+//! additively, as D188 adds keys to version 7), and a space's `verified_levels`.
 //!
 //! This module parses, validates and stores them, each refusal a `WORKSPACE_CONFIG_INVALID`
 //! naming the key. The person page reads the decision lifetime (that specification's step H2);
@@ -30,7 +30,7 @@ pub(super) const SPACE_KEYS_V7: &[&str] = &[
 ];
 /// What version 7 adds to a space, for the message an older version gives.
 const SPACE_ADDED_V7: &[&str] = &["verified_levels"];
-const PERSON_KEYS: &[&str] = &["decision_ttl_s", "local"];
+const PERSON_KEYS: &[&str] = &["decision_ttl_s", "pending_list", "local"];
 const LOCAL_KEYS: &[&str] = &["enabled", "bind", "public_origin"];
 
 /// The default `person.decision_ttl_s`, in seconds: phase 5's ten minutes.
@@ -86,6 +86,11 @@ pub struct PersonConfig {
     /// `person.decision_ttl_s`: the lifetime of every person decision begun on this host, in
     /// seconds, 60 to 86 400.
     pub decision_ttl_s: u64,
+    /// `person.pending_list`: whether an MCP client without URL-mode elicitation is refused with
+    /// the decision's address and the person's list of pending decisions, and runs the same call
+    /// once the person approves there (`spec/command-metadata.md`, the pending list; #2010).
+    /// Off by default: the link then reaches the person through the agent, not the client.
+    pub pending_list: bool,
     /// `[person.local]`: the local person page.
     pub local: LocalPageConfig,
 }
@@ -94,6 +99,7 @@ impl Default for PersonConfig {
     fn default() -> Self {
         Self {
             decision_ttl_s: DEFAULT_DECISION_TTL_S,
+            pending_list: false,
             local: LocalPageConfig::default(),
         }
     }
@@ -154,6 +160,13 @@ impl ConfigFile {
         let decision_ttl_s = reader
             .integer("decision_ttl_s", ttl_min, ttl_max)?
             .unwrap_or(DEFAULT_DECISION_TTL_S);
+        let pending_list = reader.boolean("pending_list")?.unwrap_or(false);
+        if pending_list && mode == AuthMode::None {
+            return Err(WorkspaceError::config_invalid(
+                "person.pending_list",
+                "needs auth.mode = \"oauth\" or \"gateway\": only a hosted workspace's relay keeps a list for an MCP client, and in mode none the local page already answers with its address",
+            ));
+        }
         let local = match person.get("local") {
             None => LocalPageConfig::default(),
             Some(Value::Table(local)) => local_page(local, mode)?,
@@ -166,6 +179,7 @@ impl ConfigFile {
         };
         Ok(PersonConfig {
             decision_ttl_s,
+            pending_list,
             local,
         })
     }

@@ -67,7 +67,7 @@ export const ERROR_CODE_CATALOG: readonly ErrorCodeInfo[] = [
 	{ code: 'STREAM_ERROR', retryable: 'varies', profile: 'streaming' },
 	{ code: 'STREAM_ENDED_UNEXPECTEDLY', retryable: true, profile: 'streaming' },
 	{ code: 'COMMAND_FAILED', retryable: false, profile: 'streaming' },
-	{ code: 'CONFIRMATION_REQUIRED', retryable: false, profile: 'confirmations' },
+	{ code: 'CONFIRMATION_REQUIRED', retryable: 'varies', profile: 'confirmations' },
 	{ code: 'CONFIRMATION_DECLINED', retryable: false, profile: 'confirmations' },
 	{ code: 'APPROVAL_REQUIRED', retryable: false, profile: 'approvals' },
 	{ code: 'APPROVAL_UNAVAILABLE', retryable: false, profile: 'approvals' },

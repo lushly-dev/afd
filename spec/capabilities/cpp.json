@@ -573,6 +573,11 @@
 			},
 			"evidence": ["packages/cpp/include/afd/mcp_stdio.hpp"]
 		},
+		"mcp.host-verified-pending-list": {
+			"status": "na",
+			"note": "`afd::mcp_stdio` has no `HumanRelay`",
+			"evidence": ["packages/cpp/include/afd/mcp_stdio.hpp"]
+		},
 		"mcp.tasks": {
 			"status": "na",
 			"note": "not planned for C++ ([MCP Tasks proposal](./features/complete/mcp-tasks/mcp-tasks.proposal.md))",

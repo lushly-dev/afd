@@ -564,6 +564,11 @@
 				"python/tests/test_authorization_cases.py"
 			]
 		},
+		"mcp.host-verified-pending-list": {
+			"status": "planned",
+			"note": "([#2723](https://github.com/lushly-dev/afd/issues/2723))",
+			"evidence": ["python/src/afd/server/human_relay.py"]
+		},
 		"mcp.tasks": {
 			"status": "yes",
 			"note": "([#1972](https://github.com/lushly-dev/afd/issues/1972)): `task: TaskSupport`, `TaskStore`, `InMemoryTaskStore`, `TaskOptions`, `tasks/*` (`mcp` 2.x `Extension`), `McpClient(McpClientConfig(tasks=True))`, todo `--suite tasks`",

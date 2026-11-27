@@ -56,6 +56,13 @@ async fn the_list_shows_only_the_viewers_pending_unexpired_decisions() {
         list.text
     );
     assert!(list.text.contains("<code>gate-approve</code>"));
+    // Each row names its decision's id, which a pending-list refusal names too (A53).
+    assert!(
+        list.text
+            .contains(&format!("<td><code>{}</code></td>", live.id())),
+        "{}",
+        list.text
+    );
     assert!(list.text.contains("main"));
     for gone in [&old, &declined, &other] {
         assert!(!list.text.contains(&gone.id()), "{}", list.text);
@@ -160,6 +167,11 @@ async fn the_local_page_lists_the_local_persons_pending_decisions_without_a_logi
     );
     assert!(
         list.text.contains(&format!("href=\"/d/{live}\"")),
+        "{}",
+        list.text
+    );
+    assert!(
+        list.text.contains(&format!("<td><code>{live}</code></td>")),
         "{}",
         list.text
     );

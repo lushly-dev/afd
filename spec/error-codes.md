@@ -241,7 +241,7 @@ Emitted only by a server that enforces `confirmPrompt`; see
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
-| `CONFIRMATION_REQUIRED` | The command declares `confirmPrompt` and the call carried no confirmation the server accepts. The suggestion says how to confirm: repeat the call with `confirm: true`, or use a client that supports elicitation | No | Server engine, router, HTTP layer |
+| `CONFIRMATION_REQUIRED` | The command declares `confirmPrompt` and the call carried no confirmation the server accepts. The suggestion says how to confirm: repeat the call with `confirm: true`, or use a client that supports elicitation. Not retryable, except a host-verified command's refusal with `details.reason` `pending-list` ([the pending list](./command-metadata.md#the-pending-list)), which is retryable: the same call runs once the person decides | Varies | Server engine, router, HTTP layer |
 | `CONFIRMATION_DECLINED` | The user declined or cancelled the confirmation. Do not retry without asking the user | No | Server engine, router |
 
 #### Approvals (`profile: "approvals"`)
@@ -339,7 +339,8 @@ credentials (M1). Codes a host defines on top, such as Umbel's `SPACE_NOT_READAB
 `PERSON_VERIFICATION_INSUFFICIENT`, stay in the host's own catalog. The host-verified confirmation
 mode and relay evidence add no code: they answer with `CONFIRMATION_REQUIRED`,
 `CONFIRMATION_DECLINED`, `VALIDATION_ERROR` and `APPROVAL_REQUIRED` (with the new `details.reason`
-`credentials-mismatch`), and a relay may answer with its own error.
+`credentials-mismatch`), and a relay may answer with its own error. A relay's pending list answers
+with `CONFIRMATION_REQUIRED`, `details.reason` `pending-list` and `retryable: true`.
 
 ## Transport-specific codes
 

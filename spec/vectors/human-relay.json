@@ -1,0 +1,85 @@
+{
+	"description": "The relay's pending list (spec/command-metadata.md, \"The pending list\"). Each case is a relay's Pending answer for a call to `command` from a client without URL-mode elicitation, and the whole error the server answers with. Every implementation that implements HumanRelay's pendingList answers each `pending` case with exactly `error`, and each `invalid` case with an internal error (no CommandError reaches the client). A language in `gaps` does not implement pendingList yet; its vector suite asserts the gap and skips the cases.",
+	"gaps": {
+		"typescript": "https://github.com/lushly-dev/afd/issues/2722",
+		"python": "https://github.com/lushly-dev/afd/issues/2723",
+		"cpp": "not applicable: afd::mcp_stdio has no HumanRelay"
+	},
+	"pending": [
+		{
+			"name": "a decision, its page and the list",
+			"command": "memory-erase",
+			"relay": {
+				"decision": "d-1",
+				"url": "https://person.example.com/d/d-1",
+				"list": "https://person.example.com/d/"
+			},
+			"error": {
+				"code": "CONFIRMATION_REQUIRED",
+				"message": "'memory-erase' needs a person's confirmation through the host",
+				"suggestion": "Ask the person to open their pending decisions at https://person.example.com/d/ (or this one at https://person.example.com/d/d-1), check that it is decision d-1 for 'memory-erase', and decide there; then send this same call again.",
+				"retryable": true,
+				"recovery": {
+					"kind": "external"
+				},
+				"details": {
+					"commands": ["memory-erase"],
+					"reason": "pending-list",
+					"decision": "d-1",
+					"url": "https://person.example.com/d/d-1",
+					"list": "https://person.example.com/d/"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "a plain http page",
+			"relay": {
+				"decision": "d-1",
+				"url": "http://person.example.com/d/d-1",
+				"list": "https://person.example.com/d/"
+			}
+		},
+		{
+			"name": "a list with user information",
+			"relay": {
+				"decision": "d-1",
+				"url": "https://person.example.com/d/d-1",
+				"list": "https://user@person.example.com/d/"
+			}
+		},
+		{
+			"name": "a port out of range",
+			"relay": {
+				"decision": "d-1",
+				"url": "https://person.example.com:99999/d/d-1",
+				"list": "https://person.example.com/d/"
+			}
+		},
+		{
+			"name": "an empty decision id",
+			"relay": {
+				"decision": "",
+				"url": "https://person.example.com/d/",
+				"list": "https://person.example.com/d/"
+			}
+		},
+		{
+			"name": "a decision id that carries a sentence",
+			"relay": {
+				"decision": "see https://evil.example",
+				"url": "https://person.example.com/d/1",
+				"list": "https://person.example.com/d/"
+			}
+		},
+		{
+			"name": "a decision id over 128 characters",
+			"relay": {
+				"decision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"url": "https://person.example.com/d/1",
+				"list": "https://person.example.com/d/"
+			}
+		}
+	]
+}

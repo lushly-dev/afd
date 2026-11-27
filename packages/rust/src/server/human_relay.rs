@@ -38,6 +38,12 @@
 //!    `CONFIRMATION_DECLINED`; [`RelayOutcome::Pending`] asks again with its prompt;
 //!    [`RelayOutcome::Invalid`] begins again.
 //!
+//! A client that did not declare URL-mode elicitation is asked nothing either way. By default its
+//! call fails with `CONFIRMATION_REQUIRED`; a relay that keeps a list of pending decisions the
+//! person can open (its [`HumanRelay::pending_list`]) instead has it fail with the decision's
+//! address and the list's, `retryable`, and the same call sent again after the person decides
+//! runs once ([`PendingListOutcome::Approved`]), with the same evidence and `extra` as above.
+//!
 //! The server never trusts the relay's state itself: it hands it back to the relay, which must
 //! keep the guarantees listed on [`HumanRelay`]. Credentials missing an issuer, subject or client
 //! id are never bound (`spec/authorization.md`, M8): such a call is refused with an internal error
@@ -120,6 +126,33 @@ pub trait HumanRelay: Send + Sync {
     ) -> serde_json::Map<String, Value> {
         let _ = (decision_id, call);
         serde_json::Map::new()
+    }
+
+    /// The pending-list fallback, for a call from a client that did not declare URL-mode
+    /// elicitation (`spec/command-metadata.md`, "Host-verified confirmation", the pending list).
+    /// `None`, the default, keeps the refusal such a client always gets; a relay opts in per
+    /// deployment by answering for the call:
+    ///
+    /// - [`PendingListOutcome::Pending`]: the newest live, undecided decision bound to this call
+    ///   (its principal binding, command and input digest), or a new one begun for it. The call
+    ///   fails with `CONFIRMATION_REQUIRED`, `retryable`, naming the decision, its page and the
+    ///   list of the person's pending decisions.
+    /// - [`PendingListOutcome::Approved`]: such a decision the person approved after it began,
+    ///   spent by the relay atomically, so of two identical calls exactly one gets it. The command
+    ///   runs as for [`RelayOutcome::Approved`].
+    /// - [`PendingListOutcome::Declined`]: such a decision the person declined, answered once.
+    /// - `Some(Err(_))`: the call's result, as from [`HumanRelay::begin`].
+    ///
+    /// The person still decides on the relay's own page, signed in as the person the call is for;
+    /// only how the address reaches them changes: through the agent, not the host's elicitation.
+    /// No state travels, so the binding is the relay's lookup and the guarantees on
+    /// [`HumanRelay`] apply to it as to a state.
+    async fn pending_list(
+        &self,
+        call: &RelayCall,
+    ) -> Option<Result<PendingListOutcome, CommandError>> {
+        let _ = call;
+        None
     }
 }
 
@@ -265,6 +298,49 @@ pub enum RelayOutcome {
     Invalid,
 }
 
+/// What [`HumanRelay::pending_list`] found for a call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PendingListOutcome {
+    /// The person approved a decision bound to the call, after it began; spent by the relay.
+    Approved {
+        /// The decision's id, spent once by the approval middleware as `relay:<decisionId>`.
+        decision_id: String,
+    },
+    /// The person declined it: `CONFIRMATION_DECLINED`, not retryable.
+    Declined,
+    /// Not decided yet: the call fails with this decision's address.
+    Pending(RelayPending),
+}
+
+/// A pending decision's address, for a client without URL-mode elicitation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct RelayPending {
+    /// The decision's id: 1 to 128 ASCII letters, digits, `_` and `-`.
+    pub decision: String,
+    /// The decision's page: an absolute `https` URL with no identity, as [`RelayPrompt::url`].
+    pub url: String,
+    /// The page listing the person's pending decisions, the same kind of URL. A fixed address the
+    /// person can learn, so the suggestion names it first.
+    pub list: String,
+}
+
+impl RelayPending {
+    /// A pending decision's address.
+    pub fn new(
+        decision: impl Into<String>,
+        url: impl Into<String>,
+        list: impl Into<String>,
+    ) -> Self {
+        Self {
+            decision: decision.into(),
+            url: url.into(),
+            list: list.into(),
+        }
+    }
+}
+
 /// What the gate decided for a call to a host-verified command.
 pub(crate) enum RelayDecision {
     /// Run the command with this evidence on its context, and the relay's
@@ -330,8 +406,9 @@ pub(crate) fn unrelayable(names: &[String], has_relay: bool) -> CommandError {
     required(names, suggestion)
 }
 
-/// Whether `url` is an absolute `https` URL with a host, no user information and no whitespace
-/// or control character.
+/// Whether `url` is an absolute `https` URL with a valid host (DNS labels of ASCII letters,
+/// digits and `-`, or a bracketed IPv6 address), an optional port from 1 to 65535, no user
+/// information and no whitespace or control character.
 fn is_relay_url(url: &str) -> bool {
     let Some(rest) = url
         .get(..8)
@@ -340,12 +417,92 @@ fn is_relay_url(url: &str) -> bool {
     else {
         return false;
     };
+    if url
+        .chars()
+        .any(|character| character.is_whitespace() || character.is_control())
+    {
+        return false;
+    }
     let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
-    !authority.is_empty()
-        && !authority.contains('@')
-        && !url
-            .chars()
-            .any(|character| character.is_whitespace() || character.is_control())
+    let (host, port) = if let Some(bracketed) = authority.strip_prefix('[') {
+        let Some((address, after)) = bracketed.split_once(']') else {
+            return false;
+        };
+        let valid = !address.is_empty()
+            && address.contains(':')
+            && address
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() || matches!(byte, b':' | b'.'));
+        if !valid {
+            return false;
+        }
+        match after {
+            "" => return true,
+            _ => match after.strip_prefix(':') {
+                Some(port) => ("[v6]", Some(port)),
+                None => return false,
+            },
+        }
+    } else {
+        match authority.split_once(':') {
+            Some((host, port)) => (host, Some(port)),
+            None => (authority, None),
+        }
+    };
+    let host_ok = host == "[v6]"
+        || (!host.is_empty()
+            && host.len() <= 253
+            && host.split('.').all(|label| {
+                (1..=63).contains(&label.len())
+                    && label
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+                    && !label.starts_with('-')
+                    && !label.ends_with('-')
+            }));
+    let port_ok = port.is_none_or(|port| {
+        (1..=5).contains(&port.len())
+            && port.bytes().all(|byte| byte.is_ascii_digit())
+            && port
+                .parse::<u32>()
+                .is_ok_and(|port| (1..=65_535).contains(&port))
+    });
+    host_ok && port_ok
+}
+
+/// Whether `id` is a decision id the refusal may name: 1 to 128 ASCII letters, digits, `_` and
+/// `-`, so it carries no sentence, markup or link into the suggestion.
+fn is_decision_id(id: &str) -> bool {
+    (1..=128).contains(&id.len())
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+}
+
+/// The pending-list refusal (`CONFIRMATION_REQUIRED`, `details.reason` `pending-list`), or an
+/// internal error for an address the relay should not have given.
+fn pending_refusal(name: &str, pending: RelayPending) -> RelayDecision {
+    let RelayPending {
+        decision,
+        url,
+        list,
+    } = pending;
+    if !is_decision_id(&decision) || !is_relay_url(&url) || !is_relay_url(&list) {
+        return RelayDecision::Internal;
+    }
+    let suggestion = format!(
+        "Ask the person to open their pending decisions at {list} (or this one at {url}), check that it is decision {decision} for '{name}', and decide there; then send this same call again."
+    );
+    let error = required(std::slice::from_ref(&name.to_owned()), suggestion)
+        .with_retryable(true)
+        .with_details(HashMap::from([
+            ("commands".to_owned(), json!([name])),
+            ("reason".to_owned(), json!("pending-list")),
+            ("decision".to_owned(), json!(decision)),
+            ("url".to_owned(), json!(url)),
+            ("list".to_owned(), json!(list)),
+        ]));
+    RelayDecision::Refuse(error)
 }
 
 /// The `input_required` result for a relay's prompt, or why it cannot be sent.
@@ -434,40 +591,70 @@ pub(crate) async fn check(gate: RelayGate<'_>, input: Value) -> RelayDecision {
         context: execution.clone(),
     };
 
-    if let (Some(responses), Some(state)) =
-        (&gate.request.input_responses, &gate.request.request_state)
-    {
-        let response = responses
-            .get(RELAY_INPUT_KEY)
-            .cloned()
-            .unwrap_or(Value::Null);
-        match response["action"].as_str() {
-            // Ending the elicitation is an answer only to stop: nothing is asked of the relay.
-            Some("decline" | "cancel") => return RelayDecision::Refuse(declined(names)),
-            // `accept` only says the user agreed to open the link; the relay decides.
-            Some("accept") => match relay.resume(state, &call).await {
-                RelayOutcome::Approved { decision_id } => {
-                    if decision_id.is_empty() {
-                        return RelayDecision::Internal;
-                    }
-                    let extra = relay.approved_context(&decision_id, &call).await;
-                    return RelayDecision::Proceed(
-                        RelayEvidence {
-                            command: name,
-                            input_digest: call.input_digest,
-                            actor: crate::credentials::actor_binding_json(execution.actor.as_ref()),
-                            credentials_binding,
-                            decision_id,
-                        },
-                        extra,
-                    );
-                }
-                RelayOutcome::Declined => return RelayDecision::Refuse(declined(names)),
-                RelayOutcome::Pending(prompt) => return present(&gate, prompt),
-                // Not an answer: begin again, as for a tampered confirmation state.
-                RelayOutcome::Invalid => {}
+    let approved = |decision_id: String, call: RelayCall| async move {
+        if !is_decision_id(&decision_id) {
+            return RelayDecision::Internal;
+        }
+        let extra = relay.approved_context(&decision_id, &call).await;
+        RelayDecision::Proceed(
+            RelayEvidence {
+                command: call.command,
+                input_digest: call.input_digest,
+                actor: crate::credentials::actor_binding_json(execution.actor.as_ref()),
+                credentials_binding,
+                decision_id,
             },
-            _ => {}
+            extra,
+        )
+    };
+
+    let answer = match (&gate.request.input_responses, &gate.request.request_state) {
+        (Some(responses), Some(state)) => Some((
+            responses
+                .get(RELAY_INPUT_KEY)
+                .and_then(|response| response["action"].as_str())
+                .map(str::to_owned),
+            state,
+        )),
+        _ => None,
+    };
+    // Ending the elicitation is an answer only to stop: nothing is asked of the relay, whatever
+    // the client declared.
+    if let Some((Some("decline" | "cancel"), _)) = answer
+        .as_ref()
+        .map(|(action, state)| (action.as_deref(), state))
+    {
+        return RelayDecision::Refuse(declined(names));
+    }
+
+    // A client that cannot open a URL elicitation is never sent one: the relay's pending list, if
+    // it keeps one, is its only way.
+    if !call.supports_url_elicitation() {
+        if let Some(found) = relay.pending_list(&call).await {
+            return match found {
+                Ok(PendingListOutcome::Approved { decision_id }) => {
+                    approved(decision_id, call).await
+                }
+                Ok(PendingListOutcome::Declined) => RelayDecision::Refuse(declined(names)),
+                Ok(PendingListOutcome::Pending(pending)) => pending_refusal(&name, pending),
+                Err(error) => RelayDecision::Refuse(error),
+            };
+        }
+    }
+
+    // `accept` only says the user agreed to open the link; the relay decides.
+    if let Some((Some("accept"), state)) = answer
+        .as_ref()
+        .map(|(action, state)| (action.as_deref(), state))
+    {
+        match relay.resume(state, &call).await {
+            RelayOutcome::Approved { decision_id } => {
+                return approved(decision_id, call).await;
+            }
+            RelayOutcome::Declined => return RelayDecision::Refuse(declined(names)),
+            RelayOutcome::Pending(prompt) => return present(&gate, prompt),
+            // Not an answer: begin again, as for a tampered confirmation state.
+            RelayOutcome::Invalid => {}
         }
     }
     match relay.begin(&call).await {
@@ -481,11 +668,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn decision_ids_carry_no_text() {
+        assert!(is_decision_id("d-1") && is_decision_id("A_b-9"));
+        assert!(is_decision_id(&"a".repeat(128)));
+        for id in [
+            "",
+            "a b",
+            "d.1",
+            "d/1",
+            "https://x",
+            "<b>",
+            "é",
+            &"a".repeat(129),
+        ] {
+            assert!(!is_decision_id(id), "{id}");
+        }
+    }
+
+    #[test]
     fn relay_urls_are_https_without_identity() {
         for url in [
             "https://umbel.example.com/person/abc",
             "HTTPS://umbel.example.com",
             "https://umbel.example.com:8443/p?d=1#x",
+            "https://127.0.0.1/mcp/d/",
+            "https://[::1]:8443/d/",
+            "https://[2001:db8::1]/d/x",
+            "https://localhost",
         ] {
             assert!(is_relay_url(url), "{url}");
         }
@@ -499,6 +708,18 @@ mod tests {
             "javascript:alert(1)",
             "",
             "https:/umbel.example.com",
+            "https://umbel.example.com:99999/",
+            "https://umbel.example.com:0/",
+            "https://umbel.example.com:/",
+            "https://umbel.example.com:8a/",
+            "https://umbel..example.com/",
+            "https://-umbel.example.com/",
+            "https://umbel_example.com/",
+            "https://%75mbel.example.com/",
+            "https://[]/",
+            "https://[::1/",
+            "https://[::1]x/",
+            "https://[zz::1]/",
         ] {
             assert!(!is_relay_url(url), "{url}");
         }

@@ -1091,7 +1091,7 @@ pub const ERROR_CODE_CATALOG: &[ErrorCodeInfo] = &[
     },
     ErrorCodeInfo {
         code: error_codes::CONFIRMATION_REQUIRED,
-        retryable: Some(false),
+        retryable: None,
         profile: "confirmations",
     },
     ErrorCodeInfo {

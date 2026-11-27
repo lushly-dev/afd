@@ -1018,9 +1018,10 @@ impl PersonPage {
             .iter()
             .map(|decision| {
                 format!(
-                    "<tr><td><a href=\"{href}\"><code>{command}</code></a></td><td>{spaces}</td><td>{asked}</td><td>{expires}</td></tr>",
+                    "<tr><td><a href=\"{href}\"><code>{command}</code></a></td><td><code>{id}</code></td><td>{spaces}</td><td>{asked}</td><td>{expires}</td></tr>",
                     href = escape(&format!("{}{}", self.prefix, decision.id)),
                     command = escape(&decision.command),
+                    id = escape(&decision.id),
                     spaces = escape(&decision.spaces.join(", ")),
                     asked = escape(&super::iso(decision.created_ms)),
                     expires = escape(&super::iso(decision.expires_ms)),
@@ -1031,7 +1032,7 @@ impl PersonPage {
             "<p>Nothing is waiting for you.</p>".to_owned()
         } else {
             format!(
-                "<table><thead><tr><th>Command</th><th>Spaces</th><th>Asked at</th><th>Expires</th></tr></thead><tbody>{rows}</tbody></table>"
+                "<table><thead><tr><th>Command</th><th>Decision</th><th>Spaces</th><th>Asked at</th><th>Expires</th></tr></thead><tbody>{rows}</tbody></table>"
             )
         };
         let intro = if self.local.is_some() {
@@ -1239,12 +1240,13 @@ impl PersonPage {
         };
         let body = format!(
             "{notice}{who}\
-             <dl><dt>Command</dt><dd><code>{command}</code></dd><dt>Spaces</dt><dd>{space}</dd>\
+             <dl><dt>Command</dt><dd><code>{command}</code></dd><dt>Decision</dt><dd><code>{id}</code></dd><dt>Spaces</dt><dd>{space}</dd>\
              <dt>Asked by</dt><dd><code>{actor}</code></dd><dt>Client</dt><dd><code>{client}</code></dd>\
              <dt>Through</dt><dd><code>{chain}</code></dd><dt>Asked at</dt><dd>{asked}</dd><dt>Expires</dt><dd>{expires}</dd></dl>\
              <h2>What it will do</h2>{paging}\
              <form method=\"post\" action=\"{action}\"><pre>{preview}</pre>{items}{login_field}<input type=\"hidden\" name=\"csrf\" value=\"{csrf}\"><input type=\"hidden\" name=\"page\" value=\"{page}\"><div class=\"actions\">{buttons}</div></form>",
             command = escape(&decision.command),
+            id = escape(&decision.id),
             space = escape(&decision.spaces.join(", ")),
             actor = escape(actor),
             client = escape(client),

@@ -221,12 +221,21 @@ struct Instance {
 
 impl Instance {
     async fn start() -> Self {
+        Self::start_with("").await
+    }
+
+    /// An instance whose configuration has `extra` appended.
+    async fn start_with(extra: &str) -> Self {
         let kit = TestIdp::start().await.unwrap();
         kit.identity_provider().register_client(
             KitClient::confidential("umbel-person-page", SECRET).redirect_uri(REDIRECT),
         );
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("umbel.toml"), config(&kit)).unwrap();
+        std::fs::write(
+            dir.path().join("umbel.toml"),
+            format!("{}{extra}", config(&kit)),
+        )
+        .unwrap();
         let clock = afd::fixed_clock(now_ms());
         let follow = clock.clone();
         kit.identity_provider().follow_clock(Some(Arc::new(move || {
@@ -797,8 +806,8 @@ async fn a_login_without_user_verification_confirms_nothing() {
 
 #[tokio::test]
 async fn a_harness_without_url_elicitation_is_told_it_cannot_confirm() {
-    // Step 0.9's other answer: a harness that cannot open the page is refused with a reason it
-    // can relay (P15's relay part, #2010, would give it a pending list instead).
+    // Step 0.9's other answer, by default: a harness that cannot open the page is refused with a
+    // reason it can relay. `person.pending_list` gives it the decision instead (below).
     let instance = Instance::start().await;
     let (_, reply) = begin_one(&instance, json!({})).await;
     assert_eq!(reply.status, 200, "{}", reply.text);
@@ -815,4 +824,185 @@ async fn a_harness_without_url_elicitation_is_told_it_cannot_confirm() {
             .await,
     );
     assert_eq!(guide["pending"]["staged"], 1, "{guide}");
+}
+
+/// `ideas-review-apply` with `input` from harness `client`, which declared no URL-mode
+/// elicitation: the tool's result.
+async fn apply_without_url(instance: &Instance, client: &str, input: &Value) -> Value {
+    let reply = instance
+        .rpc(
+            "tools/call",
+            json!({ "name": "ideas-review-apply", "arguments": input }),
+            json!({ "elicitation": { "form": {} } }),
+            Some(&instance.token(client)),
+            Some("ideas-review-apply"),
+        )
+        .await;
+    assert_eq!(reply.status, 200, "{}", reply.text);
+    let answer = reply.json();
+    assert_ne!(answer["result"]["resultType"], "input_required", "{answer}");
+    result(&answer)
+}
+
+/// The pending-list refusal's decision id and page URL, checked against the instance's addresses.
+#[track_caller]
+fn listed(refused: &Value) -> (String, String) {
+    let error = &refused["error"];
+    assert_eq!(error["code"], "CONFIRMATION_REQUIRED", "{refused}");
+    assert_eq!(error["retryable"], true, "{refused}");
+    assert_eq!(error["details"]["reason"], "pending-list", "{refused}");
+    let decision = error["details"]["decision"].as_str().unwrap().to_owned();
+    let url = error["details"]["url"].as_str().unwrap().to_owned();
+    assert_eq!(url, format!("{PUBLIC_URL}/d/{decision}"), "{refused}");
+    assert_eq!(
+        error["details"]["list"],
+        format!("{PUBLIC_URL}/d/"),
+        "{refused}"
+    );
+    (decision, url)
+}
+
+/// An instance with `person.pending_list` on, and one staged affirm: the instance and the apply's
+/// input.
+async fn listing() -> (Instance, Value) {
+    let instance = Instance::start_with("\n[person]\npending_list = true\n").await;
+    let (input, reply) = begin_one(&instance, json!({})).await;
+    assert_eq!(reply.status, 200, "{}", reply.text);
+    (instance, input)
+}
+
+#[tokio::test]
+async fn with_the_pending_list_a_harness_without_url_elicitation_confirms_on_the_page() {
+    // P15's relay part (#2010): the harness is told where the decision is, the person decides on
+    // the same page with the same login, and the same call sent again runs once.
+    let (instance, input) = listing().await;
+    let (decision, url) = listed(&apply_without_url(&instance, PHONE, &input).await);
+
+    // The same call again names the same decision; another harness, another client, gets its own.
+    let (again, _) = listed(&apply_without_url(&instance, PHONE, &input).await);
+    assert_eq!(again, decision);
+    let (other, _) = listed(&apply_without_url(&instance, WEB, &input).await);
+    assert_ne!(other, decision);
+
+    // The page names the decision the refusal named (A53).
+    let (_, page) = instance
+        .log_in(&path_of(&url), ScriptedLogin::user("ada").amr(["mfa"]))
+        .await;
+    assert_eq!(page.status, 200, "{}", page.text);
+    assert!(
+        page.text.contains(&format!(
+            "<dt>Decision</dt><dd><code>{decision}</code></dd>"
+        )),
+        "{}",
+        page.text
+    );
+    // The person signs in with a passkey on the decision's page and approves.
+    let pages = instance.read_and_approve(&path_of(&url)).await;
+    assert_eq!(pages.len(), 1);
+
+    // Two identical calls race: exactly one runs, at level `verified`.
+    let (first, second) = tokio::join!(
+        apply_without_url(&instance, PHONE, &input),
+        apply_without_url(&instance, PHONE, &input),
+    );
+    let ran: Vec<&Value> = [&first, &second]
+        .into_iter()
+        .filter(|answer| answer["success"] == true)
+        .collect();
+    assert_eq!(ran.len(), 1, "{first} {second}");
+    assert_eq!(ran[0]["data"]["level"], "verified", "{}", ran[0]);
+    assert_eq!(ran[0]["data"]["applied"]["affirm"], 1, "{}", ran[0]);
+    // The same call again does not run on the spent decision.
+    let after = apply_without_url(&instance, PHONE, &input).await;
+    assert_eq!(after["success"], false, "{after}");
+    assert_ne!(after["error"]["details"]["decision"], decision, "{after}");
+    // The other harness's decision is still pending: nothing it decided ran.
+    let still = apply_without_url(&instance, WEB, &input).await;
+    assert_eq!(still["error"]["details"]["decision"], other, "{still}");
+}
+
+#[tokio::test]
+async fn a_url_mode_retry_and_a_list_retry_run_one_decision_once() {
+    let (instance, input) = listing().await;
+    // The decision begins in URL mode, from a client that can open the link.
+    let begun = instance
+        .call(PHONE, "ideas-review-apply", input.clone(), json!({}))
+        .await;
+    let prompt = asked(&begun);
+    instance.read_and_approve(&path_of(&prompt.url)).await;
+    // The same principal retries both ways at once: one runs.
+    let (resumed, listed_answer) = tokio::join!(
+        instance.call(
+            PHONE,
+            "ideas-review-apply",
+            input.clone(),
+            accepted(&prompt.state)
+        ),
+        apply_without_url(&instance, PHONE, &input),
+    );
+    let resumed = result(&resumed);
+    let ran = [&resumed, &listed_answer]
+        .into_iter()
+        .filter(|answer| answer["success"] == true)
+        .count();
+    assert_eq!(ran, 1, "{resumed} {listed_answer}");
+    let guide = data(
+        &instance
+            .call(PHONE, "ideas-guide", json!({}), json!({}))
+            .await,
+    );
+    assert_eq!(guide["pending"]["staged"], 0, "{guide}");
+}
+
+#[tokio::test]
+async fn a_listed_decision_declined_is_answered_once_and_an_expired_one_never() {
+    let (instance, input) = listing().await;
+    let (decision, url) = listed(&apply_without_url(&instance, PHONE, &input).await);
+    // The person declines on the page.
+    let (cookie, page) = instance
+        .log_in(&path_of(&url), ScriptedLogin::user("ada").amr(["mfa"]))
+        .await;
+    assert_eq!(page.status, 200, "{}", page.text);
+    let form = format!(
+        "login={}&csrf={}&page=1&decision=decline",
+        hidden(&page.text, "login").unwrap(),
+        hidden(&page.text, "csrf").unwrap(),
+    );
+    let base = path_of(&url);
+    let posted = instance
+        .post(base.split('?').next().unwrap(), &cookie, &form)
+        .await;
+    assert_eq!(posted.status, 200, "{}", posted.text);
+    assert!(posted.text.contains("You declined"), "{}", posted.text);
+    // Answered once, then a new decision.
+    let declined = apply_without_url(&instance, PHONE, &input).await;
+    assert_eq!(
+        declined["error"]["code"], "CONFIRMATION_DECLINED",
+        "{declined}"
+    );
+    let (fresh, fresh_url) = listed(&apply_without_url(&instance, PHONE, &input).await);
+    assert_ne!(fresh, decision);
+
+    // Approved, then expired before the call is sent again: never an answer.
+    instance.read_and_approve(&path_of(&fresh_url)).await;
+    instance.clock.advance(601_000);
+    // The person login's check is kept for its cache's life; check it again, as the server does.
+    instance._host.check_person_logins().await;
+    let (later, _) = listed(&apply_without_url(&instance, PHONE, &input).await);
+    assert_ne!(later, fresh);
+    let guide = data(
+        &instance
+            .call(PHONE, "ideas-guide", json!({}), json!({}))
+            .await,
+    );
+    assert_eq!(guide["pending"]["staged"], 1, "{guide}");
+}
+
+#[tokio::test]
+async fn with_the_pending_list_a_harness_with_url_elicitation_still_opens_the_link() {
+    let (instance, input) = listing().await;
+    let begun = instance
+        .call(PHONE, "ideas-review-apply", input, json!({}))
+        .await;
+    asked(&begun);
 }

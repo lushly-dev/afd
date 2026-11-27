@@ -9,7 +9,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 use afd::server::{
-    ConfirmationMode, HumanRelay, McpServer, RelayCall, RelayOutcome, RelayPrompt, ToolStrategy,
+    ConfirmationMode, HumanRelay, McpServer, PendingListOutcome, RelayCall, RelayOutcome,
+    RelayPending, RelayPrompt, ToolStrategy,
 };
 use afd::{
     create_approval_middleware, error_codes, success, ApprovalMiddlewareOptions,
@@ -38,6 +39,10 @@ struct Fake {
     /// What `approved_context` answers, and the decision ids it was asked about.
     extra: Mutex<serde_json::Map<String, Value>>,
     annotated: Mutex<Vec<String>>,
+    /// What `pending_list` answers, in turn (`None`, the default, once the queue is empty), and
+    /// how often it was asked.
+    pending: Mutex<VecDeque<Option<Result<PendingListOutcome, CommandError>>>>,
+    pending_asked: AtomicUsize,
 }
 
 #[derive(Clone, Default)]
@@ -52,6 +57,12 @@ impl Relay {
     }
     fn resumes(&self) -> usize {
         self.0.resumes.load(Ordering::SeqCst)
+    }
+    fn list(&self, answer: Option<Result<PendingListOutcome, CommandError>>) {
+        self.0.pending.lock().unwrap().push_back(answer);
+    }
+    fn pending_asked(&self) -> usize {
+        self.0.pending_asked.load(Ordering::SeqCst)
     }
     fn last_call(&self) -> RelayCall {
         self.0.calls.lock().unwrap().last().cloned().unwrap()
@@ -98,6 +109,15 @@ impl HumanRelay for Relay {
             .unwrap()
             .push(decision_id.to_owned());
         self.0.extra.lock().unwrap().clone()
+    }
+
+    async fn pending_list(
+        &self,
+        call: &RelayCall,
+    ) -> Option<Result<PendingListOutcome, CommandError>> {
+        self.0.pending_asked.fetch_add(1, Ordering::SeqCst);
+        self.0.calls.lock().unwrap().push(call.clone());
+        self.0.pending.lock().unwrap().pop_front().flatten()
     }
 }
 
@@ -595,6 +615,224 @@ async fn a_client_without_url_elicitation_never_gets_the_prompt() {
     )
     .await;
     assert_eq!(error_code(&pending), error_codes::CONFIRMATION_REQUIRED);
+    assert_eq!(runs.erase.load(Ordering::SeqCst), 0);
+}
+
+const LIST: &str = "https://person.example.com/decide/";
+
+fn pending(
+    decision: &str,
+    url: &str,
+    list: &str,
+) -> Option<Result<PendingListOutcome, CommandError>> {
+    Some(Ok(PendingListOutcome::Pending(RelayPending::new(
+        decision, url, list,
+    ))))
+}
+
+/// `memory-erase` from a client that declared form-mode elicitation only.
+async fn erase_without_url(server: &McpServer, extra: Value) -> Value {
+    post(
+        server,
+        call(
+            "memory-erase",
+            json!({ "id": "42" }),
+            json!({ "elicitation": { "form": {} } }),
+            extra,
+        ),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn a_relay_with_a_pending_list_names_the_decision_to_a_client_without_url_elicitation() {
+    let Harness {
+        server,
+        relay,
+        runs,
+    } = harness();
+    relay.list(pending("d-1", URL, LIST));
+    let response = erase_without_url(&server, json!({})).await;
+    assert_ne!(
+        response["result"]["resultType"], "input_required",
+        "{response}"
+    );
+    let refused = command_result(&response);
+    let error = &refused["error"];
+    assert_eq!(
+        error["code"],
+        error_codes::CONFIRMATION_REQUIRED,
+        "{refused}"
+    );
+    assert_eq!(error["retryable"], true);
+    assert_eq!(error["recovery"], json!({ "kind": "external" }));
+    assert_eq!(
+        error["details"],
+        json!({
+            "commands": ["memory-erase"],
+            "reason": "pending-list",
+            "decision": "d-1",
+            "url": URL,
+            "list": LIST,
+        })
+    );
+    // The suggestion leads with the list, a fixed address the person can learn.
+    let suggestion = error["suggestion"].as_str().unwrap();
+    assert!(
+        suggestion.find(LIST).unwrap() < suggestion.find(URL).unwrap(),
+        "{suggestion}"
+    );
+    assert!(suggestion.contains("d-1") && suggestion.contains("same call again"));
+    // Asked on the validated input, and never through begin.
+    assert_eq!(relay.pending_asked(), 1);
+    assert_eq!(relay.begins(), 0);
+    let call = relay.last_call();
+    assert!(!call.supports_url_elicitation());
+    assert_eq!(
+        call.input_digest,
+        afd::input_digest(&json!({ "id": "42", "mode": "soft" })).unwrap()
+    );
+    assert_eq!(runs.erase.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn the_same_call_after_approval_runs_once_with_the_relays_fields() {
+    let Harness {
+        server,
+        relay,
+        runs,
+    } = harness();
+    relay
+        .0
+        .extra
+        .lock()
+        .unwrap()
+        .insert("decided".into(), json!("d-1"));
+    relay.list(pending("d-1", URL, LIST));
+    erase_without_url(&server, json!({})).await;
+
+    relay.list(Some(Ok(PendingListOutcome::Approved {
+        decision_id: "d-1".into(),
+    })));
+    let ran = command_result(&erase_without_url(&server, json!({})).await);
+    assert_eq!(ran["success"], true, "{ran}");
+    assert_eq!(ran["data"]["extra"]["decided"], "d-1", "{ran}");
+    assert_eq!(*relay.0.annotated.lock().unwrap(), ["d-1"]);
+    assert_eq!(runs.erase.load(Ordering::SeqCst), 1);
+
+    // A relay that found the same decision approved again gets nothing: the evidence is spent.
+    relay.list(Some(Ok(PendingListOutcome::Approved {
+        decision_id: "d-1".into(),
+    })));
+    let spent = command_result(&erase_without_url(&server, json!({})).await);
+    assert_eq!(
+        spent["error"]["code"],
+        error_codes::APPROVAL_REQUIRED,
+        "{spent}"
+    );
+    assert_eq!(spent["error"]["details"]["reason"], "already-used");
+    assert_eq!(runs.erase.load(Ordering::SeqCst), 1);
+    assert_eq!(relay.begins(), 0);
+    assert_eq!(relay.resumes(), 0);
+}
+
+#[tokio::test]
+async fn a_pending_list_decline_refusal_or_bad_address_runs_nothing() {
+    let Harness {
+        server,
+        relay,
+        runs,
+    } = harness();
+    relay.list(Some(Ok(PendingListOutcome::Declined)));
+    let declined = command_result(&erase_without_url(&server, json!({})).await);
+    assert_eq!(
+        declined["error"]["code"],
+        error_codes::CONFIRMATION_DECLINED
+    );
+    assert_eq!(declined["error"]["retryable"], false);
+
+    relay.list(Some(Err(CommandError::new(
+        error_codes::RATE_LIMITED,
+        "Too many decisions",
+    ))));
+    assert_eq!(
+        error_code(&erase_without_url(&server, json!({})).await),
+        error_codes::RATE_LIMITED
+    );
+
+    // An address the server will not hand an agent, or an empty decision id, is the relay's bug.
+    for (decision, url, list) in [
+        ("d-1", "http://person.example.com/d/1", LIST),
+        ("d-1", URL, "https://user@person.example.com/"),
+        ("", URL, LIST),
+        ("see https://evil.example", URL, LIST),
+    ] {
+        relay.list(pending(decision, url, list));
+        let response = erase_without_url(&server, json!({})).await;
+        assert_eq!(
+            response["error"]["code"], -32603,
+            "{decision} {url} {list}: {response}"
+        );
+    }
+    relay.list(Some(Ok(PendingListOutcome::Approved {
+        decision_id: String::new(),
+    })));
+    let response = erase_without_url(&server, json!({})).await;
+    assert_eq!(response["error"]["code"], -32603, "{response}");
+    assert_eq!(runs.erase.load(Ordering::SeqCst), 0);
+    assert_eq!(relay.begins(), 0);
+}
+
+#[tokio::test]
+async fn a_stop_answer_ends_the_call_before_the_pending_list() {
+    let Harness {
+        server,
+        relay,
+        runs,
+    } = harness();
+    for action in ["decline", "cancel"] {
+        relay.list(Some(Ok(PendingListOutcome::Approved {
+            decision_id: "d-1".into(),
+        })));
+        let refused = command_result(&erase_without_url(&server, retry(action, "state-1")).await);
+        assert_eq!(refused["error"]["code"], error_codes::CONFIRMATION_DECLINED);
+        relay.0.pending.lock().unwrap().clear();
+    }
+    assert_eq!(relay.pending_asked(), 0);
+    assert_eq!(relay.resumes(), 0);
+    assert_eq!(relay.begins(), 0);
+    assert_eq!(runs.erase.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn a_list_approval_with_an_unusable_decision_id_runs_nothing() {
+    let Harness {
+        server,
+        relay,
+        runs,
+    } = harness();
+    for id in ["", "d 1", "see https://evil.example"] {
+        relay.list(Some(Ok(PendingListOutcome::Approved {
+            decision_id: id.into(),
+        })));
+        let response = erase_without_url(&server, json!({})).await;
+        assert_eq!(response["error"]["code"], -32603, "{id}: {response}");
+    }
+    assert!(relay.0.annotated.lock().unwrap().is_empty());
+    assert_eq!(runs.erase.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn a_client_with_url_elicitation_never_falls_back_to_the_list() {
+    let Harness {
+        server,
+        relay,
+        runs,
+    } = harness();
+    relay.list(pending("d-1", URL, LIST));
+    url_elicitation(&erase(&server, json!({ "id": "42" }), json!({})).await);
+    assert_eq!(relay.pending_asked(), 0);
+    assert_eq!(relay.begins(), 1);
     assert_eq!(runs.erase.load(Ordering::SeqCst), 0);
 }
 
