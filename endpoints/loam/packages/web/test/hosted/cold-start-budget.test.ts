@@ -6,6 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import hostedConfig, { orderHostedSpecs, ProfileFirstSequencer } from '../../vitest.hosted.config';
 import {
+	assertsSection14Ceilings,
+	COLD_START_LOCAL_NOTE,
 	COLD_STARTS,
 	LOCAL_BOUNDS,
 	P6_H1_MAIN_MEDIANS_MS,
@@ -35,6 +37,10 @@ describe('P6-H1 section 14 cold-start ceiling (#1125)', () => {
 		expect(SECTION_14_CEILINGS.coldStartMs).toBeGreaterThan(Math.max(...P6_H1_MAIN_MEDIANS_MS));
 		expect(COLD_STARTS).toBe(5);
 		expect(LOCAL_BOUNDS).toEqual({ coldStartMs: 3_000, residentMb: 300 });
+		expect(assertsSection14Ceilings({ CI: 'true' })).toBe(true);
+		expect(assertsSection14Ceilings({})).toBe(false);
+		expect(assertsSection14Ceilings({ CI: '1' })).toBe(false);
+		expect(COLD_START_LOCAL_NOTE).toMatch(/^warned, not failed: /);
 	});
 
 	it('schedules profile.test.ts first across POSIX and Windows paths while preserving the rest (#2239)', () => {

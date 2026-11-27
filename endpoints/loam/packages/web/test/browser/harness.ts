@@ -502,6 +502,19 @@ export const CSP_PROBE = () => {
 	);
 };
 
+/** Open a fresh BrowserContext with non-Chromium timeouts matching `vitest.engines.config.ts` (#2760). */
+export async function newEngineContext(
+	browser: Browser,
+	options: BrowserContextOptions = {}
+): Promise<BrowserContext> {
+	const context = await browser.newContext(options);
+	if (ENGINE !== 'chromium') {
+		context.setDefaultTimeout(60_000);
+		context.setDefaultNavigationTimeout(60_000);
+	}
+	return context;
+}
+
 /** Open a page in a fresh context that records CSP violations and errors. */
 export async function openPage(
 	browser: Browser,
@@ -510,8 +523,14 @@ export async function openPage(
 	context?: BrowserContext
 ): Promise<ShellPage> {
 	const owned =
-		context ?? (await browser.newContext({ viewport: { width: 1280, height: 800 }, ...options }));
+		context ??
+		(await newEngineContext(browser, { viewport: { width: 1280, height: 800 }, ...options }));
 	const page = await owned.newPage();
+	// Match `vitest.engines.config.ts` (60 s) even when a caller passes an externally created context (#2760).
+	if (ENGINE !== 'chromium') {
+		page.setDefaultTimeout(60_000);
+		page.setDefaultNavigationTimeout(60_000);
+	}
 	const watched: ShellPage = {
 		context: owned,
 		page,

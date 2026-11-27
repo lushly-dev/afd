@@ -616,9 +616,11 @@ def test_text_normalizes_windows_line_endings():
     )
 
 
-async def afd(*args, home):
+async def afd(*args, home, extra_env=None):
     """Run the CLI in a subprocess; return (exit code, stdout and stderr)."""
     env = dict(os.environ, PYTHONPATH=str(ROOT / "src"), HOME=str(home), NO_COLOR="1")
+    if extra_env:
+        env.update(extra_env)
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-c",
@@ -782,3 +784,43 @@ async def test_the_stream_runs_in_the_clients_mcp_session():
 
     assert session_id
     assert chunks[-1]["data"] == {"session": session_id}
+
+
+async def test_batch_and_stream_survive_a_cp1252_console(tmp_path):
+    """Under a cp1252 console (as on Windows), Unicode symbols and bars do not raise."""
+    cp1252 = {"PYTHONIOENCODING": "cp1252"}
+    commands = json.dumps(
+        [
+            {"command": "probe-write"},
+            {"command": "probe-read", "id": "read"},
+            {"command": "no-such-command"},
+        ]
+    )
+    async with protocol_server("individual", "streamable-http") as url:
+        code, out = await afd(
+            "batch", commands, "--server", url, "-s", "-v", home=tmp_path, extra_env=cp1252
+        )
+        assert code == 2, out
+        assert "⚠ Batch completed with partial failures" in out
+        assert "✓ probe-read (read," in out
+        assert "✗ no-such-command (cmd-2," in out
+
+    async with protocol_server("individual", "streamable-http", fixture="stream_server.py") as url:
+        code, out = await afd(
+            "stream", "export-run", "--server", url, home=tmp_path, extra_env=cp1252
+        )
+        assert code == 0, out
+        assert "✓ Stream complete" in out
+        assert 'Final Result:\n{\n  "rows": 2\n}' in out
+
+        code, out = await afd(
+            "stream", "fail-run", "--server", url, home=tmp_path, extra_env=cp1252
+        )
+        assert code == 1, out
+        assert "✗ Stream error" in out
+        assert "[EXPORT_FAILED] Disk full" in out
+
+    # Also exercise sys.stderr (`_fail()` emits `✗ Error:` with err=True) under cp1252.
+    code, out = await afd("batch", "{bad", home=tmp_path, extra_env=cp1252)
+    assert code == 1, out
+    assert "✗ Error:" in out

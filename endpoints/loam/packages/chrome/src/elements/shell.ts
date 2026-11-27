@@ -425,8 +425,6 @@ export class LoamShell extends FASTElement {
 			return;
 		}
 		const view = this.ownerDocument.defaultView ?? window;
-		// Before a call that waited on stage B goes on, so a palette result finds its row.
-		void kernel.appsReady.then(() => this.#stageBEnded(kernel)).catch(reportError);
 
 		const unbind = kernel.bindShellKeys?.((action) =>
 			this.apps?.modalOpen || this.palette?.isOpen ? false : this.#performShellKey(action)
@@ -521,8 +519,19 @@ export class LoamShell extends FASTElement {
 		this.booted = true;
 		this.#present();
 		await Updates.next();
+		if (this.kernel !== kernel || !this.$fastController.isConnected) return;
 		this.rail.render(list, state);
+		// Only once the shell's parts have rendered in shadowRoot, so an already-settled `appsReady`
+		// cannot race stage A into `apps.start()` before `loam-main` exists (#2444).
+		void kernel.appsReady
+			.then(() => {
+				if (this.kernel !== kernel || !this.$fastController.isConnected || this.failure !== null)
+					return;
+				return this.#stageBEnded(kernel);
+			})
+			.catch(reportError);
 		void afterFirstFrame(view).then(() => {
+			if (this.kernel !== kernel || !this.$fastController.isConnected) return;
 			// What E1 reads: everything requested before this mark is the first paint (2.2).
 			view.performance?.mark?.('loam-stage-b');
 			void kernel.startApps();
@@ -573,6 +582,7 @@ export class LoamShell extends FASTElement {
 		await this.rail.refresh();
 		// Before the surfaces start, so they open what the URL names rather than the persisted app.
 		await this.#url((url) => url.boot());
+		if (this.kernel !== kernel || !this.$fastController.isConnected) return;
 		// From here, a URL chunk loaded again after a failure starts late, with no boot of its own (6.3).
 		this.urlBooted = true;
 		// An app the route named that stage B does not hold shows "Nothing here" once main is released below,
@@ -583,6 +593,7 @@ export class LoamShell extends FASTElement {
 			return;
 		}
 		await this.#loadApps();
+		if (this.kernel !== kernel || !this.$fastController.isConnected) return;
 		try {
 			if (!this.apps) throw new Error('The app surfaces did not load');
 			await this.apps.start();
@@ -648,9 +659,14 @@ export class LoamShell extends FASTElement {
 
 	/** Load the app surfaces once; a chunk that fails leaves the shell running and says so. */
 	#loadApps(): Promise<void> {
+		const kernel = this.kernel;
 		this.#appsLoad ??= import('../apps/surfaces.js')
 			.then(async ({ attachSurfaces }) => {
-				const apps = await attachSurfaces(this, this.kernel as LoamKernel);
+				const apps = await attachSurfaces(this, kernel as LoamKernel);
+				if (this.kernel !== kernel || !this.$fastController.isConnected) {
+					apps.dispose();
+					return;
+				}
 				this.apps = apps;
 				this.#cleanup.push(() => apps.dispose());
 			})

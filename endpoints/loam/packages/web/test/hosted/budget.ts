@@ -25,5 +25,14 @@ export const SECTION_14_CEILINGS = { coldStartMs: 405, residentMb: 117 } as cons
 /** Cold starts per run, each from its own empty directory; their median is section 14's sample (#1062). */
 export const COLD_STARTS = 5;
 
-/** Elsewhere, a developer's machine under any load: the proposed bounds, with the measurement logged. */
+/** Elsewhere, a developer's machine under any load: resident memory stays asserted; cold start warns above this bound (#2760). */
 export const LOCAL_BOUNDS = { coldStartMs: 3_000, residentMb: 300 } as const;
+
+/** Why a cold-start run off CI warns past `LOCAL_BOUNDS.coldStartMs` rather than failing (mirrors `first-paint-budget.ts`, #2760). */
+export const COLD_START_LOCAL_NOTE =
+	"warned, not failed: off CI a developer's machine under concurrent build load is not the CI runner section 14's ceiling was set on";
+
+/** Whether this run asserts section 14's strict ceilings: the CI runner the samples came from. */
+export const assertsSection14Ceilings = (
+	env: Record<string, string | undefined> = process.env
+): boolean => env.CI === 'true';

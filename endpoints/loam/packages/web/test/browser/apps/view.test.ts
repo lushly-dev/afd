@@ -19,6 +19,7 @@ import {
 	journal,
 	kernelCall,
 	launchEngine,
+	newEngineContext,
 	openApp,
 	openShell,
 	packApp,
@@ -955,7 +956,7 @@ describe('P2-E13: E2: what a hostile view can reach', () => {
 		expect(response.headers.get('content-security-policy')).toBe(`frame-ancestors ${site.origin}`);
 		// Only `sandbox/` is on that origin.
 		expect((await fetch(`${site.sandbox?.origin}/deployment.json`)).status).toBe(403);
-		const context = await browser.newContext();
+		const context = await newEngineContext(browser);
 		const page = await context.newPage();
 		// The control: the shell's own origin, which `frame-ancestors` names, renders it.
 		await page.goto(`${site.origin}/deployment.json`);
@@ -1243,7 +1244,7 @@ describe('P2-E13: E2: a view that fails', () => {
 		await expect.poll(() => page.locator('loam-main').getAttribute('aria-busy')).toBeNull();
 		await opened.context.close();
 		await stuck.close();
-	}, 40_000);
+	}, 60_000);
 });
 
 describe('P2-E13: E2: conformance with @modelcontextprotocol/ext-apps', () => {

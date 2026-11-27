@@ -35,7 +35,7 @@ from afd.cli.output import (
     print_warning,
 )
 from afd.cli.surface_commands import approval_policy_warnings, collect_surface_commands
-from afd.cli.terminal import terminal_text
+from afd.cli.terminal import configure_stdio, terminal_text
 from afd.core.builtin_names import is_afd_builtin_name
 from afd.transports import (
     ElicitationHandler,
@@ -178,6 +178,7 @@ def cli(ctx: click.Context, json_output: bool, quiet: bool) -> None:
         afd tools
         afd call user.create '{"name": "Alice"}'
     """
+    configure_stdio()
     ctx.ensure_object(dict)
     ctx.obj["json_output"] = json_output
     ctx.obj["quiet"] = quiet
@@ -1185,6 +1186,7 @@ def shell(ctx: click.Context, headers: tuple[str, ...]) -> None:
 
 def main() -> None:
     """Entry point for the CLI."""
+    configure_stdio()
     cli()
 
 

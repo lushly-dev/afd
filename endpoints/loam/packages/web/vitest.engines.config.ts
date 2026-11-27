@@ -22,7 +22,7 @@ export default defineConfig({
 			'test/browser/engines/**/*.test.ts',
 		],
 		environment: 'node',
-		testTimeout: 30_000,
+		testTimeout: 60_000,
 		hookTimeout: 60_000,
 		fileParallelism: false,
 		projects: [engine('firefox'), engine('webkit')],

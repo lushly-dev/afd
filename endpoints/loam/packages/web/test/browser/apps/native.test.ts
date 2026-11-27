@@ -16,6 +16,7 @@ import {
 	journal,
 	kernelCall,
 	launchEngine,
+	newEngineContext,
 	openApp,
 	openShell,
 	packApp,
@@ -307,7 +308,7 @@ describe('P2-E13: E1: hello loads native', () => {
 	});
 
 	it(`D174: mounts through the platform's scoped registry in ${ENGINE}, with nothing polyfilled (#706, #2254)`, async () => {
-		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+		const context = await newEngineContext(browser, { viewport: { width: 1280, height: 800 } });
 		const opened = await openShell(browser, site.origin, {}, context);
 		const { page } = opened;
 		await openApp(page, 'hello');

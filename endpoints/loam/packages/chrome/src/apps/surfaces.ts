@@ -129,6 +129,7 @@ export class AppSurfaces implements ShellApps {
 	#started: Promise<void> | null = null;
 	#prepared: AppList | null = null;
 	#rendered = false;
+	#disposed = false;
 	#missedSwitch = false;
 	/** The scope and route the surfaces now rendering are created in: read at each render. */
 	#state: MainStateV1 | null = null;
@@ -269,12 +270,25 @@ export class AppSurfaces implements ShellApps {
 		return this.#started;
 	}
 
+	#stopped(): boolean {
+		return this.#disposed || this.#shell.$fastController?.isConnected === false;
+	}
+
 	async #start(): Promise<void> {
 		const shell = this.#shell;
-		this.#part<FASTElement>('main').$fastController.addStyles(mainWithApp);
+		await shell.ready;
+		if (this.#stopped()) return;
+		if (!shell.shadowRoot?.querySelector('loam-main')) await Updates.next();
+		if (this.#stopped()) return;
+		const main = shell.shadowRoot?.querySelector('loam-main') as FASTElement | null | undefined;
+		if (!main) {
+			throw new Error('AppSurfaces.start() requires loam-main in loam-shell shadowRoot');
+		}
+		main.$fastController.addStyles(mainWithApp);
 		this.#overlays.attach();
 		const lateStart = !this.#prepared;
 		if (lateStart) await this.prepare();
+		if (this.#stopped()) return;
 		const view = shell.ownerDocument.defaultView ?? window;
 		const nextFrame = () => new Promise((resolve) => view.requestAnimationFrame(resolve));
 		this.#rendered = true;
@@ -293,18 +307,23 @@ export class AppSurfaces implements ShellApps {
 			void nextFrame()
 				.then(nextFrame)
 				.then(() => {
-					if (token === this.#token && this.#showing === active) void this.#enter(active, token);
+					if (!this.#stopped() && token === this.#token && this.#showing === active)
+						void this.#enter(active, token);
 				});
 		}
 		// A live region that has just appeared may not be heard: let it settle before its first toast.
 		if (lateStart) await nextFrame().then(nextFrame);
+		if (this.#stopped()) return;
 		// What the kernel said before the parts could show it.
 		if (this.#missedSwitch) this.#enqueue(() => this.#sync());
 		await this.#overlays.read();
+		if (this.#stopped()) return;
 		// In the background after first paint: a slow or failed instance holds up nothing (7.3).
 		void nextFrame()
 			.then(nextFrame)
-			.then(() => this.#kernel.startInstances())
+			.then(() => {
+				if (!this.#stopped()) return this.#kernel.startInstances();
+			})
 			.catch(reportError);
 	}
 
@@ -313,6 +332,7 @@ export class AppSurfaces implements ShellApps {
 	 * and each app that activated gets its `deactivate` (5.5, 9.6).
 	 */
 	dispose(): void {
+		this.#disposed = true;
 		for (const cleanup of this.#cleanup.splice(0)) cleanup();
 		if (this.#rendered) this.#leave();
 		this.#overlays.dispose();
