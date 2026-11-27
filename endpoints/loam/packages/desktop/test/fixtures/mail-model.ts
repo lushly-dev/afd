@@ -8,7 +8,8 @@
  *
  * The scripts are the slice's mail jobs against the real engine: `obey 9` reads the stranger's message and does what
  * it says; `reply 7` reads Ada's thread, drafts a reply and asks to send it, with the id and revision the engine gave;
- * `compose 1` takes reply set 1's two units. Every request is recorded, so a test can read what the model was given.
+ * `compose 1` takes reply set 1's two units; `send 1` reads reply set 1's confirmation preview and asks to send it at
+ * the revision it gave. Every request is recorded, so a test can read what the model was given.
  */
 import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -88,6 +89,18 @@ const SCRIPTS: Record<string, (results: string[]) => Step | undefined> = {
 	},
 	'compose 1': (results) =>
 		results.length < 2 ? { tool: 'mail-replyset-next', input: { replyset: 1 } } : undefined,
+	'send 1': (results) => {
+		if (results.length === 0) return { tool: 'mail-replyset-preview', input: { replyset: 1 } };
+		if (results.length === 1) {
+			const read = results[0] ?? '';
+			// The preview's one `revision`: its labelled parts hold none.
+			const revision = numberIn(read, 'revision');
+			if (revision === undefined)
+				throw new Error(`mail-replyset-preview's result named no revision: ${read.slice(0, 400)}`);
+			return { tool: 'mail-replyset-send', input: { replyset: 1, revision } };
+		}
+		return undefined;
+	},
 };
 
 /**

@@ -104,6 +104,10 @@ tool = "mail-replyset-show"
 effects = ["inspect"]
 
 [[mount.tools]]
+tool = "mail-replyset-preview"
+effects = ["inspect"]
+
+[[mount.tools]]
 tool = "mail-replyset-next"
 effects = ["inspect"]
 

@@ -9,7 +9,8 @@
  * shell's approvals; a stranger's instruction read in mail raises a confirmation naming Mail, and declining it makes
  * nothing; a send the copilot asks for, and one the person makes by pressing Send in the mail app, are each asked
  * once in the shell with the engine's own preview and sent once on the person's confirm, to the thread's sender; a
- * reply set's units are each composed from only their own message, and the conversation never sees either; no
+ * reply set's units are each composed from only their own message, and the conversation never sees either; the reply
+ * set's send is asked with the engine's slim preview (D175) and sends each reply once on confirm; no
  * approval token or bearer reaches the page, its storage or the app's log. What it does not prove: a model's
  * judgment (its scripts choose for it), the hold's ordering or a changed preview (the kernel's units over `mailfix`),
  * the engine's own rules (its tests and scenarios), or any of this on Windows, where `test-world` is refused and
@@ -83,7 +84,7 @@ async function deployment(): Promise<string> {
 			...held('mail-operation-approve', 'mail-operation-show', ['operation', 'digest']),
 			...held('mail-draft-send', 'mail-draft-show', ['draft', 'revision']),
 			...held('mail-unsubscribe', 'mail-unsubscribe-show', ['message', 'digest']),
-			...held('mail-replyset-send', 'mail-replyset-show', ['replyset', 'revision']),
+			...held('mail-replyset-send', 'mail-replyset-preview', ['replyset', 'revision']),
 			...command('mail-replyset-submit', ['expose = { agent = true }']),
 			...reachable('mail-thread-open'),
 			...reachable('mail-draft-show'),
@@ -440,7 +441,7 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 		expect(await engine.received()).toHaveLength(1);
 	});
 
-	it("P5-A9: a reply set's units are each composed from only their own message, and the conversation sees neither", async () => {
+	it("P5-A9: a reply set's units are each composed from only their own message, the conversation sees neither, and its send is asked with the slim preview", async () => {
 		const before = model.requests.length;
 		const { session, turn: composed } = await turn('compose 1');
 		expect(composed.state).toBe('done');
@@ -484,6 +485,60 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 			['ada@example.com', 'Dear Ada Lovelace, you asked: Does Thursday work for you?'],
 			['bea@example.com', 'Dear Bea, you asked: Can you send the invoice?'],
 		]);
+
+		// Then its send (D175): asked once with the engine's slim preview, each reply sent once on confirm.
+		const sentBefore = (await engine.received()).length;
+		const { turn: asking } = await turn('send 1');
+		expect(asking.state).toBe('waiting');
+		expect(asking.calls.map((call) => [call.command, call.outcome])).toEqual([
+			['mail-replyset-preview', 'ok'],
+			['mail-replyset-send', 'pending'],
+		]);
+		const [asked, ...others] = await pending();
+		expect(others).toEqual([]);
+		// The engine's confirmation preview, shown whole under the shell's 200 values: every recipient and text.
+		expect(asked?.confirmation).toMatchObject({
+			command: 'mail-replyset-send',
+			caller: 'agent:copilot',
+			preview: {
+				command: 'mail-replyset-preview',
+				data: {
+					replyset: {
+						id: 1,
+						content: { alreadySent: [] },
+						replies: [
+							{
+								content: {
+									to: 'ada@example.com',
+									text: 'Dear Ada Lovelace, you asked: Does Thursday work for you?',
+								},
+							},
+							{
+								content: {
+									to: 'bea@example.com',
+									text: 'Dear Bea, you asked: Can you send the invoice?',
+								},
+							},
+						],
+					},
+				},
+			},
+		});
+		expect(asked?.confirmation?.preview?.digest).toMatch(/^[A-Za-z0-9_-]{43}$/);
+		expect(await engine.received()).toHaveLength(sentBefore);
+
+		// On confirm the shell reads the preview again under its hold, finds the same digest, and the engine sends.
+		expect(
+			dataOf(await call('notification-act', { notification: asked?.id, answer: 'confirm' }))
+		).toMatchObject({ state: 'confirmed' });
+		expect((await engine.received()).slice(sentBefore).map((each) => each.to)).toEqual([
+			['ada@example.com'],
+			['bea@example.com'],
+		]);
+		const after = dataOf<{ replyset: { state: string } }>(
+			await call('mail-replyset-show', { replyset: 1 })
+		);
+		expect(after.replyset.state).toBe('sent');
 	});
 
 	it('P5-A9: the person presses Send in the mail app; it is asked once in the slot with the preview, and sent once', async () => {

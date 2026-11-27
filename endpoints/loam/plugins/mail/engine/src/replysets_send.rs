@@ -26,7 +26,9 @@ use crate::provider::Provider;
 use crate::provider::smtp::{OutgoingMessage, SendOutcome, build_message, new_message_id};
 use crate::read::{integer, parameter, required};
 use crate::screening::proposer_of;
-use crate::store::{AccountRow, ReplyRow, ReplySendState, ReplySetSendRefusal, ReplySetState};
+use crate::store::{
+    AccountRow, ReplyRow, ReplySendState, ReplySetDetail, ReplySetSendRefusal, ReplySetState,
+};
 
 /// Bounded timeout for each best-effort IMAP `APPEND` of a sent reply copy.
 const SENT_COPY_TIMEOUT: Duration = Duration::from_secs(10);
@@ -46,7 +48,7 @@ pub fn pre_approval_check(engine: &Engine, input: &Value) -> Option<CommandError
         Ok(None) => {
             return Some(*invalid(
                 "`revision` is required",
-                "Pass the revision mail-replyset-show gave, so only what was previewed is sent.",
+                "Pass the revision mail-replyset-preview or mail-replyset-show gave, so only what was previewed is sent.",
             ));
         }
         Err(error) => return Some(*error),
@@ -63,13 +65,29 @@ pub fn pre_approval_check(engine: &Engine, input: &Value) -> Option<CommandError
         Ok(None) => return Some(replyset_not_found(id)),
         Err(error) => return Some(store_failure(&error)),
     };
+    unsendable(id, &detail, account.as_ref(), Some(expected_revision))
+}
+
+/// Why `mail-replyset-send` would refuse this set before any hold, or `None`
+/// when it would send: its state, `revision` (when `expected` is given), a
+/// reply of unknown outcome, a reply with no text, nothing left to send, a
+/// removed account, or a preview too large to show. Shared with
+/// `mail-replyset-preview`, so Loam never asks for a send the engine refuses.
+pub(super) fn unsendable(
+    id: i64,
+    detail: &ReplySetDetail,
+    account: Option<&AccountRow>,
+    expected: Option<i64>,
+) -> Option<CommandError> {
     match detail.set.state {
         ReplySetState::Sending => return Some(send_refusal(id, ReplySetSendRefusal::Sending)),
         ReplySetState::Sent => return Some(send_refusal(id, ReplySetSendRefusal::Sent)),
         ReplySetState::Unknown => return Some(send_refusal(id, ReplySetSendRefusal::Unknown)),
         ReplySetState::Open | ReplySetState::Partial => {}
     }
-    if detail.set.revision != expected_revision {
+    if let Some(expected) = expected
+        && detail.set.revision != expected
+    {
         return Some(preview_changed(detail.set.revision));
     }
     if detail
@@ -90,7 +108,7 @@ pub fn pre_approval_check(engine: &Engine, input: &Value) -> Option<CommandError
     let pending = detail
         .replies
         .iter()
-        .filter(|r| matches!(r.send_state, ReplySendState::None | ReplySendState::Failed))
+        .filter(|r| r.send_state.will_send())
         .count();
     if pending == 0 {
         return Some(send_refusal(id, ReplySetSendRefusal::NothingToSend));
@@ -98,7 +116,7 @@ pub fn pre_approval_check(engine: &Engine, input: &Value) -> Option<CommandError
     if account.is_none() {
         return Some(send_refusal(id, ReplySetSendRefusal::AccountNotFound));
     }
-    if !preview_fits(&replyset_json(&detail, account.as_ref())) {
+    if !preview_fits(&replyset_json(detail, account)) {
         return Some(preview_too_large());
     }
     None
@@ -120,7 +138,7 @@ pub fn approval_summary(engine: &Engine, input: &Value) -> Option<String> {
     let pending = detail
         .replies
         .iter()
-        .filter(|r| matches!(r.send_state, ReplySendState::None | ReplySendState::Failed))
+        .filter(|r| r.send_state.will_send())
         .count();
     if pending == 0 {
         return None;
@@ -205,7 +223,7 @@ impl CommandHandler for SendReplySet {
             let revision = integer(&input, "revision")?.ok_or_else(|| {
                 invalid(
                     "`revision` is required",
-                    "Pass the revision mail-replyset-show gave, so only what was previewed is sent.",
+                    "Pass the revision mail-replyset-preview or mail-replyset-show gave, so only what was previewed is sent.",
                 )
             })?;
             Ok((id, revision))
@@ -243,7 +261,7 @@ impl CommandHandler for SendReplySet {
         let pending: Vec<ReplyRow> = detail
             .replies
             .iter()
-            .filter(|r| matches!(r.send_state, ReplySendState::None | ReplySendState::Failed))
+            .filter(|r| r.send_state.will_send())
             .cloned()
             .collect();
         let total_replies = detail.replies.len();
@@ -604,7 +622,7 @@ pub fn send(engine: Arc<Engine>) -> CommandDefinition {
             parameter(
                 "revision",
                 JsonSchemaType::Integer,
-                "The revision previewed with mail-replyset-show",
+                "The revision previewed with mail-replyset-preview or mail-replyset-show",
                 true,
             ),
         ],
