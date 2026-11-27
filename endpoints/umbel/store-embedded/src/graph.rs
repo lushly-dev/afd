@@ -93,7 +93,9 @@ impl GraphStore for SqliteStore {
             tx.execute("UPDATE graph_applied SET rev = ?1 WHERE id = 1", [to_i64(applied)?])?;
             tx.commit()?;
             Ok(())
-        })
+        })?;
+        self.graph_cache.wrote();
+        Ok(())
     }
 
     fn clear(&self, applied: Rev) -> Result<(), StoreError> {
@@ -109,7 +111,9 @@ impl GraphStore for SqliteStore {
             )?;
             tx.commit()?;
             Ok(())
-        })
+        })?;
+        self.graph_cache.wrote();
+        Ok(())
     }
 
     fn applied(&self) -> Result<Rev, StoreError> {

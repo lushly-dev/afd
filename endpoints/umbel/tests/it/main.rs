@@ -59,6 +59,7 @@ mod journal_digest;
 mod journal_events;
 mod journal_secret;
 mod limits;
+mod limits_throughput;
 mod manifest;
 mod manifest_v2;
 mod manifest_v3;

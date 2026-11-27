@@ -550,7 +550,12 @@ state/spaces/<space>/
 - **petgraph** builds a `StableDiGraph` of a space's readable graph from
   SQLite on demand, cached per process keyed by `(space, graph applied rev,
   reader filter digest)`, at most 8 entries, evicted least recently used. The
-  cache is derived data, never request state (principle 11).
+  cache is derived data, never request state (principle 11). Since D216
+  ([#1776](https://github.com/lushly-dev/afd/issues/1776)) every reader's
+  entry is filtered in memory from one built graph per applied revision, with
+  the rules of `subgraph`'s query and each origin's current access set; a
+  document or record write re-reads only the access sets its changes name,
+  so it rebuilds nothing, and a tightened set still hides its rows at once.
 - **No daemon, any number of processes** (D28, D29): SQLite WAL admits many
   readers and one writer at a time across processes; tantivy admits many
   readers and one writer; both wait, bounded. The workspace lock of D29 is

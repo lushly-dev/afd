@@ -1466,6 +1466,27 @@ In hosted modes there are four limits. Counters are shared (10.2), and operators
 | `read_bytes_per_minute` | The effective principal's result bytes | A host middleware, checked before the handler on bytes already used, so a mutation's result is never withheld after it ran | `RATE_LIMITED` |
 | `person_pages_per_hour` | The principal | When a person decision begins | Refused at begin |
 
+**Throughput (D216, [#1776](https://github.com/lushly-dev/afd/issues/1776)).** A sliding limit's
+requests waiting in one process are decided in arrival order, up to 256 in one `BEGIN IMMEDIATE`
+transaction of the shared store, each seeing the ones counted before it, so concurrent requests
+share commits instead of taking one turn each. Every decision is still made under the store's write
+lock, so the window stays exact across processes. Measured on Hero (Windows 11 Pro, 32 cores),
+release builds, 2026-11-26; "before" is the limit code of `main` at 871c1a98a, and the two HTTP
+rows were run back to back, each build made from its own sources:
+
+| Measure | Concurrency | Before | After |
+| --- | --- | --- | --- |
+| One limit alone, admissions a second | 1 / 8 / 64 / 256 tasks | 5,953 / 7,910 / 5,924 / 4,627 | 5,727 / 26,654 / 33,234 / 23,341 |
+| `GET /health` (layers 1 to 3), requests a second | 1 / 8 / 32 / 64 clients | 1,635 / 3,609 / 3,284 / 2,501 | 3,142 / 11,381 / 15,788 / 15,599 |
+| `/mcp` `tools/call`, both limits on, requests a second | 1 / 8 / 32 / 64 clients | 82 / 104 / 106 / 103 | 127 / 136 / 91 / 121 |
+
+`/mcp` is bound by something past the limits: at one client a call's median is 6 to 11 ms either way, and
+five runs of either code ranged from 74 to 154 requests a second, wider than the change. The first row is
+`cargo test --release --locked -p umbel --lib sliding_limit_throughput -- --ignored --nocapture`;
+the others are `cargo test --release --locked -p umbel --test it limits_throughput -- --ignored
+--nocapture`, keep-alive clients each from its own loopback address and with its own token, both
+limits set far above what the run sends.
+
 ## 12. Usage, tasks, telemetry
 
 ### 12.1 Usage events (D122, owner decision 13)

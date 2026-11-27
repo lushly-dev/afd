@@ -31,5 +31,6 @@ mod memory_sqlite;
 mod multiprocess;
 mod partitioned_stats;
 mod query_syntax;
+mod readable_graph;
 mod secure_delete;
 mod sqlite;

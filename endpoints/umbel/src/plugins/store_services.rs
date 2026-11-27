@@ -623,8 +623,9 @@ impl CallServices {
 
     pub(super) fn svc_graph_subgraph(&self, space: &str) -> Result<Subgraph> {
         let (stores, filter) = self.reading("graph", space)?;
-        // The embedded backend serves the whole-graph read from its per-process cache, keyed by
-        // the graph's applied revision, the store's head and the reader filter (step 3, C5).
+        // The embedded backend serves the whole-graph read from its per-process cache: one built
+        // graph per applied revision, filtered for each reader on the origins' current access
+        // sets (step 3, C5; D216).
         #[cfg(feature = "store-embedded")]
         {
             stores
