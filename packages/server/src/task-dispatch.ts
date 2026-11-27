@@ -1,5 +1,5 @@
 /**
- * @fileoverview Per-request MCP Tasks dispatch seam (`spec/command-metadata.md`, "Tasks").
+ * @fileoverview Per-request MCP Tasks dispatch seam (`spec/tasks.md`).
  *
  * The MCP lane binds a {@link TaskDispatch} to each `tools/call` context's host state
  * (`host-state.ts`, like `scope-view.ts` and `confirmations.ts`), so `createContext` and tool

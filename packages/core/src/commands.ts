@@ -92,7 +92,7 @@ export interface ExposeOptions {
 	/**
 	 * Other apps, each under a host's grant (default: false). The callee's declaration that another
 	 * app may call the command; a call with the `apps` interface also needs the registry's
-	 * `callGrant` to grant it (`spec/command-metadata.md`, "App-to-app calls").
+	 * `callGrant` to grant it (`spec/app-calls.md`).
 	 */
 	apps?: boolean;
 }
@@ -210,7 +210,7 @@ export type CommandConfirmationMode = 'host-verified';
 
 /**
  * Whether an MCP `tools/call` to a command may run as a task under the Tasks extension
- * (`io.modelcontextprotocol/tasks`, SEP-2663; `spec/command-metadata.md`, "Tasks").
+ * (`io.modelcontextprotocol/tasks`, SEP-2663; `spec/tasks.md`).
  *
  * - `'never'` (default): always runs inline.
  * - `'optional'`: runs as a task when a 2026-07-28 request declares the extension, inline otherwise.
@@ -414,7 +414,7 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	toolMeta?: Record<string, unknown>;
 
 	/**
-	 * Whether an MCP `tools/call` may run as a task (`spec/command-metadata.md`, "Tasks").
+	 * Whether an MCP `tools/call` may run as a task (`spec/tasks.md`).
 	 * Default `'never'`. Refused at registration beside `confirmPrompt`, an `approval` other than
 	 * `'not-required'`, or `confirmationMode`. Reported in `_meta.task` and `afd-detail`.
 	 */
@@ -499,7 +499,7 @@ export interface CommandContext {
 	random?: RandomSource;
 
 	/**
-	 * Report progress while running as an MCP task (`spec/command-metadata.md`, "Tasks").
+	 * Report progress while running as an MCP task (`spec/tasks.md`).
 	 * Updates the task's `statusMessage` and `lastUpdatedAt`; undefined outside a task.
 	 */
 	reportProgress?: (message: string) => void;
@@ -656,7 +656,7 @@ export interface CommandRegistryOptions {
 	 * declared context field, such as Loam's `caller`) holds a grant naming `command`. A call with
 	 * the `apps` interface runs only when the command sets `expose.apps` and this returns `true`;
 	 * anything else, including no `callGrant`, is `CALL_NOT_GRANTED`
-	 * (`spec/command-metadata.md`, "App-to-app calls").
+	 * (`spec/app-calls.md`).
 	 */
 	callGrant?: CallGrant;
 	/** Maximum commands accepted in a single batch (default: 500). */

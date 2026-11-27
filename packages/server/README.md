@@ -720,7 +720,7 @@ Commands without `contexts` are universal (always visible). See "Context Managem
 ### Command that asks for confirmation
 
 A command with `confirmPrompt` can be gated on the server's MCP and HTTP surfaces with the
-`confirmations` option ([`spec/command-metadata.md`](../../spec/command-metadata.md#confirmations)):
+`confirmations` option ([`spec/confirmations.md`](../../spec/confirmations.md)):
 
 ```typescript
 const clearTodos = defineCommand({
@@ -1034,7 +1034,7 @@ Only the command the tool call routes to can use the relay, once: a command that
 
 #### Recording an approval beside the call
 
-A host that keeps its own record of what ran (an intent written before the handler, an audit trail stricter than the journal) needs two things AFD gives it ([`spec/dispatch.md`](../../spec/dispatch.md#the-dispatch-id), [the approval summary](../../spec/command-metadata.md#the-approval-summary)):
+A host that keeps its own record of what ran (an intent written before the handler, an audit trail stricter than the journal) needs two things AFD gives it ([`spec/dispatch.md`](../../spec/dispatch.md#the-dispatch-id), [the approval summary](../../spec/approvals.md#the-approval-summary)):
 
 - **`context.dispatchId`**, an id the engine makes for each call: 128 random bits as 22 characters of base64url, never taken from the caller. Each batch item, pipeline step and command a handler runs gets its own, whatever trace id they share; a retry inside the chain keeps it. Middleware and the handler read it; a value a caller puts there is replaced, and a middleware that changes it does not change what later links read. It is not enumerable, so it is in no result, journal entry or context digest, and spread copies leave it out.
 - **`onApprovalAccepted(summary, dispatchId)`**, called when the approval step admits a held call, before the handler, and waited for. The summary says how the call was admitted (`via`: `token`, `elicitation`, `relay` or `direct`), the command, an `inputDigest` and an `approvalId`, with `issuedAt` and `expiresAt` when the evidence carries them. It holds no token or nonce. A hook that throws or rejects fails the call with `COMMAND_EXECUTION_ERROR` before the handler runs, and the evidence stays spent, so a host that must record the approval first can rely on it.
@@ -1053,7 +1053,7 @@ createApprovalMiddleware({
 
 #### An approver client
 
-A trusted MCP client that shows a person the held action itself, such as an application shell that mounts this server, can carry the person's decision back (`spec/command-metadata.md`, "Approval evidence from an approver client"). Name it with `approver`, a predicate over the call's context after `createContext`:
+A trusted MCP client that shows a person the held action itself, such as an application shell that mounts this server, can carry the person's decision back (`spec/approvals.md`, "Approval evidence from an approver client"). Name it with `approver`, a predicate over the call's context after `createContext`:
 
 ```typescript
 createMcpServer({

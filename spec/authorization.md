@@ -1,5 +1,9 @@
 # MCP authorization
 
+Profile: `authorization`. This page belongs to the `authorization` profile of the
+[contract registry](./registry.md): an implementation that does not claim the profile need not
+implement it. A server claims it when it can verify bearer tokens on HTTP (M1).
+
 How an AFD server on HTTP acts as an OAuth 2.1 protected resource under MCP 2026-07-28: which
 requests need a token, how a token is verified, what commands see of it, how scopes are decided per
 call, and the 401 and 403 answers. It is opt-in: a server without it behaves as before.
@@ -242,6 +246,16 @@ The body is JSON (`Content-Type: application/json`):
 | `inactive` | Introspection said `active: false` |
 | `unavailable` | The key source or introspection endpoint could not answer; the request fails closed |
 
+## The command's `scopes` field
+
+`scopes` ([command metadata](./command-metadata.md#fields)) names the OAuth scopes a caller's token
+needs to run the command over HTTP on a server configured with authorization. A call needs the server's `requiredScopes`
+and then the command's `scopes`, compared exactly. A host `ScopeResolver`, when installed, decides
+every call instead, from the command, its input and the credentials, and may answer `Defer` to let
+the registry answer. A missing scope is an HTTP 403 before dispatch wherever HTTP can carry it, and
+`INSUFFICIENT_SCOPE` otherwise, never a handler call ([M6](#m6-scopes)). stdio,
+the CLI, `DirectClient` and in-process registries ignore `scopes`.
+
 ## M6. Scopes
 
 This section amends the proposal's A4 and A5 as Umbel's D106 decided: static `scopes` stay the
@@ -453,7 +467,7 @@ beyond what the resolver's own `known` costs.
 
 `tools/list`, `server/discover`, `resources/*` and `tasks/*` need a valid token and
 `requiredScopes`. A `tasks/*` request is also checked against the task's owner
-([tasks](./command-metadata.md#tasks)). A task whose command no longer exists for the owner
+([tasks](./tasks.md)). A task whose command no longer exists for the owner
 ([hidden commands](#hidden-commands)) answers as a task that does not exist; `tasks/get` and
 `tasks/update` on one that exists also need what the command needs, as far as it is known
 without the input: its `scopes` under the static rule, `visible` and `known` under a resolver. A resource provider is given the caller's credentials
@@ -495,7 +509,7 @@ the second. For `https://todo.example.com/mcp` they are
 ## M8. The principal binding
 
 A call's principal binding is the canonical JSON (the approval tokens' canonical JSON,
-[command metadata](./command-metadata.md#approvals), rule 3) of:
+[approvals](./approvals.md), rule 3) of:
 
 ```json
 { "actor": <actor>, "credentials": <identity> }
@@ -513,13 +527,13 @@ A call's principal binding is the canonical JSON (the approval tokens' canonical
 
 Canonical JSON sorts the keys, so `{"actor":{"id":"a","kind":"agent"},"credentials":null}`.
 Confirmation and approval-relay `requestState`
-([confirmations](./command-metadata.md#confirmations)), relay evidence
-([host-verified confirmation](./command-metadata.md#host-verified-confirmation)) and task owners
-([tasks](./command-metadata.md#tasks)) bind it. Two calls share a binding only when their actor and
+([confirmations](./confirmations.md)), relay evidence
+([host-verified confirmation](./confirmations.md#host-verified-confirmation)) and task owners
+([tasks](./tasks.md)) bind it. Two calls share a binding only when their actor and
 their token's issuer, subject and client are the same: a different client of the same person is a
 different principal. Over HTTP without credentials, every caller binds alike unless a hook maps
 each to its own actor, so a server creates no task there unless the host declares that its hook
-does ([tasks](./command-metadata.md#tasks)).
+does ([tasks](./tasks.md)).
 
 ## M9. The OAuth client (CLI)
 
@@ -919,6 +933,6 @@ and C++ have no CLI.
 | [Hidden commands](#hidden-commands) (M6): unknown on every route before validation, `resolve` never asked about them, decided once per request, `requires` filtered, `tasks/*` | Yes (step 0c + #1971; `ScopeResolver.known`, including `tasks/*`; `mcp-auth-scopes.test.ts`, `tasks.test.ts`) | Yes ([#2155](https://github.com/lushly-dev/afd/issues/2155); `ScopeResolver.known`, `tasks/*` included; `test_mcp_auth_scopes.py`) | Yes (`ScopeResolver::known`; `tests/server_auth_hidden.rs`) | N/A |
 | Protected-resource metadata (M7) | Yes (step 0a; `createProtectedResource`) | Yes ([#2154](https://github.com/lushly-dev/afd/issues/2154); `create_protected_resource`, `ProtectedResource`) | Yes (step 0b; `ProtectedResource`) | N/A |
 | The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Yes (step 0c; `principalBinding`, with `createContext`'s `actor` and `credentials`; loads `principalBindings`) | Yes (step 0c, [#800](https://github.com/lushly-dev/afd/issues/800), [#2154](https://github.com/lushly-dev/afd/issues/2154); `afd.server.principal_binding`, with AFD's verified credentials or the SDK token; loads `principalBindings`) | Yes (step 0c; `afd::principal_binding` in the gate's associated data; step 0d: the approval-relay state, `RelayCall::principal_binding` and relay evidence too) | Partial: `afd::mcp_stdio` binds `requestState` to command, input and actor; stdio carries no HTTP credentials |
-| `tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./command-metadata.md#tasks)) | Yes ([#1971](https://github.com/lushly-dev/afd/issues/1971)): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, bind verified credentials as owner, enforce M6 command scopes and hidden commands, preserve verified credentials inside running tasks, and stop at `credentials.expiresAt` (`TASK_TOKEN_EXPIRED`); `tasks.test.ts` | Yes ([#1972](https://github.com/lushly-dev/afd/issues/1972), [#2154](https://github.com/lushly-dev/afd/issues/2154), [#2155](https://github.com/lushly-dev/afd/issues/2155)): `tasks/*` fail closed, require `required_scopes`, bind AFD verified credentials as owner, stop at `credentials.expires_at`, preserve cloned verified credentials and `ScopeView`, enforce command scopes and hidden commands on `tasks/get` and `tasks/update` (not `tasks/cancel`) | Yes (Umbel phase 5 step 0e): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, need required scopes and run the context hook; owner is principal binding, checked by `TaskStore` and server; owner must still hold command `scopes` (`visible`/`known`); stops at `credentials.expiresAt` | N/A: not planned for C++ |
+| `tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./tasks.md)) | Yes ([#1971](https://github.com/lushly-dev/afd/issues/1971)): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, bind verified credentials as owner, enforce M6 command scopes and hidden commands, preserve verified credentials inside running tasks, and stop at `credentials.expiresAt` (`TASK_TOKEN_EXPIRED`); `tasks.test.ts` | Yes ([#1972](https://github.com/lushly-dev/afd/issues/1972), [#2154](https://github.com/lushly-dev/afd/issues/2154), [#2155](https://github.com/lushly-dev/afd/issues/2155)): `tasks/*` fail closed, require `required_scopes`, bind AFD verified credentials as owner, stop at `credentials.expires_at`, preserve cloned verified credentials and `ScopeView`, enforce command scopes and hidden commands on `tasks/get` and `tasks/update` (not `tasks/cancel`) | Yes (Umbel phase 5 step 0e): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, need required scopes and run the context hook; owner is principal binding, checked by `TaskStore` and server; owner must still hold command `scopes` (`visible`/`known`); stops at `credentials.expiresAt` | N/A: not planned for C++ |
 | CLI OAuth 2.1 client ([M9](#m9-the-oauth-client-cli)): PKCE S256 loopback flow, RFC 9728/8414 discovery, CIMD and pre-registration, separate owner-only token store with expiry refresh, and URL/header redaction ([#912](https://github.com/lushly-dev/afd/issues/912)) | Yes ([#912](https://github.com/lushly-dev/afd/issues/912)): `afd auth` (`login`, `status`, `refresh`, `logout`), RFC 9728/8414 discovery, CIMD and pre-registration, PKCE S256 loopback flow, separate `tokens.json` with refresh rotation and URL/header redaction; loads `spec/authorization-client.json` | Planned ([#2491](https://github.com/lushly-dev/afd/issues/2491)): OAuth 2.1 CLI client (`spec/authorization.md`, M9) | N/A: no Rust CLI | N/A: no C++ CLI |
 <!-- generated:capabilities:spec.authorization.status:end -->

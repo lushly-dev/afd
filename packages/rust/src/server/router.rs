@@ -454,7 +454,7 @@ impl Call<'_> {
 
     /// Run the one command this call routes to, once every check before dispatch passed: as a
     /// task when it may be one, the server can tell the caller apart, and the request declares
-    /// the Tasks extension (`spec/command-metadata.md`, "Tasks"); for a `required` command,
+    /// the Tasks extension (`spec/tasks.md`); for a `required` command,
     /// `UNAUTHORIZED` when the server cannot tell the caller apart and JSON-RPC `-32021` when the
     /// request does not declare the extension; inline otherwise.
     async fn dispatch(

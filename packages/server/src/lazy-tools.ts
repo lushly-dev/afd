@@ -68,7 +68,7 @@ interface DetailResult {
 	scopes?: string[];
 	/** Host-verified confirmation mode (`spec/command-metadata.md`), reported only when set. */
 	confirmationMode?: CommandConfirmationMode;
-	/** MCP task support (`spec/command-metadata.md`, "Tasks"), reported only when set. */
+	/** MCP task support (`spec/tasks.md`), reported only when set. */
 	task?: TaskSupport;
 	/** What the command declares about repeats (`spec/idempotency.md`, D3), reported only when set. */
 	idempotency?: IdempotencySupport;

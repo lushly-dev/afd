@@ -1,5 +1,9 @@
 # Command journal
 
+Profile: `journal`. This page belongs to the `journal` profile of the
+[contract registry](./registry.md): an implementation that does not claim the profile need not
+implement it. An implementation claims it when it can record a journal and replay one.
+
 A journal is an ordered, append-only record of executed commands. It is used to reproduce an
 agent session, to turn a recorded session into a regression test, and to audit who ran what, in
 what order and with what result. The golden fixture is [`wire/journal.jsonl`](./wire/journal.jsonl).

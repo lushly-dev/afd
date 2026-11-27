@@ -65,7 +65,7 @@
 //! option says.
 //!
 //! A command that declares [`TaskSupport`](crate::TaskSupport) runs as an MCP task for a request
-//! that declares the Tasks extension (`spec/command-metadata.md`, "Tasks"): the server declares the
+//! that declares the Tasks extension (`spec/tasks.md`): the server declares the
 //! extension, answers `tasks/get`, `tasks/update` and `tasks/cancel` for the task's owner only, and
 //! keeps tasks in a [`TaskStore`] ([`McpServer::with_task_store`]; see [`tasks`]).
 //!
@@ -219,7 +219,7 @@ struct Inner {
     trusted_transport: bool,
     /// Served by [`McpServer::streamable_http_service`]: every request is an HTTP request.
     serves_http: bool,
-    /// The task store, options and running tasks (`spec/command-metadata.md`, "Tasks"), shared
+    /// The task store, options and running tasks (`spec/tasks.md`), shared
     /// by every clone.
     tasks: Arc<tasks::TaskRuntime>,
     /// Server-level default per-command deadline in milliseconds (`spec/execution-controls.md`).
@@ -473,7 +473,7 @@ impl McpServer {
         self.with(|inner| inner.context_defaults.random = Some(random))
     }
 
-    /// Enforce `confirm_prompt` (`spec/command-metadata.md`, "Confirmations"). Default:
+    /// Enforce `confirm_prompt` (`spec/confirmations.md`). Default:
     /// [`ConfirmationMode::Off`]. Under [`ConfirmationMode::Enforce`] a confirm-gated tool also
     /// advertises an optional `confirm` argument. The confirmation `requestState` is bound to the
     /// call's [`principal_binding`](crate::principal_binding), the actor the context hook left and

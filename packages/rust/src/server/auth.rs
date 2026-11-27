@@ -588,7 +588,7 @@ pub(crate) fn error_data(auth: &Authorization, refused: &Refused) -> rmcp::Error
     rmcp::ErrorData::invalid_request(error.message, Some(Value::Object(data)))
 }
 
-/// A `tasks/*` request by a task's owner (`spec/command-metadata.md`, "Tasks"): the owner must
+/// A `tasks/*` request by a task's owner (`spec/tasks.md`): the owner must
 /// still hold what a call of the task's command needs, as far as it is known without the
 /// input: under the static rule the command's `scopes` (named in the refusal), under a resolver
 /// its `visible` and `known` (a refusal naming no scope; a command it does not know has made the

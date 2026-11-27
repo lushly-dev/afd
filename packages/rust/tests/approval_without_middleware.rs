@@ -1,6 +1,6 @@
 //! A declared approval policy holds without the approval middleware: the registry refuses a gated
 //! call no approval step admitted with `APPROVAL_UNAVAILABLE`, `no-approval-step`
-//! (`spec/command-metadata.md`, "Approvals"; #1886). These need no approval middleware, so they
+//! (`spec/approvals.md`, "Approvals"; #1886). These need no approval middleware, so they
 //! run without the `approval` feature too. Mirrors TypeScript's
 //! `packages/server/src/approval-fail-closed.test.ts`.
 

@@ -22,7 +22,7 @@ explains why the hybrid exists and records the owner's decisions it follows.
 | Meta-tools | `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`. The tool router handles them itself, in every strategy. TypeScript's, Rust's and C++'s definitions are [`meta-tools.json`](./meta-tools.json) |
 | Context tools | `afd-context-list`, `afd-context-enter`, `afd-context-exit`. Registered as MCP-exposed commands (category `bootstrap`) when the server configures contexts |
 | Bootstrap tools | `afd-help`, `afd-docs`, `afd-schema`. MCP-exposed commands (category `bootstrap`) where the server registers them |
-| Command tool | The tool for one command, as the individual strategy lists it: `name`, `description`, `inputSchema` (with `confirm` where [Confirmations](./command-metadata.md#confirmations) adds it), `annotations`, the top-level `outputSchema` where the server advertises it, and `_meta` ([MCP tool fields](./command-metadata.md#mcp-tool-fields-mcp-2026-07-28-tool-surface)) |
+| Command tool | The tool for one command, as the individual strategy lists it: `name`, `description`, `inputSchema` (with `confirm` where [Confirmations](./confirmations.md) adds it), `annotations`, the top-level `outputSchema` where the server advertises it, and `_meta` ([MCP tool fields](./command-metadata.md#mcp-tool-fields-mcp-2026-07-28-tool-surface)) |
 | Grouped tool | One tool for a group of commands, taking `{ action, params }` |
 | Exposed command | A command with `expose.mcp: true`. Only exposed commands are listed or callable over MCP ([D4](./error-codes.md#unknown-and-unexposed-commands-d4)) |
 
@@ -102,17 +102,7 @@ command's own tool.
 
 ## Contexts
 
-With contexts configured, a command that declares `contexts` is available only while one of them
-is active; with no active context, every command is available. On MCP 2026-07-28 the active context
-is request input, `_meta["dev.afd/context"]`, and is never stored; a 2025 session keeps a context
-stack ([protocol conformance](./protocol-conformance.md#acceptance-index)).
-
-- **`individual` and `grouped`** list only the commands available in the active context.
-- **`lazy`** lists the same tools in every context, as `hybrid` does.
-- **`afd-discover` and `afd-detail`** report only the commands available in the active context.
-- **Every strategy** answers a call to an exposed command outside the active context, by its own
-  name or through a meta-tool, with `COMMAND_NOT_IN_CONTEXT` and the suggestion "Use
-  afd-context-list to see available contexts, or afd-context-enter to switch."
+A server with contexts scopes these lists and calls as the `contexts` profile says: [contexts](./contexts.md#the-tool-strategies).
 
 ## Reserved names
 
@@ -235,7 +225,7 @@ change to the set invalidates only the tail.
 
 Each first-class tool MUST equal the command tool the individual strategy would list for that
 command on the same server: `name`, `description`, `inputSchema` (with `confirm` where
-[Confirmations](./command-metadata.md#confirmations) adds it), `annotations`, the top-level
+[Confirmations](./confirmations.md) adds it), `annotations`, the top-level
 `outputSchema` where the server advertises it, and `_meta`. Each meta-tool and context tool MUST
 equal the tool of the same name that the server lists under the lazy strategy, or under the
 individual strategy for context tools; in TypeScript and Rust the meta-tools equal
@@ -243,16 +233,7 @@ individual strategy for context tools; in TypeScript and Rust the meta-tools equ
 
 ### H4. Contexts: a fixed list, scoped calls
 
-A hybrid `tools/list` MUST NOT vary by the active context. A first-class command outside the active
-context stays listed, and a call to it MUST answer `COMMAND_NOT_IN_CONTEXT` with the suggestion
-"Use afd-context-list to see available contexts, or afd-context-enter to switch.", as a call
-through `afd-call` does. `afd-discover` and `afd-detail` keep filtering by context.
-
-This differs from the individual and grouped strategies on purpose: a list that depends only on the
-server's configuration can be cached ([H6](#h6-cache-hints-and-listchanged)).
-
-`afd validate` SHOULD warn when a first-class command declares `contexts`: it is listed everywhere
-but callable only in its contexts.
+A hybrid server with contexts follows [contexts, the hybrid strategy](./contexts.md#the-hybrid-strategy).
 
 ### H5. A cap of 8
 
@@ -283,9 +264,9 @@ strategy, and a call through a meta-tool exactly as under the lazy strategy.
 | --- | --- |
 | Exposure | Only exposed commands are first-class (H2), so D4 is unchanged: an unknown or private name answers `COMMAND_NOT_FOUND`, identically |
 | Unlisted commands by name | A `tools/call` naming an exposed command that is not first-class MUST run it ([Routing](#routing)) |
-| Contexts | `COMMAND_NOT_IN_CONTEXT`, with the suggestion above; both tools it names are listed when contexts are configured (H3) |
+| Contexts | `COMMAND_NOT_IN_CONTEXT`, with the suggestion [contexts](./contexts.md#the-tool-strategies) gives; both tools it names are listed when contexts are configured (H3) |
 | Confirmations | First-class tools take the individual tools' `confirm` boolean, `afd-call` its `confirm` boolean, and `afd-batch` and `afd-pipe` the `confirm` array; elicitation as for every strategy |
-| Approvals | A first-class tool is a call to a single command for [Asking the human over MCP](./command-metadata.md#asking-the-human-over-mcp); `afd-batch` and `afd-pipe` steps still fall back to `APPROVAL_REQUIRED` without asking |
+| Approvals | A first-class tool is a call to a single command for [Asking the human over MCP](./approvals.md#asking-the-human-over-mcp); `afd-batch` and `afd-pipe` steps still fall back to `APPROVAL_REQUIRED` without asking |
 | Unknown-command suggestion | Ends "Use afd-discover to list all commands.", which holds because `afd-discover` is always listed |
 | Error codes | None new. Configuration mistakes are construction errors, not `CommandResult`s |
 

@@ -1,6 +1,6 @@
 /**
  * @fileoverview Confirmation enforcement for commands that declare `confirmPrompt`
- * (`spec/command-metadata.md`, "Confirmations"): the types, constants and plain helpers.
+ * (`spec/confirmations.md`): the types, constants and plain helpers.
  *
  * The server option `confirmations` turns it on. A call that reaches a confirm-gated command runs
  * only when it carries a confirmation:

@@ -1,5 +1,5 @@
 /**
- * Confirmation enforcement (`spec/command-metadata.md`, "Confirmations"): elicitation through
+ * Confirmation enforcement (`spec/confirmations.md`): elicitation through
  * MCP 2026-07-28 `input_required`, the acknowledgement fallback, and the HTTP routes.
  */
 import { createServer } from 'node:http';

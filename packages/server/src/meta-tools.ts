@@ -32,7 +32,7 @@ const nonBlankString = z
 const commandInput = (description: string) =>
 	z.unknown().optional().meta({ type: 'object', description });
 
-/** Acknowledgement fields (`spec/command-metadata.md`, "Confirmations"). */
+/** Acknowledgement fields (`spec/confirmations.md`). */
 const confirmFlag = z
 	.boolean()
 	.optional()

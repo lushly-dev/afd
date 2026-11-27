@@ -130,7 +130,7 @@ export interface ApprovalRequest {
 	approvalToken: string;
 	/**
 	 * The `approvalId` the call's approval summary will carry once this token admits it
-	 * (`spec/command-metadata.md`, "The approval summary", rule 5): keep it beside the person who
+	 * (`spec/approvals.md`, "The approval summary", rule 5): keep it beside the person who
 	 * approves, to join their decision to the call `onApprovalAccepted` reports.
 	 */
 	approvalId: string;
@@ -143,7 +143,7 @@ export interface ApprovalRequest {
 
 /**
  * What the approval step gives `onApprovalAccepted` when it admits a held call
- * (`spec/command-metadata.md`, "The approval summary"). It holds no token, nonce, key or decision
+ * (`spec/approvals.md`, "The approval summary"). It holds no token, nonce, key or decision
  * id, and grants nothing: no AFD code reads it back.
  */
 export interface ApprovalSummary {

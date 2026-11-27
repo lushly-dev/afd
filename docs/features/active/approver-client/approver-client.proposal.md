@@ -10,10 +10,10 @@
 | Status | Active. Proposed and implemented together on 2026-11-17 for Loam's phase 5, step 0c: TypeScript and Rust. Python and C++ parity is [#1466](https://github.com/lushly-dev/afd/issues/1466). Progress in [STATUS.md](./STATUS.md) |
 | Author | jasfalk (drafted with Claude) |
 | Origin | Loam's [phase 5 specification](../../../../endpoints/loam/docs/phases/5-copilot/spec.md), section 7.2 ("AFD's part"), section 12 and threat T6; decisions D146 (route (a), the owner's answer to Q1) and D150 (the display rules come to AFD, the owner's answer to Q7) |
-| Spec | [`spec/command-metadata.md`](../../../../spec/command-metadata.md): [Approval evidence from an approver client](../../../../spec/command-metadata.md#approval-evidence-from-an-approver-client) and [Approval display](../../../../spec/command-metadata.md#approval-display) |
+| Spec | [`spec/command-metadata.md`](../../../../spec/command-metadata.md): [Approval evidence from an approver client](../../../../spec/approvals.md#approval-evidence-from-an-approver-client) and [Approval display](../../../../spec/approvals.md#approval-display) |
 | Packages | `spec/`, `@lushly-dev/afd-core` (display rules), `@lushly-dev/afd-server` (the carrier), the `afd` crate (both) |
 | Vectors | [`spec/vectors/approver-client.json`](../../../../spec/vectors/approver-client.json) |
-| Related | [Approvals](../../../../spec/command-metadata.md#approvals), [relay evidence](../../../../spec/command-metadata.md#relay-evidence), [the principal binding](../../../../spec/authorization.md#m8-the-principal-binding) (#532), [#883](https://github.com/lushly-dev/afd/issues/883)'s inventory of Lushly's approval code |
+| Related | [Approvals](../../../../spec/approvals.md), [relay evidence](../../../../spec/approvals.md#relay-evidence), [the principal binding](../../../../spec/authorization.md#m8-the-principal-binding) (#532), [#883](https://github.com/lushly-dev/afd/issues/883)'s inventory of Lushly's approval code |
 
 ## The problem
 

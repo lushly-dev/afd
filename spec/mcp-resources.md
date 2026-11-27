@@ -1,10 +1,19 @@
-# MCP resources, skills and tool `_meta`
+# MCP resources and skills
 
-What an AFD MCP server serves beyond tools: MCP **resources** (`resources/list`, `resources/read`),
-the **Skills over MCP extension** (`io.modelcontextprotocol/skills`, SEP-2640), **extra `_meta`
-entries on a command's tool**, and a command's **advertised input schema** kept apart from the one
-the registry validates with. All four are opt-in; a server that uses none of them is unchanged.
-Which languages serve them is in [Implementation status](#implementation-status).
+Profile: `resources-and-skills`. This page belongs to the `resources-and-skills` profile of the
+[contract registry](./registry.md): an implementation that does not claim the profile need not
+implement it. A server claims it when it can be given a resource provider or a skill catalog (R1, S1).
+
+What an AFD MCP server can serve beyond tools: MCP **resources** (`resources/list`,
+`resources/read`) and the **Skills over MCP extension** (`io.modelcontextprotocol/skills`,
+SEP-2640). Both are opt-in; a server that uses neither is unchanged. A command's extra tool `_meta`
+entries and its advertised input schema, which this page also specified until the contract was
+split into a core and profiles, are the core's: [MCP tools](./mcp-tools.md). Which languages serve
+them is in [Implementation status](#implementation-status).
+
+<a id="tool-_meta"></a><a id="t1-extra-entries-on-a-commands-tool"></a><a id="t2-the-key-rule"></a><a id="t3-lists-stay-fixed"></a><a id="advertised-and-validation-schemas"></a><a id="v1-two-schemas-one-command"></a><a id="v2-what-is-checked"></a>Rules
+T1 to T3 and V1 and V2 keep their numbers there: [tool `_meta`](./mcp-tools.md#tool-_meta) and
+[advertised and validation schemas](./mcp-tools.md#advertised-and-validation-schemas).
 
 Every rule here is new and normative. **MUST**, **MUST NOT**, **SHOULD** and **MAY** are used as in
 RFC 2119. The [MCP resources and skills proposal](../docs/features/complete/mcp-resources-skills/mcp-resources-skills.proposal.md)
@@ -14,12 +23,11 @@ proposal records them as the next step.
 
 The rules follow the MCP specification [2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)
 (resources, caching, `_meta` key names, extension negotiation, Streamable HTTP headers), the
-[Skills extension](https://modelcontextprotocol.io/seps/2640-skills-extension) (SEP-2640, Final),
-the [Agent Skills specification](https://agentskills.io/specification) and the
-[MCP Apps extension](https://modelcontextprotocol.io/extensions/apps/overview)
-(`io.modelcontextprotocol/ui`). Where those leave a choice, this page makes it and says so. Every AFD
-server is dual-era ([protocol conformance](./protocol-conformance.md#eras)): unless a rule names an
-era, it holds on both.
+[Skills extension](https://modelcontextprotocol.io/seps/2640-skills-extension) (SEP-2640, Final) and
+the [Agent Skills specification](https://agentskills.io/specification). Where those leave a choice,
+this page makes it and says so. Every AFD server is dual-era
+([protocol conformance](./protocol-conformance.md#eras)): unless a rule names an era, it holds on
+both.
 
 ## Terms
 
@@ -31,8 +39,6 @@ era, it holds on both.
 | Skill path | The `/`-separated path that locates a skill: optional prefix segments, then the skill's `name` |
 | Skill file | One file of a skill, addressed by its path relative to the skill's root (`SKILL.md`, `references/STYLE.md`) |
 | Digest | `sha256:` followed by the 64 lowercase hexadecimal characters of the SHA-256 of a file's raw bytes, the Skills extension's format |
-| Extra tool `_meta` | `_meta` entries a command declares (`toolMeta`), emitted on its tool beside the entries the server sets itself |
-| Advertised schema | The input schema a command shows on every surface; by default the same as its validation schema |
 
 ## Options
 
@@ -41,8 +47,6 @@ era, it holds on both.
 | Resources | `resources: ResourceProvider` | `resources=ResourceProvider` | `with_resources(impl ResourceProvider)` | `StdioServerOptions::resources` (`ResourceProvider`) |
 | Skills | `skills: SkillCatalog` | `skills=SkillCatalog` | `with_skills(SkillCatalog)` | `StdioServerOptions::skills` (`SkillCatalog`, `skill_from_directory`) |
 | Directory reads | A catalog option, off by default | Same | `SkillCatalog::with_directory_read(true)` | `SkillCatalog::directory_read = true` |
-| Extra tool `_meta` | `defineCommand({ toolMeta })` | `@server.command(tool_meta=...)` | `CommandDefinition::with_tool_meta(key, value)` | `CommandDefinition::tool_meta` |
-| Advertised schema | `defineCommand({ advertisedInputSchema })` | `advertised_input_schema=` | `CommandRegistry::register_with_schemas(command, validation, advertised)` | `CommandDefinition::advertised_input_schema` |
 
 All four languages implement these options.
 
@@ -72,7 +76,7 @@ Each entry carries:
 | `title`, `description`, `icons`, `annotations` | Optional, as MCP defines them, passed through unchanged |
 | `mimeType` | Optional; SHOULD be set |
 | `size` | The length in bytes of the raw content `resources/read` returns. REQUIRED when the provider gives the content's bytes up front, as it does for every skill file; otherwise SHOULD be set when known. When set, it MUST equal the byte length of what a read returns |
-| `_meta` | Optional. Keys follow the [key rule](#t2-the-key-rule), except that `ui` is not allowed on a resource entry. The server adds `dev.afd/digest` (R6) and nothing else |
+| `_meta` | Optional. Keys follow the [key rule](./mcp-tools.md#t2-the-key-rule), except that `ui` is not allowed on a resource entry. The server adds `dev.afd/digest` (R6) and nothing else |
 
 The server MUST refuse to start, with an error naming the entry, when the provider's entries break
 any rule in this table, when two entries share a `uri`, when a provider entry uses the `skill://`
@@ -122,7 +126,7 @@ them each time it lists them and answers `-32603` for a list that breaks a rule.
 - **Result.** `contents` holds exactly one item for the URI: `uri`, `mimeType` (the entry's, when
   set), and `text` when the bytes are valid UTF-8, otherwise `blob` with their standard base64
   encoding (RFC 4648, with padding). A provider MAY add `_meta` to the item under the
-  [key rule](#t2-the-key-rule), where `ui` *is* allowed, so MCP Apps views can carry their
+  [key rule](./mcp-tools.md#t2-the-key-rule), where `ui` *is* allowed, so MCP Apps views can carry their
   `_meta.ui` (`csp`, `permissions`, `domain`, `prefersBorder`). A read of a listed entry with a
   `size` MUST return that many bytes.
 - **Cache hints.** A modern-era result carries R3's `ttlMs`. For a read served from a
@@ -280,82 +284,6 @@ its definition and returned by a `skill-docs` bootstrap command. They are a sepa
 convention and are not Agent Skills served over MCP. A server MAY also publish guidance as an Agent
 Skill by putting it in its catalog; nothing converts one into the other.
 
-## Tool `_meta`
-
-### T1. Extra entries on a command's tool
-
-A command MAY declare extra tool `_meta` entries (`toolMeta`, a map from key to JSON value). The
-server emits them, beside its own entries ([Surfaces](./command-metadata.md#surfaces)):
-
-| Where | Emitted |
-| --- | --- |
-| A command tool: the individual strategy, and the first-class tools of the hybrid strategy | In the tool's `_meta` |
-| A grouped tool | In the command's entry of `_meta.actions`, with the other per-command `_meta` fields, where the language emits `_meta.actions` ([tool strategies](./tool-strategies.md#grouped)) |
-| `afd-detail` | As `toolMeta`, on every strategy |
-| Meta-tools, context tools and the grouped tool itself | Never |
-
-Unset or empty is omitted, following the [reporting rules](./command-metadata.md#reporting-rules).
-The order of keys is not significant.
-
-### T2. The key rule
-
-An extra key is allowed when it is either:
-
-1. **a prefixed key** in MCP's `_meta` key format, with a prefix of **two or more** labels: labels
-   separated by `.`, each starting with a letter and ending with a letter or digit, with only
-   letters, digits and `-` between, then `/`, then a name that begins and ends with a letter or
-   digit and has only letters, digits, `-`, `_` and `.` between. For example `dev.umbel/origin` or
-   `com.example/flags`. It MUST NOT be under `dev.afd/`, and MUST NOT be under a prefix MCP reserves
-   (any whose second label is `modelcontextprotocol` or `mcp`, such as `io.modelcontextprotocol/`);
-   both prefix checks ignore case; or
-2. **exactly `ui`**, the MCP Apps key. Its value MUST be an object; when it has `resourceUri`, that
-   MUST be a string beginning `ui://`. AFD checks nothing else in it (`visibility` and future fields
-   pass through), and does not check that the URI is served. Loam's views use it to name their
-   `ui://` resource.
-
-Every other key is refused when the command is defined or registered, with an error naming the
-command and the key: in particular every key the server sets itself (`category`, `requires`,
-`mutation`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema`, `contexts`,
-`actions`), every other unprefixed key, the deprecated MCP Apps key `ui/resourceUri` (its prefix has
-one label), MCP's reserved keys (`progressToken`, `traceparent`, `tracestate`, `baggage`), and a key
-holding a value that is not JSON. So an extra entry can never replace an entry the server sets.
-
-The same rule governs a resource entry's and a read content item's `_meta` (R2, R4).
-
-### T3. Lists stay fixed
-
-Extra `_meta` is part of the command's definition, so it is fixed while the server runs and does not
-vary by request or context. A hybrid first-class tool still equals the individual tool for the same
-command ([H3](./tool-strategies.md#h3-the-tool-list-and-its-order)), extra entries included.
-
-## Advertised and validation schemas
-
-### V1. Two schemas, one command
-
-A command MAY be registered with two input schemas: the **validation schema**, which the registry
-compiles and validates every call against exactly as [validation](./validation.md) describes, and the
-**advertised schema**, which every surface shows. Without an advertised schema, both are the
-command's one schema, as today.
-
-| Surface | Schema |
-| --- | --- |
-| Tool `inputSchema` (individual, hybrid first-class), grouped `_meta.actions` and inlined grouped schemas | Advertised, with the `confirm` property where [Confirmations](./command-metadata.md#confirmations) adds it |
-| `afd-detail` `inputSchema`, `afd-schema`, the `afd-docs` parameter table | Advertised |
-| Validation of every call, on every route and surface | Validation |
-
-The use is a wrapped tool whose schema uses keywords AFD's checker refuses: the host advertises the
-wrapped server's schema unchanged and validates with the subset it can check, and the wrapped server
-validates the rest.
-
-### V2. What is checked
-
-The advertised schema MUST be a JSON object whose `type` is `"object"`; nothing else in it is
-checked or compiled, and an advertised schema that is not an object, or has another `type`, is
-refused at registration naming the command. The validation schema follows every existing rule. AFD
-cannot prove the two agree and does not try: keeping the validation schema no wider than the
-advertised one is the registering code's duty. `afd validate --surface` SHOULD warn when a property
-is required by one schema and absent from the other.
-
 ## Conformance
 
 [`vectors/mcp-resources.json`](./vectors/mcp-resources.json) pins the rules a language can get subtly wrong: the key
@@ -393,8 +321,6 @@ Cache hints and `resultType` are not part of the expected results; R3 and S3 sta
 | --- | --- | --- | --- | --- |
 | Resources (R1 to R6) | Yes (`resources` option; `/mcp` and stdio; per-caller `ResourceCaller` and `"private"` `cacheScope` under `auth`, #2265; not the deprecated `/sse` lane) | Yes (`resources` option; Streamable HTTP, SSE and stdio, both eras; per-caller `ResourceCaller` and `"private"` `cacheScope` under `auth`, #2266; #1981) | Yes (Umbel phase 1 step 0b; per-caller `list_for`/`read_for` and `"private"` `cacheScope` under `server-auth`, #1880) | Yes (`StdioServerOptions::resources` on `afd::mcp_stdio`, both eras; #1983) |
 | Skills extension (S1 to S6) | Yes (`skills: SkillCatalog`) | Yes (`skills=SkillCatalog`, `skill_from_directory`, optional `directory_read`; #1981) | Yes (step 0b) | Yes (`StdioServerOptions::skills`, `skill_from_directory`, optional `directory_read`; #1983) |
-| Extra tool `_meta` (T1 to T3) | Yes (`defineCommand({ toolMeta })`) | Yes (`tool_meta` on `@server.command`/`define_command`/`CommandDefinition`; #1981) | Yes (step 0b) | Yes (`CommandDefinition::tool_meta`; #1983) |
-| Advertised and validation schemas (V1, V2) | Yes (`advertisedInputSchema`) | Yes (`advertised_input_schema`; #1981) | Yes (step 0b) | Yes (`CommandDefinition::advertised_input_schema`; #1983) |
 | Loads [`vectors/mcp-resources.json`](./vectors/mcp-resources.json) | Yes (`mcp-resources-vectors.test.ts`, over Streamable HTTP and stdio) | Yes (`tests/test_mcp_resources_vectors.py` and `test_tool_meta.py`, over Streamable HTTP and stdio; #1981) | Yes (step 0b: `tests/mcp_resources_vectors.rs`) | Yes (`tests/mcp_resources_vectors_test.cpp` and `tests/tool_meta_test.cpp`, over stdio in both eras; #1983) |
 <!-- generated:capabilities:spec.mcp-resources.status:end -->
 

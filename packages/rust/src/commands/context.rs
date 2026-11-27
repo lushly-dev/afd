@@ -115,7 +115,7 @@ pub struct CommandContext {
 
     /// Approval evidence for a command whose approval policy requires it: the
     /// `details.approvalToken` of an `APPROVAL_REQUIRED` result, set by the surface once a human
-    /// approved (`spec/command-metadata.md`, "Approvals"). Only trusted surface code sets it,
+    /// approved (`spec/approvals.md`, "Approvals"). Only trusted surface code sets it,
     /// never tool arguments: whoever holds a valid token can run the call. The MCP server never
     /// sets it.
     pub approval: Option<String>,
@@ -554,13 +554,13 @@ impl CommandContext {
             .is_some_and(crate::cancellation::CancellationSignal::is_cancelled)
     }
 
-    /// Whether this call is running as an MCP task (`spec/command-metadata.md`, "Tasks").
+    /// Whether this call is running as an MCP task (`spec/tasks.md`).
     pub fn is_task(&self) -> bool {
         self.server().task_progress.is_some()
     }
 
     /// Report progress: for a call the MCP server runs as a task, `message` becomes the task's
-    /// `statusMessage` and moves its `lastUpdatedAt` (`spec/command-metadata.md`, "Tasks"); no
+    /// `statusMessage` and moves its `lastUpdatedAt` (`spec/tasks.md`); no
     /// progress or log notification is sent. A message longer than
     /// [`MAX_PROGRESS_MESSAGE_BYTES`](crate::MAX_PROGRESS_MESSAGE_BYTES) is cut. Any other call
     /// ignores it. The client sees `statusMessage` and may show it to a person or a model, so

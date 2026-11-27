@@ -111,7 +111,7 @@ declared context field, because AFD fixes its key, shape and meaning; a host doe
 `dev.afd/outputBudget` is the declaration on a tool's `_meta`, the ask on a call's `_meta`, and the
 report in a result's `metadata`. They live in three different objects and never meet, and one key
 lets an agent connect them. `dev.afd/` is AFD's prefix; the
-[key rule](../../../../spec/mcp-resources.md#t2-the-key-rule) already refuses it in a command's
+[key rule](../../../../spec/mcp-tools.md#t2-the-key-rule) already refuses it in a command's
 `toolMeta`, so no command can forge the declaration.
 
 ### Measured without `metadata`

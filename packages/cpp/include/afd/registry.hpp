@@ -85,7 +85,7 @@ struct CommandRegistryOptions {
     /// Maximum validation issues reported per `VALIDATION_ERROR` (default: 100; must be >= 1).
     std::size_t max_validation_issues = default_max_validation_issues;
     /// Host grant predicate for app-to-app calls (`context.surface == Interface::apps`;
-    /// `spec/command-metadata.md`, "App-to-app calls"). Without one, every app call is refused
+    /// `spec/app-calls.md`). Without one, every app call is refused
     /// with `CALL_NOT_GRANTED`.
     CallGrant call_grant;
     /// Fills `size` bytes at `out` with cryptographically secure random bytes, for each call's

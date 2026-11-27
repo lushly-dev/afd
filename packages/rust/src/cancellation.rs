@@ -1,5 +1,5 @@
 //! A call's cancellation signal and progress, as an MCP task sets them
-//! (`spec/command-metadata.md`, "Tasks").
+//! (`spec/tasks.md`).
 //!
 //! The MCP server (feature `server`) puts a [`CancellationSignal`] on the context of a command it
 //! runs as a task, and fires it on `tasks/cancel`, when the task's `ttlMs` ends, and when the token
@@ -127,7 +127,7 @@ impl Future for Cancelled {
 }
 
 /// The latest progress message of a task, which the server writes to the task's
-/// `statusMessage` (`spec/command-metadata.md`, "Tasks": progress updates `statusMessage` and
+/// `statusMessage` (`spec/tasks.md`: progress updates `statusMessage` and
 /// `lastUpdatedAt`; no notification is sent).
 #[derive(Default)]
 pub(crate) struct TaskProgress {

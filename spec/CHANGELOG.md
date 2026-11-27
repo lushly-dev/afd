@@ -6,32 +6,20 @@ version is separate from each implementation's own package version.
 
 ## Scope
 
-- [`wire/`](./wire/README.md): the golden wire fixtures;
-- [`pipeline-variables.md`](./pipeline-variables.md), [`validation.md`](./validation.md),
-  [`execution-controls.md`](./execution-controls.md) and the
-  behavior vectors in [`vectors/`](./vectors/README.md);
-- the todo conformance suite (`packages/examples/todo/spec`, run by `conformance.yml`).
+The contract is a core and optional, versioned profiles. The [registry](./registry.md) lists what
+each owns (pages, vectors, fixtures, conformance cases, error codes and capabilities), and
+[`registry.json`](./registry.json) is its machine-readable copy. [`VERSION`](./VERSION) is the
+core's version; each profile's version is in the registry.
 
-- [`journal.md`](./journal.md): the command journal format and replay rules, with the fixture
-  `wire/journal.jsonl` (all four implementations);
-- [`error-codes.md`](./error-codes.md): the shared error-code catalog, checked by
-  `vectors/error-codes.json`, and the rules for unknown and unexposed commands.
-- [`context-fields.md`](./context-fields.md): declared context fields, request values a host
-  declares, validated on every surface and kept by the journal when declared `journal: true`;
-- [`tool-strategies.md`](./tool-strategies.md): the MCP tool strategies (`individual`, `grouped`,
-  `lazy` and `hybrid`), their tool lists, routing, contexts and cache hints, with the meta-tool
-  definitions in [`meta-tools.json`](./meta-tools.json) and the hybrid cases in
-  [`vectors/tool-strategies.json`](./vectors/tool-strategies.json).
-- [`mcp-resources.md`](./mcp-resources.md): MCP resources, the Skills over MCP extension, extra
-  `_meta` entries on a command's tool, and advertised input schemas apart from validation schemas,
-  with the cases in [`vectors/mcp-resources.json`](./vectors/mcp-resources.json).
-- [`output-budgets.md`](./output-budgets.md): per-command output budgets, a declaration, a per-call
-  ask in `_meta["dev.afd/outputBudget"]` and the check after the handler, with the cases in
-  [`vectors/output-budgets.json`](./vectors/output-budgets.json).
-- [`plugin-manifest.md`](./plugin-manifest.md): the shared plugin manifest, a host-neutral core
-  ([`plugin-manifest.core.v1.json`](./plugin-manifest.core.v1.json), with its own version) and the
-  contract a host's closed profile meets, with the cases in
-  [`plugin-manifest.json`](./plugin-manifest.json).
+- **The core:** result and errors, dispatch, validation, batch and pipeline, exposure and the
+  meta-tools, with the core's golden wire fixtures in [`wire/`](./wire/README.md), JSON Schemas in
+  [`schema/`](./schema/README.md), behavior vectors in [`vectors/`](./vectors/README.md) and todo
+  conformance cases (`packages/examples/todo/spec`, run by `conformance.yml`). The registry lists
+  each profile's own fixtures, schemas, vectors and cases (the stream schema and chunks, the journal
+  fixture, the approval, confirmation and task cases among them).
+- **The profiles:** `authorization`, `tasks`, `output-budgets`, `approvals`, `app-calls`,
+  `resources-and-skills`, `plugin-manifest`, `contexts`, `streaming`, `confirmations`, `journal`,
+  `idempotency` and `http`.
 
 The bounded TypeScript/Python protocol acceptance inventory is recorded in
 [`protocol-conformance.md`](./protocol-conformance.md); it does not claim full MCP certification.

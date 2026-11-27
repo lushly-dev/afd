@@ -43,7 +43,7 @@ passing:
   [Structured results](../../../../spec/command-metadata.md#structured-results) rule that a command
   "listed as its own tool (individual strategy)" advertises a top-level `outputSchema`; the
   [Annotations](../../../../spec/command-metadata.md#annotations) rule that grouped and meta-tools
-  carry none; and [Confirmations](../../../../spec/command-metadata.md#confirmations), which names
+  carry none; and [Confirmations](../../../../spec/confirmations.md), which names
   where the `confirm` acknowledgement goes for individual tools, `afd-call`, `afd-batch`,
   `afd-pipe` and grouped tools.
 - [`spec/error-codes.md`](../../../../spec/error-codes.md): the router layer, D4, and
@@ -195,7 +195,7 @@ TypeScript's lazy strategy, because they are the hot path of a server with conte
 
 Each first-class tool MUST be exactly the tool the individual strategy would list for that command:
 its `name`, `description`, `inputSchema` with the `confirm` property where
-[Confirmations](../../../../spec/command-metadata.md#confirmations) adds it, `annotations`, the
+[Confirmations](../../../../spec/confirmations.md) adds it, `annotations`, the
 top-level `outputSchema` where the server advertises it, and `_meta`. The meta-tools MUST be the
 same tools the lazy strategy lists.
 
@@ -248,7 +248,7 @@ strategy, and a call through a meta-tool exactly as it does under the lazy strat
 | Unlisted commands by name | A `tools/call` naming an exposed command that is not first-class MUST run it, as TypeScript's and Python's lazy routers do today. An agent that found a command through `afd-discover` and calls it by name should not fail |
 | Contexts | `COMMAND_NOT_IN_CONTEXT`, with "Use afd-context-list to see available contexts, or afd-context-enter to switch."; both tools are listed (H3) |
 | Confirmations | First-class tools take the individual tools' `confirm` boolean; `afd-call` its `confirm` boolean; `afd-batch` and `afd-pipe` the `confirm` array; elicitation as today |
-| Approvals | A first-class tool is "a call to a single command (its tool ...)" in [Asking the human over MCP](../../../../spec/command-metadata.md#asking-the-human-over-mcp); `afd-batch` and `afd-pipe` keep refusing approval mid-run |
+| Approvals | A first-class tool is "a call to a single command (its tool ...)" in [Asking the human over MCP](../../../../spec/approvals.md#asking-the-human-over-mcp); `afd-batch` and `afd-pipe` keep refusing approval mid-run |
 | Unknown-command suggestion | Ends "Use afd-discover to list all commands.", which is valid because `afd-discover` is always listed. Rust's current "Call tools/list to see the available tools" MUST change to it for the hybrid strategy |
 | New error codes | None. Configuration mistakes are construction errors, not `CommandResult`s |
 
@@ -273,7 +273,7 @@ One pull request to `spec/`, reviewed by the owner, before any implementation:
 | File | Change |
 |---|---|
 | New `spec/tool-strategies.md` | Defines all four strategies: their options and defaults per language, the exact `tools/list` of each with its order, routing of meta-tools and unlisted names, context filtering, reserved names, cache hints and `listChanged`, and the `server/discover` instructions. Records the TypeScript and Python lazy and meta-tool differences as current behavior, pointing at [#533](https://github.com/lushly-dev/afd/issues/533). The hybrid section carries H1 to H8 |
-| `spec/command-metadata.md` | [Reporting rules](../../../../spec/command-metadata.md#reporting-rules) and [Annotations](../../../../spec/command-metadata.md#annotations): first-class tools are command tools. [Structured results](../../../../spec/command-metadata.md#structured-results): "listed as its own tool (the individual strategy, or first-class in the hybrid strategy)". [Confirmations](../../../../spec/command-metadata.md#confirmations): enforcement and the acknowledgement list include first-class tools. [Surfaces](../../../../spec/command-metadata.md#surfaces): afd-help adds `firstClass`. [Implementation status](../../../../spec/command-metadata.md#implementation-status): a hybrid row |
+| `spec/command-metadata.md` | [Reporting rules](../../../../spec/command-metadata.md#reporting-rules) and [Annotations](../../../../spec/command-metadata.md#annotations): first-class tools are command tools. [Structured results](../../../../spec/command-metadata.md#structured-results): "listed as its own tool (the individual strategy, or first-class in the hybrid strategy)". [Confirmations](../../../../spec/confirmations.md): enforcement and the acknowledgement list include first-class tools. [Surfaces](../../../../spec/command-metadata.md#surfaces): afd-help adds `firstClass`. [Implementation status](../../../../spec/command-metadata.md#implementation-status): a hybrid row |
 | `spec/error-codes.md` | [Suggestions name only tools the host provides](../../../../spec/error-codes.md#suggestions-name-only-tools-the-host-provides): a hybrid server lists `afd-discover` and, with contexts, the context tools; Rust's row gains the hybrid suggestion. No new codes, so `spec/vectors/error-codes.json` is unchanged |
 | `spec/protocol-conformance.md` | Three acceptance rows: the hybrid list and its order; a hybrid list unchanged by `_meta["dev.afd/context"]`, with `ttlMs` 300,000 under contexts; a first-class call outside the context answering `COMMAND_NOT_IN_CONTEXT`. The [limits](../../../../spec/protocol-conformance.md#limits) note names hybrid with Rust's other strategies |
 | New `spec/vectors/tool-strategies.json` and `generate-tool-strategies.mjs` | From the TypeScript reference: a fixed command set (exposed, private, with and without `contexts` and `confirmPrompt`) and server configurations, with the expected tool names in order per strategy and context, and the configurations that must fail construction with the entry they name. Registered in [`spec/vectors/README.md`](../../../../spec/vectors/README.md) with one loader per language |

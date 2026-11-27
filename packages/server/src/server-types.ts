@@ -439,14 +439,14 @@ export interface McpServerOptions {
 	skills?: SkillCatalog;
 
 	/**
-	 * Durable store for MCP Tasks (`spec/command-metadata.md`, "Tasks"). Defaults to an in-process
+	 * Durable store for MCP Tasks (`spec/tasks.md`). Defaults to an in-process
 	 * {@link InMemoryTaskStore}. Pass a shared store when multiple server processes sit behind one
 	 * URL.
 	 */
 	taskStore?: TaskStore;
 
 	/**
-	 * MCP Tasks runtime options (`spec/command-metadata.md`, "Tasks"): `ttlMs`, `pollIntervalMs`,
+	 * MCP Tasks runtime options (`spec/tasks.md`): `ttlMs`, `pollIntervalMs`,
 	 * `checkIntervalMs`, `maxResultBytes`, `maxRunning`, `tokenExpiryGraceMs` and
 	 * `callersIdentifiedByHook`.
 	 */

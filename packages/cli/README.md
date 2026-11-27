@@ -127,7 +127,7 @@ value is read as JSON when it parses (`count=2`, `done=true`,
 
 A command whose `approval` policy holds it fails with `APPROVAL_REQUIRED`
 when the server installs `createApprovalMiddleware` (see
-`spec/command-metadata.md`, "Approvals"). `afd call` can approve it when it
+`spec/approvals.md`, "Approvals"). `afd call` can approve it when it
 runs the command in-process, on the registry a module exports:
 
 ```bash

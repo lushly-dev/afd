@@ -1,5 +1,5 @@
 /**
- * The in-process registry for app-to-app calls (`spec/command-metadata.md`, "App-to-app calls").
+ * The in-process registry for app-to-app calls (`spec/app-calls.md`).
  *
  * Its own module, so a host that never serves app calls bundles none of it: `createDirectRegistry`
  * only refuses the `apps` interface.

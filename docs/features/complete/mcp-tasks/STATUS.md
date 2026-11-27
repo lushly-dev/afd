@@ -8,7 +8,7 @@ Read this before the [proposal](mcp-tasks.proposal.md).
 
 | Phase | State | Evidence / next gate |
 | --- | --- | --- |
-| 1. Contract | Done | #793 (`d88b71d7`); [Tasks](../../../../spec/command-metadata.md#tasks), [`TASK_TOKEN_EXPIRED`](../../../../spec/error-codes.md#tasks-profile-tasks) |
+| 1. Contract | Done | #793 (`d88b71d7`); [Tasks](../../../../spec/tasks.md), [`TASK_TOKEN_EXPIRED`](../../../../spec/error-codes.md#tasks-profile-tasks) |
 | 2. Rust pilot | Done for the server implementation | #817 (`7ae2bc2c`); `packages/rust/src/server/tasks.rs`, `packages/rust/tests/server_tasks.rs`; bounded pluggable `TaskStore`, owner checks and cancellation (Rust has no remote MCP client) |
 | 2. Shared todo acceptance case | Done | #2034 ([#1971](https://github.com/lushly-dev/afd/issues/1971)), #2134 ([#1972](https://github.com/lushly-dev/afd/issues/1972)); `packages/examples/todo/spec/task-cases.json` (`--suite tasks --mode modern`), wired in `.github/workflows/conformance.yml` and `scripts/affected/suites.mjs` for TypeScript, Rust and Python (`todo-create-batch` declares `task: 'optional'`) |
 | 3. TypeScript server and client | Done | #2034 (`619909ad`, [#1971](https://github.com/lushly-dev/afd/issues/1971)); `@lushly-dev/afd-core` (`TaskSupport`, `CommandContext.reportProgress`), `@lushly-dev/afd-server` (`TaskStore`, `InMemoryTaskStore`, `TaskOptions`, `tasks/*`, `tasks.test.ts`, `tasks-client.test.ts`), `@lushly-dev/afd-client` (`McpClient` `tasks: true`, polling, `onTaskProgress`, `getTask`, `cancelTask`, `tasks.test.ts`) |

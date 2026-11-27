@@ -268,7 +268,7 @@ using Next = std::function<CommandResult()>;
 using CommandMiddleware = std::function<CommandResult(std::string_view name, const Json& input,
                                                       CommandContext& context, const Next& next)>;
 
-/// Host grant check for app-to-app calls (`spec/command-metadata.md`, "App-to-app calls"):
+/// Host grant check for app-to-app calls (`spec/app-calls.md`):
 /// whether the caller in `context` holds a grant naming `command`. Runs synchronously before
 /// lookup, context, input and declared context-field validation; any exception or false answer
 /// refuses the call with `CALL_NOT_GRANTED`.

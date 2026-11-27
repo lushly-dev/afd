@@ -56,11 +56,11 @@
 		},
 		{
 			"id": "command.approval-policy",
-			"label": "`approval` policy, `_meta.approval` ([`spec/command-metadata.md`](../spec/command-metadata.md#approvals), #272)"
+			"label": "`approval` policy, `_meta.approval` ([`spec/approvals.md`](../spec/approvals.md), #272)"
 		},
 		{
 			"id": "command.confirmations",
-			"label": "`confirmPrompt` enforcement ([`spec/command-metadata.md`](../spec/command-metadata.md#confirmations))"
+			"label": "`confirmPrompt` enforcement ([`spec/confirmations.md`](../spec/confirmations.md))"
 		},
 		{
 			"id": "command.kebab-names",
@@ -104,7 +104,7 @@
 		},
 		{
 			"id": "single.app-calls",
-			"label": "App-to-app calls ([`spec/command-metadata.md`](../spec/command-metadata.md#app-to-app-calls), Loam phase 5 step 0b, D30): `expose.apps`, the `apps` interface and a host grant check, with one `CALL_NOT_GRANTED` before lookup"
+			"label": "App-to-app calls ([`spec/app-calls.md`](../spec/app-calls.md), Loam phase 5 step 0b, D30): `expose.apps`, the `apps` interface and a host grant check, with one `CALL_NOT_GRANTED` before lookup"
 		},
 		{
 			"id": "single.active-context",
@@ -208,7 +208,7 @@
 		},
 		{
 			"id": "middleware.approval-fail-closed",
-			"label": "Declared approval policy held without the middleware (`APPROVAL_UNAVAILABLE`, [`spec/command-metadata.md`](../spec/command-metadata.md#approvals))"
+			"label": "Declared approval policy held without the middleware (`APPROVAL_UNAVAILABLE`, [`spec/approvals.md`](../spec/approvals.md))"
 		},
 		{
 			"id": "middleware.direct-approval",
@@ -224,15 +224,15 @@
 		},
 		{
 			"id": "middleware.approver-client",
-			"label": "Approval evidence from an approver client ([`spec/command-metadata.md`](../spec/command-metadata.md#approval-evidence-from-an-approver-client), Loam phase 5 step 0c): a server-named approver gets `details.approvalToken`, never a form, and carries it back in `_meta[\"dev.afd/approval\"]` on one command; its tokens bind its principal binding; the key in tool arguments is refused"
+			"label": "Approval evidence from an approver client ([`spec/approvals.md`](../spec/approvals.md#approval-evidence-from-an-approver-client), Loam phase 5 step 0c): a server-named approver gets `details.approvalToken`, never a form, and carries it back in `_meta[\"dev.afd/approval\"]` on one command; its tokens bind its principal binding; the key in tool arguments is refused"
 		},
 		{
 			"id": "middleware.approval-display",
-			"label": "Approval display rules ([`spec/command-metadata.md`](../spec/command-metadata.md#approval-display), D150): what a person must be able to read before approving"
+			"label": "Approval display rules ([`spec/approvals.md`](../spec/approvals.md#approval-display), D150): what a person must be able to read before approving"
 		},
 		{
 			"id": "middleware.approval-summary",
-			"label": "The approval summary ([`spec/command-metadata.md`](../spec/command-metadata.md#the-approval-summary)): `onApprovalAccepted` is given `via`, the command, the input digest and an `approvalId` with the call's `dispatchId` when a held call is admitted; a held call's request carries the same `approvalId`"
+			"label": "The approval summary ([`spec/approvals.md`](../spec/approvals.md#the-approval-summary)): `onApprovalAccepted` is given `via`, the command, the input digest and an `approvalId` with the call's `dispatchId` when a held call is admitted; a held call's request carries the same `approvalId`"
 		},
 		{
 			"id": "middleware.idempotency-step",
@@ -332,7 +332,7 @@
 		},
 		{
 			"id": "mcp.confirmation-principal-binding",
-			"label": "Confirmation and approval-relay `requestState` bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532); [`spec/command-metadata.md`](../spec/command-metadata.md#confirmations))"
+			"label": "Confirmation and approval-relay `requestState` bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532); [`spec/confirmations.md`](../spec/confirmations.md))"
 		},
 		{
 			"id": "mcp.server-instances",
@@ -340,19 +340,19 @@
 		},
 		{
 			"id": "mcp.host-verified-confirmation",
-			"label": "Host-verified confirmation mode, `HumanRelay` and relay evidence ([`spec/command-metadata.md`](../spec/command-metadata.md#host-verified-confirmation))"
+			"label": "Host-verified confirmation mode, `HumanRelay` and relay evidence ([`spec/confirmations.md`](../spec/confirmations.md#host-verified-confirmation))"
 		},
 		{
 			"id": "mcp.host-verified-pending-list",
-			"label": "`HumanRelay` pending-list fallback for clients without URL-mode elicitation ([#2010](https://github.com/lushly-dev/afd/issues/2010); [`spec/command-metadata.md`](../spec/command-metadata.md#the-pending-list))"
+			"label": "`HumanRelay` pending-list fallback for clients without URL-mode elicitation ([#2010](https://github.com/lushly-dev/afd/issues/2010); [`spec/confirmations.md`](../spec/confirmations.md#the-pending-list))"
 		},
 		{
 			"id": "mcp.tasks",
-			"label": "MCP Tasks ([`spec/command-metadata.md`](../spec/command-metadata.md#tasks)): `task`, `TaskStore`, `tasks/get`, `tasks/update` and `tasks/cancel` with an owner check"
+			"label": "MCP Tasks ([`spec/tasks.md`](../spec/tasks.md)): `task`, `TaskStore`, `tasks/get`, `tasks/update` and `tasks/cancel` with an owner check"
 		},
 		{
 			"id": "mcp.auth.tasks",
-			"label": "`tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./command-metadata.md#tasks))"
+			"label": "`tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./tasks.md))"
 		},
 		{
 			"id": "mcp.auth.cli-client",
@@ -376,11 +376,11 @@
 		},
 		{
 			"id": "mcp.tool-meta",
-			"label": "Extra tool `_meta` (`toolMeta`, [`spec/mcp-resources.md`](../spec/mcp-resources.md#tool-_meta)): reverse-DNS keys or MCP Apps' `ui` on a command's tool and in `afd-detail`"
+			"label": "Extra tool `_meta` (`toolMeta`, [`spec/mcp-tools.md`](../spec/mcp-tools.md#tool-_meta)): reverse-DNS keys or MCP Apps' `ui` on a command's tool and in `afd-detail`"
 		},
 		{
 			"id": "mcp.advertised-schema",
-			"label": "Advertised and validation schemas ([`spec/mcp-resources.md`](../spec/mcp-resources.md#advertised-and-validation-schemas))"
+			"label": "Advertised and validation schemas ([`spec/mcp-tools.md`](../spec/mcp-tools.md#advertised-and-validation-schemas))"
 		},
 		{
 			"id": "mcp.raw-json-schema",
@@ -441,6 +441,10 @@
 		{
 			"id": "pc.client-negotiation",
 			"label": "AFD client negotiates each mode against an AFD server"
+		},
+		{
+			"id": "host.plugin-manifest",
+			"label": "The shared plugin manifest read and checked ([`spec/plugin-manifest.md`](../spec/plugin-manifest.md)). No AFD package reads a manifest; the hosts built on a language do"
 		},
 		{
 			"id": "tooling.mcp-client",
@@ -857,12 +861,15 @@
 				},
 				{
 					"capability": "tooling.platform-connectors"
+				},
+				{
+					"capability": "host.plugin-manifest"
 				}
 			]
 		},
 		{
-			"id": "spec.command-metadata.approvals",
-			"file": "spec/command-metadata.md",
+			"id": "spec.approvals.policy",
+			"file": "spec/approvals.md",
 			"firstColumn": "",
 			"rows": [
 				{
@@ -907,8 +914,8 @@
 			]
 		},
 		{
-			"id": "spec.command-metadata.approver",
-			"file": "spec/command-metadata.md",
+			"id": "spec.approvals.approver",
+			"file": "spec/approvals.md",
 			"firstColumn": "",
 			"rows": [
 				{
@@ -919,8 +926,8 @@
 			]
 		},
 		{
-			"id": "spec.command-metadata.approval-summary",
-			"file": "spec/command-metadata.md",
+			"id": "spec.approvals.summary",
+			"file": "spec/approvals.md",
 			"firstColumn": "",
 			"rows": [
 				{
@@ -936,8 +943,8 @@
 			]
 		},
 		{
-			"id": "spec.command-metadata.approval-display",
-			"file": "spec/command-metadata.md",
+			"id": "spec.approvals.display",
+			"file": "spec/approvals.md",
 			"firstColumn": "",
 			"rows": [
 				{
@@ -948,8 +955,8 @@
 			]
 		},
 		{
-			"id": "spec.command-metadata.app-calls",
-			"file": "spec/command-metadata.md",
+			"id": "spec.app-calls.status",
+			"file": "spec/app-calls.md",
 			"firstColumn": "",
 			"rows": [
 				{
@@ -1006,7 +1013,7 @@
 				},
 				{
 					"capability": "mcp.auth.scopes",
-					"label": "`scopes` and its surfaces ([Scopes](#scopes))",
+					"label": "`scopes` and its surfaces ([Scopes](./authorization.md#the-commands-scopes-field))",
 					"view": "command-metadata"
 				},
 				{
@@ -1016,12 +1023,12 @@
 				},
 				{
 					"capability": "mcp.host-verified-confirmation",
-					"label": "`confirmationMode: \"host-verified\"` and `HumanRelay` ([Host-verified confirmation](#host-verified-confirmation))",
+					"label": "`confirmationMode: \"host-verified\"` and `HumanRelay` ([Host-verified confirmation](./confirmations.md#host-verified-confirmation))",
 					"view": "command-metadata"
 				},
 				{
 					"capability": "mcp.tasks",
-					"label": "`task`, `TaskStore` and the `tasks/*` handlers ([Tasks](#tasks))",
+					"label": "`task`, `TaskStore` and the `tasks/*` handlers ([Tasks](./tasks.md))",
 					"view": "command-metadata"
 				}
 			]
@@ -1078,12 +1085,12 @@
 				},
 				{
 					"capability": "mcp.strategy-hybrid",
-					"label": "Hybrid strategy with contexts: `tools/list` identical with and without `_meta[\"dev.afd/context\"]`, with `ttlMs` 300,000 by default ([H4](./tool-strategies.md#h4-contexts-a-fixed-list-scoped-calls), [H6](./tool-strategies.md#h6-cache-hints-and-listchanged))",
+					"label": "Hybrid strategy with contexts: `tools/list` identical with and without `_meta[\"dev.afd/context\"]`, with `ttlMs` 300,000 by default ([H4](./contexts.md#the-hybrid-strategy), [H6](./tool-strategies.md#h6-cache-hints-and-listchanged))",
 					"view": "pc-hybrid-ctx"
 				},
 				{
 					"capability": "mcp.strategy-hybrid",
-					"label": "Hybrid strategy: a first-class tool called outside the active context → `COMMAND_NOT_IN_CONTEXT` tool result ([H4](./tool-strategies.md#h4-contexts-a-fixed-list-scoped-calls))",
+					"label": "Hybrid strategy: a first-class tool called outside the active context → `COMMAND_NOT_IN_CONTEXT` tool result ([H4](./contexts.md#the-hybrid-strategy))",
 					"view": "pc-hybrid-scope"
 				},
 				{
@@ -1229,6 +1236,18 @@
 					"view": "res-skills"
 				},
 				{
+					"capability": "mcp.resources",
+					"label": "Loads [`vectors/mcp-resources.json`](./vectors/mcp-resources.json)",
+					"view": "res-vectors"
+				}
+			]
+		},
+		{
+			"id": "spec.mcp-tools.status",
+			"file": "spec/mcp-tools.md",
+			"firstColumn": "Rule",
+			"rows": [
+				{
 					"capability": "mcp.tool-meta",
 					"label": "Extra tool `_meta` (T1 to T3)",
 					"view": "res-meta"
@@ -1237,11 +1256,6 @@
 					"capability": "mcp.advertised-schema",
 					"label": "Advertised and validation schemas (V1, V2)",
 					"view": "res-adv"
-				},
-				{
-					"capability": "mcp.resources",
-					"label": "Loads [`vectors/mcp-resources.json`](./vectors/mcp-resources.json)",
-					"view": "res-vectors"
 				}
 			]
 		},

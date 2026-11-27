@@ -1,6 +1,6 @@
 /**
  * Checks app-to-app calls on the core registry against `spec/vectors/app-calls.json`
- * (`spec/command-metadata.md`, "App-to-app calls"; Loam phase 5, step 0b). The core registry does
+ * (`spec/app-calls.md`; Loam phase 5, step 0b). The core registry does
  * not validate input, so the one case that needs validation (`validates`) runs in the server's
  * `createDirectRegistry` test instead; every other case runs here.
  */

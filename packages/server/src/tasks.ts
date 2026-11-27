@@ -1,5 +1,5 @@
 /**
- * @fileoverview MCP Tasks store, record model and options (`spec/command-metadata.md`, "Tasks";
+ * @fileoverview MCP Tasks store, record model and options (`spec/tasks.md`;
  * MCP 2026-07-28 Tasks extension, SEP-2663).
  *
  * Keeps the store contract and in-memory default separate from the MCP transport runtime
@@ -196,7 +196,7 @@ export interface TaskCall {
 }
 
 /**
- * Durable store for MCP task records (`spec/command-metadata.md`, "Tasks").
+ * Durable store for MCP task records (`spec/tasks.md`).
  *
  * Implementations must uphold:
  * - `create` is durable before resolving, rejects duplicate ids (`duplicate-id`), and may reject
@@ -498,7 +498,7 @@ export function finishedTaskTtlFor(
 const VALID_TASK_SUPPORT = new Set<TaskSupport>(['never', 'optional', 'required']);
 
 /**
- * Validate `task` metadata on every registered command (`spec/command-metadata.md`, "Tasks"):
+ * Validate `task` metadata on every registered command (`spec/tasks.md`):
  * a command whose `task` is `'optional'` or `'required'` cannot also declare `confirmPrompt`,
  * `approval` (other than `'not-required'`), or `confirmationMode`.
  */

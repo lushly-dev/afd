@@ -203,7 +203,7 @@ inline constexpr char OUTPUT_BUDGET_EXCEEDED[] = "OUTPUT_BUDGET_EXCEEDED";
 inline constexpr char INSUFFICIENT_SCOPE[] = "INSUFFICIENT_SCOPE";
 // Tasks
 inline constexpr char TASK_TOKEN_EXPIRED[] = "TASK_TOKEN_EXPIRED";
-// App calls (`spec/command-metadata.md`, "App-to-app calls")
+// App calls (`spec/app-calls.md`)
 inline constexpr char CALL_NOT_GRANTED[] = "CALL_NOT_GRANTED";
 // Idempotency keys (`spec/idempotency.md`, "Errors"); no C++ engine sends them yet (#2676)
 inline constexpr char IDEMPOTENCY_KEY_REUSED[] = "IDEMPOTENCY_KEY_REUSED";

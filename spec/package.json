@@ -4,6 +4,6 @@
 	"private": true,
 	"description": "Changesets stub for the AFD contract changelog. Its version only counts the folds of pnpm version-track spec; the contract version is in VERSION and is never set from here.",
 	"afd": {
-		"changelogSha256": "bda382fa951a223db2f7173361b6cc8d6361352389c8c1f2c53215caea6c75df"
+		"changelogSha256": "b92c969071bce54c7d24f2b5afb9ce099e141f74d91afb770749d3551bb4475f"
 	}
 }

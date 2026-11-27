@@ -62,7 +62,7 @@ Rules for producers:
 4. **Fields belong to their kinds.** `command` and `thenRetry` appear only on `call`, `afterMs` only
    on `retry`, and `input` and `needs` only on `call` and `fix-input`. The schema enforces this.
 5. **No acknowledgement, approval or credential in `input`.** A recovery never carries `confirm`
-   (the acknowledgement of a [confirmation](./command-metadata.md#confirmations)), an approval token or a credential
+   (the acknowledgement of a [confirmation](./confirmations.md)), an approval token or a credential
    in `input`: a field the caller must decide to give goes in `needs`, and a step a person must
    take is `external`. The schema refuses `confirm` in `input`.
 6. **Untrusted text stays out.** `command` is a registered name and `input` holds values the

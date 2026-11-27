@@ -1,5 +1,5 @@
 /**
- * @fileoverview The confirmation gate (`spec/command-metadata.md`, "Confirmations"): the check
+ * @fileoverview The confirmation gate (`spec/confirmations.md`): the check
  * that decides whether a call to confirm-gated commands may run, its binding digest, and the
  * confirmation channel of the HTTP routes.
  *

@@ -836,13 +836,13 @@ pub mod error_codes {
     /// same case is usually an HTTP 403 before dispatch instead.
     pub const INSUFFICIENT_SCOPE: &str = "INSUFFICIENT_SCOPE";
     /// A task was still working when the token that started it expired, so it was stopped and
-    /// completes with this failure (`spec/command-metadata.md`, "Tasks"): start it again with a
+    /// completes with this failure (`spec/tasks.md`): start it again with a
     /// new token. Retryable unless the command is a mutation whose handler started, which may
     /// have made its change.
     pub const TASK_TOKEN_EXPIRED: &str = "TASK_TOKEN_EXPIRED";
     /// An app's call (the `apps` interface) to a command it may not call: the command does not
     /// exist, does not set `expose.apps`, or the registry's call grant does not grant it
-    /// (`spec/command-metadata.md`, "App-to-app calls"). One answer for every case.
+    /// (`spec/app-calls.md`). One answer for every case.
     pub const CALL_NOT_GRANTED: &str = "CALL_NOT_GRANTED";
     /// The idempotency key is already held for a call with another input
     /// (`spec/idempotency.md`, "Errors"). No Rust engine sends it yet (#2676).

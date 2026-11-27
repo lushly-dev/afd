@@ -76,7 +76,7 @@ order) and `data.commands.<command>` (the `tool` that runs it and whether it is 
 
 `--suite confirmations` runs `confirmation-cases.json` against a backend started with
 `CONFIRMATIONS=enforce`, where `todo-clear` declares `confirmPrompt`
-([`spec/command-metadata.md`](../../../../spec/command-metadata.md#confirmations)). The runner
+([`spec/confirmations.md`](../../../../spec/confirmations.md)). The runner
 starts one backend per client kind named by a case's `client`: `acknowledge` declares no
 elicitation capability, so the backend must accept `confirm: true`; `accept` and `decline`
 declare form elicitation and answer every confirmation that way. The reset before each case
@@ -94,7 +94,7 @@ command is shown to have changed nothing.
 
 `--suite approvals` runs `approval-cases.json` against a backend started with `APPROVALS=agents`,
 where `todo-clear`, the one change nothing undoes, is held for any caller that is not a person
-([`spec/command-metadata.md`](../../../../spec/command-metadata.md#approvals)); an MCP caller is an
+([`spec/approvals.md`](../../../../spec/approvals.md)); an MCP caller is an
 agent. The client kinds are the confirmation suite's: `acknowledge` declares no elicitation, so a
 held clear fails with `APPROVAL_REQUIRED`; `accept` and `decline` declare form elicitation, so the
 server asks the person, and the client answers every question that way. A clear would be held, so
@@ -116,7 +116,7 @@ leaves the language no case at all.
 
 `--suite tasks --mode modern` runs `task-cases.json` on MCP 2026-07-28 against backends where
 `todo-create-batch` declares `task: "optional"`
-([`spec/command-metadata.md`](../../../../spec/command-metadata.md#tasks)). The `tasks` client
+([`spec/tasks.md`](../../../../spec/tasks.md)). The `tasks` client
 declares `io.modelcontextprotocol/tasks` and verifies `server/discover` advertisement, `afd-detail`
 `task` reporting, `resultType: "task"` creation and `tasks/get` polling to completion on
 `todo-create-batch`, inline execution for `todo-create`, `tasks/update` and `tasks/cancel`

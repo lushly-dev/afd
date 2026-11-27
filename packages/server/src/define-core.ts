@@ -158,7 +158,7 @@ export interface ZodCommandOptions<TInput extends $ZodType, TOutput> {
 	scopes?: string[];
 
 	/**
-	 * Whether this command may or must run as an MCP task (`spec/command-metadata.md`, "Tasks"):
+	 * Whether this command may or must run as an MCP task (`spec/tasks.md`):
 	 * `'never'` (default when unset), `'optional'`, or `'required'`. Reported as `_meta.task`
 	 * and by `afd-detail` only when explicitly set.
 	 */
@@ -288,7 +288,7 @@ export interface ZodCommandDefinition<TInput extends $ZodType = ZodType, TOutput
 	/** OAuth scopes a caller's token needs over authorized HTTP (`spec/authorization.md`, M6) */
 	scopes?: string[];
 
-	/** MCP task support (`spec/command-metadata.md`, "Tasks") */
+	/** MCP task support (`spec/tasks.md`) */
 	task?: TaskSupport;
 
 	/** What the command declares about repeating a call (`spec/idempotency.md`, D1 to D5) */

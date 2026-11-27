@@ -102,7 +102,7 @@ export interface AcceptedApproval {
 
 /**
  * The evidence an approval step admitted a held call on, from which it builds the call's approval
- * summary (`spec/command-metadata.md`, "The approval summary"): how it was admitted, the
+ * summary (`spec/approvals.md`, "The approval summary"): how it was admitted, the
  * evidence's single-use key, and the times the evidence carries.
  */
 export interface ApprovalAdmission {

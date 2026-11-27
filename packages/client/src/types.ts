@@ -116,7 +116,7 @@ export interface McpClientConfig {
 
 	/**
 	 * Declare the MCP Tasks extension (`io.modelcontextprotocol/tasks`) on `streamable-http`
-	 * requests and poll returned tasks to completion (`spec/command-metadata.md`, "Tasks").
+	 * requests and poll returned tasks to completion (`spec/tasks.md`).
 	 * @default false
 	 */
 	tasks?: boolean;

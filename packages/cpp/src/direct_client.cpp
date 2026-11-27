@@ -90,7 +90,7 @@ bool DirectClient::has_command(std::string_view name) const {
 
 CommandResult DirectClient::call(std::string_view name, const Json& args,
                                  CommandContext context) const {
-    // App-to-app calls (`spec/command-metadata.md`, "App-to-app calls") go directly through
+    // App-to-app calls (`spec/app-calls.md`) go directly through
     // CommandRegistry::execute, never DirectClient (whose allow, UNKNOWN_TOOL and client
     // middleware would answer before call_grant).
     if (options_.surface == Interface::apps || context.surface == Interface::apps) {

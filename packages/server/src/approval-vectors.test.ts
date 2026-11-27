@@ -1,6 +1,6 @@
 /**
  * Checks the TypeScript approval middleware against `spec/vectors/approval-tokens.json`, the
- * approval token vectors every implementation loads (`spec/command-metadata.md`, "Approvals").
+ * approval token vectors every implementation loads (`spec/approvals.md`, "Approvals").
  *
  * The file is rebuilt by `approvalVectors()` in `spec/vectors/generate-approval-tokens.mjs`, which
  * builds its tokens from the documented format rather than through this middleware, so a change
