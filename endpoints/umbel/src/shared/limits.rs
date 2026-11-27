@@ -9,7 +9,9 @@
 //! address). Every write purges at most 64 rows whose window has passed.
 //!
 //! The check and the insert are one `BEGIN IMMEDIATE` transaction, so two processes cannot both
-//! admit the last request of a window.
+//! admit the last request of a window. [`LimitStore::hit_all`] decides several requests in one
+//! such transaction, each in turn as [`LimitStore::hit`] would, so one process's waiting requests
+//! share a commit (D216).
 //!
 //! **Byte counters** (schema version 2, phase 5 step 3) hold `read_bytes_per_minute`: one row per
 //! call with the bytes of its result, checked before the next call of the key on the bytes already
@@ -61,6 +63,20 @@ pub(crate) trait LimitStore: Send + Sync {
         window_ms: i64,
         now_ms: i64,
     ) -> Result<Admission, SharedError>;
+
+    /// [`Self::hit`] for each of `hits` (a key and its `now_ms`), in order, each seeing the ones
+    /// before it, and one answer for each in the same order. The SQLite store makes them one
+    /// transaction, so a failure answers every one with it and counts none.
+    fn hit_all(
+        &self,
+        hits: &[(&str, i64)],
+        limit: u64,
+        window_ms: i64,
+    ) -> Vec<Result<Admission, SharedError>> {
+        hits.iter()
+            .map(|(key, now_ms)| self.hit(key, limit, window_ms, *now_ms))
+            .collect()
+    }
 
     /// Whether `key` may make another call at `now_ms`: refused once the bytes counted for it in
     /// the `window_ms` before reach `limit`, until enough of them leave the window. Counts nothing.
@@ -193,14 +209,50 @@ fn shared_error(error: &rusqlite::Error) -> SharedError {
     }
 }
 
-impl LimitStore for SqliteLimits {
-    fn hit(
+/// Decide one request inside `transaction`, as [`LimitStore::hit`] specifies: count it when
+/// fewer than `limit` rows of `key` fall in the window ending at `now_ms`. The caller purges and
+/// commits.
+fn count(
+    transaction: &rusqlite::Transaction<'_>,
+    key: &str,
+    limit: i64,
+    window_ms: i64,
+    now_ms: i64,
+) -> Result<Admission, rusqlite::Error> {
+    let since = now_ms.saturating_sub(window_ms);
+    let counted: i64 = transaction
+        .prepare_cached("SELECT COUNT(*) FROM hits WHERE key = ?1 AND at_ms > ?2")?
+        .query_row(params![key, since], |row| row.get(0))?;
+    if counted >= limit {
+        // The window admits again once `counted - limit + 1` of these rows have left it: the
+        // row at offset `counted - limit` in time order is the last of them.
+        let holding: Option<i64> = transaction
+            .prepare_cached(
+                "SELECT at_ms FROM hits WHERE key = ?1 AND at_ms > ?2
+                 ORDER BY at_ms LIMIT 1 OFFSET ?3",
+            )?
+            .query_row(params![key, since, counted - limit], |row| row.get(0))
+            .optional()?;
+        let leaves = holding.unwrap_or(now_ms).saturating_add(window_ms);
+        return Ok(Admission::Refused {
+            retry_after_ms: leaves.saturating_sub(now_ms).max(1),
+        });
+    }
+    transaction
+        .prepare_cached("INSERT INTO hits (key, at_ms, expires_ms) VALUES (?1, ?2, ?3)")?
+        .execute(params![key, now_ms, now_ms.saturating_add(window_ms)])?;
+    Ok(Admission::Allowed)
+}
+
+impl SqliteLimits {
+    /// Decide `hits` in order in one `BEGIN IMMEDIATE` transaction, then purge at most
+    /// [`PURGE_BATCH`] expired rows for each one counted, as that many single writes would.
+    fn decide(
         &self,
-        key: &str,
+        hits: &[(&str, i64)],
         limit: u64,
         window_ms: i64,
-        now_ms: i64,
-    ) -> Result<Admission, SharedError> {
+    ) -> Result<Vec<Admission>, SharedError> {
         // A poisoned lock means a panic mid-call; the connection itself is still usable, and the
         // transaction it held was rolled back when it was dropped.
         let mut connection = self
@@ -210,48 +262,57 @@ impl LimitStore for SqliteLimits {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| shared_error(&error))?;
-        let since = now_ms.saturating_sub(window_ms);
         let limit = i64::try_from(limit).unwrap_or(i64::MAX);
-        let counted: i64 = transaction
-            .query_row(
-                "SELECT COUNT(*) FROM hits WHERE key = ?1 AND at_ms > ?2",
-                params![key, since],
-                |row| row.get(0),
-            )
-            .map_err(|error| shared_error(&error))?;
-        if counted >= limit {
-            // The window admits again once `counted - limit + 1` of these rows have left it: the
-            // row at offset `counted - limit` in time order is the last of them.
-            let holding: Option<i64> = transaction
-                .query_row(
-                    "SELECT at_ms FROM hits WHERE key = ?1 AND at_ms > ?2
-                     ORDER BY at_ms LIMIT 1 OFFSET ?3",
-                    params![key, since, counted - limit],
-                    |row| row.get(0),
-                )
-                .optional()
+        let mut decided = Vec::with_capacity(hits.len());
+        let mut counted: i64 = 0;
+        let mut newest = i64::MIN;
+        for (key, now_ms) in hits {
+            let admission = count(&transaction, key, limit, window_ms, *now_ms)
                 .map_err(|error| shared_error(&error))?;
-            transaction.commit().map_err(|error| shared_error(&error))?;
-            let leaves = holding.unwrap_or(now_ms).saturating_add(window_ms);
-            return Ok(Admission::Refused {
-                retry_after_ms: leaves.saturating_sub(now_ms).max(1),
-            });
+            if admission == Admission::Allowed {
+                counted += 1;
+                newest = newest.max(*now_ms);
+            }
+            decided.push(admission);
         }
-        transaction
-            .execute(
-                "INSERT INTO hits (key, at_ms, expires_ms) VALUES (?1, ?2, ?3)",
-                params![key, now_ms, now_ms.saturating_add(window_ms)],
-            )
-            .map_err(|error| shared_error(&error))?;
-        transaction
-            .execute(
-                "DELETE FROM hits WHERE rowid IN
-                     (SELECT rowid FROM hits WHERE expires_ms <= ?1 LIMIT ?2)",
-                params![now_ms, PURGE_BATCH],
-            )
-            .map_err(|error| shared_error(&error))?;
+        if counted > 0 {
+            transaction
+                .prepare_cached(
+                    "DELETE FROM hits WHERE rowid IN
+                         (SELECT rowid FROM hits WHERE expires_ms <= ?1 LIMIT ?2)",
+                )
+                .and_then(|mut statement| {
+                    statement.execute(params![newest, PURGE_BATCH.saturating_mul(counted)])
+                })
+                .map_err(|error| shared_error(&error))?;
+        }
         transaction.commit().map_err(|error| shared_error(&error))?;
-        Ok(Admission::Allowed)
+        Ok(decided)
+    }
+}
+
+impl LimitStore for SqliteLimits {
+    fn hit(
+        &self,
+        key: &str,
+        limit: u64,
+        window_ms: i64,
+        now_ms: i64,
+    ) -> Result<Admission, SharedError> {
+        self.decide(&[(key, now_ms)], limit, window_ms)
+            .map(|decided| decided[0])
+    }
+
+    fn hit_all(
+        &self,
+        hits: &[(&str, i64)],
+        limit: u64,
+        window_ms: i64,
+    ) -> Vec<Result<Admission, SharedError>> {
+        match self.decide(hits, limit, window_ms) {
+            Ok(decided) => decided.into_iter().map(Ok).collect(),
+            Err(error) => vec![Err(error); hits.len()],
+        }
     }
 
     fn bytes_admit(
@@ -375,6 +436,55 @@ mod tests {
             Admission::Refused {
                 retry_after_ms: 9_999
             }
+        );
+    }
+
+    #[test]
+    fn a_batch_decides_in_order_each_request_seeing_the_ones_before_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let limits = store(dir.path());
+        let decided = limits.hit_all(
+            &[("a", 0), ("b", 1), ("a", 2), ("a", 3), ("a", 4)],
+            2,
+            MINUTE,
+        );
+        assert_eq!(
+            decided,
+            vec![
+                Ok(Admission::Allowed),
+                Ok(Admission::Allowed),
+                Ok(Admission::Allowed),
+                // The third of `a` in the window: the first leaves it a minute after 0.
+                Ok(Admission::Refused {
+                    retry_after_ms: MINUTE - 3
+                }),
+                Ok(Admission::Refused {
+                    retry_after_ms: MINUTE - 4
+                }),
+            ]
+        );
+        // The batch counted what it admitted and nothing it refused, as single hits would have.
+        let rows: i64 = limits
+            .connection
+            .lock()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM hits", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 3);
+        // A batch that cannot take the store answers each request with the failure and counts
+        // none of them.
+        let path = dir.path().join("shared").join("limits.sqlite3");
+        let quick = SqliteLimits::open(&path, 50).unwrap();
+        let holder = Connection::open(&path).unwrap();
+        holder.execute_batch("BEGIN IMMEDIATE").unwrap();
+        assert_eq!(
+            quick.hit_all(&[("c", 5), ("d", 6)], 2, MINUTE),
+            vec![Err(SharedError::Timeout { store: "limits" }); 2]
+        );
+        holder.execute_batch("ROLLBACK").unwrap();
+        assert_eq!(
+            quick.hit_all(&[("c", 7)], 2, MINUTE),
+            vec![Ok(Admission::Allowed)]
         );
     }
 

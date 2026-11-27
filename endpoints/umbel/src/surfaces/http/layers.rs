@@ -179,6 +179,9 @@ const MINUTE_MS: i64 = 60_000;
 /// The most keys whose refusal one process remembers.
 #[cfg(feature = "auth")]
 const REMEMBERED_REFUSALS: usize = 4096;
+/// The most waiting requests one store transaction decides (D216).
+#[cfg(feature = "auth")]
+const BATCH: usize = 256;
 
 /// Why a sliding limit refused a request.
 #[cfg(feature = "auth")]
@@ -192,21 +195,139 @@ pub(crate) enum Refusal {
 }
 
 /// One per-minute limit on the shared counters (layers 3 and 6), its state in this process: the
-/// limit, one check at a time per process against the store, bounded by
-/// `store.lock_timeout_ms`, and the keys this process saw refused, until their window admits
-/// again.
+/// limit, the requests waiting for the store, and the keys this process saw refused, until their
+/// window admits again.
+///
+/// Waiting requests are decided in arrival order, at most [`BATCH`] in one store transaction
+/// ([`LimitStore::hit_all`], D216): one blocking task drains the queue while it holds any, so a
+/// flood waits here, cheaply, rather than in the blocking pool, and shares commits instead of
+/// taking one each. A request still waiting `store.lock_timeout_ms` after it arrived when its
+/// batch is taken is refused as busy and not counted; one taken in time may still wait the
+/// store's own busy timeout, as a request holding the old single turn did.
 #[cfg(feature = "auth")]
 pub(crate) struct SlidingLimit {
     store: Arc<dyn LimitStore>,
     per_minute: u64,
     lock_timeout: Duration,
-    turn: Arc<tokio::sync::Semaphore>,
+    queue: Arc<std::sync::Mutex<Queue>>,
     refused: std::sync::Mutex<std::collections::HashMap<String, i64>>,
+}
+
+/// The requests waiting for one limit's store, and whether a task is draining them.
+#[cfg(feature = "auth")]
+#[derive(Default)]
+struct Queue {
+    waiting: std::collections::VecDeque<Waiting>,
+    draining: bool,
+}
+
+/// One request waiting for its decision.
+#[cfg(feature = "auth")]
+struct Waiting {
+    key: String,
+    now_ms: i64,
+    deadline: std::time::Instant,
+    answer: tokio::sync::oneshot::Sender<Result<Admission, SharedError>>,
 }
 
 /// Layer 3's limit.
 #[cfg(feature = "auth")]
 pub(crate) type IpLimit = SlidingLimit;
+
+/// A failure every request of a batch is answered with.
+#[cfg(feature = "auth")]
+fn batch_failed(message: &str) -> Result<Admission, SharedError> {
+    Err(SharedError::Failed {
+        store: "limits",
+        message: message.to_owned(),
+    })
+}
+
+/// The drain of one queue. Dropped before the drain emptied the queue (a panic outside the
+/// store's call, or a blocking task that never ran), it answers every request still waiting as
+/// failed and marks the queue undrained, so the limit fails closed and the next request starts a
+/// drain again.
+#[cfg(feature = "auth")]
+struct DrainGuard {
+    queue: Arc<std::sync::Mutex<Queue>>,
+    finished: bool,
+}
+
+#[cfg(feature = "auth")]
+impl Drop for DrainGuard {
+    fn drop(&mut self) {
+        if self.finished {
+            return;
+        }
+        let left: Vec<Waiting> = {
+            let mut queue = self
+                .queue
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            queue.draining = false;
+            queue.waiting.drain(..).collect()
+        };
+        for waiting in left {
+            let _ = waiting
+                .answer
+                .send(batch_failed("the limit's drain stopped"));
+        }
+    }
+}
+
+/// Decide the requests of the guarded queue until it is empty, a batch per store transaction,
+/// then mark it no longer drained. Runs on a blocking thread.
+#[cfg(feature = "auth")]
+fn drain(guard: &mut DrainGuard, store: &dyn LimitStore, per_minute: u64) {
+    loop {
+        let batch: Vec<Waiting> = {
+            let mut queue = guard
+                .queue
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if queue.waiting.is_empty() {
+                queue.draining = false;
+                guard.finished = true;
+                return;
+            }
+            let take = queue.waiting.len().min(BATCH);
+            queue.waiting.drain(..take).collect()
+        };
+        let now = std::time::Instant::now();
+        let mut live = Vec::with_capacity(batch.len());
+        for waiting in batch {
+            if waiting.answer.is_closed() {
+                // The caller is gone (its connection closed): nothing to count.
+            } else if waiting.deadline <= now {
+                let _ = waiting
+                    .answer
+                    .send(Err(SharedError::Timeout { store: "limits" }));
+            } else {
+                live.push(waiting);
+            }
+        }
+        if live.is_empty() {
+            continue;
+        }
+        let hits: Vec<(&str, i64)> = live
+            .iter()
+            .map(|waiting| (waiting.key.as_str(), waiting.now_ms))
+            .collect();
+        // A panic in the store answers its batch as failed and leaves the queue drained.
+        let decided = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            store.hit_all(&hits, per_minute, MINUTE_MS)
+        }))
+        .unwrap_or_else(|_| vec![batch_failed("the limit store panicked"); hits.len()]);
+        drop(hits);
+        let mut decided = decided.into_iter();
+        for waiting in live {
+            let answer = decided
+                .next()
+                .unwrap_or_else(|| batch_failed("the limit store answered too few requests"));
+            let _ = waiting.answer.send(answer);
+        }
+    }
+}
 
 #[cfg(feature = "auth")]
 impl SlidingLimit {
@@ -215,7 +336,7 @@ impl SlidingLimit {
             store,
             per_minute,
             lock_timeout,
-            turn: Arc::new(tokio::sync::Semaphore::new(1)),
+            queue: Arc::default(),
             refused: std::sync::Mutex::default(),
         }
     }
@@ -262,29 +383,42 @@ impl SlidingLimit {
     }
 
     /// Count one request against `key`, or say why not. A key this process already saw refused
-    /// is answered from memory until its window admits again, without touching the store. The
-    /// check waits its turn no longer than the store's own lock timeout, so a flood queues here,
-    /// cheaply, rather than in the blocking pool.
+    /// is answered from memory until its window admits again, without touching the store.
+    /// Otherwise the request waits in the queue no longer than the store's own lock timeout, and
+    /// is decided with the requests waiting beside it in one store transaction.
     pub(crate) async fn admit(&self, key: String) -> Result<(), Refusal> {
-        let now = Self::now_ms();
-        if let Some(left) = self.remembered(&key, now) {
+        if let Some(left) = self.remembered(&key, Self::now_ms()) {
             return Err(Refusal::TooMany(left));
         }
-        let Ok(Ok(turn)) =
-            tokio::time::timeout(self.lock_timeout, Arc::clone(&self.turn).acquire_owned()).await
-        else {
-            return Err(Refusal::Busy("limits"));
+        let (answer, decided) = tokio::sync::oneshot::channel();
+        let (start, now) = {
+            let mut queue = self
+                .queue
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            // Read under the queue's lock, so the times of the requests are in queue order and a
+            // request is never decided after a later one at an earlier time.
+            let now = Self::now_ms();
+            queue.waiting.push_back(Waiting {
+                key: key.clone(),
+                now_ms: now,
+                deadline: std::time::Instant::now() + self.lock_timeout,
+                answer,
+            });
+            (!std::mem::replace(&mut queue.draining, true), now)
         };
-        let store = Arc::clone(&self.store);
-        let per_minute = self.per_minute;
-        let checked = key.clone();
-        let decided = tokio::task::spawn_blocking(move || {
-            let decided = store.hit(&checked, per_minute, MINUTE_MS, now);
-            drop(turn);
-            decided
-        })
-        .await;
-        match decided {
+        if start {
+            let mut guard = DrainGuard {
+                queue: Arc::clone(&self.queue),
+                finished: false,
+            };
+            let store = Arc::clone(&self.store);
+            let per_minute = self.per_minute;
+            drop(tokio::task::spawn_blocking(move || {
+                drain(&mut guard, store.as_ref(), per_minute);
+            }));
+        }
+        match decided.await {
             Ok(Ok(Admission::Allowed)) => Ok(()),
             Ok(Ok(Admission::Refused { retry_after_ms })) => {
                 self.remember(key, now.saturating_add(retry_after_ms), now);
@@ -937,6 +1071,280 @@ mod tests {
                     .get(header::RETRY_AFTER)
                     .and_then(|v| v.to_str().ok()),
                 Some(seconds)
+            );
+        }
+    }
+
+    fn sqlite(dir: &std::path::Path, lock_timeout_ms: u64) -> Arc<dyn LimitStore> {
+        Arc::new(
+            crate::shared::limits::SqliteLimits::open(
+                &dir.join("shared").join("limits.sqlite3"),
+                lock_timeout_ms,
+            )
+            .unwrap(),
+        )
+    }
+
+    fn rows(dir: &std::path::Path) -> i64 {
+        rusqlite::Connection::open(dir.join("shared").join("limits.sqlite3"))
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM hits", [], |row| row.get(0))
+            .unwrap()
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn requests_decided_together_admit_exactly_the_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let limit = Arc::new(SlidingLimit::new(
+            sqlite(dir.path(), 5_000),
+            10,
+            Duration::from_secs(5),
+        ));
+        let running: Vec<_> = (0..64)
+            .map(|_| {
+                let limit = Arc::clone(&limit);
+                tokio::spawn(async move { limit.admit("ip:192.0.2.7".to_owned()).await })
+            })
+            .collect();
+        let mut admitted = 0;
+        for task in running {
+            match task.await.unwrap() {
+                Ok(()) => admitted += 1,
+                Err(Refusal::TooMany(left)) => assert!((1..=60_000).contains(&left), "{left}"),
+                Err(_) => panic!("a refusal other than the limit's"),
+            }
+        }
+        assert_eq!(admitted, 10);
+        assert_eq!(rows(dir.path()), 10, "a refused request writes nothing");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_request_that_waits_past_the_lock_timeout_is_busy_and_not_counted() {
+        let dir = tempfile::tempdir().unwrap();
+        let limit = Arc::new(SlidingLimit::new(
+            sqlite(dir.path(), 100),
+            10,
+            Duration::from_millis(100),
+        ));
+        let holder =
+            rusqlite::Connection::open(dir.path().join("shared").join("limits.sqlite3")).unwrap();
+        holder.execute_batch("BEGIN IMMEDIATE").unwrap();
+        let running: Vec<_> = (0..8)
+            .map(|n| {
+                let limit = Arc::clone(&limit);
+                tokio::spawn(async move { limit.admit(format!("ip:192.0.2.{n}")).await })
+            })
+            .collect();
+        for task in running {
+            assert!(matches!(task.await.unwrap(), Err(Refusal::Busy("limits"))));
+        }
+        holder.execute_batch("ROLLBACK").unwrap();
+        assert_eq!(rows(dir.path()), 0);
+        assert!(limit.admit("ip:192.0.2.1".to_owned()).await.is_ok());
+        assert_eq!(rows(dir.path()), 1);
+    }
+
+    /// A store that records the keys each batch asks, holds its first batch until `gate` opens
+    /// (saying so on `entered`), and panics on as many batches as `panics` says.
+    struct Gated {
+        asked: std::sync::Mutex<Vec<Vec<String>>>,
+        entered: std::sync::Mutex<Option<std::sync::mpsc::Sender<()>>>,
+        gate: std::sync::Mutex<Option<std::sync::mpsc::Receiver<()>>>,
+        panics: AtomicUsize,
+    }
+
+    impl LimitStore for Gated {
+        fn hit(&self, _: &str, _: u64, _: i64, _: i64) -> Result<Admission, SharedError> {
+            Ok(Admission::Allowed)
+        }
+
+        fn hit_all(
+            &self,
+            hits: &[(&str, i64)],
+            _: u64,
+            _: i64,
+        ) -> Vec<Result<Admission, SharedError>> {
+            self.asked
+                .lock()
+                .unwrap()
+                .push(hits.iter().map(|(key, _)| (*key).to_owned()).collect());
+            if let Some(gate) = self.gate.lock().unwrap().take() {
+                if let Some(entered) = self.entered.lock().unwrap().take() {
+                    entered.send(()).unwrap();
+                }
+                gate.recv().unwrap();
+            }
+            // One batch at a time reaches the store, so a load and a decrement do not race.
+            if self.panics.load(Ordering::SeqCst) > 0 {
+                self.panics.fetch_sub(1, Ordering::SeqCst);
+                panic!("the store panicked");
+            }
+            vec![Ok(Admission::Allowed); hits.len()]
+        }
+
+        fn bytes_admit(&self, _: &str, _: u64, _: i64, _: i64) -> Result<Admission, SharedError> {
+            Ok(Admission::Allowed)
+        }
+
+        fn bytes_add(&self, _: &str, _: u64, _: i64, _: i64) -> Result<(), SharedError> {
+            Ok(())
+        }
+    }
+
+    /// A gated store, a limit over it with `lock_timeout`, and the first request (`a`), whose
+    /// batch holds the store once this returns; send on the sender to open it.
+    async fn held(
+        lock_timeout: Duration,
+    ) -> (
+        Arc<Gated>,
+        Arc<SlidingLimit>,
+        tokio::task::JoinHandle<Result<(), Refusal>>,
+        std::sync::mpsc::Sender<()>,
+    ) {
+        let (entered, has_entered) = std::sync::mpsc::channel();
+        let (open, gate) = std::sync::mpsc::channel();
+        let store = Arc::new(Gated {
+            asked: std::sync::Mutex::default(),
+            entered: std::sync::Mutex::new(Some(entered)),
+            gate: std::sync::Mutex::new(Some(gate)),
+            panics: AtomicUsize::new(0),
+        });
+        let limit = Arc::new(SlidingLimit::new(
+            Arc::clone(&store) as Arc<dyn LimitStore>,
+            10,
+            lock_timeout,
+        ));
+        let first = {
+            let limit = Arc::clone(&limit);
+            tokio::spawn(async move { limit.admit("a".to_owned()).await })
+        };
+        tokio::task::spawn_blocking(move || has_entered.recv().unwrap())
+            .await
+            .unwrap();
+        (store, limit, first, open)
+    }
+
+    fn admitting(
+        limit: &Arc<SlidingLimit>,
+        key: &str,
+    ) -> tokio::task::JoinHandle<Result<(), Refusal>> {
+        let limit = Arc::clone(limit);
+        let key = key.to_owned();
+        tokio::spawn(async move { limit.admit(key).await })
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_request_still_waiting_past_the_lock_timeout_is_busy_and_never_counted() {
+        let (store, limit, first, open) = held(Duration::from_millis(100)).await;
+        let expires = admitting(&limit, "b");
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        open.send(()).unwrap();
+        assert!(first.await.unwrap().is_ok());
+        assert!(matches!(
+            expires.await.unwrap(),
+            Err(Refusal::Busy("limits"))
+        ));
+        assert_eq!(*store.asked.lock().unwrap(), vec![vec!["a".to_owned()]]);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_request_whose_caller_left_while_it_waited_is_never_counted() {
+        // A deadline far off, so only the caller's leaving keeps the request from the store.
+        let (store, limit, first, open) = held(Duration::from_secs(30)).await;
+        let leaves = admitting(&limit, "c");
+        // Until `c` waits in the queue, however loaded the machine.
+        while limit.queue.lock().unwrap().waiting.is_empty() {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        assert_eq!(limit.queue.lock().unwrap().waiting.len(), 1, "c is waiting");
+        leaves.abort();
+        assert!(matches!(leaves.await, Err(error) if error.is_cancelled()));
+        open.send(()).unwrap();
+        assert!(first.await.unwrap().is_ok());
+        // The next request is decided after the queue passed over `c`.
+        assert!(admitting(&limit, "d").await.unwrap().is_ok());
+        let asked = store.asked.lock().unwrap().concat();
+        assert_eq!(asked, ["a", "d"]);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_store_that_panics_fails_its_batch_closed_and_the_limit_goes_on() {
+        let store = Arc::new(Gated {
+            asked: std::sync::Mutex::default(),
+            entered: std::sync::Mutex::new(None),
+            gate: std::sync::Mutex::new(None),
+            panics: AtomicUsize::new(1),
+        });
+        let limit = SlidingLimit::new(store, 10, Duration::from_secs(1));
+        assert!(matches!(
+            limit.admit("a".to_owned()).await,
+            Err(Refusal::Failed)
+        ));
+        assert!(limit.admit("a".to_owned()).await.is_ok());
+    }
+
+    #[test]
+    fn a_drain_that_stops_early_fails_what_waits_and_lets_the_next_request_drain() {
+        let queue = Arc::new(std::sync::Mutex::new(Queue::default()));
+        let (answer, mut decided) = tokio::sync::oneshot::channel();
+        {
+            let mut queue = queue.lock().unwrap();
+            queue.waiting.push_back(Waiting {
+                key: "a".to_owned(),
+                now_ms: 0,
+                deadline: std::time::Instant::now() + Duration::from_secs(1),
+                answer,
+            });
+            queue.draining = true;
+        }
+        drop(DrainGuard {
+            queue: Arc::clone(&queue),
+            finished: false,
+        });
+        assert!(matches!(
+            decided.try_recv(),
+            Ok(Err(SharedError::Failed { .. }))
+        ));
+        let queue = queue.lock().unwrap();
+        assert!(!queue.draining && queue.waiting.is_empty());
+    }
+
+    /// How many admissions a second one process's limit makes on the SQLite store, with
+    /// `tasks` callers admitting at once, each under its own key (#1776, D216). Ignored; run with
+    /// `cargo test --release --locked -p umbel --lib sliding_limit_throughput -- --ignored
+    /// --nocapture`. Prints, with no thresholds.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "throughput benchmark of the sliding limit; run in release with --ignored --nocapture"]
+    async fn sliding_limit_throughput() {
+        const PER_TASK: usize = 500;
+        let dir = tempfile::tempdir().unwrap();
+        let store = sqlite(dir.path(), 5_000);
+        for tasks in [1usize, 8, 64, 256] {
+            let limit = Arc::new(SlidingLimit::new(
+                Arc::clone(&store),
+                u64::MAX,
+                Duration::from_secs(5),
+            ));
+            let started = std::time::Instant::now();
+            let running: Vec<_> = (0..tasks)
+                .map(|task| {
+                    let limit = Arc::clone(&limit);
+                    tokio::spawn(async move {
+                        for _ in 0..PER_TASK {
+                            assert!(limit.admit(format!("bench:{tasks}:{task}")).await.is_ok());
+                        }
+                    })
+                })
+                .collect();
+            for task in running {
+                task.await.unwrap();
+            }
+            let elapsed = started.elapsed();
+            #[allow(clippy::cast_precision_loss)]
+            let per_second = (tasks * PER_TASK) as f64 / elapsed.as_secs_f64();
+            println!(
+                "sliding_limit_throughput tasks={tasks:>3} admissions={:>6} {per_second:>8.0}/s",
+                tasks * PER_TASK
             );
         }
     }
