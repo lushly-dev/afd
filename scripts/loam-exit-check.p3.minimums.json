@@ -1,9 +1,9 @@
 {
 	"about": [
-		"The fewest passing titles scripts/loam-exit-check.mjs --phase 3 accepts for each P3-E row, by the place its row names (phase 3 specification, section 18), so an exclude, a skipped suite or a deleted file cannot pass unnoticed. P3-E12 reads loam-exit-check.minimums.json, phase 2's; E10's budget and E16 have no count.",
+		"The fewest passing titles scripts/loam-exit-check.mjs --phase 3 accepts for each row, P3-E and P3-H, by the place its row names (phase 3 specification, section 18), so an exclude, a skipped suite or a deleted file cannot pass unnoticed. P3-E12 reads loam-exit-check.minimums.json, phase 2's; E10's budget and E16 have no count. P3-H1 to P3-H5 count the hosted criterion's step, and E8 counts it beside its unit places (step 10).",
 		"Each is the count a full run observed. When exit tests are added or removed on purpose, run the check on a run that has them with --phase 3 --print-minimums, and copy the counts it prints here in the same pull request, saying why each changed."
 	],
-	"observed": "loam.yml run 45049749709 and ci.yml run 45049752180, both workflow_dispatch on main at 31b409fb, attempt 1 (2026-11-22), every job run, after #2048, #2059 and #2061",
+	"observed": "loam.yml run 45917448362 and ci.yml run 45917451121, both workflow_dispatch on main at 19db954e, attempt 1 (2026-11-26), every job run but ci.yml's Pull request title, which a manual dispatch skips, after #2744 (step 10's tests); the local part was first set from runs 45049749709 and 45049752180 at 31b409fb (2026-11-22)",
 	"minimums": {
 		"E1": {
 			"chromium": 7,
@@ -33,11 +33,12 @@
 			"units": 19
 		},
 		"E8": {
-			"units": 30,
-			"handler": 27
+			"units": 31,
+			"handler": 27,
+			"hosted": 2
 		},
 		"E9": {
-			"identity": 368
+			"identity": 372
 		},
 		"E10": {
 			"chromium": 4
@@ -71,6 +72,21 @@
 		"E20": {
 			"chromium": 9,
 			"units": 7
+		},
+		"H1": {
+			"hosted": 3
+		},
+		"H2": {
+			"hosted": 6
+		},
+		"H3": {
+			"hosted": 4
+		},
+		"H4": {
+			"hosted": 3
+		},
+		"H5": {
+			"hosted": 5
 		}
 	}
 }
