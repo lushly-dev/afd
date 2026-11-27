@@ -196,8 +196,9 @@ The proposal lists six under "For the owner to decide". Each has its own line he
 - A docs topic the command line can print (#2479): merged in #2533. `botcore docs <topic>` prints
   what the server's docs tool returns, from the same function; `botcore docs` lists the topics.
 
-- The Botcore release that carries the commands, installed on each machine (the maintainer's): not
-  started; follows #2484.
+- The Botcore release that carries the commands, installed on each machine (the maintainer's):
+  `lushly-botcore` 0.10.0 published 2026-11-26 (#2615). Installed on two of the three machines;
+  one machine's settings name a checkout for the hourly collection.
 
 - Naming the verdict in this repository's `botcore.toml` (the maintainer's): not started; follows
   the release. Once that Botcore is installed on every machine, add `[gate_outcome]
