@@ -476,21 +476,44 @@ def test_auto_merge_is_bound_to_the_head_and_method(github):
 
 
 @pytest.mark.parametrize(
-    "response",
+    "response,sent",
     [
-        httpx.Response(502, json={"message": "Bad gateway"}),
-        httpx.Response(429, json={"message": "Too many"}),
-        httpx.Response(
-            403, json={"message": "API rate limit exceeded"}, headers={"x-ratelimit-remaining": "0"}
+        (httpx.Response(502, json={"message": "Bad gateway"}), True),
+        (httpx.Response(429, json={"message": "Too many"}), False),
+        (
+            httpx.Response(
+                403,
+                json={"message": "API rate limit exceeded"},
+                headers={"x-ratelimit-remaining": "0"},
+            ),
+            False,
         ),
-        httpx.Response(403, json={"message": "You have exceeded a secondary rate limit"}),
+        (httpx.Response(403, json={"message": "You have exceeded a secondary rate limit"}), False),
     ],
 )
-def test_outages_and_rate_limits_may_be_retried(github, response):
+def test_outages_and_rate_limits_may_be_retried(github, response, sent):
+    """A rate limit is GitHub refusing the call unread (sent False); a 5xx may follow a write."""
     app, mock, _ = github
     mock.routes[("GET", f"/repos/{REPO}/labels")] = response
-    with pytest.raises(GitHubUnavailable):
+    with pytest.raises(GitHubUnavailable) as outage:
         app.repo_labels(REPO)
+    assert outage.value.sent is sent
+
+
+@pytest.mark.parametrize(
+    "error,sent",
+    [(httpx.ConnectError, False), (httpx.ConnectTimeout, False), (httpx.ReadTimeout, True)],
+)
+def test_a_connection_that_never_opened_sent_nothing(github, error, sent):
+    app, mock, _ = github
+
+    def fail(request):
+        raise error("no answer", request=request)
+
+    mock.routes[("POST", f"/repos/{REPO}/issues")] = fail
+    with pytest.raises(GitHubUnavailable) as outage:
+        app.create_issue(REPO, "T", "B", [])
+    assert outage.value.sent is sent
 
 
 def test_a_dropped_connection_may_be_retried_and_a_refusal_may_not(github):

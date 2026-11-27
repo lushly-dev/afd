@@ -230,7 +230,11 @@ rebuildable from GitHub; losing them costs a review re-record and an event deliv
 ### Writes that can be retried
 
 Every write is idempotent, so a caller that times out or meets `GITHUB_UNAVAILABLE` retries the
-same call:
+same call, with one exception: an `issue-create` or `issue-comment` without a `dedupe_key` that
+GitHub did not answer after the request reached it may have been made, and a repeat would make
+it twice, so that answer is not retryable and says where to look first (one GitHub cannot have
+acted on, a failed connection or a rate limit, stays retryable)
+([#2850](https://github.com/lushly-dev/afd/issues/2850)):
 
 - `issue-create` and `issue-comment` take a `dedupe_key`; the gateway writes it into a marker in
   the text and finds it again. A filing with a `type` or `parent` is more than one GitHub write, so
@@ -374,7 +378,8 @@ directory; `repo` selects the GitHub repository and its mirror.
 Names follow `domain-action`; inputs are snake_case, as in the factory. Every call takes `repo`
 (refused with `REPO_NOT_ALLOWED` outside the configured repositories), and every refusal carries a
 `suggestion`. Every GitHub command can fail with `GITHUB_UNAVAILABLE` (`retryable: true`); retrying
-the same call is safe. A refusal GitHub itself gives (a permission, a rule, a state the gateway did
+the same call is safe, except an unanswered `issue-create` or `issue-comment` without a
+`dedupe_key`, which is `retryable: false` ([Writes that can be retried](#writes-that-can-be-retried)). A refusal GitHub itself gives (a permission, a rule, a state the gateway did
 not foresee) is `GITHUB_REFUSED` with GitHub's message, and repeating the call will not help. A
 `branch-push` whose ref moved between the gateway's read and its push is `HEAD_MOVED`: the push is
 made with git's `--force-with-lease`, so it never overwrites what another writer put there. Effects use botcore's names: reads are `inspect`, GitHub writes `service`,
@@ -416,9 +421,9 @@ when there is none, a pull request included. A parent in another repository read
 `owner/name#number`: `issue-set` can replace it but not detach it, since the gateway serves only
 its own repositories. If GitHub refuses to attach an issue `issue-create` has just filed, the
 refusal names the issue's number, and a retry with the same `dedupe_key` finishes the attach. If
-GitHub does not answer that attach, the `GITHUB_UNAVAILABLE` names the number too, and it is the
-one such answer that is retryable only with a `dedupe_key`: repeating a filing without one files
-a second issue.
+GitHub does not answer that attach, the `GITHUB_UNAVAILABLE` names the number too, and, like any
+unanswered write without a `dedupe_key` ([Writes that can be retried](#writes-that-can-be-retried)),
+it is retryable only with one: repeating a filing without one files a second issue.
 GitHub's own limits (an issue as its own parent, a cycle, 100 sub-issues) come back as
 `GITHUB_REFUSED`. The gateway does not enforce triage's two levels; that stays the skill's rule.
 

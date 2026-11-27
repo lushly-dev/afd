@@ -135,6 +135,75 @@ def test_a_github_outage_is_retryable_and_writes_nothing(run):
     assert result.error.code == "GITHUB_UNAVAILABLE" and result.error.retryable is True
 
 
+@pytest.mark.parametrize(
+    "command,arguments,method",
+    [
+        ("issue-create", {"title": "Flaky", "body": "B"}, "create_issue"),
+        ("issue-comment", {"number": 101, "body": "Again"}, "add_comment"),
+    ],
+)
+@pytest.mark.parametrize("dedupe_key", [None, "k-1"])
+def test_an_unanswered_write_is_retryable_only_with_a_dedupe_key(
+    run, monkeypatch, command, arguments, method, dedupe_key
+):
+    """#2850: GitHub may have made a write it did not answer. With a dedupe_key a repeat finds
+    it; without one a repeat makes it twice, so that answer says to look first."""
+    from botcore_factory.gateway.github import GitHubUnavailable
+
+    def lost(self, *args, **kwargs):
+        raise GitHubUnavailable("POST /repos/x answered 502")
+
+    monkeypatch.setattr(FakeGitHub, method, lost)
+    gateway = run()
+    keyed = {"dedupe_key": dedupe_key} if dedupe_key else {}
+    result = gateway("foreman", command, repo=REPO, **arguments, **keyed)
+    assert result.error.code == "GITHUB_UNAVAILABLE"
+    assert result.error.retryable is bool(dedupe_key)
+    if dedupe_key:
+        assert "safe to repeat" in result.error.suggestion
+    else:
+        assert "Do not repeat the call blindly" in result.error.suggestion
+        assert "dedupe_key" in result.error.suggestion
+
+
+@pytest.mark.parametrize("method", ["create_issue", "add_comment"])
+def test_an_unkeyed_write_github_cannot_have_made_stays_retryable(run, monkeypatch, method):
+    """A rate limit or a connection that never opened: nothing was written, so retry."""
+    from botcore_factory.gateway.github import GitHubUnavailable
+
+    def limited(self, *args, **kwargs):
+        raise GitHubUnavailable("POST /repos/x answered 429", sent=False)
+
+    monkeypatch.setattr(FakeGitHub, method, limited)
+    gateway = run()
+    command, arguments = (
+        ("issue-create", {"title": "Flaky", "body": "B"})
+        if method == "create_issue"
+        else ("issue-comment", {"number": 101, "body": "Again"})
+    )
+    result = gateway("foreman", command, repo=REPO, **arguments)
+    assert result.error.code == "GITHUB_UNAVAILABLE" and result.error.retryable is True
+
+
+def test_an_unanswered_filing_with_a_parent_says_how_to_attach_what_it_finds(run, monkeypatch):
+    from botcore_factory.gateway.github import GitHubUnavailable
+
+    attached = []
+
+    def lost(self, *args, **kwargs):
+        raise GitHubUnavailable("POST /repos/x answered 502")
+
+    monkeypatch.setattr(FakeGitHub, "create_issue", lost)
+    monkeypatch.setattr(FakeGitHub, "add_sub_issue", lambda self, *a: attached.append(a))
+    gateway = run()
+    result = gateway("foreman", "issue-create", repo=REPO, title="Part one", body="B", parent=101)
+    assert result.error.code == "GITHUB_UNAVAILABLE" and result.error.retryable is False
+    assert "issue-set" in result.error.suggestion and "parent 101" in result.error.suggestion
+    assert "gh issue list" in result.error.suggestion
+    assert result.error.details == {"title": "Part one"}
+    assert attached == []  # The attach never ran.
+
+
 def test_merge_refuses_a_check_main_does_not_require(run):
     gateway = run(requiredCheck={"name": "ci-ok", "requiredOnMain": False})
     assert gateway(
