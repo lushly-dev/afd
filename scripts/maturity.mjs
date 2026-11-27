@@ -465,7 +465,13 @@ export function checkRepository(root = REPO_ROOT, { write = false } = {}) {
 async function fetchJson(url) {
 	try {
 		const response = await fetch(url, {
-			headers: { 'user-agent': 'afd-maturity-check', accept: 'application/json' },
+			// crates.io asks automated clients to name themselves and where to find them.
+			headers: {
+				'user-agent': 'afd-maturity-check (https://github.com/lushly-dev/afd)',
+				accept: 'application/json',
+			},
+			// A stalled registry reads as unchecked, not as a job that runs out of time.
+			signal: AbortSignal.timeout(20_000),
 		});
 		if (response.status === 404) return { missing: true };
 		if (!response.ok) return { unreachable: `HTTP ${response.status}` };
@@ -475,18 +481,29 @@ async function fetchJson(url) {
 	}
 }
 
+/**
+ * Releases published before the ladder set their classifier. Each one is excused only while it is
+ * the version its registry serves: once a new release ships, the exemption fails the check until
+ * it is removed, and so does an exemption whose registry already agrees or that names no published
+ * unit. Remove an entry in the change that prepares its unit's next release.
+ */
+export const RELEASE_LAG = Object.freeze({
+	'pypi:afd': { version: '0.13.0', issue: '#2473' },
+});
+
 /** The `0.0.0-*` version a maintainer publishes so npm holds the name; as in release-control.mjs. */
 export const isPlaceholder = (version) =>
 	typeof version === 'string' && version.startsWith('0.0.0-') && semver.valid(version) !== null;
 
 /**
- * Compares each published unit with its registry. Returns errors, warnings and unchecked items;
- * no rule warns today, and the field stays so the CLI's output shape does not change.
+ * Compares each published unit with its registry. Returns errors, warnings (a mismatch excused by
+ * RELEASE_LAG) and unchecked items (a registry that could not be read).
  */
-export async function checkRegistries(inventory) {
+export async function checkRegistries(inventory, { releaseLag = RELEASE_LAG } = {}) {
 	const errors = [];
 	const warnings = [];
 	const unchecked = [];
+	const visited = new Set();
 	for (const unit of inventory.units) {
 		const word = rung(unit.maturity);
 		if (!word.published) continue;
@@ -518,6 +535,7 @@ export async function checkRegistries(inventory) {
 						errors.push(`${name}: ${word.label}, but npm's latest is ${tags.latest ?? 'missing'}`);
 				}
 			} else if (registry === 'pypi') {
+				visited.add(`pypi:${name}`);
 				const result = await fetchJson(`https://pypi.org/pypi/${name}/json`);
 				if (result.unreachable) unchecked.push(`${name}: ${result.unreachable}`);
 				else if (result.missing) errors.push(`${name}: not on PyPI`);
@@ -525,9 +543,20 @@ export async function checkRegistries(inventory) {
 					const status = (result.body.info?.classifiers ?? []).find((c) =>
 						c.startsWith('Development Status ::')
 					);
-					if (status !== word.classifier)
+					const version = result.body.info?.version;
+					const lag = releaseLag[`pypi:${name}`];
+					const said = `${name}: PyPI ${version} says "${status}", the ladder says "${word.classifier}"`;
+					if (lag && version !== lag.version)
 						errors.push(
-							`${name}: PyPI ${result.body.info?.version} says "${status}", the ladder says "${word.classifier}" (fixed by the next release)`
+							`${name}: the release-lag exemption for ${lag.version} has expired (PyPI is at ${version}); remove it from RELEASE_LAG in scripts/maturity.mjs`
+						);
+					else if (status !== word.classifier)
+						(lag ? warnings : errors).push(
+							lag ? `${said}; ${version} was released before the ladder (${lag.issue})` : said
+						);
+					else if (lag)
+						errors.push(
+							`${name}: PyPI now agrees with the ladder; remove its release-lag exemption from RELEASE_LAG in scripts/maturity.mjs`
 						);
 				}
 			} else if (registry === 'crates') {
@@ -544,6 +573,11 @@ export async function checkRegistries(inventory) {
 			} else unchecked.push(`${name}: ${registry} has no registry to read (a git tag)`);
 		}
 	}
+	for (const key of Object.keys(releaseLag))
+		if (!visited.has(key))
+			errors.push(
+				`${key}: the release-lag exemption names no published unit; remove it from RELEASE_LAG in scripts/maturity.mjs`
+			);
 	return { errors, warnings, unchecked };
 }
 

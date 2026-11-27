@@ -337,25 +337,88 @@ describe('checkRegistries', () => {
 	};
 
 	/** Runs the registry check for one Preview npm package whose registry answers with `tags`. */
-	async function previewWith(tags) {
+	async function previewWith(tags, answer) {
 		const realFetch = globalThis.fetch;
-		globalThis.fetch = async () =>
-			new Response(JSON.stringify({ 'dist-tags': tags, versions }), { status: 200 });
+		globalThis.fetch =
+			answer ??
+			(async () => new Response(JSON.stringify({ 'dist-tags': tags, versions }), { status: 200 }));
 		try {
-			return await checkRegistries({
-				units: [
-					unit('p', {
-						maturity: 'preview',
-						distributions: [
-							{ name: '@x/p', registry: 'npm', format: 'npm', manifest: 'p/package.json' },
-						],
-					}),
-				],
-			});
+			return await checkRegistries(
+				{
+					units: [
+						unit('p', {
+							maturity: 'preview',
+							distributions: [
+								{ name: '@x/p', registry: 'npm', format: 'npm', manifest: 'p/package.json' },
+							],
+						}),
+					],
+				},
+				{ releaseLag: {} }
+			);
 		} finally {
 			globalThis.fetch = realFetch;
 		}
 	}
+
+	it('excuses a release published before the ladder only while it is the served version', async () => {
+		const realFetch = globalThis.fetch;
+		const pypi = async (version, status, releaseLag) => {
+			globalThis.fetch = async () =>
+				new Response(JSON.stringify({ info: { version, classifiers: [status] } }), { status: 200 });
+			try {
+				return await checkRegistries(
+					{
+						units: [
+							unit('py', {
+								distributions: [
+									{ name: 'py', registry: 'pypi', format: 'python', manifest: 'py/pyproject.toml' },
+								],
+							}),
+						],
+					},
+					{ releaseLag }
+				);
+			} finally {
+				globalThis.fetch = realFetch;
+			}
+		};
+		const alpha = 'Development Status :: 3 - Alpha';
+		const beta = 'Development Status :: 4 - Beta';
+		const lag = { 'pypi:py': { version: '0.13.0', issue: '#1' } };
+		const excused = await pypi('0.13.0', alpha, lag);
+		assert.deepEqual(excused.errors, []);
+		assert.match(excused.warnings[0], /0\.13\.0 was released before the ladder \(#1\)/);
+		assert.match(
+			(await pypi('0.13.0', alpha, {})).errors[0],
+			/says "Development Status :: 3 - Alpha"/
+		);
+		assert.match(
+			(await pypi('0.14.0', alpha, lag)).errors[0],
+			/exemption for 0\.13\.0 has expired/
+		);
+		assert.match((await pypi('0.13.0', beta, lag)).errors[0], /now agrees with the ladder; remove/);
+		assert.deepEqual((await pypi('0.14.0', beta, {})).errors, []);
+		const stale = await pypi('0.14.0', beta, { 'pypi:renamed': { version: '1.0.0', issue: '#1' } });
+		assert.match(
+			stale.errors[0],
+			/^pypi:renamed: the release-lag exemption names no published unit/
+		);
+	});
+
+	it('reports an unreachable registry as unchecked, never as a mismatch', async () => {
+		// The scheduled workflow fails only on a mismatch, so an outage must not read as one.
+		for (const answer of [
+			async () => {
+				throw new TypeError('fetch failed');
+			},
+			async () => new Response('busy', { status: 503 }),
+		]) {
+			const result = await previewWith({}, answer);
+			assert.deepEqual(result.errors, []);
+			assert.match(result.unchecked[0], /^@x\/p: /);
+		}
+	});
 
 	it("keeps a Preview package's latest on the 0.0.0 placeholder, as the release plan requires", async () => {
 		const placeholder = await previewWith({
