@@ -87,8 +87,8 @@ const deepText = (page: Page) =>
 		return walk(document.documentElement);
 	});
 
-async function withProjects(): Promise<ShellPage> {
-	const opened = await openShell(browser, site.root);
+async function withProjects(options?: Parameters<typeof openShell>[2]): Promise<ShellPage> {
+	const opened = await openShell(browser, site.root, options);
 	for (const name of ['Atlas', 'Beacon']) {
 		expect(await kernelCall(opened.page, 'project-create', { name })).toMatchObject({
 			success: true,
@@ -358,6 +358,95 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		expect(await switcher.getAttribute('aria-expanded')).toBe('false');
 		await opened.context.close();
 	});
+
+	for (const variant of ['rail', 'tabbar'] as const) {
+		it(`closes the ${variant}'s switcher without waiting for its close event, so a late one undoes nothing (#2872)`, async () => {
+			const opened = await withProjects(
+				variant === 'tabbar' ? { viewport: { width: 390, height: 844 } } : undefined
+			);
+			const { page } = opened;
+			const switcher = page.locator(`loam-${variant} loam-project-switcher button`);
+			const list = page.locator(`loam-${variant} loam-project-list`);
+			// Held: the trusted event that reports a close, the popover's `toggle` or the compact dialog's `close`, as a
+			// loaded machine runs it late. Released: sent once, as the browser would send it then, a `toggle` coalesced
+			// to the popover's state.
+			const events = (hold: boolean) =>
+				list.evaluate(
+					(element, { hold, popover }) => {
+						const root = element.shadowRoot as ShadowRoot;
+						const target = (
+							popover ? root.querySelector('violet-popover')?.shadowRoot : root
+						) as ShadowRoot & { holding?: boolean; held?: number };
+						if (hold) {
+							if (target.holding === undefined)
+								target.addEventListener(
+									popover ? 'toggle' : 'close',
+									(event) => {
+										if (!event.isTrusted || !target.holding) return;
+										event.stopImmediatePropagation();
+										target.held = (target.held ?? 0) + 1;
+									},
+									{ capture: true }
+								);
+							target.holding = true;
+							target.held = 0;
+							return;
+						}
+						target.holding = false;
+						if (!target.held) return;
+						if (!popover) {
+							target.querySelector('dialog')?.dispatchEvent(new Event('close'));
+							return;
+						}
+						const surface = target.querySelector('.surface') as HTMLElement;
+						const open = surface.matches(':popover-open');
+						surface.dispatchEvent(
+							new ToggleEvent('toggle', {
+								oldState: open ? 'closed' : 'open',
+								newState: open ? 'open' : 'closed',
+							})
+						);
+					},
+					{ hold, popover: variant === 'rail' }
+				);
+			const shown = () =>
+				list.evaluate((element) => {
+					const root = element.shadowRoot as ShadowRoot;
+					const dialog = root.querySelector('dialog');
+					if (dialog) return dialog.open;
+					const popover = root.querySelector('violet-popover')?.shadowRoot;
+					return popover?.querySelector('.surface')?.matches(':popover-open') === true;
+				});
+
+			// Opened by its command, as P4-E9 opens it.
+			expect(await kernelCall(page, 'shell-project-switcher', {})).toMatchObject({ success: true });
+			await expect.poll(() => switcher.getAttribute('aria-expanded')).toBe('true');
+			await events(true);
+			await page.keyboard.press('Escape');
+			await expect.poll(() => switcher.getAttribute('aria-expanded')).toBe('false');
+			// A press right after opens it again, and the first close's late event leaves it open.
+			expect(await kernelCall(page, 'shell-project-switcher', {})).toMatchObject({ success: true });
+			await expect.poll(() => switcher.getAttribute('aria-expanded')).toBe('true');
+			await events(false);
+			await settle(page);
+			expect(await switcher.getAttribute('aria-expanded')).toBe('true');
+			expect(await shown()).toBe(true);
+			// F6's move into a part, before the second close's event: when that event comes, focus stays in the part.
+			await events(true);
+			await page.keyboard.press('Escape');
+			await expect.poll(() => switcher.getAttribute('aria-expanded')).toBe('false');
+			expect(await kernelCall(page, 'shell-focus-next', {})).toMatchObject({ success: true });
+			const part = (await focused(page)).part;
+			expect(part).toBeTruthy();
+			await events(false);
+			await settle(page);
+			expect((await focused(page)).part).toBe(part);
+			expect(await switcher.getAttribute('aria-expanded')).toBe('false');
+			expect(await shown()).toBe(false);
+			expect(opened.errors).toEqual([]);
+			await opened.context.close();
+		});
+	}
 
 	it('P2-E3: Tab out of the open list closes it, focus staying where it went (A2)', async () => {
 		const opened = await withProjects();

@@ -205,6 +205,8 @@ describe('P4-E9: keybindings', () => {
 		await page.keyboard.press('ControlOrMeta+Shift+KeyO');
 		await expect.poll(() => switcher(page).getAttribute('aria-expanded')).toBe('true');
 		await page.keyboard.press('Escape');
+		// Closed first, so the next `true` is the press's own opening (#2872).
+		await expect.poll(() => switcher(page).getAttribute('aria-expanded')).toBe('false');
 		expect(await kernelCall(page, 'shell-project-switcher', {})).toMatchObject({ success: true });
 		await expect.poll(() => switcher(page).getAttribute('aria-expanded')).toBe('true');
 		await page.keyboard.press('Escape');
