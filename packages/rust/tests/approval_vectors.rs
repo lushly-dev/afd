@@ -267,3 +267,81 @@ async fn token_delivery_follows_rule_6_as_the_vectors_expect() {
     }
     assert!(failures.is_empty(), "{failures:#?}");
 }
+
+/// Each binding's `inputDigest` and `approvalId` (`spec/command-metadata.md`, "The approval
+/// summary"): what `input_digest` and `approval_id` compute, and what the summary of the call its
+/// token admits carries. And each `approvalIds` entry's id, from its single-use key.
+#[tokio::test]
+async fn summaries_carry_each_bindings_input_digest_and_approval_id() {
+    let vectors = load_vectors();
+    let mut failures = Vec::new();
+    for binding in vectors["bindings"].as_array().unwrap() {
+        let description = binding["description"].as_str().unwrap();
+        let digest = afd::input_digest(&binding["input"]).unwrap();
+        if digest != binding["inputDigest"] {
+            failures.push(format!("{description}: input_digest {digest}"));
+        }
+        let id = afd::approval_id(binding["nonce"].as_str().unwrap());
+        if id != binding["approvalId"] {
+            failures.push(format!("{description}: approval_id {id}"));
+        }
+
+        let seen: Arc<std::sync::Mutex<Vec<afd::ApprovalSummary>>> = Arc::default();
+        let noted = Arc::clone(&seen);
+        let commands: Vec<CommandDefinition> = vectors["commands"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|name| {
+                let name = name.as_str().unwrap();
+                CommandDefinition::new(name, name, vec![], Ran)
+                    .with_approval(ApprovalPolicy::Required)
+            })
+            .collect();
+        let options = ApprovalMiddlewareOptions::new(
+            vectors["secrets"]["current"].as_str().unwrap(),
+            &commands,
+        )
+        .with_clock(fixed_clock(vectors["now"].as_i64().unwrap()))
+        .with_on_approval_accepted(move |summary, _dispatch_id| {
+            noted.lock().unwrap().push(summary);
+            Box::pin(async { Ok(()) })
+        });
+        let middleware = create_approval_middleware(options).unwrap();
+        let accepted = call(
+            &vectors,
+            &middleware,
+            &binding["command"],
+            &binding["input"],
+            &binding["actor"],
+            binding["token"].as_str(),
+            None,
+        )
+        .await;
+        if outcome(&accepted) != "accepted" {
+            failures.push(format!("{description}: {}", outcome(&accepted)));
+            continue;
+        }
+        let summaries = seen.lock().unwrap().clone();
+        let [summary] = &summaries[..] else {
+            failures.push(format!("{description}: {} summaries", summaries.len()));
+            continue;
+        };
+        let summary = serde_json::to_value(summary).unwrap();
+        for member in ["inputDigest", "approvalId", "command"] {
+            if summary[member] != binding[member] {
+                failures.push(format!(
+                    "{description}: summary {member} {}",
+                    summary[member]
+                ));
+            }
+        }
+    }
+    for entry in vectors["approvalIds"].as_array().unwrap() {
+        let id = afd::approval_id(entry["singleUseKey"].as_str().unwrap());
+        if id != entry["approvalId"] {
+            failures.push(format!("{}: approval_id {id}", entry["description"]));
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}

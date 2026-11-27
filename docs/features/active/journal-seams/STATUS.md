@@ -17,9 +17,9 @@ the pull request's number.
 
 - **1. Spec and vectors, the dispatch id and the approval hook** ([#2679](https://github.com/lushly-dev/afd/issues/2679)): merged in #2796. `spec/dispatch.md` ("The dispatch id", I1 to I4), `spec/command-metadata.md` ("The approval summary"), `spec/vectors/journal-seams.json` (12 and 12 cases, every language a documented gap) and `approvalId` on each binding of `approval-tokens.json`. Each language has a loader that skips every case.
 
-- **2. TypeScript** ([#2680](https://github.com/lushly-dev/afd/issues/2680)): in review in #2846. `context.dispatchId` from both engines (`packages/core/src/dispatch-id.ts`), `onApprovalAccepted` and `ApprovalSummary` on `createApprovalMiddleware`, `approvalId` on `ApprovalRequest` and DirectClient's `DirectApprovalRequest`. Every `journal-seams.json` case runs; `wire/journal.jsonl` is unchanged.
+- **2. TypeScript** ([#2680](https://github.com/lushly-dev/afd/issues/2680)): merged in #2846. `context.dispatchId` from both engines (`packages/core/src/dispatch-id.ts`), `onApprovalAccepted` and `ApprovalSummary` on `createApprovalMiddleware`, `approvalId` on `ApprovalRequest` and DirectClient's `DirectApprovalRequest`. Every `journal-seams.json` case runs; `wire/journal.jsonl` is unchanged.
 
-- **3. Rust** ([#2681](https://github.com/lushly-dev/afd/issues/2681)): not started. Needs step 1. Loam OS M1 consumes it.
+- **3. Rust** ([#2681](https://github.com/lushly-dev/afd/issues/2681)): merged in #2865. `CommandContext::dispatch_id`, `ApprovalMiddlewareOptions::with_on_approval_accepted` with `ApprovalSummary`, `ApprovalRequest::approval_id`, `DirectApprovalRequest::approval_id` and `afd::approval_id`; every case of `journal-seams.json` runs and Rust has left its `gaps`. Umbel's D208 middleware does not use the id yet. Loam OS M1 consumes it.
 
 - **4. Python and C++** ([#2682](https://github.com/lushly-dev/afd/issues/2682)): not started. Needs step 2, and comes after step 3 (J6).
 

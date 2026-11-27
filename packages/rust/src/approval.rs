@@ -37,7 +37,7 @@ mod token;
 #[cfg_attr(docsrs, doc(cfg(feature = "approval")))]
 pub use middleware::{
     create_approval_middleware, ApprovalMiddlewareOptions, ApprovalNonceStore, ApprovalRelay,
-    ApprovalReplay, ApprovalRequest,
+    ApprovalReplay, ApprovalRequest, ApprovalSummary, ApprovalVia, OnApprovalAccepted,
 };
 #[cfg(feature = "approval")]
 #[cfg_attr(docsrs, doc(cfg(feature = "approval")))]

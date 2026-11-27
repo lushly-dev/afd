@@ -8,7 +8,7 @@ Epic: [#2677](https://github.com/lushly-dev/afd/issues/2677).
 
 | Field | Value |
 |---|---|
-| Status | Approved 2026-11-26: the owner accepted decisions J1 to J6 as recommended, and J2 holds every member of the journal entry and the result ([Approved and held](#approved-and-held)). No code yet; progress is in [STATUS.md](./STATUS.md). |
+| Status | Approved 2026-11-26: the owner accepted decisions J1 to J6 as recommended, and J2 holds every member of the journal entry and the result ([Approved and held](#approved-and-held)). The dispatch id and the approval hook are built in TypeScript and Rust, with Python and C++ to follow; progress is in [STATUS.md](./STATUS.md). |
 | Author | jasfalk (drafted with Claude) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `python/`, `packages/rust`, `packages/cpp` |
 | Related | [`spec/journal.md`](../../../../spec/journal.md), [`spec/dispatch.md`](../../../../spec/dispatch.md), [approvals](../../../../spec/command-metadata.md#approvals), Umbel decisions D66 and D208 ([decisions](../../../../endpoints/umbel/docs/decisions.md)), [Loam OS](../loam-os/loam-os.proposal.md#what-umbel-and-afd-need), [idempotency keys](../idempotency-keys/idempotency-keys.proposal.md) |

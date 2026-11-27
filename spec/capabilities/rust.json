@@ -332,13 +332,16 @@
 			]
 		},
 		"middleware.approval-summary": {
-			"status": "planned",
-			"note": "([#2681](https://github.com/lushly-dev/afd/issues/2681))",
+			"status": "yes",
+			"note": "(`ApprovalMiddlewareOptions::with_on_approval_accepted`, `ApprovalSummary`, `ApprovalRequest::approval_id`, `DirectApprovalRequest::approval_id`, `approval_id`)",
 			"views": {
-				"summary": "([#2681](https://github.com/lushly-dev/afd/issues/2681))"
+				"summary": "(`ApprovalMiddlewareOptions::with_on_approval_accepted`, `ApprovalSummary`, `ApprovalRequest::approval_id`, `DirectApprovalRequest::approval_id`, `approval_id`)"
 			},
-			"issue": "#2681",
-			"evidence": ["packages/rust/tests/journal_seams_vectors.rs"]
+			"evidence": [
+				"packages/rust/src/approval/middleware.rs",
+				"packages/rust/tests/journal_seams_vectors.rs",
+				"packages/rust/tests/approval_vectors.rs"
+			]
 		},
 		"middleware.idempotency-step": {
 			"status": "planned",
@@ -771,13 +774,15 @@
 			]
 		},
 		"single.dispatch-id": {
-			"status": "planned",
-			"note": "([#2681](https://github.com/lushly-dev/afd/issues/2681))",
+			"status": "yes",
+			"note": "(`CommandContext::dispatch_id`)",
 			"views": {
-				"summary": "([#2681](https://github.com/lushly-dev/afd/issues/2681))"
+				"summary": "(`CommandContext::dispatch_id`)"
 			},
-			"issue": "#2681",
-			"evidence": ["packages/rust/tests/journal_seams_vectors.rs"]
+			"evidence": [
+				"packages/rust/src/commands/execute.rs",
+				"packages/rust/tests/journal_seams_vectors.rs"
+			]
 		},
 		"single.idempotency-key": {
 			"status": "planned",

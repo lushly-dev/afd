@@ -213,6 +213,7 @@ mod tests {
             summary: "Run x-y\u{1b}[31m".into(),
             expires_at: "soon".into(),
             reason: None,
+            approval_id: String::new(),
         }
     }
 

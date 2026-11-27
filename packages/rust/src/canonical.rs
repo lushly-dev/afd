@@ -136,6 +136,51 @@ pub fn input_digest(input: &Value) -> Result<String, String> {
     Ok(base64url_encode(&Sha256::digest(canonical.as_bytes())))
 }
 
+/// The `approvalId` of an approval whose single-use key is `single_use_key`
+/// (`spec/command-metadata.md`, "The approval summary"): the unpadded base64url SHA-256 of
+/// `approval`, a zero byte and the key.
+///
+/// The key is the token's nonce (its payload's `n`) for a token or a `DirectClient` approval, the
+/// hold's nonce for an answer over the MCP relay, and `relay:<decisionId>` for relay evidence. An
+/// approver client handed a token derives the id from the payload's `n`, and a
+/// [`HumanRelay`](crate::server::HumanRelay) from its own decision id, so either can file the
+/// approval under the id the approval summary will carry.
+///
+/// ```rust
+/// assert_eq!(
+///     afd::approval_id("relay:decision-1"),
+///     "3ZOvbH1IqdV_QziJEbOe0GyIo1DDsYGmO73n9W0GuXo"
+/// );
+/// ```
+pub fn approval_id(single_use_key: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"approval\0");
+    hasher.update(single_use_key.as_bytes());
+    base64url_encode(&hasher.finalize())
+}
+
+/// A fresh dispatch id (`spec/dispatch.md`, "The dispatch id", I1): 128 bits from the OS random
+/// source, never a context's `random`, as 22 characters of unpadded base64url.
+#[cfg(any(
+    not(all(target_family = "wasm", target_os = "unknown")),
+    feature = "wasm"
+))]
+pub(crate) fn new_dispatch_id() -> Result<Option<String>, String> {
+    let mut bytes = [0u8; 16];
+    getrandom::fill(&mut bytes).map_err(|error| format!("Cannot draw a dispatch id: {error}"))?;
+    Ok(Some(base64url_encode(&bytes)))
+}
+
+/// `wasm32-unknown-unknown` without the `wasm` feature has no random source to draw from, so a
+/// call there has no dispatch id.
+#[cfg(not(any(
+    not(all(target_family = "wasm", target_os = "unknown")),
+    feature = "wasm"
+)))]
+pub(crate) fn new_dispatch_id() -> Result<Option<String>, String> {
+    Ok(None)
+}
+
 const BASE64URL: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 /// Unpadded base64url, as Node's `toString('base64url')` writes it.

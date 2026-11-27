@@ -880,6 +880,9 @@ impl CommandDefinition {
         input: serde_json::Value,
         mut context: CommandContext,
     ) -> CommandResult<serde_json::Value> {
+        // Not a dispatch, so no dispatch id: a context the registry gave a handler keeps no id of
+        // the outer call here (`spec/dispatch.md`, "The dispatch id").
+        context.dispatch_id = None;
         if !self.secret {
             return self.handler.execute(input, context).await;
         }
