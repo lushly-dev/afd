@@ -7,8 +7,9 @@
 //!
 //! Its presence decides the mode (9.1): a state file is `managed`; with none, a deployer's `site/index.html` is `cli`,
 //! which `loam-desktop` serves untouched, and anything else is a fresh `managed` install.
+use crate::connection::{Unwritten, check_lock_dir, ensure_dir, open_lock_owner_only};
 use crate::models::{self, Provider};
-use crate::mounts::{Unread, read_owner_only};
+use crate::mounts::{Unread, file_owner_only, read_owner_only};
 use crate::plugin_manifest::plugin_id;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -17,6 +18,8 @@ use std::path::{Path, PathBuf};
 
 /// The file's name in the data directory.
 pub const FILE: &str = "desktop-state.json";
+/// The exclusive advisory lock serializing startup reconciliation and all state mutations (amendment 7 & 9.1).
+pub const LOCK_FILE: &str = "desktop-state.lock";
 /// The state file is not one only its owner can read, or could not be written as one: nothing is served from it.
 pub const PERMISSIONS: &str = "DESKTOP_STATE_PERMISSIONS";
 /// The state file, or an installed bundle it names, is not one the materializer reads.
@@ -233,6 +236,193 @@ pub fn bytes(state: &DesktopState) -> Vec<u8> {
     bytes
 }
 
+/// Why [`StateLock::try_acquire`] did not acquire `<app data>/desktop-state.lock`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LockError {
+    /// The lock file is not owner-only (or is a symlink/directory): fails closed as [`PERMISSIONS`].
+    Permissions,
+    /// Another handle or process currently holds the exclusive OS lock.
+    WouldBlock,
+    /// Creating, opening, or locking the file failed for an I/O reason.
+    Io,
+}
+
+impl LockError {
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Permissions => PERMISSIONS,
+            Self::WouldBlock | Self::Io => crate::materialize::FAILED,
+        }
+    }
+}
+
+/// Process-scoped exclusive owner-only OS advisory lock on `<app data>/desktop-state.lock`
+/// (`flock` on Unix, `LockFileEx` on Windows via `std::fs::File::lock`). Never unlinks the lock file on
+/// drop so concurrent waiters always contend on the same inode/file.
+#[derive(Debug)]
+pub struct StateLock {
+    file: std::fs::File,
+}
+
+/// Verifies that the locked handle still matches the directory entry at `lock_path` on Unix
+/// (catching inode replacement while waiting for `flock`).
+#[cfg(unix)]
+fn same_lock_inode(file: &std::fs::File, lock_path: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    let Ok(handle_meta) = file.metadata() else {
+        return false;
+    };
+    let Ok(path_meta) = std::fs::symlink_metadata(lock_path) else {
+        return false;
+    };
+    handle_meta.dev() == path_meta.dev() && handle_meta.ino() == path_meta.ino()
+}
+
+#[cfg(not(unix))]
+fn same_lock_inode(_file: &std::fs::File, _lock_path: &Path) -> bool {
+    true
+}
+
+impl StateLock {
+    /// Ensures `data` exists and is safe against directory-entry replacement, opens
+    /// `<data>/desktop-state.lock` owner-only, and blocks until the exclusive OS lock is acquired.
+    pub fn acquire(data: &Path) -> Result<Self, &'static str> {
+        ensure_dir(data).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::PermissionDenied {
+                PERMISSIONS
+            } else {
+                crate::materialize::FAILED
+            }
+        })?;
+        check_lock_dir(data).map_err(|why| match why {
+            Unwritten::NotOwnerOnly => PERMISSIONS,
+            Unwritten::Io => crate::materialize::FAILED,
+        })?;
+        let lock_path = data.join(LOCK_FILE);
+        for _ in 0..3 {
+            let file = open_lock_owner_only(&lock_path).map_err(|why| match why {
+                Unwritten::NotOwnerOnly => PERMISSIONS,
+                Unwritten::Io => crate::materialize::FAILED,
+            })?;
+            file.lock().map_err(|_| crate::materialize::FAILED)?;
+            if !file_owner_only(&file) {
+                let _ = file.unlock();
+                return Err(PERMISSIONS);
+            }
+            if !same_lock_inode(&file, &lock_path) {
+                let _ = file.unlock();
+                continue;
+            }
+            return Ok(Self { file });
+        }
+        Err(PERMISSIONS)
+    }
+
+    /// Non-blocking variant of [`Self::acquire`]: returns [`LockError::WouldBlock`] immediately if
+    /// another handle or process holds the lock.
+    pub fn try_acquire(data: &Path) -> Result<Self, LockError> {
+        ensure_dir(data).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::PermissionDenied {
+                LockError::Permissions
+            } else {
+                LockError::Io
+            }
+        })?;
+        check_lock_dir(data).map_err(|why| match why {
+            Unwritten::NotOwnerOnly => LockError::Permissions,
+            Unwritten::Io => LockError::Io,
+        })?;
+        let lock_path = data.join(LOCK_FILE);
+        for _ in 0..3 {
+            let file = open_lock_owner_only(&lock_path).map_err(|why| match why {
+                Unwritten::NotOwnerOnly => LockError::Permissions,
+                Unwritten::Io => LockError::Io,
+            })?;
+            match file.try_lock() {
+                Ok(()) => {
+                    if !file_owner_only(&file) {
+                        let _ = file.unlock();
+                        return Err(LockError::Permissions);
+                    }
+                    if !same_lock_inode(&file, &lock_path) {
+                        let _ = file.unlock();
+                        continue;
+                    }
+                    return Ok(Self { file });
+                }
+                Err(std::fs::TryLockError::WouldBlock) => return Err(LockError::WouldBlock),
+                Err(std::fs::TryLockError::Error(_)) => return Err(LockError::Io),
+            }
+        }
+        Err(LockError::Permissions)
+    }
+}
+
+impl Drop for StateLock {
+    fn drop(&mut self) {
+        let _ = self.file.unlock();
+    }
+}
+
+fn remove_entry_no_follow(path: &Path) -> Result<(), &'static str> {
+    let metadata = match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(_) => return Err(crate::materialize::FAILED),
+    };
+    if metadata.is_dir() {
+        match std::fs::remove_dir_all(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(_) => Err(crate::materialize::FAILED),
+        }
+    } else {
+        match std::fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            #[cfg(windows)]
+            Err(_) if metadata.file_type().is_symlink() => match std::fs::remove_dir(path) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(_) => Err(crate::materialize::FAILED),
+            },
+            Err(_) => Err(crate::materialize::FAILED),
+        }
+    }
+}
+
+/// Sweeps orphaned staging directories (`.staging/*`, `plugins/.staging/*`, `.site-staging`,
+/// `.site-backup`) and `launch.pending.json` files left by an interrupted commit or install before
+/// opening `main` (amendment 9.1). Never follows symlinks, tolerates absent paths, propagates any
+/// removal/enumeration failure as `DESKTOP_MATERIALIZE_FAILED`, and must run under [`StateLock`].
+pub fn sweep_orphans(data: &Path) -> Result<(), &'static str> {
+    for path in [
+        data.join(".staging"),
+        data.join(".site-staging"),
+        data.join(".site-backup"),
+        data.join("launch.pending.json"),
+    ] {
+        remove_entry_no_follow(&path)?;
+    }
+    let plugins = data.join("plugins");
+    match std::fs::symlink_metadata(&plugins) {
+        Ok(meta) if meta.is_dir() => {}
+        Ok(_) => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(_) => return Err(crate::materialize::FAILED),
+    }
+    remove_entry_no_follow(&plugins.join(".staging"))?;
+    let entries = std::fs::read_dir(&plugins).map_err(|_| crate::materialize::FAILED)?;
+    for entry in entries {
+        let entry = entry.map_err(|_| crate::materialize::FAILED)?;
+        let kind = entry.file_type().map_err(|_| crate::materialize::FAILED)?;
+        if kind.is_dir() {
+            remove_entry_no_follow(&entry.path().join("launch.pending.json"))?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -366,5 +556,169 @@ mod tests {
         );
         std::fs::write(&path, b"{\"desktopStateVersion\": 1}").unwrap();
         assert_eq!(mode(data.path()), Err(INVALID));
+    }
+
+    #[test]
+    fn p5_s9_6_state_lock_enforces_exclusive_ownership_and_contention() {
+        let data = tempfile::tempdir().unwrap();
+        let held = StateLock::acquire(data.path()).expect("initial lock acquisition");
+        // Verify on the open handle while held (Windows refuses `owner_only(path)`'s
+        // `FILE_SHARE_READ`-only reopen while a writer handle is open).
+        assert!(crate::mounts::file_owner_only(&held.file));
+
+        // While held, non-blocking try_acquire reports WouldBlock.
+        assert_eq!(
+            StateLock::try_acquire(data.path()).unwrap_err(),
+            LockError::WouldBlock
+        );
+
+        // A second thread calling blocking `acquire` waits until `held` is dropped.
+        let dir = data.path().to_path_buf();
+        let acquired = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let acquired_flag = acquired.clone();
+        let waiter = std::thread::spawn(move || {
+            let _lock = StateLock::acquire(&dir).expect("contending lock succeeds after release");
+            acquired_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        assert!(
+            !acquired.load(std::sync::atomic::Ordering::SeqCst),
+            "waiter must remain blocked while lock is held"
+        );
+        drop(held);
+        waiter.join().unwrap();
+        assert!(acquired.load(std::sync::atomic::Ordering::SeqCst));
+
+        // After all holders drop, the lock file remains in place and passes pathname `owner_only`.
+        assert!(crate::mounts::owner_only(&data.path().join(LOCK_FILE)));
+        let _reacquired = StateLock::try_acquire(data.path()).expect("reacquire after drop");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn p5_s9_6_state_lock_refuses_non_owner_only_permissions_symlinks_and_writable_dir() {
+        use std::os::unix::fs::PermissionsExt;
+        let data = tempfile::tempdir().unwrap();
+        let lock_path = data.path().join(LOCK_FILE);
+        std::fs::write(&lock_path, b"").unwrap();
+        std::fs::set_permissions(&lock_path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(StateLock::acquire(data.path()).unwrap_err(), PERMISSIONS);
+        assert_eq!(
+            StateLock::try_acquire(data.path()).unwrap_err(),
+            LockError::Permissions
+        );
+
+        // A read-only (0o400) existing lock file fails open with EACCES and maps to PERMISSIONS.
+        std::fs::set_permissions(&lock_path, std::fs::Permissions::from_mode(0o400)).unwrap();
+        assert_eq!(StateLock::acquire(data.path()).unwrap_err(), PERMISSIONS);
+        assert_eq!(
+            StateLock::try_acquire(data.path()).unwrap_err(),
+            LockError::Permissions
+        );
+        std::fs::set_permissions(&lock_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+        // A symlink at `desktop-state.lock` is refused rather than followed.
+        std::fs::remove_file(&lock_path).unwrap();
+        let target = data.path().join("real-target");
+        std::fs::write(&target, b"").unwrap();
+        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::os::unix::fs::symlink(&target, &lock_path).unwrap();
+        assert_eq!(StateLock::acquire(data.path()).unwrap_err(), PERMISSIONS);
+        assert_eq!(
+            StateLock::try_acquire(data.path()).unwrap_err(),
+            LockError::Permissions
+        );
+
+        // A directory in place of `desktop-state.lock` is also refused with PERMISSIONS.
+        std::fs::remove_file(&lock_path).unwrap();
+        std::fs::create_dir(&lock_path).unwrap();
+        assert_eq!(StateLock::acquire(data.path()).unwrap_err(), PERMISSIONS);
+        std::fs::remove_dir(&lock_path).unwrap();
+
+        // A group- or world-writable profile directory cannot guarantee exclusive inode locking
+        // and must fail closed with PERMISSIONS.
+        for bad_mode in [0o775, 0o777] {
+            std::fs::set_permissions(data.path(), std::fs::Permissions::from_mode(bad_mode))
+                .unwrap();
+            assert_eq!(
+                StateLock::acquire(data.path()).unwrap_err(),
+                PERMISSIONS,
+                "mode {bad_mode:o}"
+            );
+            assert_eq!(
+                StateLock::try_acquire(data.path()).unwrap_err(),
+                LockError::Permissions,
+                "mode {bad_mode:o}"
+            );
+        }
+        std::fs::set_permissions(data.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn p5_s9_6_state_lock_refuses_directory_in_place_on_windows() {
+        let data = tempfile::tempdir().unwrap();
+        let lock_path = data.path().join(LOCK_FILE);
+        std::fs::create_dir(&lock_path).unwrap();
+        assert_eq!(StateLock::acquire(data.path()).unwrap_err(), PERMISSIONS);
+        assert_eq!(
+            StateLock::try_acquire(data.path()).unwrap_err(),
+            LockError::Permissions
+        );
+    }
+
+    #[test]
+    fn p5_s9_6_sweep_orphans_clears_staging_and_pending_launches_without_touching_committed_files()
+    {
+        let data = tempfile::tempdir().unwrap();
+        let plugins_staging = data.path().join("plugins/.staging/prop-1");
+        let root_staging = data.path().join(".staging/prop-2");
+        let site_staging = data.path().join(".site-staging");
+        let site_backup = data.path().join(".site-backup");
+        let mail_dir = data.path().join("plugins/mail");
+        let mail_bundle = mail_dir.join("a".repeat(64));
+
+        for dir in [
+            &plugins_staging,
+            &root_staging,
+            &site_staging,
+            &site_backup,
+            &mail_bundle,
+        ] {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        std::fs::write(plugins_staging.join("partial.bin"), b"partial").unwrap();
+        std::fs::write(root_staging.join("partial.bin"), b"partial").unwrap();
+        std::fs::write(site_staging.join("deployment.json"), b"{}").unwrap();
+        std::fs::write(site_backup.join("deployment.json"), b"{}").unwrap();
+        std::fs::write(mail_dir.join("launch.pending.json"), b"{}").unwrap();
+        std::fs::write(data.path().join("launch.pending.json"), b"{}").unwrap();
+        // Committed files that MUST survive.
+        std::fs::write(mail_dir.join("launch.json"), b"{\"port\":17400}").unwrap();
+        std::fs::write(mail_bundle.join("plugin-manifest.json"), b"{}").unwrap();
+
+        // Outside target pointed to by a symlink inside `.staging`: sweep must unlink the link,
+        // never deleting the outside target.
+        #[cfg(unix)]
+        let outside = {
+            let outside = tempfile::tempdir().unwrap();
+            std::fs::write(outside.path().join("keep.txt"), b"keep").unwrap();
+            std::os::unix::fs::symlink(outside.path(), data.path().join("plugins/.staging/link"))
+                .unwrap();
+            outside
+        };
+
+        sweep_orphans(data.path()).expect("sweep succeeds");
+
+        assert!(!data.path().join("plugins/.staging").exists());
+        assert!(!data.path().join(".staging").exists());
+        assert!(!site_staging.exists());
+        assert!(!site_backup.exists());
+        assert!(!mail_dir.join("launch.pending.json").exists());
+        assert!(!data.path().join("launch.pending.json").exists());
+        assert!(mail_dir.join("launch.json").is_file());
+        assert!(mail_bundle.join("plugin-manifest.json").is_file());
+        #[cfg(unix)]
+        assert!(outside.path().join("keep.txt").is_file());
     }
 }

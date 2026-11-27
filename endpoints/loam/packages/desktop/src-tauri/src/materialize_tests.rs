@@ -860,3 +860,133 @@ fn a_reserved_instance_is_refused() {
     write(&root.join("plugin-manifest.json"), text.as_bytes());
     assert!(project(data.path(), &state, &Profile::default_profile()).is_ok());
 }
+
+#[test]
+fn p5_s9_6_reconcile_is_noop_when_current_and_repairs_missing_stale_or_upgraded_artifacts() {
+    let golden = fixture();
+    let profile = golden_profile(&golden);
+    let data = tempfile::tempdir().unwrap();
+    let state = install(data.path(), &golden);
+    let initial = commit(data.path(), &state, &profile, "build-1").unwrap();
+
+    // Up-to-date artifacts require no rewrite.
+    let (built, rewrote) = reconcile(data.path(), &state, &profile, "build-1").unwrap();
+    assert!(!rewrote);
+    assert_eq!(built.generation, initial.generation);
+    assert_eq!(built.frame_src, initial.frame_src);
+
+    // Changing `shell_build_id` (app upgrade) triggers reconciliation and updates `.loam-shell-build`.
+    let (_, rewrote) = reconcile(data.path(), &state, &profile, "build-2").unwrap();
+    assert!(rewrote);
+    assert_eq!(
+        std::fs::read_to_string(data.path().join("site/.loam-shell-build")).unwrap(),
+        "build-2\n"
+    );
+    let (_, rewrote_again) = reconcile(data.path(), &state, &profile, "build-2").unwrap();
+    assert!(!rewrote_again);
+
+    // Missing `site/` triggers reconciliation.
+    std::fs::remove_dir_all(data.path().join("site")).unwrap();
+    let (_, rewrote) = reconcile(data.path(), &state, &profile, "build-2").unwrap();
+    assert!(rewrote);
+    assert_eq!(
+        std::fs::read_to_string(data.path().join("site/deployment.json")).unwrap(),
+        initial.deployment
+    );
+
+    // Lagging `.loam-generation` triggers reconciliation.
+    std::fs::write(data.path().join("site/.loam-generation"), "sha256-stale\n").unwrap();
+    let (_, rewrote) = reconcile(data.path(), &state, &profile, "build-2").unwrap();
+    assert!(rewrote);
+    assert_eq!(
+        std::fs::read_to_string(data.path().join("site/.loam-generation")).unwrap(),
+        format!("{}\n", initial.generation)
+    );
+
+    // Missing app package file triggers reconciliation.
+    std::fs::remove_file(data.path().join("site/apps/mailapp/dist/native.js")).unwrap();
+    let (_, rewrote) = reconcile(data.path(), &state, &profile, "build-2").unwrap();
+    assert!(rewrote);
+    assert!(
+        data.path()
+            .join("site/apps/mailapp/dist/native.js")
+            .is_file()
+    );
+
+    // Missing or stale `mounts.json` and `models.json` trigger reconciliation and restore owner-only files.
+    std::fs::remove_file(data.path().join("mounts.json")).unwrap();
+    let (_, rewrote) = reconcile(data.path(), &state, &profile, "build-2").unwrap();
+    assert!(rewrote);
+    assert_eq!(
+        std::fs::read_to_string(data.path().join("mounts.json")).unwrap(),
+        initial.mounts
+    );
+    assert!(crate::mounts::owner_only(&data.path().join("mounts.json")));
+
+    std::fs::write(data.path().join("models.json"), "{\"providers\":[]}\n").unwrap();
+    let (_, rewrote) = reconcile(data.path(), &state, &profile, "build-2").unwrap();
+    assert!(rewrote);
+    assert_eq!(
+        std::fs::read_to_string(data.path().join("models.json")).unwrap(),
+        initial.models
+    );
+    assert!(crate::mounts::owner_only(&data.path().join("models.json")));
+}
+
+#[test]
+fn p5_s9_6_reconcile_recovers_interrupted_app_only_js_upgrade_with_identical_generation() {
+    let data = tempfile::tempdir().unwrap();
+    let profile = Profile::default_profile();
+    let old_sha = "1".repeat(64);
+    let new_sha = "2".repeat(64);
+    for (sha, js) in [
+        (&old_sha, b"export const v = 'committed-v1';\n".as_slice()),
+        (&new_sha, b"export const v = 'uncommitted-v2';\n".as_slice()),
+    ] {
+        let root = data.path().join("plugins/notes").join(sha);
+        write(
+            &root.join("plugin-manifest.json"),
+            br#"{"plugin_manifest_version":1,"plugin":{"id":"notes","title":"Notes","version":"1.0.0","description":"Notes."},"apps":[{"id":"notes","path":"apps/notes"}]}"#,
+        );
+        write(
+            &root.join("apps/notes/app-manifest.json"),
+            br#"{"manifest_version":1,"protocol":1,"plugin":{"title":"Notes","version":"1.0.0","description":"Notes.","id":"notes","kind":"native","domains":["notes"]},"native":{"entry":"dist/native.js"}}"#,
+        );
+        write(&root.join("apps/notes/dist/native.js"), js);
+    }
+
+    let mut committed_state = DesktopState::fresh();
+    committed_state.plugins.push(InstalledPlugin {
+        id: "notes".into(),
+        bundle_sha256: old_sha.clone(),
+        engine: None,
+    });
+    let old_built = commit(data.path(), &committed_state, &profile, "build-1").unwrap();
+
+    // Simulate a crash after swapping `site/` for `new_sha` BEFORE committing `desktop-state.json`:
+    // both bundles yield identical `deployment.json`, `generation`, and filenames, differing ONLY
+    // in `bundle_sha256` and `dist/native.js` bytes.
+    let mut uncommitted_state = committed_state.clone();
+    uncommitted_state.plugins[0].bundle_sha256 = new_sha;
+    let new_built = project(data.path(), &uncommitted_state, &profile).unwrap();
+    assert_eq!(new_built.generation, old_built.generation);
+    assert_eq!(new_built.deployment, old_built.deployment);
+    swap_site(data.path(), &new_built, "build-1").unwrap();
+    assert_eq!(
+        std::fs::read(data.path().join("site/apps/notes/dist/native.js")).unwrap(),
+        b"export const v = 'uncommitted-v2';\n"
+    );
+
+    // Startup reconciliation against committed `desktop-state.json` detects `.loam-bundles`
+    // divergence and restores the committed bundle's JS bytes.
+    let (_, rewrote) = reconcile(data.path(), &committed_state, &profile, "build-1").unwrap();
+    assert!(rewrote);
+    assert_eq!(
+        std::fs::read(data.path().join("site/apps/notes/dist/native.js")).unwrap(),
+        b"export const v = 'committed-v1';\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(data.path().join("site/.loam-bundles")).unwrap(),
+        format!("notes {old_sha}\n")
+    );
+}

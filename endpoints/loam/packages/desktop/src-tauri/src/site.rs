@@ -49,20 +49,278 @@ const INERT_POLICY: &str = "sandbox; default-src 'none'; frame-ancestors 'none'"
 /// The bundled shell's files, by relative path.
 pub type Lookup = Box<dyn Fn(&str) -> Option<Vec<u8>> + Send + Sync>;
 
+/// Whether `relative` is a signed shell file served strictly from `EmbeddedAssets` in `managed` mode
+/// (D168 amended; phase 5 no-terminal amendment, 3.1 & 9.2).
+fn is_signed_shell_path(relative: &str) -> bool {
+    relative == "index.html"
+        || relative == "404.html"
+        || relative.starts_with("assets/")
+        || relative.starts_with("sandbox/")
+}
+
+/// Whether `frame_src` is admitted by Loam's fixed desktop CSP ceiling: `'none'` or `sandbox_origin()`.
+fn frame_src_allowed(frame_src: &str) -> bool {
+    frame_src == "'none'" || frame_src == sandbox_origin()
+}
+
+/// A trusted directory handle for `Site::Managed` disk reads (`deployment.json` and `apps/*`).
+/// On Unix, holds an open `O_DIRECTORY | O_CLOEXEC` file descriptor so every lookup traverses
+/// segment-by-segment with `openat(..., O_NOFOLLOW)` and reads directly from the validated file
+/// handle with zero pathname re-resolution. On Windows, holds the canonical directory path and
+/// validates each opened handle via `FILE_FLAG_OPEN_REPARSE_POINT` + `FILE_SHARE_READ` +
+/// `GetFinalPathNameByHandleW`.
+pub struct ManagedRoot {
+    #[cfg(unix)]
+    dir_fd: std::os::fd::OwnedFd,
+    #[cfg(not(unix))]
+    directory: PathBuf,
+}
+
+impl ManagedRoot {
+    fn open(directory: &Path) -> Option<Self> {
+        let root = directory.canonicalize().ok()?;
+        if !root.is_dir() {
+            return None;
+        }
+        #[cfg(unix)]
+        {
+            use std::ffi::CString;
+            use std::os::fd::{FromRawFd, OwnedFd};
+            use std::os::unix::ffi::OsStrExt;
+            let c_path = CString::new(root.as_os_str().as_bytes()).ok()?;
+            // SAFETY: `c_path` is a NUL-terminated path; `O_RDONLY | O_DIRECTORY | O_CLOEXEC`
+            // opens a read-only directory fd owned by `OwnedFd` below.
+            let fd = unsafe {
+                libc::open(
+                    c_path.as_ptr(),
+                    libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC,
+                )
+            };
+            if fd < 0 {
+                return None;
+            }
+            // SAFETY: `fd >= 0` is a freshly opened file descriptor owned exclusively here.
+            let dir_fd = unsafe { OwnedFd::from_raw_fd(fd) };
+            Some(Self { dir_fd })
+        }
+        #[cfg(not(unix))]
+        {
+            Some(Self { directory: root })
+        }
+    }
+
+    #[cfg(unix)]
+    fn read_segments(&self, segments: &[&str]) -> Option<Vec<u8>> {
+        use std::ffi::CString;
+        use std::io::Read as _;
+        use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+        if segments.is_empty() {
+            return None;
+        }
+        let mut current: Option<OwnedFd> = None;
+        for segment in &segments[..segments.len() - 1] {
+            if segment.is_empty() || *segment == "." || *segment == ".." {
+                return None;
+            }
+            let c_seg = CString::new(*segment).ok()?;
+            let parent_fd = current
+                .as_ref()
+                .map_or_else(|| self.dir_fd.as_raw_fd(), AsRawFd::as_raw_fd);
+            // SAFETY: `parent_fd` is a live directory fd and `c_seg` is a NUL-terminated component;
+            // `O_NOFOLLOW | O_DIRECTORY` refuses symlinks and non-directories without leaving the
+            // open directory tree.
+            let next_fd = unsafe {
+                libc::openat(
+                    parent_fd,
+                    c_seg.as_ptr(),
+                    libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                )
+            };
+            if next_fd < 0 {
+                return None;
+            }
+            // SAFETY: `next_fd >= 0` is a freshly opened directory fd owned by `current`.
+            current = Some(unsafe { OwnedFd::from_raw_fd(next_fd) });
+        }
+        let leaf = segments[segments.len() - 1];
+        if leaf.is_empty() || leaf == "." || leaf == ".." {
+            return None;
+        }
+        let c_leaf = CString::new(leaf).ok()?;
+        let parent_fd = current
+            .as_ref()
+            .map_or_else(|| self.dir_fd.as_raw_fd(), AsRawFd::as_raw_fd);
+        // SAFETY: `parent_fd` is a live directory fd and `c_leaf` is a NUL-terminated filename;
+        // `O_NOFOLLOW` refuses symlinks and `O_NONBLOCK` avoids blocking on FIFOs before `fstat`.
+        let file_fd = unsafe {
+            libc::openat(
+                parent_fd,
+                c_leaf.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC,
+            )
+        };
+        if file_fd < 0 {
+            return None;
+        }
+        // SAFETY: `file_fd >= 0` is a freshly opened file descriptor now owned by `File`.
+        let mut file = unsafe { std::fs::File::from_raw_fd(file_fd) };
+        if !file.metadata().ok()?.is_file() {
+            return None;
+        }
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).ok()?;
+        Some(bytes)
+    }
+
+    #[cfg(windows)]
+    fn read_segments(&self, segments: &[&str]) -> Option<Vec<u8>> {
+        use std::io::Read as _;
+        use std::os::windows::ffi::OsStringExt;
+        use std::os::windows::fs::OpenOptionsExt;
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::Foundation::HANDLE;
+        use windows_sys::Win32::Storage::FileSystem::{
+            FILE_FLAG_OPEN_REPARSE_POINT, FILE_NAME_NORMALIZED, FILE_SHARE_READ,
+            GetFinalPathNameByHandleW, VOLUME_NAME_DOS,
+        };
+        if segments.is_empty() {
+            return None;
+        }
+        let mut path = self.directory.clone();
+        for segment in &segments[..segments.len() - 1] {
+            if segment.is_empty() || *segment == "." || *segment == ".." {
+                return None;
+            }
+            path.push(segment);
+            if !std::fs::symlink_metadata(&path).is_ok_and(|meta| meta.is_dir()) {
+                return None;
+            }
+        }
+        let leaf = segments[segments.len() - 1];
+        if leaf.is_empty() || leaf == "." || leaf == ".." {
+            return None;
+        }
+        path.push(leaf);
+        // Open without following reparse points and refuse write/delete sharing while validated & read.
+        let mut file = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(FILE_SHARE_READ)
+            .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+            .open(&path)
+            .ok()?;
+        if !file.metadata().ok()?.is_file() {
+            return None;
+        }
+        // Verify the open handle's final canonical path is strictly inside the expected boundary.
+        let handle = file.as_raw_handle() as HANDLE;
+        let flags = VOLUME_NAME_DOS | FILE_NAME_NORMALIZED;
+        // SAFETY: passing a null buffer of length 0 queries the required UTF-16 length.
+        let needed = unsafe { GetFinalPathNameByHandleW(handle, std::ptr::null_mut(), 0, flags) };
+        if needed == 0 {
+            return None;
+        }
+        let mut buf = vec![0u16; needed as usize];
+        // SAFETY: `buf` has capacity for `needed` UTF-16 code units.
+        let len = unsafe { GetFinalPathNameByHandleW(handle, buf.as_mut_ptr(), needed, flags) };
+        if len == 0 || len >= needed {
+            return None;
+        }
+        let final_path = PathBuf::from(std::ffi::OsString::from_wide(&buf[..len as usize]));
+        let expected = if segments == ["deployment.json"] {
+            final_path == self.directory.join("deployment.json")
+        } else {
+            let apps = self.directory.join("apps");
+            final_path.starts_with(&apps) && final_path != apps
+        };
+        if !expected {
+            return None;
+        }
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).ok()?;
+        Some(bytes)
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    fn read_segments(&self, segments: &[&str]) -> Option<Vec<u8>> {
+        let mut path = self.directory.clone();
+        for segment in segments {
+            path.push(segment);
+        }
+        let found = path.canonicalize().ok()?;
+        if !found.starts_with(&self.directory) || !found.is_file() {
+            return None;
+        }
+        std::fs::read(&found).ok()
+    }
+}
+
 /// Where the site's files come from.
 pub enum Site {
-    /// The deployer's `<app data>/site`, canonical.
+    /// The deployer's `<app data>/site`, canonical (`cli` mode).
     Directory(PathBuf),
-    /// The empty shell compiled into the binary, read through this lookup by relative path.
+    /// The empty shell compiled into the binary, read through this lookup by relative path
+    /// (fresh `managed` install before its first commit, or fail-closed fallback).
     Bundled(Lookup),
+    /// `managed` mode with committed `desktop-state.json` (D168 amended):
+    /// - Signed shell files (`index.html`, `404.html`, `assets/*`, `sandbox/*`) are served strictly
+    ///   from `bundled` (`EmbeddedAssets`), ignoring any planted files in `directory`.
+    /// - Only `deployment.json` and plugin `apps/*` are read from `directory` (`<app data>/site/`),
+    ///   opened handle-relative without following symlinks or reparse points.
+    /// - `frame_src` (`'none'` or `sandbox_origin()`) rewrites embedded shell HTML `<meta>` `frame-src`
+    ///   in memory and drives the canonical desktop CSP HTTP header.
+    Managed {
+        root: ManagedRoot,
+        bundled: Lookup,
+        frame_src: String,
+    },
 }
 
 impl Site {
-    /// The deployer's site when it has an `index.html`, else `bundled`.
+    /// The deployer's site when it has an `index.html`, else `bundled` (`cli` mode / default helper).
     pub fn choose(directory: &Path, bundled: Lookup) -> Self {
         match directory.canonicalize() {
             Ok(root) if root.join("index.html").is_file() => Site::Directory(root),
             _ => Site::Bundled(bundled),
+        }
+    }
+
+    /// Constructs a `managed` site serving signed shell assets from `bundled` with in-memory
+    /// `frame-src` rewriting, and `deployment.json` + `apps/*` from canonical `directory`.
+    /// Returns `None` if `frame_src` violates the desktop CSP ceiling or `directory` cannot be
+    /// canonicalized as a directory.
+    pub fn managed(
+        directory: &Path,
+        bundled: Lookup,
+        frame_src: impl Into<String>,
+    ) -> Option<Self> {
+        Self::try_managed(directory, bundled, frame_src).ok()
+    }
+
+    /// Like [`Self::managed`], returning `bundled` back on failure so callers can fall back to
+    /// [`Site::Bundled`] without losing access to embedded assets.
+    pub(crate) fn try_managed(
+        directory: &Path,
+        bundled: Lookup,
+        frame_src: impl Into<String>,
+    ) -> Result<Self, Lookup> {
+        let frame_src = frame_src.into();
+        if !frame_src_allowed(&frame_src) {
+            return Err(bundled);
+        }
+        let Some(root) = ManagedRoot::open(directory) else {
+            return Err(bundled);
+        };
+        Ok(Site::Managed {
+            root,
+            bundled,
+            frame_src,
+        })
+    }
+
+    fn managed_frame_src(&self) -> Option<&str> {
+        match self {
+            Site::Managed { frame_src, .. } => Some(frame_src.as_str()),
+            Site::Directory(_) | Site::Bundled(_) => None,
         }
     }
 
@@ -83,6 +341,27 @@ impl Site {
                     return None;
                 }
                 lookup(relative).map(|bytes| (relative.to_owned(), bytes))
+            }
+            Site::Managed { root, bundled, .. } => {
+                if sandbox {
+                    if !relative.starts_with("sandbox/") {
+                        return None;
+                    }
+                    return bundled(relative).map(|bytes| (relative.to_owned(), bytes));
+                }
+                if relative == "deployment.json" {
+                    let bytes = root.read_segments(&["deployment.json"])?;
+                    return Some(("deployment.json".to_owned(), bytes));
+                }
+                if relative.starts_with("apps/") {
+                    let segments: Vec<&str> = relative.split('/').collect();
+                    let bytes = root.read_segments(&segments)?;
+                    return Some((relative.to_owned(), bytes));
+                }
+                if is_signed_shell_path(relative) {
+                    return bundled(relative).map(|bytes| (relative.to_owned(), bytes));
+                }
+                None
             }
         }
     }
@@ -228,9 +507,15 @@ fn read_tag_name(html: &str, start: usize) -> Option<(String, usize)> {
 /// `<template>`, `<noscript>`, and `<noframes>` fail closed), no `content` attribute, duplicate
 /// `http-equiv`/`content` attributes, an entity or a line break, or a directive only a header may carry.
 pub fn meta_policy(html: &str) -> Option<&str> {
+    meta_policy_span(html).map(|span| &html[span])
+}
+
+/// Byte range of the single active `<meta http-equiv="Content-Security-Policy">` `content` attribute
+/// value inside `html`'s `<head>`, validated identically to [`meta_policy`].
+fn meta_policy_span(html: &str) -> Option<std::ops::Range<usize>> {
     let bytes = html.as_bytes();
     let lower = html.to_ascii_lowercase();
-    let mut policies: Vec<Option<&str>> = Vec::new();
+    let mut policies: Vec<Option<std::ops::Range<usize>>> = Vec::new();
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i].is_ascii_whitespace() {
@@ -306,13 +591,19 @@ pub fn meta_policy(html: &str) -> Option<&str> {
                 let attrs_slice = &html[after_name..tag_end];
                 let mut pos = 0;
                 let mut http_equiv: Option<Option<&str>> = None;
-                let mut content: Option<Option<&str>> = None;
+                let mut content: Option<Option<std::ops::Range<usize>>> = None;
                 while let Some((attr_name, value)) = next_attr(attrs_slice, &mut pos).ok()? {
                     if attr_name == "http-equiv" && http_equiv.replace(value).is_some() {
                         return None;
                     }
-                    if attr_name == "content" && content.replace(value).is_some() {
-                        return None;
+                    if attr_name == "content" {
+                        let span = value.map(|val| {
+                            let start = val.as_ptr() as usize - html.as_ptr() as usize;
+                            start..start + val.len()
+                        });
+                        if content.replace(span).is_some() {
+                            return None;
+                        }
                     }
                 }
                 if http_equiv
@@ -329,9 +620,10 @@ pub fn meta_policy(html: &str) -> Option<&str> {
             }
         }
     }
-    let [Some(content)] = policies.as_slice() else {
+    let [Some(span)] = policies.as_slice() else {
         return None;
     };
+    let content = &html[span.clone()];
     if content.contains(['&', '\r', '\n']) {
         return None;
     }
@@ -347,7 +639,41 @@ pub fn meta_policy(html: &str) -> Option<&str> {
             "frame-ancestors" | "form-action" | "sandbox" | "report-uri"
         )
     });
-    (!header_only).then_some(content)
+    (!header_only).then(|| span.clone())
+}
+
+/// Rewrites the `<meta http-equiv="Content-Security-Policy">` `frame-src` directive of a signed
+/// desktop shell HTML page in memory (amendment 9.2; D168 amended), enforcing Loam's fixed desktop
+/// CSP ceiling (`frame_src` must be `'none'` or [`sandbox_origin`], and the source `<meta>` must
+/// already pass [`desktop_shell_policy`]). The `build.rs` no-shell placeholder (`default-src 'none'`)
+/// is preserved untouched rather than widened.
+pub fn rewrite_frame_src(html: &str, frame_src: &str) -> Option<String> {
+    if !frame_src_allowed(frame_src) {
+        return None;
+    }
+    let span = meta_policy_span(html)?;
+    let bytes = html.as_bytes();
+    // Require a double-quoted `content="..."` attribute so inserting `'none'` can never break quotes.
+    if span.start == 0
+        || bytes.get(span.start - 1) != Some(&b'"')
+        || bytes.get(span.end) != Some(&b'"')
+    {
+        return None;
+    }
+    let meta = &html[span.clone()];
+    let checked = desktop_shell_policy(meta)?;
+    if checked == format!("default-src 'none'; {FRAME_ANCESTORS_NONE}") {
+        return Some(html.to_owned());
+    }
+    let rewritten_meta = format!(
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; frame-src {frame_src}; object-src 'none'; base-uri 'none'"
+    );
+    let mut out =
+        String::with_capacity(html.len() - (span.end - span.start) + rewritten_meta.len());
+    out.push_str(&html[..span.start]);
+    out.push_str(&rewritten_meta);
+    out.push_str(&html[span.end..]);
+    Some(out)
 }
 
 /// Validates a shell page's `<meta>` policy against Loam's fixed desktop CSP ceiling and returns the
@@ -461,7 +787,7 @@ pub fn serve(
                 .flatten()
         })
     };
-    let Some((name, bytes)) = found else {
+    let Some((name, mut bytes)) = found else {
         return not_found();
     };
     let shell_page = !sandbox && (name == "index.html" || name == "404.html");
@@ -472,16 +798,33 @@ pub fn serve(
         // policy both apply, and a view's srcdoc document inherits it (10.2).
         format!("connect-src 'none'; frame-ancestors {}", shell_origin())
     } else if shell_page {
-        let Ok(html) = std::str::from_utf8(&bytes) else {
-            return not_found();
-        };
-        let Some(meta) = meta_policy(html) else {
-            return not_found();
-        };
-        let Some(checked) = desktop_shell_policy(meta) else {
-            return not_found();
-        };
-        checked
+        if let Some(frame_src) = site.managed_frame_src() {
+            let Ok(html) = std::str::from_utf8(&bytes) else {
+                return not_found();
+            };
+            let Some(rewritten) = rewrite_frame_src(html, frame_src) else {
+                return not_found();
+            };
+            let Some(meta) = meta_policy(&rewritten) else {
+                return not_found();
+            };
+            let Some(checked) = desktop_shell_policy(meta) else {
+                return not_found();
+            };
+            bytes = rewritten.into_bytes();
+            checked
+        } else {
+            let Ok(html) = std::str::from_utf8(&bytes) else {
+                return not_found();
+            };
+            let Some(meta) = meta_policy(html) else {
+                return not_found();
+            };
+            let Some(checked) = desktop_shell_policy(meta) else {
+                return not_found();
+            };
+            checked
+        }
     } else {
         INERT_POLICY.to_owned()
     };
@@ -831,5 +1174,226 @@ mod tests {
             .body(Vec::new())
             .unwrap();
         assert_eq!(serve(&site, false, &request).status(), 404);
+    }
+
+    fn bundled_lookup() -> Lookup {
+        Box::new(|path| match path {
+            "index.html" => Some(PAGE.as_bytes().to_vec()),
+            "404.html" => Some(
+                PAGE.replace("<title>Loam</title>", "<title>Loam 404</title>")
+                    .into_bytes(),
+            ),
+            "assets/app.js" => Some(b"console.log('signed-shell');".to_vec()),
+            "sandbox/proxy.html" => Some(b"<p>signed-proxy</p>".to_vec()),
+            "sandbox/copilot/index.html" => Some(b"<script src=\"boot.js\"></script>".to_vec()),
+            // The bundled empty dist holds an empty deployment.json; managed mode must NEVER serve it.
+            "deployment.json" => Some(b"{\"apps\":[],\"from\":\"bundled\"}".to_vec()),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn p5_s9_6_managed_mode_ignores_planted_shell_files_and_serves_deployment_and_apps_from_disk() {
+        let data = tempfile::tempdir().unwrap();
+        let site_dir = data.path().join("site");
+        std::fs::create_dir_all(site_dir.join("assets")).unwrap();
+        std::fs::create_dir_all(site_dir.join("sandbox/copilot")).unwrap();
+        std::fs::create_dir_all(site_dir.join("apps/mail/dist")).unwrap();
+        // Plant tampered shell files on disk in `<app data>/site/`.
+        std::fs::write(site_dir.join("index.html"), b"<!doctype html>PLANTED-INDEX").unwrap();
+        std::fs::write(site_dir.join("404.html"), b"<!doctype html>PLANTED-404").unwrap();
+        std::fs::write(site_dir.join("assets/app.js"), b"alert('planted')").unwrap();
+        std::fs::write(site_dir.join("assets/planted-only.js"), b"alert('extra')").unwrap();
+        std::fs::write(site_dir.join("sandbox/proxy.html"), b"<p>planted-proxy</p>").unwrap();
+        std::fs::write(
+            site_dir.join("sandbox/copilot/index.html"),
+            b"<script>planted()</script>",
+        )
+        .unwrap();
+        std::fs::write(site_dir.join(".loam-shell-build"), b"sha256-test\n").unwrap();
+        std::fs::write(site_dir.join(".loam-generation"), b"sha256-gen\n").unwrap();
+        // Real managed artifacts on disk.
+        std::fs::write(
+            site_dir.join("deployment.json"),
+            b"{\"apps\":[{\"instance\":\"mail\"}],\"from\":\"disk\"}",
+        )
+        .unwrap();
+        std::fs::write(
+            site_dir.join("apps/mail/dist/native.js"),
+            b"export const app = 'mail';",
+        )
+        .unwrap();
+        std::fs::write(data.path().join("mounts.json"), b"{\"secret\":true}").unwrap();
+
+        let managed = Site::managed(&site_dir, bundled_lookup(), "'none'").unwrap();
+
+        // Signed shell files come strictly from EmbeddedAssets, never from disk.
+        let index = get(&managed, false, "/", "text/html");
+        assert_eq!(index.status(), 200);
+        assert_eq!(index.body().as_ref(), PAGE.as_bytes());
+        assert!(!String::from_utf8_lossy(index.body()).contains("PLANTED"));
+
+        let deep = get(&managed, false, "/personal/mail", "text/html");
+        assert_eq!(deep.status(), 200);
+        assert_eq!(deep.body().as_ref(), PAGE.as_bytes());
+
+        let page_404 = get(&managed, false, "/404.html", "text/html");
+        assert_eq!(page_404.status(), 200);
+        assert!(String::from_utf8_lossy(page_404.body()).contains("Loam 404"));
+        assert!(!String::from_utf8_lossy(page_404.body()).contains("PLANTED"));
+
+        let asset = get(&managed, false, "/assets/app.js", "*/*");
+        assert_eq!(asset.status(), 200);
+        assert_eq!(asset.body().as_ref(), b"console.log('signed-shell');");
+        assert_eq!(asset.headers()["content-security-policy"], INERT_POLICY);
+        assert_eq!(
+            get(&managed, false, "/assets/planted-only.js", "*/*").status(),
+            404
+        );
+
+        let proxy = get(&managed, true, "/sandbox/proxy.html", "text/html");
+        assert_eq!(proxy.status(), 200);
+        assert_eq!(proxy.body().as_ref(), b"<p>signed-proxy</p>");
+
+        let copilot = get(&managed, true, "/sandbox/copilot/index.html", "text/html");
+        assert_eq!(copilot.status(), 200);
+        assert_eq!(
+            copilot.body().as_ref(),
+            b"<script src=\"boot.js\"></script>"
+        );
+        assert_eq!(
+            copilot.headers()["content-security-policy"],
+            copilot_policy()
+        );
+
+        // `deployment.json` and `apps/*` come strictly from disk (never bundled's empty deployment.json).
+        let deployment = get(&managed, false, "/deployment.json", "application/json");
+        assert_eq!(deployment.status(), 200);
+        assert_eq!(
+            deployment.body().as_ref(),
+            b"{\"apps\":[{\"instance\":\"mail\"}],\"from\":\"disk\"}"
+        );
+        assert_eq!(
+            deployment.headers()["content-security-policy"],
+            INERT_POLICY
+        );
+
+        let app_js = get(&managed, false, "/apps/mail/dist/native.js", "*/*");
+        assert_eq!(app_js.status(), 200);
+        assert_eq!(app_js.body().as_ref(), b"export const app = 'mail';");
+        assert_eq!(app_js.headers()["content-security-policy"], INERT_POLICY);
+
+        // Metadata markers and traversal paths are refused.
+        assert_eq!(
+            get(&managed, false, "/.loam-shell-build", "*/*").status(),
+            404
+        );
+        assert_eq!(
+            get(&managed, false, "/.loam-generation", "*/*").status(),
+            404
+        );
+        assert_eq!(
+            get(&managed, false, "/apps/mail/../../mounts.json", "*/*").status(),
+            404
+        );
+
+        // Symlinks inside `apps/` cannot escape to `mounts.json` or `deployment.json`.
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(
+                data.path().join("mounts.json"),
+                site_dir.join("apps/mail/escape.json"),
+            )
+            .unwrap();
+            std::os::unix::fs::symlink(
+                site_dir.join("deployment.json"),
+                site_dir.join("apps/mail/deploy-link.json"),
+            )
+            .unwrap();
+            assert_eq!(
+                get(&managed, false, "/apps/mail/escape.json", "*/*").status(),
+                404
+            );
+            assert_eq!(
+                get(&managed, false, "/apps/mail/deploy-link.json", "*/*").status(),
+                404
+            );
+        }
+    }
+
+    #[test]
+    fn p5_s9_6_managed_mode_rewrites_frame_src_in_memory_and_enforces_csp_ceiling() {
+        let data = tempfile::tempdir().unwrap();
+        let site_dir = data.path().join("site");
+        std::fs::create_dir_all(&site_dir).unwrap();
+
+        // Invalid frame-src values are refused at construction and rewrite time.
+        for bad in [
+            "https://evil.example",
+            "*",
+            "'self'",
+            "loam://localhost",
+            if cfg!(windows) {
+                "loam-sandbox://localhost"
+            } else {
+                "http://loam-sandbox.localhost"
+            },
+        ] {
+            assert!(
+                Site::managed(&site_dir, bundled_lookup(), bad).is_none(),
+                "{bad}"
+            );
+            assert!(rewrite_frame_src(PAGE, bad).is_none(), "{bad}");
+        }
+
+        // Rewriting to `sandbox_origin()` updates BOTH the `<meta>` tag in memory and the HTTP header.
+        let managed = Site::managed(&site_dir, bundled_lookup(), sandbox_origin()).unwrap();
+        let expected_meta = format!(
+            "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; frame-src {}; object-src 'none'; base-uri 'none'",
+            sandbox_origin()
+        );
+        let expected_header = format!("{expected_meta}; frame-ancestors 'none'");
+
+        for path in ["/", "/index.html", "/404.html", "/personal/deep-route"] {
+            let response = get(&managed, false, path, "text/html");
+            assert_eq!(response.status(), 200, "{path}");
+            assert_eq!(
+                response.headers()["content-security-policy"],
+                expected_header,
+                "{path}"
+            );
+            let html = std::str::from_utf8(response.body()).unwrap();
+            assert_eq!(meta_policy(html), Some(expected_meta.as_str()), "{path}");
+        }
+
+        // HEAD returns the same rewritten CSP header with an empty body.
+        let head_req = Request::builder()
+            .method("HEAD")
+            .uri("loam://localhost/")
+            .header("accept", "text/html")
+            .body(Vec::new())
+            .unwrap();
+        let head_resp = serve(&managed, false, &head_req);
+        assert_eq!(head_resp.status(), 200);
+        assert_eq!(
+            head_resp.headers()["content-security-policy"],
+            expected_header
+        );
+        assert!(head_resp.body().is_empty());
+
+        // Switching back to `'none'` narrows `frame-src` even if the source HTML held `sandbox_origin()`.
+        let with_sandbox_html = PAGE.replace(
+            "frame-src 'none'",
+            &format!("frame-src {}", sandbox_origin()),
+        );
+        let narrowed = rewrite_frame_src(&with_sandbox_html, "'none'").unwrap();
+        assert!(narrowed.contains("frame-src 'none';"));
+
+        // The `build.rs` no-shell placeholder (`default-src 'none'`) is preserved untouched rather than widened.
+        let placeholder = "<!doctype html><head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'\"></head>";
+        assert_eq!(
+            rewrite_frame_src(placeholder, sandbox_origin()).as_deref(),
+            Some(placeholder)
+        );
     }
 }

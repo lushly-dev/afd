@@ -2,7 +2,78 @@
 //! phase 5's step 2 amends it with `model_send` and `model_cancel`, and step 11b with 10.8's `inbound_reply`).
 //! The bundled empty shell is `../dist`, written by `pnpm build:site`; without it, a page that says so stands
 //! in, so `cargo test` and `cargo clippy` need no web build.
-use std::path::Path;
+use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
+
+fn collect_dist_files(root: &Path, current: &Path, out: &mut Vec<(String, PathBuf)>) {
+    println!("cargo:rerun-if-changed={}", current.display());
+    let Ok(entries) = std::fs::read_dir(current) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_dir() {
+            collect_dist_files(root, &path, out);
+        } else if file_type.is_file() {
+            println!("cargo:rerun-if-changed={}", path.display());
+            if let Ok(rel) = path.strip_prefix(root) {
+                let normalized = rel.to_string_lossy().replace('\\', "/");
+                out.push((normalized, path));
+            }
+        }
+    }
+}
+
+fn compute_shell_build_id(dist: &Path, polyfill: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    let version = std::env::var("CARGO_PKG_VERSION").unwrap_or_default();
+    hasher.update(b"loam-shell-build-v1\n");
+    hasher.update(version.as_bytes());
+    hasher.update(b"\n");
+
+    let mut dist_files = Vec::new();
+    collect_dist_files(dist, dist, &mut dist_files);
+    dist_files.sort_by(|a, b| a.0.cmp(&b.0));
+    for (rel, path) in dist_files {
+        let bytes = std::fs::read(&path).expect("read dist file for shell_build_id");
+        hasher.update(b"dist:");
+        hasher.update(rel.as_bytes());
+        hasher.update(b":");
+        hasher.update((bytes.len() as u64).to_le_bytes());
+        hasher.update(&bytes);
+        hasher.update(b"\n");
+    }
+
+    hasher.update(b"polyfill:");
+    hasher.update((polyfill.len() as u64).to_le_bytes());
+    hasher.update(polyfill);
+    hasher.update(b"\n");
+
+    for meta in ["tauri.conf.json", "capabilities/main.json"] {
+        let path = Path::new(meta);
+        println!("cargo:rerun-if-changed={meta}");
+        if let Ok(bytes) = std::fs::read(path) {
+            hasher.update(b"meta:");
+            hasher.update(meta.as_bytes());
+            hasher.update(b":");
+            hasher.update((bytes.len() as u64).to_le_bytes());
+            hasher.update(&bytes);
+            hasher.update(b"\n");
+        }
+    }
+
+    let digest = hasher.finalize();
+    let mut hex = String::with_capacity(7 + digest.len() * 2);
+    hex.push_str("sha256-");
+    for byte in digest {
+        use std::fmt::Write as _;
+        let _ = write!(&mut hex, "{byte:02x}");
+    }
+    hex
+}
 
 fn main() {
     let dist = Path::new("../dist");
@@ -45,6 +116,8 @@ fn main() {
         }
         Err(error) => panic!("{}: {error}", polyfill.display()),
     };
+    let shell_build_id = compute_shell_build_id(dist, &source);
+    println!("cargo:rustc-env=LOAM_SHELL_BUILD_ID={shell_build_id}");
     let out =
         Path::new(&std::env::var("OUT_DIR").expect("OUT_DIR")).join("scoped-registry-polyfill.js");
     std::fs::write(&out, source).expect("the polyfill's copy");

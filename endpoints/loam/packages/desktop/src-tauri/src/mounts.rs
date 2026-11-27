@@ -23,7 +23,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::{Arc, Mutex as StdMutex, RwLock as StdRwLock};
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, Command};
@@ -59,7 +59,7 @@ type KeychainReader = Arc<dyn Fn(&str, &str) -> Option<String> + Send + Sync>;
 
 /// One entry of `mounts.json`, as `loam deployment write --host desktop --mounts-out` or the
 /// managed desktop materializer writes it.
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(untagged)]
 pub enum Access {
     Http(HttpAccess),
@@ -68,7 +68,7 @@ pub enum Access {
 
 /// Phase 1's `{ instance, url, bearer? }`, extended for managed plugin engines with
 /// `bearer_keychain` and `proof_key` (phase 5 no-terminal amendment, 5.2 and 5.3).
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HttpAccess {
     instance: String,
@@ -79,7 +79,7 @@ pub struct HttpAccess {
 }
 
 /// The desktop's `{ instance, transport: 'stdio', command, cwd? }` (10.4).
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StdioAccess {
     instance: String,
@@ -529,7 +529,7 @@ enum HttpTransport {
 enum Connection {
     Http {
         transport: HttpTransport,
-        bearer: Option<String>,
+        bearer: StdRwLock<Option<String>>,
         session: Mutex<Option<String>>,
     },
     Stdio {
@@ -551,9 +551,18 @@ struct Open {
     slot: Slot,
 }
 
+#[derive(Default)]
+struct OpenState {
+    handles: HashMap<u64, Open>,
+    /// Monotonic per-instance credential generation incremented on every [`Mounts::refresh_bearer`];
+    /// an in-flight `Slot::Opening` started before a rotation is rejected on commit so no revoked
+    /// bearer can ever be published.
+    bearer_generations: HashMap<String, u64>,
+}
+
 /// Releases an in-flight `Slot::Opening` reservation if `open` returns an error or is cancelled.
 struct OpeningGuard<'a> {
-    open: &'a StdMutex<HashMap<u64, Open>>,
+    open: &'a StdMutex<OpenState>,
     handle: u64,
     armed: bool,
 }
@@ -563,20 +572,27 @@ impl Drop for OpeningGuard<'_> {
         if self.armed {
             let mut open = self.open.lock().expect("mounts open");
             if matches!(
-                open.get(&self.handle).map(|held| &held.slot),
+                open.handles.get(&self.handle).map(|held| &held.slot),
                 Some(Slot::Opening)
             ) {
-                open.remove(&self.handle);
+                open.handles.remove(&self.handle);
             }
         }
     }
 }
 
 /// Every instance `mounts.json` lists, and the connections the webview holds open.
+///
+/// Kept as a process singleton whose configured entries live behind an `RwLock` so managed-mode
+/// reloads and plugin mutations can update configuration in place without dropping open mount
+/// handles or live `stdio` children (phase 5 no-terminal amendment, 9.2).
+///
+/// Lock order: whenever both locks are needed (`Mounts::open`), `entries` is ALWAYS acquired before
+/// `open`, and both are dropped before any `.await`.
 pub struct Mounts {
-    entries: Result<Vec<Access>, &'static str>,
+    entries: StdRwLock<Result<Vec<Access>, &'static str>>,
     next: AtomicU64,
-    open: StdMutex<HashMap<u64, Open>>,
+    open: StdMutex<OpenState>,
     keychain_reader: KeychainReader,
     proof_timeout: Duration,
 }
@@ -584,9 +600,9 @@ pub struct Mounts {
 impl Mounts {
     pub fn new(entries: Result<Vec<Access>, &'static str>) -> Self {
         Self {
-            entries,
+            entries: StdRwLock::new(entries),
             next: AtomicU64::new(1),
-            open: StdMutex::new(HashMap::new()),
+            open: StdMutex::new(OpenState::default()),
             keychain_reader: Arc::new(crate::keychain::read),
             proof_timeout: PROOF_TIMEOUT,
         }
@@ -599,26 +615,93 @@ impl Mounts {
         proof_timeout: Duration,
     ) -> Self {
         Self {
-            entries,
+            entries: StdRwLock::new(entries),
             next: AtomicU64::new(1),
-            open: StdMutex::new(HashMap::new()),
+            open: StdMutex::new(OpenState::default()),
             keychain_reader,
             proof_timeout,
         }
     }
 
+    /// Replaces the mount entries in place without disturbing already-open handles (amendment 9.2).
+    /// Subsequent [`Mounts::open`] calls observe the new configuration.
+    pub fn update_entries(&self, entries: Result<Vec<Access>, &'static str>) {
+        *self
+            .entries
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = entries;
+    }
+
+    /// Updates the bearer token on every currently open `Http` handle for `instance` in place
+    /// without dropping the handle, and invalidates any in-flight `Slot::Opening` for `instance`
+    /// so no concurrent `open` can publish a revoked credential (amendment 7.4).
+    pub fn refresh_bearer(&self, instance: &str, new_bearer: Option<String>) {
+        let connections: Vec<Arc<Connection>> = {
+            let mut open = self.open.lock().expect("mounts open");
+            let generation = open
+                .bearer_generations
+                .entry(instance.to_owned())
+                .or_insert(0);
+            *generation = generation.wrapping_add(1);
+            open.handles
+                .values()
+                .filter(|held| held.instance == instance)
+                .filter_map(|held| match &held.slot {
+                    Slot::Open(connection) => Some(connection.clone()),
+                    Slot::Opening => None,
+                })
+                .collect()
+        };
+        for connection in connections {
+            if let Connection::Http { bearer, .. } = connection.as_ref() {
+                *bearer
+                    .write()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()) = new_bearer.clone();
+            }
+        }
+    }
+
+    /// Closes every open handle (and cancels any in-flight `Slot::Opening`) for `instance`, leaving
+    /// other instances' handles untouched (amendment 7.3 & 7.4).
+    pub async fn close_instance(&self, instance: &str) {
+        let matching: Vec<Arc<Connection>> = {
+            let mut open = self.open.lock().expect("mounts open");
+            let handles: Vec<u64> = open
+                .handles
+                .iter()
+                .filter(|(_, held)| held.instance == instance)
+                .map(|(handle, _)| *handle)
+                .collect();
+            handles
+                .into_iter()
+                .filter_map(|handle| match open.handles.remove(&handle)?.slot {
+                    Slot::Open(connection) => Some(connection),
+                    Slot::Opening => None,
+                })
+                .collect()
+        };
+        futures_util::future::join_all(matching.iter().map(|connection| close(connection))).await;
+    }
+
     /// `mount_open`: a handle for `instance`, or a code.
     pub async fn open(&self, instance: &str, notify: Notify) -> Result<u64, &'static str> {
-        let entries = self.entries.as_ref().map_err(|code| *code)?;
-        let entry = entries
-            .iter()
-            .find(|entry| entry.instance() == instance)
-            .ok_or(INSTANCE_UNKNOWN)?;
-        // Reserve a slot under the lock so concurrent opens cannot pass `HANDLES_PER_INSTANCE`
-        // together, then release the lock before any async proof check or blocking keychain read.
-        let handle = {
+        // Acquire `entries` then `open` together so a concurrent `update_entries` + `close_instance`
+        // cannot remove `instance` in the gap between lookup and slot reservation. Both locks are
+        // released before any async proof check or blocking keychain read.
+        let (entry, handle, reserved_gen) = {
+            let guard = self
+                .entries
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let entries = guard.as_ref().map_err(|code| *code)?;
+            let entry = entries
+                .iter()
+                .find(|entry| entry.instance() == instance)
+                .ok_or(INSTANCE_UNKNOWN)?
+                .clone();
             let mut open = self.open.lock().expect("mounts open");
             if open
+                .handles
                 .values()
                 .filter(|held| held.instance == instance)
                 .count()
@@ -628,21 +711,22 @@ impl Mounts {
             }
             // Handles stay well inside JavaScript's safe integers.
             let handle = self.next.fetch_add(1, Ordering::Relaxed);
-            open.insert(
+            let reserved_gen = open.bearer_generations.get(instance).copied().unwrap_or(0);
+            open.handles.insert(
                 handle,
                 Open {
                     instance: instance.to_owned(),
                     slot: Slot::Opening,
                 },
             );
-            handle
+            (entry, handle, reserved_gen)
         };
         let mut guard = OpeningGuard {
             open: &self.open,
             handle,
             armed: true,
         };
-        let connection = match entry {
+        let connection = match &entry {
             Access::Http(HttpAccess {
                 url,
                 bearer,
@@ -702,7 +786,7 @@ impl Mounts {
                 };
                 Connection::Http {
                     transport,
-                    bearer: resolved_bearer,
+                    bearer: StdRwLock::new(resolved_bearer),
                     session: Mutex::new(None),
                 }
             }
@@ -713,7 +797,11 @@ impl Mounts {
         let connection = Arc::new(connection);
         let committed = {
             let mut open = self.open.lock().expect("mounts open");
-            if let Some(held) = open.get_mut(&handle)
+            let current_gen = open.bearer_generations.get(instance).copied().unwrap_or(0);
+            if current_gen != reserved_gen {
+                open.handles.remove(&handle);
+                false
+            } else if let Some(held) = open.handles.get_mut(&handle)
                 && matches!(held.slot, Slot::Opening)
             {
                 held.slot = Slot::Open(connection.clone());
@@ -724,7 +812,7 @@ impl Mounts {
         };
         guard.armed = false;
         if !committed {
-            // `close_all` drained the map while this handle was opening; clean up the connection.
+            // `close_all`, `close_instance`, or `refresh_bearer` invalidated this opening slot.
             let _ = close(&connection).await;
             return Err(UNREACHABLE);
         }
@@ -744,7 +832,7 @@ impl Mounts {
         }
         let connection = {
             let open = self.open.lock().expect("mounts open");
-            match open.get(&handle).map(|held| &held.slot) {
+            match open.handles.get(&handle).map(|held| &held.slot) {
                 Some(Slot::Open(connection)) => connection.clone(),
                 _ => return Err(UNREACHABLE),
             }
@@ -760,47 +848,59 @@ impl Mounts {
                 transport,
                 bearer,
                 session,
-            } => match transport {
-                HttpTransport::Plain { client, url } => {
-                    send_http(
-                        handle,
-                        client,
-                        url,
-                        bearer.as_deref(),
-                        session,
-                        &message,
-                        encoded,
-                        notify,
-                    )
-                    .await
-                }
-                HttpTransport::Verified {
-                    target,
-                    proof_key,
-                    proof_timeout,
-                    conn,
-                } => {
-                    send_verified_http(
-                        handle,
+            } => {
+                let current_bearer = bearer
+                    .read()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .clone();
+                match transport {
+                    HttpTransport::Plain { client, url } => {
+                        send_http(
+                            handle,
+                            client,
+                            url,
+                            current_bearer.as_deref(),
+                            session,
+                            &message,
+                            encoded,
+                            notify,
+                        )
+                        .await
+                    }
+                    HttpTransport::Verified {
                         target,
                         proof_key,
-                        *proof_timeout,
+                        proof_timeout,
                         conn,
-                        bearer.as_deref(),
-                        session,
-                        &message,
-                        encoded,
-                        notify,
-                    )
-                    .await
+                    } => {
+                        send_verified_http(
+                            handle,
+                            target,
+                            proof_key,
+                            *proof_timeout,
+                            conn,
+                            current_bearer.as_deref(),
+                            session,
+                            &message,
+                            encoded,
+                            notify,
+                        )
+                        .await
+                    }
                 }
-            },
+            }
         }
     }
 
     /// `mount_close`: for `http` the session's `DELETE`, for `stdio` `SIGTERM` then `SIGKILL`.
     pub async fn close(&self, handle: u64) -> Result<(), &'static str> {
-        let Some(held) = self.open.lock().expect("mounts open").remove(&handle) else {
+        let Some(held) = self
+            .open
+            .lock()
+            .expect("mounts open")
+            .handles
+            .remove(&handle)
+        else {
             return Ok(());
         };
         match held.slot {
@@ -815,6 +915,7 @@ impl Mounts {
             .open
             .lock()
             .expect("mounts open")
+            .handles
             .drain()
             .filter_map(|(_, held)| match held.slot {
                 Slot::Open(connection) => Some(connection),
@@ -1123,10 +1224,14 @@ async fn close(connection: &Connection) -> Result<(), &'static str> {
             session,
         } => {
             if let Some(id) = session.lock().await.take() {
+                let current_bearer = bearer
+                    .read()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .clone();
                 match transport {
                     HttpTransport::Plain { client, url } => {
                         let mut request = client.delete(url).header("Mcp-Session-Id", id);
-                        if let Some(bearer) = bearer {
+                        if let Some(bearer) = current_bearer.as_deref() {
                             request = request.bearer_auth(bearer);
                         }
                         let _ = request.send().await;
@@ -1137,8 +1242,14 @@ async fn close(connection: &Connection) -> Result<(), &'static str> {
                         conn,
                         ..
                     } => {
-                        close_verified_http(target, *proof_timeout, conn, bearer.as_deref(), &id)
-                            .await;
+                        close_verified_http(
+                            target,
+                            *proof_timeout,
+                            conn,
+                            current_bearer.as_deref(),
+                            &id,
+                        )
+                        .await;
                     }
                 }
             }
@@ -1201,295 +1312,8 @@ fn is_notification(value: &Value) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn events_split_on_either_line_ending_and_join_their_data() {
-        let mut bytes =
-            b"event: message\ndata: {\"a\":\ndata: 1}\n\nid: 2\r\ndata: {}\r\n\r\npartial".to_vec();
-        let first = next_event(&mut bytes).unwrap();
-        assert_eq!(event_data(&first).unwrap(), Some(json!({ "a": 1 })));
-        let second = next_event(&mut bytes).unwrap();
-        assert_eq!(event_data(&second).unwrap(), Some(json!({})));
-        assert!(next_event(&mut bytes).is_none());
-        assert_eq!(bytes, b"partial");
-        assert_eq!(event_data(b": comment\n\n").unwrap(), None);
-    }
-
-    #[test]
-    fn requests_responses_and_notifications_are_told_apart() {
-        assert_eq!(
-            response_id(&json!({ "jsonrpc": "2.0", "id": 3, "result": {} })),
-            Some("3".into())
-        );
-        assert_eq!(
-            response_id(&json!({ "jsonrpc": "2.0", "id": "a", "error": {} })),
-            Some("\"a\"".into())
-        );
-        assert_eq!(
-            response_id(&json!({ "jsonrpc": "2.0", "id": 3, "method": "ping" })),
-            None
-        );
-        assert!(is_notification(
-            &json!({ "jsonrpc": "2.0", "method": "notifications/message" })
-        ));
-        assert!(!is_notification(
-            &json!({ "jsonrpc": "2.0", "id": 1, "method": "roots/list" })
-        ));
-    }
-
-    #[test]
-    fn mounts_json_is_read_strictly() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("mounts.json");
-        assert!(read(&path).unwrap().is_empty());
-        // No file serves nothing inbound (10.8).
-        assert!(!read_deployed(&path).unwrap().inbound);
-        std::fs::write(&path, r#"{"mounts":[{"instance":"a","url":"http://127.0.0.1:1/mcp","bearer":"t"},{"instance":"b","transport":"stdio","command":["hello-mcp"]}]}"#).unwrap();
-        restrict(&path);
-        assert_eq!(read(&path).unwrap().len(), 2);
-        // `inbound` (10.8): off when absent, on only when the file says so, refused unless a boolean.
-        assert!(!read_deployed(&path).unwrap().inbound);
-        std::fs::write(&path, r#"{"mounts":[],"inbound":true}"#).unwrap();
-        assert!(read_deployed(&path).unwrap().inbound);
-        std::fs::write(&path, r#"{"mounts":[],"inbound":false}"#).unwrap();
-        assert!(!read_deployed(&path).unwrap().inbound);
-        std::fs::write(&path, r#"{"mounts":[],"inbound":"yes"}"#).unwrap();
-        assert_eq!(read_deployed(&path).err(), Some(MOUNTS_INVALID));
-        for bad in [
-            r#"{"mounts":[{"instance":"a","url":"file:///etc/passwd"}]}"#,
-            r#"{"mounts":[{"instance":"a","transport":"stdio","command":[]}]}"#,
-            r#"{"mounts":[{"instance":"a","url":"http://x/"},{"instance":"a","url":"http://y/"}]}"#,
-            r#"{"mounts":[],"extra":1}"#,
-        ] {
-            std::fs::write(&path, bad).unwrap();
-            assert_eq!(read(&path).err(), Some(MOUNTS_INVALID), "{bad}");
-        }
-    }
-
-    #[cfg(unix)]
-    pub(super) fn restrict(path: &Path) {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).unwrap();
-    }
-
-    #[cfg(windows)]
-    pub(super) fn restrict(path: &Path) {
-        let system = Path::new(&std::env::var_os("SystemRoot").unwrap()).join("System32");
-        let user = std::process::Command::new(system.join("whoami.exe"))
-            .args(["/user", "/fo", "csv", "/nh"])
-            .output()
-            .unwrap();
-        let sid = String::from_utf8(user.stdout)
-            .unwrap()
-            .trim()
-            .rsplit(',')
-            .next()
-            .unwrap()
-            .trim_matches('"')
-            .to_owned();
-        let icacls = system.join("icacls.exe");
-        // Reset any explicit ACEs first (e.g., `BUILTIN\Administrators:(F)` expanded from
-        // `CREATOR OWNER` on elevated tokens) before stripping inherited ACEs.
-        let reset = std::process::Command::new(&icacls)
-            .arg(path)
-            .arg("/reset")
-            .stdout(Stdio::null())
-            .status()
-            .unwrap();
-        assert!(reset.success());
-        let status = std::process::Command::new(&icacls)
-            .arg(path)
-            .args(["/inheritance:r", "/grant:r"])
-            .arg(format!("*{sid}:F"))
-            .stdout(Stdio::null())
-            .status()
-            .unwrap();
-        assert!(status.success());
-        // Elevated tokens (such as `windows-latest`) create files owned by BUILTIN\Administrators;
-        // set the file owner to this user's SID so `handle_owner_only` matches.
-        let owner = std::process::Command::new(&icacls)
-            .arg(path)
-            .args(["/setowner", &format!("*{sid}")])
-            .stdout(Stdio::null())
-            .status()
-            .unwrap();
-        assert!(owner.success());
-    }
-
-    #[test]
-    fn p6_d2_a_mounts_json_others_can_read_is_refused() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("mounts.json");
-        std::fs::write(&path, r#"{"mounts":[]}"#).unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
-        }
-        // On Windows a new file in a temporary directory inherits entries for SYSTEM and Administrators.
-        assert_eq!(read(&path).err(), Some(PERMISSIONS));
-        restrict(&path);
-        assert!(read(&path).is_ok());
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn p6_d2_windows_acl_refuses_other_allow_aces_directories_and_links() {
-        let dir = tempfile::tempdir().unwrap();
-        let system = Path::new(&std::env::var_os("SystemRoot").unwrap()).join("System32");
-        let icacls = system.join("icacls.exe");
-        let make = |name: &str| {
-            let path = dir.path().join(name);
-            std::fs::write(&path, r#"{"mounts":[]}"#).unwrap();
-            restrict(&path);
-            path
-        };
-
-        // Owner-only passes, including after clearing a pre-existing explicit `BUILTIN\Administrators:(F)`
-        // ACE (the shape `CREATOR OWNER` leaves on elevated Windows accounts).
-        let owned = make("owned.json");
-        assert!(
-            std::process::Command::new(&icacls)
-                .arg(&owned)
-                .args(["/grant", "*S-1-5-32-544:F"])
-                .stdout(Stdio::null())
-                .status()
-                .unwrap()
-                .success()
-        );
-        assert!(!owner_only(&owned));
-        restrict(&owned);
-        if !owner_only(&owned) {
-            let acl = std::process::Command::new(&icacls)
-                .arg(&owned)
-                .output()
-                .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-                .unwrap_or_default();
-            let owner = std::process::Command::new(system.join("cmd.exe"))
-                .args(["/c", "dir", "/Q"])
-                .arg(&owned)
-                .output()
-                .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-                .unwrap_or_default();
-            panic!("owner_only(&owned) returned false;\nicacls:\n{acl}\nowner:\n{owner}");
-        }
-        assert!(read(&owned).is_ok());
-
-        // Granting Users read fails.
-        let users = make("users.json");
-        assert!(
-            std::process::Command::new(&icacls)
-                .arg(&users)
-                .args(["/grant", "*S-1-5-32-545:R"])
-                .stdout(Stdio::null())
-                .status()
-                .unwrap()
-                .success()
-        );
-        assert!(!owner_only(&users));
-        assert_eq!(read(&users).err(), Some(PERMISSIONS));
-
-        // Granting Everyone read fails.
-        let everyone = make("everyone.json");
-        assert!(
-            std::process::Command::new(&icacls)
-                .arg(&everyone)
-                .args(["/grant", "*S-1-1-0:R"])
-                .stdout(Stdio::null())
-                .status()
-                .unwrap()
-                .success()
-        );
-        assert!(!owner_only(&everyone));
-        assert_eq!(read(&everyone).err(), Some(PERMISSIONS));
-
-        // Adding a Deny ACE for Guests (a principal the current user is not in) alongside the owner's Allow
-        // still passes: Deny ACEs restrict access and never grant it.
-        let denied = make("denied.json");
-        assert!(
-            std::process::Command::new(&icacls)
-                .arg(&denied)
-                .args(["/deny", "*S-1-5-32-546:R"])
-                .stdout(Stdio::null())
-                .status()
-                .unwrap()
-                .success()
-        );
-        assert!(owner_only(&denied));
-        assert!(read(&denied).is_ok());
-
-        // A directory is refused.
-        assert!(!owner_only(dir.path()));
-        assert_eq!(
-            read_owner_only(dir.path(), REQUEST_MAX),
-            Err(Unread::Denied)
-        );
-
-        // A symlink to an owner-only file is refused (when the account has symlink privilege).
-        let link = dir.path().join("link.json");
-        if std::os::windows::fs::symlink_file(&owned, &link).is_ok() {
-            assert!(!owner_only(&link));
-            assert_eq!(read_owner_only(&link, REQUEST_MAX), Err(Unread::Denied));
-        }
-    }
-
-    #[tokio::test]
-    async fn an_unknown_instance_and_a_refused_file_open_nothing() {
-        let notify: Notify = Arc::new(|_, _| {});
-        let mounts = Mounts::new(Ok(Vec::new()));
-        assert_eq!(
-            mounts.open("nope", notify.clone()).await.err(),
-            Some(INSTANCE_UNKNOWN)
-        );
-        let refused = Mounts::new(Err(PERMISSIONS));
-        assert_eq!(
-            refused.open("any", notify.clone()).await.err(),
-            Some(PERMISSIONS)
-        );
-        assert_eq!(
-            mounts.send(9, json!({}), notify).await.err(),
-            Some(UNREACHABLE)
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn concurrent_opens_take_at_most_four_handles_per_instance() {
-        let entry: Access =
-            serde_json::from_value(json!({ "instance": "a", "url": "http://127.0.0.1:1/mcp" }))
-                .unwrap();
-        let mounts = Arc::new(Mounts::new(Ok(vec![entry])));
-        let notify: Notify = Arc::new(|_, _| {});
-        let opens = (0..8).map(|_| {
-            let mounts = mounts.clone();
-            let notify = notify.clone();
-            tokio::spawn(async move { mounts.open("a", notify).await })
-        });
-        let results = futures_util::future::join_all(opens).await;
-        let opened = results
-            .iter()
-            .filter(|result| matches!(result, Ok(Ok(_))))
-            .count();
-        let limited = results
-            .iter()
-            .filter(|result| matches!(result, Ok(Err(LIMIT))))
-            .count();
-        assert_eq!(
-            (opened, limited),
-            (HANDLES_PER_INSTANCE, 8 - HANDLES_PER_INSTANCE)
-        );
-    }
-
-    #[tokio::test]
-    async fn a_message_over_one_mebibyte_is_refused_before_it_is_sent() {
-        let notify: Notify = Arc::new(|_, _| {});
-        let mounts = Mounts::new(Ok(Vec::new()));
-        let big = json!({ "jsonrpc": "2.0", "id": 1, "method": "x", "params": { "p": "x".repeat(REQUEST_MAX) } });
-        assert_eq!(mounts.send(1, big, notify).await.err(), Some(TOO_LARGE));
-    }
-}
+#[path = "mounts_tests.rs"]
+mod tests;
 
 #[cfg(test)]
 #[path = "mounts_proof_tests.rs"]
