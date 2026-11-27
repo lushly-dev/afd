@@ -19,11 +19,11 @@ returns its `CommandResult` immediately; no later stage runs.
 | 2. Command lookup | Resolve command by name; hide unexposed commands on remote lanes and hidden commands on authorized servers ([D4](./error-codes.md#unknown-and-unexposed-commands-d4)) | `COMMAND_NOT_FOUND` | None |
 | 3. Exposure check | In-process callers naming an interface (`palette`, `mcp`, `agent`, `cli`) check `expose` | `COMMAND_NOT_EXPOSED` (`retryable: false`) | None |
 | 4. Active context check | Verify command is accessible in the active context | `COMMAND_NOT_IN_CONTEXT` | None |
-| 5. Confirmation gate | On surfaces enforcing `confirmPrompt` (MCP server / router with `confirmations: "enforce"` or `"require-human"`; `confirmationMode: "host-verified"` validates input first per [`command-metadata.md`](./command-metadata.md#host-verified-confirmation)) | `CONFIRMATION_REQUIRED` or `CONFIRMATION_DECLINED` (`retryable: false`) | None |
+| 5. Confirmation gate | On surfaces enforcing `confirmPrompt` (MCP server / router with `confirmations: "enforce"` or `"require-human"`; `confirmationMode: "host-verified"` validates input first per [`confirmations.md`](./confirmations.md#host-verified-confirmation)) | `CONFIRMATION_REQUIRED` or `CONFIRMATION_DECLINED` (`retryable: false`) | None |
 | 6. Input validation | Validate against the command's input schema ([`validation.md`](./validation.md)): apply defaults, strip undeclared keys unless `additionalProperties` allows them | `VALIDATION_ERROR` | None (throwing schema callback calls `onError`) |
 | 7. Declared context fields & output-budget ask | Validate declared context fields ([`context-fields.md`](./context-fields.md)) and any `dev.afd/outputBudget` ask ([`output-budgets.md`](./output-budgets.md#b2-the-ask)); execute-time scope check on validated input | `VALIDATION_ERROR` / `INSUFFICIENT_SCOPE` | None |
 | 8. Middleware chain | Run configured middleware in onion order (`mw[0]` outermost, `mw[n-1]` innermost), receiving the validated input | Any failure returned by middleware (e.g. `APPROVAL_REQUIRED`, `RATE_LIMITED`); thrown error -> `COMMAND_EXECUTION_ERROR` | Middleware up to short-circuit or throw |
-| 9. Approval admission check | Innermost link verifies that a command declaring an approval policy other than `not-required` was admitted by an approval step for this command and validated input ([`command-metadata.md`](./command-metadata.md#approvals)) | `APPROVAL_UNAVAILABLE` (`retryable: false`) | Outer middleware before/after; handler does NOT run |
+| 9. Approval admission check | Innermost link verifies that a command declaring an approval policy other than `not-required` was admitted by an approval step for this command and validated input ([`approvals.md`](./approvals.md)) | `APPROVAL_UNAVAILABLE` (`retryable: false`) | Outer middleware before/after; handler does NOT run |
 | 10. Handler | Run the command's handler with the validated input and context | Handler's failure result; thrown error/panic -> `COMMAND_EXECUTION_ERROR` | Middleware + handler |
 | 11. Output-budget check | On budgeted commands, measure canonical JSON without `metadata` ([`output-budgets.md`](./output-budgets.md#b5-the-check-after-the-handler)) | `OUTPUT_BUDGET_EXCEEDED` (failure for read; warning for mutation) | Middleware + handler |
 | 12. Metadata stamping | Stamp `executionTimeMs`, `commandVersion`, `traceId` (when set on context) and `actorKind` (when context carries an actor) on a copy of the result | — | Middleware + handler |
@@ -101,7 +101,7 @@ Rust and C++ do not yet ([#2676](https://github.com/lushly-dev/afd/issues/2676))
    `confirmations: "enforce"` or `"require-human"`, an unconfirmed call to a command declaring
    `confirmPrompt` fails with `CONFIRMATION_REQUIRED` (`retryable: false`) before middleware or the
    handler runs (for `confirmationMode: "host-verified"`, input validation runs before
-   `HumanRelay::begin` per [`command-metadata.md`](./command-metadata.md#host-verified-confirmation)).
+   `HumanRelay::begin` per [`confirmations.md`](./confirmations.md#host-verified-confirmation)).
    In-process registries do not run the confirmation gate.
 6. **Input validation precedes declared context fields and middleware.** Invalid command input fails
    with `VALIDATION_ERROR` (for input) before declared context fields are checked. Only valid input

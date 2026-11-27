@@ -137,7 +137,7 @@ pub fn input_digest(input: &Value) -> Result<String, String> {
 }
 
 /// The `approvalId` of an approval whose single-use key is `single_use_key`
-/// (`spec/command-metadata.md`, "The approval summary"): the unpadded base64url SHA-256 of
+/// (`spec/approvals.md`, "The approval summary"): the unpadded base64url SHA-256 of
 /// `approval`, a zero byte and the key.
 ///
 /// The key is the token's nonce (its payload's `n`) for a token or a `DirectClient` approval, the

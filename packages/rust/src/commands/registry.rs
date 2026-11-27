@@ -76,7 +76,7 @@ pub struct CommandRegistry {
 /// caller in the context holds a grant naming the command.
 pub type CallGrant = Arc<dyn Fn(&str, &CommandContext) -> bool + Send + Sync>;
 
-/// The one `CALL_NOT_GRANTED` refusal (`spec/command-metadata.md`, "App-to-app calls"): fixed
+/// The one `CALL_NOT_GRANTED` refusal (`spec/app-calls.md`): fixed
 /// bytes that name neither the command nor the reason.
 pub(super) fn call_not_granted() -> CommandError {
     CommandError::new(
@@ -413,7 +413,7 @@ impl CommandRegistry {
             }
             tool["_meta"]["confirmationMode"] = serde_json::json!(mode);
         }
-        // Whether a call may run as a task (`spec/command-metadata.md`, "Tasks"), when set.
+        // Whether a call may run as a task (`spec/tasks.md`), when set.
         if let Some(task) = command.task {
             if !tool["_meta"].is_object() {
                 tool["_meta"] = serde_json::json!({});
@@ -606,7 +606,7 @@ fn validate_scopes(command: &CommandDefinition) -> Result<(), String> {
 /// approval policy other than `not-required`, and `confirmation_mode`.
 ///
 /// A command that may run as a task (`task: optional` or `required`) is refused beside any of
-/// the three, naming the command and the setting (`spec/command-metadata.md`, "Tasks": a task
+/// the three, naming the command and the setting (`spec/tasks.md`: a task
 /// never asks a person, so no AFD task is ever `input_required`).
 fn validate_person_gates(command: &CommandDefinition) -> Result<(), String> {
     let task = command.task_support();

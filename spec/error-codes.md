@@ -61,7 +61,7 @@ should be told why a call is refused. The answer depends on who is calling.
 | **Remote MCP:** tools/call, `afd-call`, `afd-batch`, `afd-pipe`, grouped tools, the HTTP routes | `COMMAND_NOT_FOUND` | `COMMAND_NOT_FOUND`, identical to an unknown command |
 | **In-process registry called with an interface** (TypeScript `context.interface`, Python `context.extra["interface"]`, Rust `context.interface`, C++ `context.surface`) | `COMMAND_NOT_FOUND` | `COMMAND_NOT_EXPOSED`, `retryable: false` |
 | **In-process registry called with no interface** | `COMMAND_NOT_FOUND` | Runs: a trusted in-process caller is not checked |
-| **In-process registry called with the `apps` interface** (an app's call, made by a host) | `CALL_NOT_GRANTED` | `CALL_NOT_GRANTED`, identical, and so is an exposed command the caller is not granted ([App-to-app calls](./command-metadata.md#app-to-app-calls)) |
+| **In-process registry called with the `apps` interface** (an app's call, made by a host) | `CALL_NOT_GRANTED` | `CALL_NOT_GRANTED`, identical, and so is an exposed command the caller is not granted ([App-to-app calls](./app-calls.md)) |
 | **DirectClient** | `UNKNOWN_TOOL`, `retryable: false`, always with a `suggestion` | `UNKNOWN_TOOL`, the same answer |
 
 Rules:
@@ -153,7 +153,7 @@ and **20 profile codes** across nine optional profiles (`contexts`, `streaming`,
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
-| `UNAUTHORIZED` | The caller is not signed in. Also a call to a command that runs only as a task on a server that cannot tell its HTTP callers apart ([Tasks](./command-metadata.md#tasks)): the suggestion says the server needs authorization or a hook that identifies callers | No | Application; the auth package's middleware; server engine (Tasks) |
+| `UNAUTHORIZED` | The caller is not signed in. Also a call to a command that runs only as a task on a server that cannot tell its HTTP callers apart ([Tasks](./tasks.md)): the suggestion says the server needs authorization or a hook that identifies callers | No | Application; the auth package's middleware; server engine (Tasks) |
 | `FORBIDDEN` | The caller is signed in but not allowed | No | Application |
 | `TOKEN_EXPIRED` | The caller's session expired; sign in or refresh first | No | Application; the auth package |
 
@@ -186,7 +186,7 @@ and **20 profile codes** across nine optional profiles (`contexts`, `streaming`,
 | --- | --- | --- | --- |
 | `COMMAND_NOT_FOUND` | No such command, or (remotely) one the caller may not see; see [D4](#unknown-and-unexposed-commands-d4). Also the `error` of an `afd-detail` entry with `found: false` | No | Core executors, server engine, router |
 | `INVALID_COMMAND_ARGS` | The arguments do not fit the command, outside schema validation | No | Application |
-| `COMMAND_CANCELLED` | The caller cancelled the command, or cancelled batch/pipeline work before it started ([execution controls](./execution-controls.md#caller-cancellation)) | No | Application; TypeScript server engine; core executors (batch, pipeline) |
+| `COMMAND_CANCELLED` | The caller cancelled the command, or cancelled batch/pipeline work before it started ([execution controls](./execution-controls.md#caller-cancellation-in-batch-and-pipeline)) | No | Application; TypeScript server engine; core executors (batch, pipeline) |
 | `COMMAND_EXECUTION_ERROR` | The handler threw (or panicked). Outside dev mode the message is "An internal error occurred" and carries no exception text | No | Core executors, server engine, DirectClient, batch, pipeline |
 
 #### Routing and access
@@ -237,17 +237,17 @@ Codes belonging to optional contract profiles. Each entry in `vectors/error-code
 #### Confirmations (`profile: "confirmations"`)
 
 Emitted only by a server that enforces `confirmPrompt`; see
-[Confirmations](./command-metadata.md#confirmations). No handler ran.
+[Confirmations](./confirmations.md). No handler ran.
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
-| `CONFIRMATION_REQUIRED` | The command declares `confirmPrompt` and the call carried no confirmation the server accepts. The suggestion says how to confirm: repeat the call with `confirm: true`, or use a client that supports elicitation. Not retryable, except a host-verified command's refusal with `details.reason` `pending-list` ([the pending list](./command-metadata.md#the-pending-list)), which is retryable: the same call runs once the person decides | Varies | Server engine, router, HTTP layer |
+| `CONFIRMATION_REQUIRED` | The command declares `confirmPrompt` and the call carried no confirmation the server accepts. The suggestion says how to confirm: repeat the call with `confirm: true`, or use a client that supports elicitation. Not retryable, except a host-verified command's refusal with `details.reason` `pending-list` ([the pending list](./confirmations.md#the-pending-list)), which is retryable: the same call runs once the person decides | Varies | Server engine, router, HTTP layer |
 | `CONFIRMATION_DECLINED` | The user declined or cancelled the confirmation. Do not retry without asking the user | No | Server engine, router |
 
 #### Approvals (`profile: "approvals"`)
 
 Emitted by the approval middleware (`APPROVAL_REQUIRED`) and by the server engine
-(`APPROVAL_UNAVAILABLE`); see [Approvals](./command-metadata.md#approvals). No handler ran.
+(`APPROVAL_UNAVAILABLE`); see [Approvals](./approvals.md). No handler ran.
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
@@ -274,7 +274,7 @@ verified credentials; see [M6](./authorization.md#m6-scopes). No handler ran.
 
 #### Tasks (`profile: "tasks"`)
 
-Emitted by a server's task runner; see [Tasks](./command-metadata.md#tasks). The task completes
+Emitted by a server's task runner; see [Tasks](./tasks.md). The task completes
 with this failure (`completed`, with `isError: true`).
 
 | Code | Meaning | Retryable | Layers |
@@ -284,7 +284,7 @@ with this failure (`completed`, with `isError: true`).
 #### App calls (`profile: "app-calls"`)
 
 Emitted by a registry for a call with the `apps` interface; see
-[App-to-app calls](./command-metadata.md#app-to-app-calls). No handler ran.
+[App-to-app calls](./app-calls.md). No handler ran.
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |

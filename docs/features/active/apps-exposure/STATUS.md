@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Proposal | [apps-exposure.proposal.md](./apps-exposure.proposal.md) |
-| Spec | [`spec/command-metadata.md`](../../../../spec/command-metadata.md#app-to-app-calls), "App-to-app calls"; [`spec/error-codes.md`](../../../../spec/error-codes.md) (`CALL_NOT_GRANTED`); [`spec/plugin-manifest.md`](../../../../spec/plugin-manifest.md#k5-exposure), K5, and [`spec/plugin-manifest.core.v2.json`](../../../../spec/plugin-manifest.core.v2.json) |
+| Spec | [`spec/app-calls.md`](../../../../spec/app-calls.md), "App-to-app calls"; [`spec/error-codes.md`](../../../../spec/error-codes.md) (`CALL_NOT_GRANTED`); [`spec/plugin-manifest.md`](../../../../spec/plugin-manifest.md#k5-exposure), K5, and [`spec/plugin-manifest.core.v2.json`](../../../../spec/plugin-manifest.core.v2.json) |
 | Origin | Loam phase 5, step 0b ([specification](../../../../endpoints/loam/docs/phases/5-copilot/spec.md), 7.5, 9 and 13; D30); [#884](https://github.com/lushly-dev/afd/issues/884) |
 | Last verified | 2026-11-23, against `main` at `7613a835` plus Python and C++ parity (#1513) |
 

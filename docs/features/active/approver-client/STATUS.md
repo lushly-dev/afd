@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Proposal | [approver-client.proposal.md](./approver-client.proposal.md) |
-| Spec | [`spec/command-metadata.md`](../../../../spec/command-metadata.md#approval-evidence-from-an-approver-client), "Approval evidence from an approver client" and "Approval display" |
+| Spec | [`spec/approvals.md`](../../../../spec/approvals.md#approval-evidence-from-an-approver-client), "Approval evidence from an approver client" and "Approval display" |
 | Origin | Loam phase 5, step 0c ([specification](../../../../endpoints/loam/docs/phases/5-copilot/spec.md), 7.2 and 12; D146, D150) |
 | Last verified | 2026-11-17, against `main` at `247111aa` plus this change |
 

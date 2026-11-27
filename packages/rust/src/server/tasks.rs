@@ -1,4 +1,4 @@
-//! MCP Tasks for long-running commands (`spec/command-metadata.md`, "Tasks"; the Tasks extension
+//! MCP Tasks for long-running commands (`spec/tasks.md`; the Tasks extension
 //! `io.modelcontextprotocol/tasks`, SEP-2663, revision 2026-07-28).
 //!
 //! A command declares [`TaskSupport`](crate::TaskSupport) with
@@ -479,7 +479,7 @@ impl fmt::Debug for TaskCall<'_> {
     }
 }
 
-/// Where task records live (`spec/command-metadata.md`, "Tasks"; Umbel phase 5, section 3.3).
+/// Where task records live (`spec/tasks.md`; Umbel phase 5, section 3.3).
 ///
 /// Each method must keep these rules, which the server relies on:
 ///

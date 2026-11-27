@@ -11,7 +11,7 @@ Epic: [#2677](https://github.com/lushly-dev/afd/issues/2677).
 | Status | Approved 2026-11-26: the owner accepted decisions J1 to J6 as recommended, and J2 holds every member of the journal entry and the result ([Approved and held](#approved-and-held)). The dispatch id and the approval hook are built in TypeScript, Rust and C++, with Python to follow; progress is in [STATUS.md](./STATUS.md). |
 | Author | jasfalk (drafted with Claude) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `python/`, `packages/rust`, `packages/cpp` |
-| Related | [`spec/journal.md`](../../../../spec/journal.md), [`spec/dispatch.md`](../../../../spec/dispatch.md), [approvals](../../../../spec/command-metadata.md#approvals), Umbel decisions D66 and D208 ([decisions](../../../../endpoints/umbel/docs/decisions.md)), [Loam OS](../loam-os/loam-os.proposal.md#what-umbel-and-afd-need), [idempotency keys](../idempotency-keys/idempotency-keys.proposal.md) |
+| Related | [`spec/journal.md`](../../../../spec/journal.md), [`spec/dispatch.md`](../../../../spec/dispatch.md), [approvals](../../../../spec/approvals.md), Umbel decisions D66 and D208 ([decisions](../../../../endpoints/umbel/docs/decisions.md)), [Loam OS](../loam-os/loam-os.proposal.md#what-umbel-and-afd-need), [idempotency keys](../idempotency-keys/idempotency-keys.proposal.md) |
 
 ## Why
 
@@ -49,7 +49,7 @@ What it cannot do:
 |---|---|---|
 | G1 | **No id is unique to one dispatch.** The trace id is the caller's to set. A batch item gets `<trace>-<index>`. A pipeline step differs by language: TypeScript gives every step the caller's trace id when there is one, and Rust gives step `i` `<pipeline id>-step-<i>`, where the pipeline id falls back to the start time in milliseconds. D208 works around this by refusing a required call whose trace id it has seen | `packages/core/src/command-execution.ts` (`batchTraceId`), `packages/core/src/pipeline-executor.ts` (step context), `packages/rust/src/pipeline/execute.rs`, D208 |
 | G2 | **A reader drops what a host adds to an entry.** Python, Rust and C++ build an entry from its known members only, so a chain hash or an approver a sink wrote is gone after one read and write. TypeScript checks only the known members and keeps the object | `python/src/afd/core/journal.py`, `packages/rust/src/journal.rs`, `packages/cpp/src/journal.cpp`, `packages/core/src/journal.ts` (`isJournalEntry`) |
-| G3 | **Nothing reports that an approval was accepted.** The one hook, `onApprovalRequired`, fires when a call is held. The nonce store sees a nonce and an expiry. A token binds the requesting actor, not the approver. So no record can say which decision admitted a call | `packages/server/src/approval.ts`; [approvals](../../../../spec/command-metadata.md#approvals), rule 2 |
+| G3 | **Nothing reports that an approval was accepted.** The one hook, `onApprovalRequired`, fires when a call is held. The nonce store sees a nonce and an expiry. A token binds the requesting actor, not the approver. So no record can say which decision admitted a call | `packages/server/src/approval.ts`; [approvals](../../../../spec/approvals.md), rule 2 |
 | G4 | **A call the engine stopped waiting for leaves no agreed trace.** The spec says what the caller gets at a deadline (`TIMEOUT`, `BATCH_TIMEOUT`, `PIPELINE_TIMEOUT`) and nothing about the journal. TypeScript's deadline sits outside the middleware, so the entry, when the handler finishes, holds the handler's result and not the `TIMEOUT` the caller was given. D208 records that Rust writes no entry | `packages/server/src/command-timeout.ts`; [`spec/execution-controls.md`](../../../../spec/execution-controls.md); D208 |
 
 Two more limits are deliberate and stay: the recorder's order (handler, then append) and its
@@ -132,7 +132,7 @@ needs only the context value.
 Held ([#2725](https://github.com/lushly-dev/afd/issues/2725)).
 
 An entry gains an optional `ext` object. Its keys follow `toolMeta`'s
-[key rule](../../../../spec/mcp-resources.md#t2-the-key-rule) (a reverse-DNS prefix, never
+[key rule](../../../../spec/mcp-tools.md#t2-the-key-rule) (a reverse-DNS prefix, never
 `dev.afd/`), and its values are JSON. Two parties may set it:
 
 - **The recorder's `annotate` option**, a function that returns the members to add. It runs once

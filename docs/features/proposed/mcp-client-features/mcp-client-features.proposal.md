@@ -32,7 +32,7 @@ Claude's MCP clients:
    [`packages/server/src/tasks.ts`](../../../../packages/server/src/tasks.ts),
    [`python/src/afd/server/tasks.py`](../../../../python/src/afd/server/tasks.py) and
    [`packages/rust/src/server/tasks.rs`](../../../../packages/rust/src/server/tasks.rs)) and stops
-   the task when `ttlMs` elapses ([`spec/command-metadata.md#tasks`](../../../../spec/command-metadata.md#tasks)).
+   the task when `ttlMs` elapses ([`spec/tasks.md`](../../../../spec/tasks.md)).
    A 50-minute job leaves only 10 minutes to collect its result, and a job over an hour is cancelled.
    In Umbel's hosted task store
    ([`endpoints/umbel/src/shared/tasks.rs`](../../../../endpoints/umbel/src/shared/tasks.rs)),
@@ -184,7 +184,7 @@ Each issue's live state, dependencies and deferral reason live in [STATUS.md](ST
 2. **Should an AFD task be allowed to ask a person (`input_required`)?**
    ([#2507](https://github.com/lushly-dev/afd/issues/2507), related to
    [#552](https://github.com/lushly-dev/afd/issues/552).) The 2026-11-07 rule in
-   [`spec/command-metadata.md#tasks`](../../../../spec/command-metadata.md#tasks) forbids `task:
+   [`spec/tasks.md`](../../../../spec/tasks.md) forbids `task:
    "optional"` or `"required"` alongside `confirmPrompt`, non-default `approval` or
    `confirmationMode`. Revisiting it changes the trust model (who answers, principal binding and
    timeout handling) and would start with a separate proposal.

@@ -1,6 +1,6 @@
 /**
  * @fileoverview MCP Tasks runtime: creation, background execution, cancellation, deadlines and
- * `tasks/get`, `tasks/update`, `tasks/cancel` handlers (`spec/command-metadata.md`, "Tasks";
+ * `tasks/get`, `tasks/update`, `tasks/cancel` handlers (`spec/tasks.md`;
  * SEP-2663).
  */
 

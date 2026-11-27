@@ -1,5 +1,5 @@
 //! The registry dispatches a gated call only when an approval step admitted it, and answers
-//! `APPROVAL_UNAVAILABLE` otherwise (`spec/command-metadata.md`, "Approvals"; #1886): the cases
+//! `APPROVAL_UNAVAILABLE` otherwise (`spec/approvals.md`, "Approvals"; #1886): the cases
 //! with the approval middleware. Those without it are in `approval_without_middleware.rs`, which
 //! runs without the `approval` feature. Mirrors TypeScript's
 //! `packages/server/src/approval-fail-closed.test.ts`.

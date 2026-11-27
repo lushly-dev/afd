@@ -710,6 +710,11 @@
 			"note": "(no Rust client)",
 			"evidence": ["docs/language-parity.md"]
 		},
+		"host.plugin-manifest": {
+			"status": "partial",
+			"note": "(Umbel's `tests/it/manifest_core.rs` checks the cases and the core; Umbel reads its own profile)",
+			"evidence": ["endpoints/umbel/tests/it/manifest_core.rs"]
+		},
 		"tooling.mcp-client": {
 			"status": "na",
 			"note": "no remote client (D6)",

@@ -1,5 +1,9 @@
 # Idempotency keys
 
+Profile: `idempotency`. This page belongs to the `idempotency` profile of the
+[contract registry](./registry.md): an implementation that does not claim the profile need not
+implement it. An implementation claims it when a command can declare `idempotency` and its engine can be given the idempotency step.
+
 A caller often cannot tell whether a change it sent was applied: its call timed out, its
 connection dropped, or a step in between failed after the write went through. An idempotency key
 lets it send the same call again and never have the change applied twice. This page defines the
@@ -107,7 +111,7 @@ The step is an option of the server or registry (`idempotency`, with `store`, `t
   - The engine validates the key first (K2), so a malformed key is `VALIDATION_ERROR` here too.
   - Over HTTP, on a server that cannot tell its callers apart, the call fails with `UNAUTHORIZED`
     (`retryable: false`) before any confirmation, middleware or approval step runs, as a
-    `required` [task](./command-metadata.md#tasks) does there. The host lifts this the way it
+    `required` [task](./tasks.md) does there. The host lifts this the way it
     does for tasks, by declaring that its per-request hook identifies every caller.
   - Credentials that M8 cannot bind (an issuer, subject or client id missing or empty) fail the
     call the same way a task fails there, as an internal error whose message names no one. They
@@ -116,7 +120,7 @@ The step is an option of the server or registry (`idempotency`, with `store`, `t
     actor nor credentials, the step keeps the key in a store of that connection's own, never in
     one shared with other connections.
 - **S4. What is compared.** The step identifies a call by the unpadded base64url SHA-256 of the
-  canonical JSON (rule 3 of [Approvals](./command-metadata.md#approvals)) of
+  canonical JSON (rule 3 of [Approvals](./approvals.md)) of
   `{ "context": <fields>, "input": <the validated input> }`, where `<fields>` holds each
   [declared context field](./context-fields.md) the call carries, by name. A call under another
   workspace or scope is therefore another call, and a repeat carries the same values: a host

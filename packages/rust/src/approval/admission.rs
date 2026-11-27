@@ -1,4 +1,4 @@
-//! Which calls an approval step admitted (`spec/command-metadata.md`, "Approvals"; #1886).
+//! Which calls an approval step admitted (`spec/approvals.md`, "Approvals"; #1886).
 //!
 //! [`CommandRegistry::execute`](crate::CommandRegistry::execute) gives every call a fresh
 //! [`Admission`] on its context before any middleware runs, naming the command the call runs. An

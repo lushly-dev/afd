@@ -45,7 +45,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1742](https://github.com/lushly-dev/afd/issues/1742) docs: a decision record on four hand-written implementations, a shared core or explicit tiers
 
-- [#1925](https://github.com/lushly-dev/afd/issues/1925) spec: the contract as a core and versioned profiles, in one registry
+- [#1925](https://github.com/lushly-dev/afd/issues/1925) spec: the contract as a core and versioned profiles, in one registry; 13 profiles decided 2026-11-27 ([decisions.md](decisions.md), AR4); merged in #2929
 
 - [#1926](https://github.com/lushly-dev/afd/issues/1926) spec: declare core 1.0 (spec/VERSION, the four constants and the changelog)
 

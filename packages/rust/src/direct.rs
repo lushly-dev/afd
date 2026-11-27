@@ -28,7 +28,7 @@ pub struct DirectApprovalRequest {
     /// Optional reason why approval was requested.
     pub reason: Option<String>,
     /// The `approvalId` the approval summary of this call will carry once the hook approves it
-    /// (`spec/command-metadata.md`, "The approval summary", rule 5): [`crate::approval_id`] of the
+    /// (`spec/approvals.md`, "The approval summary", rule 5): [`crate::approval_id`] of the
     /// held token's nonce. It names the approval without granting it, so keep it beside the
     /// person who decides.
     pub approval_id: String,

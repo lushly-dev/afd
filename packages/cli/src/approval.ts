@@ -1,5 +1,5 @@
 /**
- * @fileoverview The `afd call` approval flow (`spec/command-metadata.md`, "Approvals").
+ * @fileoverview The `afd call` approval flow (`spec/approvals.md`, "Approvals").
  *
  * When a call fails with `APPROVAL_REQUIRED`, the CLI shows the summary and expiry, gets a
  * decision (a terminal prompt, or `--approve`), and retries the same command and input with the

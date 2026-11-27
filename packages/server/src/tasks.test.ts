@@ -1,5 +1,5 @@
 /**
- * @fileoverview End-to-end and unit tests for MCP Tasks (`spec/command-metadata.md`, "Tasks";
+ * @fileoverview End-to-end and unit tests for MCP Tasks (`spec/tasks.md`;
  * SEP-2663), mirroring Rust's `packages/rust/tests/server_tasks.rs`.
  */
 

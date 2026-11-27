@@ -118,7 +118,7 @@ export interface DirectApprovalRequest {
 	expiresAt: string;
 	/**
 	 * The `approvalId` the call's approval summary will carry once this approval admits it
-	 * (`spec/command-metadata.md`, "The approval summary", rule 5), so the application can keep it
+	 * (`spec/approvals.md`, "The approval summary", rule 5), so the application can keep it
 	 * beside the person who answered and join it to what the approval middleware's
 	 * `onApprovalAccepted` hook records. Absent when the registry's approval step does not set it.
 	 */

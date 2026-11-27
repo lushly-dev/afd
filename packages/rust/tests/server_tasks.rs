@@ -1,4 +1,4 @@
-//! MCP Tasks (`spec/command-metadata.md`, "Tasks"; the Tasks extension, SEP-2663) end to end over
+//! MCP Tasks (`spec/tasks.md`; the Tasks extension, SEP-2663) end to end over
 //! Streamable HTTP and stdio: negotiation, every route, ownership across actors, issuers,
 //! subjects and clients, unguessable ids, cancellation, the TTL and token expiry on an injectable
 //! clock, result shapes, the store, its limits, and the registration refusals.

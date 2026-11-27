@@ -11,15 +11,15 @@ mechanically generated files are guarded in CI against unflagged drift
 | `recovery.json` | Structured recovery on `CommandError` ([`spec/recovery.md`](../recovery.md)): whole errors that are valid and invalid under [`schema/error.json`](../schema/error.json), each invalid one with the rule it breaks; valid ones round-trip through each language's native type | Specification-authored |
 | `dispatch.json` | Single-command dispatch order ([`spec/dispatch.md`](../dispatch.md)): lookup, exposure, active context, confirmation, input validation, declared context fields, middleware, approval admission, handler, metadata stamping and observer hooks | Specification-authored |
 | `execution-controls.json` | Server default deadline, cancellation propagation, batch size/parallelism ceilings and validation issue cap ([`spec/execution-controls.md`](../execution-controls.md)) | Specification-authored |
-| `human-relay.json` | The relay's pending list ([`spec/command-metadata.md`](../command-metadata.md#the-pending-list)): the whole `CONFIRMATION_REQUIRED` refusal for a relay's pending decision, and the decision ids and links that are an internal error instead | Specification-authored |
-| `app-calls.json` | App-to-app calls ([`spec/command-metadata.md`](../command-metadata.md#app-to-app-calls)): the `apps` exposure flag's default, and which calls with the `apps` interface run or get the one `CALL_NOT_GRANTED` refusal | Specification-authored |
+| `human-relay.json` | The relay's pending list ([`spec/confirmations.md`](../confirmations.md#the-pending-list)): the whole `CONFIRMATION_REQUIRED` refusal for a relay's pending decision, and the decision ids and links that are an internal error instead | Specification-authored |
+| `app-calls.json` | App-to-app calls ([`spec/app-calls.md`](../app-calls.md)): the `apps` exposure flag's default, and which calls with the `apps` interface run or get the one `CALL_NOT_GRANTED` refusal | Specification-authored |
 | `tool-strategies.json` | The hybrid tool strategy ([`spec/tool-strategies.md`](../tool-strategies.md#conformance)): each server's `tools/list` names in order, its `ttlMs`, call outcomes, and the configurations that must fail construction | Specification-authored |
 | `mcp-resources.json` | MCP resources, the Skills extension, extra tool `_meta` keys and catalog validation ([`spec/mcp-resources.md`](../mcp-resources.md#conformance)): `toolMetaKeys`, a two-skill catalog (`skills/list`, `resources/list`, reads, `skills/get`, errors) and `catalogFailures` | Specification-authored |
 | `output-budgets.json` | Per-command output budgets ([`spec/output-budgets.md`](../output-budgets.md#conformance)): declarations (B1), asks and effective budgets (B2–B4), canonical-JSON byte measurement (B5), read/mutation enforcement and reports (B5–B6), per-item batch budgets (B7), and journal recording (B8) | Specification-authored |
-| `approval-tokens.json` | Approval tokens ([`spec/command-metadata.md`](../command-metadata.md#approvals)): canonical JSON, the keyed input and actor digests, the payload layout, every acceptance and rejection reason, and rule 6 token delivery (`tokenDelivery`) | Format-generated (`generate-approval-tokens.mjs`) |
-| `approver-client.json` | Approval evidence from an approver client and the approval display rules ([`spec/command-metadata.md`](../command-metadata.md#approval-evidence-from-an-approver-client)): an approver's token and its principal binding, the `_meta` carrier over MCP, and every display limit and hidden range | Format-generated (`generate-approver-client.mjs`) |
+| `approval-tokens.json` | Approval tokens ([`spec/approvals.md`](../approvals.md)): canonical JSON, the keyed input and actor digests, the payload layout, every acceptance and rejection reason, and rule 6 token delivery (`tokenDelivery`) | Format-generated (`generate-approval-tokens.mjs`) |
+| `approver-client.json` | Approval evidence from an approver client and the approval display rules ([`spec/approvals.md`](../approvals.md#approval-evidence-from-an-approver-client)): an approver's token and its principal binding, the `_meta` carrier over MCP, and every display limit and hidden range | Format-generated (`generate-approver-client.mjs`) |
 | `journal-context-cap.json` | The journal's 4096-byte cap on a declared context field's value ([`spec/journal.md`](../journal.md#declared-context-fields)): values just at, under and over it, where number spelling, multibyte UTF-8 and escapes decide kept or omitted | Format-generated (`generate-journal-context-cap.mjs`) |
-| `journal-seams.json` | The dispatch id ([`spec/dispatch.md`](../dispatch.md#the-dispatch-id), I1 to I4) and the approval summary ([`spec/command-metadata.md`](../command-metadata.md#the-approval-summary), rules 1 to 5). Python is a documented gap | Specification-authored |
+| `journal-seams.json` | The dispatch id ([`spec/dispatch.md`](../dispatch.md#the-dispatch-id), I1 to I4) and the approval summary ([`spec/approvals.md`](../approvals.md#the-approval-summary), rules 1 to 5). Python is a documented gap | Specification-authored |
 | `idempotency.json` | Idempotency keys ([`spec/idempotency.md`](../idempotency.md)): what a command declares, the key's form, delivery and derived keys, the engine's step, the retry rule, the `TIMEOUT` recovery and the journal member. Python, Rust and C++ are documented gaps | Specification-authored |
 | `pipeline-variables.json` | Reference resolution and `when` conditions ([`spec/pipeline-variables.md`](../pipeline-variables.md)) against one fixed pipeline context | Legacy reference-generated (`generate-pipeline-variables.mjs`) |
 | `batch-controls.json` | Batch and pipeline execution controls: `stopOnError`, `parallelism`, the batch `timeout` and pipeline `timeoutMs` deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION`, and envelope validation | Legacy reference-generated (`generate-batch-controls.mjs`) |
@@ -202,8 +202,8 @@ nonzero padding bits, and malformed tokens.
 
 ### `approver-client.json`
 
-[Approval evidence from an approver client](../command-metadata.md#approval-evidence-from-an-approver-client)
-and the [approval display rules](../command-metadata.md#approval-display), from Loam phase 5's
+[Approval evidence from an approver client](../approvals.md#approval-evidence-from-an-approver-client)
+and the [approval display rules](../approvals.md#approval-display), from Loam phase 5's
 step 0c. Python and C++ are a [documented gap](#contract) until
 [#1466](https://github.com/lushly-dev/afd/issues/1466).
 
@@ -233,7 +233,7 @@ step 0c. Python and C++ are a [documented gap](#contract) until
 
 ### `app-calls.json`
 
-[App-to-app calls](../command-metadata.md#app-to-app-calls), the `apps` exposure flag and the one
+[App-to-app calls](../app-calls.md), the `apps` exposure flag and the one
 `CALL_NOT_GRANTED` refusal, `refusal`, which every refused case must equal byte for byte.
 
 - `exposure`: an `expose` object (`null` for none) and whether it exposes the command to each of
@@ -398,7 +398,7 @@ sets values on the call's context before it runs, under the language's own spell
 - `handlerDraws`: the values the handler read from `context.random`. An engine that drew the id
   from that source would hand the handler a later value.
 
-**`approvalSummary`** ([`spec/command-metadata.md`](../command-metadata.md#the-approval-summary)).
+**`approvalSummary`** ([`spec/approvals.md`](../approvals.md#the-approval-summary)).
 The setup takes its secrets, clock, actors and bindings from `approval-tokens.json`, and its
 nonce store notes every key it is asked to consume. `run.via` says how the call is admitted
 (`token`, `direct`, `relay`, `elicitation`, or `none` for a command without a policy), and

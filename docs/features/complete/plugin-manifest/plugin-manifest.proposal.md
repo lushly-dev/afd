@@ -208,7 +208,7 @@ read as JSON (Umbel D37). The [AFD mapping](#mapping-onto-afd) gives each key's 
 - Five keys are new and optional, each AFD's field of the same meaning (spec/command-metadata.md):
   `title` (line 19), `requires` (line 26), `undoable` (line 30), `errors` (line 23) and `tool_meta`
   (line 38).
-- `tool_meta` follows AFD's key rule ([`spec/mcp-resources.md`](../../../../spec/mcp-resources.md#t2-the-key-rule)
+- `tool_meta` follows AFD's key rule ([`spec/mcp-resources.md`](../../../../spec/mcp-tools.md#t2-the-key-rule)
   T2; `packages/server/src/meta-keys.ts` lines 43 to 74). A profile may refuse its own prefix there.
 - `mutation` is never declared. The host derives it from `effects`.
 - A manifest with no `commands` is valid. A mounted app's commands come from the server, and a

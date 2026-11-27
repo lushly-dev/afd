@@ -97,7 +97,7 @@ A held call returns `APPROVAL_REQUIRED` before its handler runs, and the hook re
 - The middleware signs tokens with WebCrypto, which a browser exposes only on a secure origin (HTTPS or `localhost`). Opened over plain HTTP from a network address, such as a phone on `http://192.168.x.x`, the app still starts, but every gated call returns `APPROVAL_UNAVAILABLE` (`details.reason: "no-webcrypto"`). To test from another device, serve HTTPS with a local certificate or use a tunnel.
 - Confirmations (`confirmPrompt`) never gate in-process calls.
 
-Contract: `spec/command-metadata.md`, "Approvals".
+Contract: `spec/approvals.md`, "Approvals".
 
 ## `pipe()` and `$input`
 

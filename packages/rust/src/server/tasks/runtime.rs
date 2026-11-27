@@ -445,7 +445,7 @@ impl McpServer {
     }
 
     /// Authorize a `tasks/*` request as a `tools/call` that names no command, run the context
-    /// hook, and bind the caller (`spec/command-metadata.md`, "Tasks").
+    /// hook, and bind the caller (`spec/tasks.md`).
     async fn task_caller<M: ConstString>(
         &self,
         context: &RequestContext<RoleServer>,

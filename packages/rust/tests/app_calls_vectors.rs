@@ -1,5 +1,5 @@
 //! App-to-app calls and the `apps` exposure flag against `spec/vectors/app-calls.json`
-//! (`spec/command-metadata.md`, "App-to-app calls"; Loam phase 5, step 0b), through actual
+//! (`spec/app-calls.md`; Loam phase 5, step 0b), through actual
 //! registry dispatch. The caller is a host's context field, `extra["caller"]`, as Loam's `caller`.
 
 use std::collections::HashMap;

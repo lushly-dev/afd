@@ -1,5 +1,9 @@
 # Output budgets
 
+Profile: `output-budgets`. This page belongs to the `output-budgets` profile of the
+[contract registry](./registry.md): an implementation that does not claim the profile need not
+implement it. An implementation claims it when a command can declare a budget and a call can ask for one.
+
 How a command bounds the size of what it returns: a command **declares** a budget, a caller **asks**
 for a smaller or larger one per call, the handler **fits** its result to the effective budget, and
 the engine **checks** the result afterwards. An over-budget read becomes a failure that tells the
@@ -55,7 +59,7 @@ It surfaces as follows; unset is omitted, as the
 | afd-help (`full`), afd-docs | `outputBudget`, where the language reports the other planning fields there; MAY be omitted |
 | Meta-tools, context tools, the grouped tool itself, afd-discover | Never |
 
-A command's `toolMeta` can never supply this entry: the [key rule](./mcp-resources.md#t2-the-key-rule)
+A command's `toolMeta` can never supply this entry: the [key rule](./mcp-tools.md#t2-the-key-rule)
 refuses every key under `dev.afd/`. A hybrid first-class tool still equals the individual tool for
 the same command ([H3](./tool-strategies.md#h3-the-tool-list-and-its-order)), this entry included.
 

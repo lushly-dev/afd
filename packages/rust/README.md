@@ -423,7 +423,7 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
 - `approval` (default) - The approval middleware (`create_approval_middleware`): a command whose
   `ApprovalPolicy` holds the call fails with `APPROVAL_REQUIRED` and an HMAC-SHA256 token bound to
   the command, the validated input and the actor, until trusted code retries it with
-  `CommandContext::with_approval(token)` (`spec/command-metadata.md`, "Approvals"). By default
+  `CommandContext::with_approval(token)` (`spec/approvals.md`, "Approvals"). By default
   (rule 6), `APPROVAL_REQUIRED` leaves `details.approvalToken` out on MCP calls
   (`CommandInterface::Mcp`) for non-approvers and includes it elsewhere; call
   `with_include_token(true)` to opt in on MCP calls or `with_include_token(false)` to
@@ -581,7 +581,7 @@ travels, so the relay's lookup must bind the command, the input digest and
 
 A command that outlives a request declares `with_task(TaskSupport::Optional)` (or `Required`;
 `task` in `_meta` and `afd-detail`), and the server then serves it as an MCP task under the Tasks
-extension, `io.modelcontextprotocol/tasks` (`spec/command-metadata.md`, "Tasks"). Only a call to
+extension, `io.modelcontextprotocol/tasks` (`spec/tasks.md`). Only a call to
 that one command on an MCP 2026-07-28 request that declares the extension in its `_meta` becomes
 a task; otherwise `Optional` runs inline and `Required` is JSON-RPC `-32021`, and an `afd-batch` or
 `afd-pipe` step naming a `Required` command fails the whole request. A task can never ask a person:

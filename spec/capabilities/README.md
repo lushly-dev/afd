@@ -29,6 +29,11 @@ Loam's mounted suite) while still keeping one manifest per implementation.
    `spec/*.md`.
 4. Run `pnpm check:capabilities` (also part of `pnpm check`) to verify.
 
+A new capability ID also needs an owner in [`spec/registry.json`](../registry.json): the core, one
+profile, or `outsideContract` for a language's own tooling. The status changes the table of the core
+and profiles each language implements, so after a status change run `pnpm spec-registry:sync` and
+`pnpm check:spec-registry` too ([registry](../registry.md)).
+
 ## Manifest rules
 
 `scripts/check-capabilities.mjs` enforces:

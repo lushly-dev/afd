@@ -1,5 +1,5 @@
 /**
- * @fileoverview Canonical JSON for approvals (`spec/command-metadata.md`, "Approvals", rule 3):
+ * @fileoverview Canonical JSON for approvals (`spec/approvals.md`, "Approvals", rule 3):
  * the text an approval token's input digest binds, and the text the approval display rules
  * measure. Shared by `@lushly-dev/afd-server`'s approval middleware and this package's
  * `approvalDisplay`, so the two can never disagree about what an input is.

@@ -1,5 +1,5 @@
 /**
- * Internal core/server seam for app-to-app calls (`spec/command-metadata.md`, "App-to-app calls"):
+ * Internal core/server seam for app-to-app calls (`spec/app-calls.md`):
  * the one check both registries make for a call with the `apps` interface, and its one refusal.
  * The core registry and `createDirectRegistry` both run it first, before lookup, so a command that
  * does not exist, one not exposed to apps and one the caller is not granted answer alike.

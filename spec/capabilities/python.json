@@ -750,6 +750,11 @@
 			"note": "(`test_mcp_modern_live.py`)",
 			"evidence": ["python/tests/test_mcp_modern_live.py"]
 		},
+		"host.plugin-manifest": {
+			"status": "na",
+			"note": "No reader ([intended](#intended-differences))",
+			"evidence": []
+		},
 		"tooling.mcp-client": {
 			"status": "partial",
 			"note": "`StreamableHttpTransport` (`mcp.Client`, `protocol_mode`) by default; reconnect refreshes discovery without replaying calls; `stream` needs a server with `/stream` (#548). Deprecated `http` sends no session ID (see Intended differences)",

@@ -71,7 +71,7 @@ export interface DirectRegistryOptions {
 	 * listed and executable. Default: `'agent'`, the in-app AI assistant.
 	 *
 	 * Not `'apps'`, which throws: app-to-app calls need the host's grant check, so they have their
-	 * own registry, `createAppCallRegistry` (`spec/command-metadata.md`, "App-to-app calls").
+	 * own registry, `createAppCallRegistry` (`spec/app-calls.md`).
 	 */
 	interface?: Exclude<ExposeInterface, 'apps'>;
 

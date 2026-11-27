@@ -300,7 +300,7 @@ pub struct ExposeOptions {
     /// Other apps, each under a host's grant (default `false`: opt in). The callee's
     /// declaration that another app may call the command; a call with
     /// [`CommandInterface::Apps`] also needs [`CommandRegistry::set_call_grant`]'s grant
-    /// (`spec/command-metadata.md`, "App-to-app calls"). Serialized only when `true`, so the
+    /// (`spec/app-calls.md`). Serialized only when `true`, so the
     /// default serializes as it did before the flag existed.
     #[serde(default = "default_false", skip_serializing_if = "is_false")]
     pub apps: bool,
@@ -430,7 +430,7 @@ impl fmt::Display for CommandConfirmationMode {
 // TASK SUPPORT OF ONE COMMAND
 
 /// Whether an MCP `tools/call` to a command may run as a task under the Tasks extension,
-/// `io.modelcontextprotocol/tasks` (`spec/command-metadata.md`, "Tasks"), reported as `task` in
+/// `io.modelcontextprotocol/tasks` (`spec/tasks.md`), reported as `task` in
 /// `_meta`, grouped `_meta.actions` and `afd-detail`.
 ///
 /// | `task` | A request that declares the extension | One that does not |
@@ -565,7 +565,7 @@ pub struct CommandDefinition {
     pub destructive: Option<bool>,
 
     /// The question a frontend asks before running the command. A server may enforce it
-    /// (`spec/command-metadata.md`, "Confirmations").
+    /// (`spec/confirmations.md`).
     pub confirm_prompt: Option<String>,
 
     /// Whether the command's effects can be undone. `None` is unset.
@@ -602,7 +602,7 @@ pub struct CommandDefinition {
     /// `_meta.actions` and `afd-detail`.
     pub confirmation_mode: Option<CommandConfirmationMode>,
 
-    /// Whether an MCP call may run as a task (`spec/command-metadata.md`, "Tasks"): `None` is
+    /// Whether an MCP call may run as a task (`spec/tasks.md`): `None` is
     /// unset, read as [`TaskSupport::Never`]. Reported as `task` in `_meta`, grouped
     /// `_meta.actions` and `afd-detail` when set. [`CommandRegistry::register`] refuses
     /// [`TaskSupport::Optional`] or [`TaskSupport::Required`] beside `confirm_prompt`, an approval

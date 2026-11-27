@@ -2,7 +2,7 @@
 //!
 //! `spec/vectors/generate-approval-tokens.mjs` builds them from the documented token format, with
 //! canonical JSON from the TypeScript reference, so a Rust token verifies in every other language
-//! and theirs verify here (`spec/command-metadata.md`, "Approvals"; `spec/vectors/README.md`).
+//! and theirs verify here (`spec/approvals.md`, "Approvals"; `spec/vectors/README.md`).
 #![cfg(feature = "approval")]
 
 use std::path::PathBuf;

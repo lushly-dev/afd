@@ -1,4 +1,4 @@
-//! The approval middleware behind the `server` feature (`spec/command-metadata.md`, "Approvals"):
+//! The approval middleware behind the `server` feature (`spec/approvals.md`, "Approvals"):
 //! tool arguments and request `_meta` never carry approval evidence (rule 1).
 #![cfg(all(feature = "server", feature = "approval"))]
 

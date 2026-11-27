@@ -766,6 +766,14 @@
 			"note": "(`mcp-modern-client.test.ts`: call, batch, pipe, stream)",
 			"evidence": ["packages/client/src/streamable-http-transport.ts"]
 		},
+		"host.plugin-manifest": {
+			"status": "partial",
+			"note": "(a reference check of the cases in `scripts/plugin-manifest.test.mjs`; Loam reads its profile through `@lushly-dev/loam-manifest`)",
+			"evidence": [
+				"scripts/plugin-manifest.test.mjs",
+				"endpoints/loam/packages/manifest/src/read-plugin.ts"
+			]
+		},
 		"tooling.mcp-client": {
 			"status": "yes",
 			"note": "`streamable-http` (SDK v2, `protocolMode`) by default; `sse`/`http` deprecated",

@@ -761,6 +761,11 @@
 			"note": "(no C++ client)",
 			"evidence": ["docs/language-parity.md"]
 		},
+		"host.plugin-manifest": {
+			"status": "na",
+			"note": "No reader ([intended](#intended-differences))",
+			"evidence": []
+		},
 		"tooling.mcp-client": {
 			"status": "na",
 			"note": "no remote client (D6)",

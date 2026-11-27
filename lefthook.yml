@@ -104,6 +104,10 @@ pre-push-checks:
     capabilities:
       run: node scripts/check-capabilities.mjs
 
+    # The contract registry: every spec file, error code and capability has one owner (#1925).
+    spec-registry:
+      run: node scripts/check-spec-registry.mjs
+
     # One maturity ladder across the README, llms.txt, the site and the package metadata (#2473).
     maturity:
       run: node scripts/maturity.mjs
@@ -184,6 +188,10 @@ check:
 
     capabilities:
       run: node scripts/check-capabilities.mjs
+
+    # The contract registry: every spec file, error code and capability has one owner (#1925).
+    spec-registry:
+      run: node scripts/check-spec-registry.mjs
 
     # One maturity ladder across the README, llms.txt, the site and the package metadata (#2473).
     maturity:

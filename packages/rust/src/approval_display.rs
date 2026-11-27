@@ -1,4 +1,4 @@
-//! The approval display rules (`spec/command-metadata.md`, "Approval display"): what a person
+//! The approval display rules (`spec/approvals.md`, "Approval display"): what a person
 //! must be able to read in full before approving an action.
 //!
 //! An approver, or any surface that shows a person a held call, shows the call's validated input

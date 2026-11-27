@@ -1,6 +1,6 @@
 /**
  * @fileoverview Answer server elicitations at the terminal, such as an AFD server's confirmation
- * of a command with `confirmPrompt` (`spec/command-metadata.md`, "Confirmations").
+ * of a command with `confirmPrompt` (`spec/confirmations.md`).
  *
  * Only yes/no forms are asked: every property of the requested schema must be a boolean. Any
  * other form is cancelled, because the CLI cannot collect it safely. The prompt goes to stderr so

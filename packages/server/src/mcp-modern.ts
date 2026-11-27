@@ -147,7 +147,7 @@ export interface ModernMcpDeps {
 	resources?: ResourceService;
 	/** `ttlMs` of resource and skill results: the `tools/list` TTL option, never lowered by contexts. */
 	resourcesTtlMs?: number;
-	/** MCP Tasks runtime (`spec/command-metadata.md`, "Tasks"). */
+	/** MCP Tasks runtime (`spec/tasks.md`). */
 	tasks?: TaskRuntime;
 	/** Whether MCP authorization is configured on this server (R3/R4 `cacheScope` on HTTP and stdio). */
 	authConfigured?: boolean;

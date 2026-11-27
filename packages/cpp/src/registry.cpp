@@ -457,7 +457,7 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
     if (context.context_scope) {
         context.active_context = context.context_scope->active();
     }
-    // 0. App-to-app calls (`spec/command-metadata.md`, "App-to-app calls"): check existence,
+    // 0. App-to-app calls (`spec/app-calls.md`): check existence,
     // `expose.apps` and `call_grant` BEFORE configuration diagnostics, lookup suggestions, active
     // context, input/context-field validation, middleware and handler, so missing, unexposed and
     // ungranted calls answer alike.

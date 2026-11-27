@@ -1,5 +1,13 @@
 # Plugin manifest
 
+Profile: `plugin-manifest`. This page belongs to the `plugin-manifest` profile of the
+[contract registry](./registry.md): an implementation that does not claim the profile need not
+implement it. An implementation claims it when it reads or checks the shared plugin manifest.
+
+On this page **core** and **profile** keep the meanings they had before the registry: the
+manifest core (`plugin-manifest.core.v1.json` and its version 2) and a host's closed schema. They
+are not the contract's core and profiles, which the [registry](./registry.md) defines.
+
 One manifest format for the hosts in this repository that load plugins. A host-neutral **core**,
 [`plugin-manifest.core.v1.json`](./plugin-manifest.core.v1.json) and its version 2,
 [`plugin-manifest.core.v2.json`](./plugin-manifest.core.v2.json), defines the keys every host shares,
@@ -204,7 +212,7 @@ The profile names the grants `store-write` and `workspace-write` need, and may r
 and a deployer may narrow them. A flag left out takes the profile's default (C5).
 
 `apps` is defined from core version 2, where it means what AFD's `expose.apps` means: another app may
-call the command under a host's grant ([App-to-app calls](./command-metadata.md#app-to-app-calls)).
+call the command under a host's grant ([App-to-app calls](./app-calls.md)).
 It defaults to `false` in every profile, so C5 does not apply to it: a profile MUST NOT default it to
 `true`. Core version 1 reserves it, and a profile on version 1 refuses it.
 
@@ -257,7 +265,7 @@ the file's `rules`, each case a manifest that passes the core.
 | `config-schema` | A `config.schema` is a `type: object` schema closed at its root (`additionalProperties: false`), valid under JSON Schema 2020-12 | Refused |
 | `output-budget` | `output_budget.default_bytes` is at most `max_bytes`, and `max_bytes` is at most 2^53 − 1 ([B1](./output-budgets.md#b1-the-declaration)) | Refused |
 | `skill-name` | A skill's name equals the plugin id or starts with `<id>-`, and equals the last segment of its path, a trailing `/` ignored | Refused |
-| `tool-meta` | Each `tool_meta` key follows AFD's [key rule](./mcp-resources.md#t2-the-key-rule) | Refused |
+| `tool-meta` | Each `tool_meta` key follows AFD's [key rule](./mcp-tools.md#t2-the-key-rule) | Refused |
 | `requires` | A `requires` entry names a command or pipeline in the manifest. AFD calls `requires` metadata only | A warning |
 | `afd-contract` | The major part of `afd_contract`, before the first `.`, equals that of the host's contract version | Refused |
 | `path-inside-root` | A path in `input_schema`, `returns`, `config.schema` or `skills[].path` stays inside the plugin root once symbolic links are resolved. A link to nothing is refused, and so is a drive-prefixed path on Windows | Refused |
@@ -337,7 +345,7 @@ invents a field AFD already defines.
 | `expose` | `expose` | Which surfaces list the command |
 | `output_budget` | `outputBudget` | `_meta["dev.afd/outputBudget"]` |
 | `errors` | `errors` | afd-detail |
-| `tool_meta` | `toolMeta` | Merged into the tool's `_meta` ([T1](./mcp-resources.md#t1-extra-entries-on-a-commands-tool)) |
+| `tool_meta` | `toolMeta` | Merged into the tool's `_meta` ([T1](./mcp-tools.md#t1-extra-entries-on-a-commands-tool)) |
 | `first_class` | None: a suggestion to a hybrid host | The first-class list, if the host accepts it |
 | `skills[]` | Skills catalog | `skill://` resources and the Skills extension |
 

@@ -452,7 +452,7 @@ ReplayEntryReport replay_entry(const CommandExecutor& execute, const JournalEntr
 
     const bool recorded_apps =
         entry.context_digest.surface && *entry.context_digest.surface == "apps";
-    // An app's call (`spec/command-metadata.md`, "App-to-app calls") replays only on a target
+    // An app's call (`spec/app-calls.md`) replays only on a target
     // that checks call grants (`CommandRegistry`); an arbitrary `CommandExecutor` might ignore
     // `context.surface`, so it is refused rather than run unchecked.
     if (recorded_apps && !target_checks_app_calls) {

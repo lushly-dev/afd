@@ -131,7 +131,7 @@ pub struct ApprovalRequest {
     /// Set when the call carried a token that was rejected.
     pub rejected: Option<ApprovalRejection>,
     /// The `approvalId` the [`ApprovalSummary`] of a call `approval_token` admits will carry
-    /// (`spec/command-metadata.md`, "The approval summary", rule 5): [`crate::approval_id`] of
+    /// (`spec/approvals.md`, "The approval summary", rule 5): [`crate::approval_id`] of
     /// the token's nonce. Keep it beside the person who decides, to join their decision to the
     /// call [`ApprovalMiddlewareOptions::with_on_approval_accepted`] is told about.
     pub approval_id: String,
@@ -169,7 +169,7 @@ impl ApprovalVia {
 }
 
 /// What the approval step tells [`ApprovalMiddlewareOptions::with_on_approval_accepted`] when it
-/// admits a held call (`spec/command-metadata.md`, "The approval summary").
+/// admits a held call (`spec/approvals.md`, "The approval summary").
 ///
 /// It holds no token, nonce, key, decision id or credential, and grants nothing: no engine code
 /// reads it back. Serialized, it is the spec's object (`via`, `command`, `inputDigest`,
@@ -346,7 +346,7 @@ impl ApprovalMiddlewareOptions {
 
     /// Whether the `APPROVAL_REQUIRED` result carries `details.approvalToken`.
     ///
-    /// When unset (the default), follows `spec/command-metadata.md`, "Approvals", rule 6:
+    /// When unset (the default), follows `spec/approvals.md`, "Approvals", rule 6:
     /// omitted on calls whose [`CommandContext::interface`] is
     /// [`CommandInterface::Mcp`](crate::CommandInterface::Mcp) (so non-approver MCP callers do
     /// not receive the token) and included elsewhere. A server-named approver always receives its
@@ -369,7 +369,7 @@ impl ApprovalMiddlewareOptions {
     }
 
     /// Called, and awaited, each time this step admits a call a policy held, before the next
-    /// link runs (`spec/command-metadata.md`, "The approval summary"): with the
+    /// link runs (`spec/approvals.md`, "The approval summary"): with the
     /// [`ApprovalSummary`] and the call's [`CommandContext::dispatch_id`] (`None` only when the
     /// middleware is called outside [`CommandRegistry`](crate::CommandRegistry)). A host that
     /// keeps its own record of a call files the approval there under the dispatch id.
@@ -881,7 +881,7 @@ impl Gate {
 
     /// Admit a held call on `summary`'s evidence: tell `on_approval_accepted`, and wait for it,
     /// then run the next link. A refusal (an `Err`) is this middleware's exception
-    /// (`spec/command-metadata.md`, "The approval summary", rule 2): it unwinds as a panicking
+    /// (`spec/approvals.md`, "The approval summary", rule 2): it unwinds as a panicking
     /// middleware does, so the links outside it see an error rather than a result and the
     /// registry answers `COMMAND_EXECUTION_ERROR` before the handler, with the evidence already
     /// spent. Where panics abort (`panic = "abort"`), the call fails with that error instead.

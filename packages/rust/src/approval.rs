@@ -1,4 +1,4 @@
-//! The pre-execution approval gate (`spec/command-metadata.md`, "Approvals").
+//! The pre-execution approval gate (`spec/approvals.md`, "Approvals").
 //!
 //! A command declares an [`ApprovalPolicy`] with
 //! [`CommandDefinition::with_approval`](crate::CommandDefinition::with_approval): whether a call

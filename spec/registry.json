@@ -1,0 +1,467 @@
+{
+	"description": "The registry of the AFD contract (spec/registry.md): the core and each versioned profile, with the pages, vectors, fixtures, conformance cases, error codes and capabilities each owns. The core's version is spec/VERSION. Which languages implement each is rendered from spec/capabilities/ by scripts/check-spec-registry.mjs.",
+	"core": {
+		"pages": [
+			"spec/command-metadata.md",
+			"spec/context-fields.md",
+			"spec/dispatch.md",
+			"spec/error-codes.md",
+			"spec/execution-controls.md",
+			"spec/mcp-tools.md",
+			"spec/pipeline-variables.md",
+			"spec/protocol-conformance.md",
+			"spec/recovery.md",
+			"spec/tool-strategies.md",
+			"spec/validation.md"
+		],
+		"vectors": [
+			"spec/protocol-conformance.json",
+			"spec/vectors/batch-controls.json",
+			"spec/vectors/dispatch.json",
+			"spec/vectors/error-codes.json",
+			"spec/vectors/execution-controls.json",
+			"spec/vectors/journal-seams.json",
+			"spec/vectors/output-schema.json",
+			"spec/vectors/pipeline-variables.json",
+			"spec/vectors/recovery.json",
+			"spec/vectors/tool-strategies.json",
+			"spec/vectors/validation.json"
+		],
+		"fixtures": [
+			"spec/meta-tools.json",
+			"spec/schema/batch.json",
+			"spec/schema/error.json",
+			"spec/schema/output-envelope.json",
+			"spec/schema/pipeline.json",
+			"spec/schema/result.json",
+			"spec/wire/batch-result.json",
+			"spec/wire/pipeline-result.json",
+			"spec/wire/result-failure.json",
+			"spec/wire/result-success-full.json",
+			"spec/wire/result-success-minimal.json"
+		],
+		"conformance": [
+			"packages/examples/todo/spec/commands.schema.json",
+			"packages/examples/todo/spec/test-cases.json"
+		],
+		"errorCodes": [
+			"VALIDATION_ERROR",
+			"INVALID_INPUT",
+			"MISSING_REQUIRED_FIELD",
+			"INVALID_FORMAT",
+			"NOT_FOUND",
+			"ALREADY_EXISTS",
+			"CONFLICT",
+			"UNAUTHORIZED",
+			"FORBIDDEN",
+			"TOKEN_EXPIRED",
+			"RATE_LIMITED",
+			"QUOTA_EXCEEDED",
+			"SERVICE_UNAVAILABLE",
+			"TIMEOUT",
+			"CONNECTION_ERROR",
+			"INTERNAL_ERROR",
+			"NOT_IMPLEMENTED",
+			"UNKNOWN_ERROR",
+			"COMMAND_NOT_FOUND",
+			"INVALID_COMMAND_ARGS",
+			"COMMAND_CANCELLED",
+			"COMMAND_EXECUTION_ERROR",
+			"COMMAND_NOT_EXPOSED",
+			"COMMAND_NOT_ALLOWED",
+			"UNKNOWN_TOOL",
+			"AMBIGUOUS_ACTION",
+			"INVALID_GROUPED_CALL",
+			"INVALID_BATCH_REQUEST",
+			"BATCH_TIMEOUT",
+			"COMMAND_SKIPPED",
+			"INVALID_PIPELINE_REQUEST",
+			"PIPELINE_TIMEOUT",
+			"UNSUPPORTED_OPTION"
+		],
+		"capabilities": [
+			"wire.command-result",
+			"wire.metadata-types",
+			"wire.error-codes",
+			"wire.error-recovery",
+			"command.core-metadata",
+			"command.title",
+			"command.safety-flags",
+			"command.kebab-names",
+			"command.reserved-names",
+			"command.input-validation",
+			"command.examples-validated",
+			"command.output-schema",
+			"command.to-mcp-tool",
+			"single.dispatch-order",
+			"single.did-you-mean",
+			"single.exposure",
+			"single.metadata-stamping",
+			"single.observer-hooks",
+			"single.exception-redaction",
+			"single.cancellation",
+			"single.actor",
+			"single.context-fields",
+			"single.context-fields-mcp",
+			"single.context-fields-meta-delivery",
+			"single.context-fields-discovery",
+			"single.dispatch-id",
+			"middleware.chain",
+			"middleware.retry-ratelimit-telemetry",
+			"exec.batch",
+			"exec.pipeline-variables",
+			"exec.pipeline-when",
+			"exec.pipeline-aggregation",
+			"mcp.server-library",
+			"mcp.dual-era",
+			"mcp.tool-fields",
+			"mcp.tool-strategies",
+			"mcp.strategy-hybrid",
+			"mcp.tool-meta",
+			"mcp.advertised-schema",
+			"mcp.meta-tools",
+			"mcp.meta-argument",
+			"mcp.bootstrap",
+			"pc.version-negotiation",
+			"pc.d4-hiding",
+			"pc.cache-hints",
+			"command.approval-policy",
+			"middleware.approval-fail-closed",
+			"single.clock-random"
+		]
+	},
+	"profiles": [
+		{
+			"id": "authorization",
+			"title": "Authorization",
+			"version": "1.0",
+			"optIn": "A server that verifies bearer tokens on HTTP",
+			"pages": ["spec/authorization.md"],
+			"vectors": ["spec/authorization.json", "spec/authorization-client.json"],
+			"fixtures": [],
+			"conformance": [],
+			"errorCodes": ["INSUFFICIENT_SCOPE"],
+			"capabilities": [
+				"mcp.auth.verification",
+				"mcp.auth.scopes",
+				"mcp.auth.combined",
+				"mcp.auth.cli-client"
+			]
+		},
+		{
+			"id": "tasks",
+			"title": "Tasks",
+			"version": "1.0",
+			"optIn": "A server that serves the MCP Tasks extension",
+			"pages": ["spec/tasks.md"],
+			"vectors": [],
+			"fixtures": [],
+			"conformance": ["packages/examples/todo/spec/task-cases.json"],
+			"errorCodes": ["TASK_TOKEN_EXPIRED"],
+			"capabilities": ["mcp.tasks", "mcp.auth.tasks"]
+		},
+		{
+			"id": "output-budgets",
+			"title": "Output budgets",
+			"version": "1.0",
+			"optIn": "A command that declares a budget, or a call that asks for one",
+			"pages": ["spec/output-budgets.md"],
+			"vectors": ["spec/vectors/output-budgets.json"],
+			"fixtures": [],
+			"conformance": [],
+			"errorCodes": ["OUTPUT_BUDGET_EXCEEDED"],
+			"capabilities": ["single.output-budgets", "mcp.output-budgets"]
+		},
+		{
+			"id": "approvals",
+			"title": "Approvals",
+			"version": "1.0",
+			"optIn": "A server that runs an approval step for commands with an approval policy",
+			"pages": ["spec/approvals.md"],
+			"vectors": ["spec/vectors/approval-tokens.json", "spec/vectors/approver-client.json"],
+			"fixtures": [],
+			"conformance": ["packages/examples/todo/spec/approval-cases.json"],
+			"errorCodes": ["APPROVAL_REQUIRED", "APPROVAL_UNAVAILABLE"],
+			"capabilities": [
+				"middleware.approval",
+				"middleware.direct-approval",
+				"middleware.cli-approval",
+				"middleware.approval-relay",
+				"middleware.approver-client",
+				"middleware.approval-display",
+				"middleware.approval-summary",
+				"middleware.up-front-approval"
+			]
+		},
+		{
+			"id": "app-calls",
+			"title": "App-to-app calls",
+			"version": "1.0",
+			"optIn": "A registry given a callGrant for the apps interface",
+			"pages": ["spec/app-calls.md"],
+			"vectors": ["spec/vectors/app-calls.json"],
+			"fixtures": [],
+			"conformance": [],
+			"errorCodes": ["CALL_NOT_GRANTED"],
+			"capabilities": ["single.app-calls"]
+		},
+		{
+			"id": "resources-and-skills",
+			"title": "Resources and skills",
+			"version": "1.0",
+			"optIn": "A server given a resource provider or a skill catalog",
+			"pages": ["spec/mcp-resources.md"],
+			"vectors": ["spec/vectors/mcp-resources.json"],
+			"fixtures": [],
+			"conformance": [],
+			"errorCodes": [],
+			"capabilities": ["mcp.resources", "mcp.skills"]
+		},
+		{
+			"id": "plugin-manifest",
+			"title": "Plugin manifest",
+			"version": "1.0",
+			"optIn": "A host that reads or checks the shared plugin manifest",
+			"pages": ["spec/plugin-manifest.md"],
+			"vectors": ["spec/plugin-manifest.json"],
+			"fixtures": ["spec/plugin-manifest.core.v1.json", "spec/plugin-manifest.core.v2.json"],
+			"conformance": [],
+			"errorCodes": [],
+			"capabilities": ["host.plugin-manifest"]
+		},
+		{
+			"id": "contexts",
+			"title": "Contexts",
+			"version": "1.0",
+			"optIn": "A server configured with contexts",
+			"pages": ["spec/contexts.md"],
+			"vectors": [],
+			"fixtures": [],
+			"conformance": [],
+			"errorCodes": [
+				"COMMAND_NOT_IN_CONTEXT",
+				"SESSION_REQUIRED",
+				"CONTEXT_NOT_FOUND",
+				"CONTEXT_DEPTH_EXCEEDED"
+			],
+			"capabilities": [
+				"single.active-context",
+				"single.in-process-context",
+				"mcp.modern-contexts",
+				"mcp.context-tools",
+				"pc.legacy-context-stacks"
+			]
+		},
+		{
+			"id": "streaming",
+			"title": "Streaming",
+			"version": "1.0",
+			"optIn": "A command run as a stream of chunks",
+			"pages": ["spec/streaming.md"],
+			"vectors": [],
+			"fixtures": ["spec/schema/stream.json", "spec/wire/stream-chunks.json"],
+			"conformance": [],
+			"errorCodes": [
+				"STREAM_ABORTED",
+				"STREAM_TIMEOUT",
+				"STREAM_ERROR",
+				"STREAM_ENDED_UNEXPECTEDLY",
+				"COMMAND_FAILED"
+			],
+			"capabilities": ["exec.stream-types", "exec.stream-executor"]
+		},
+		{
+			"id": "confirmations",
+			"title": "Confirmations",
+			"version": "1.0",
+			"optIn": "A server that enforces confirmPrompt",
+			"pages": ["spec/confirmations.md"],
+			"vectors": ["spec/vectors/human-relay.json"],
+			"fixtures": [],
+			"conformance": ["packages/examples/todo/spec/confirmation-cases.json"],
+			"errorCodes": ["CONFIRMATION_REQUIRED", "CONFIRMATION_DECLINED"],
+			"capabilities": [
+				"command.confirmations",
+				"mcp.confirmation-principal-binding",
+				"mcp.host-verified-confirmation",
+				"mcp.host-verified-pending-list"
+			]
+		},
+		{
+			"id": "journal",
+			"title": "Journal",
+			"version": "1.0",
+			"optIn": "A host that records or replays a command journal",
+			"pages": ["spec/journal.md"],
+			"vectors": ["spec/vectors/journal-context-cap.json"],
+			"fixtures": ["spec/wire/journal.jsonl"],
+			"conformance": [],
+			"errorCodes": [],
+			"capabilities": [
+				"single.journal-replay",
+				"single.journal-range-last",
+				"single.journal-append-order",
+				"single.journal-secret"
+			]
+		},
+		{
+			"id": "idempotency",
+			"title": "Idempotency",
+			"version": "1.0",
+			"optIn": "A command that declares idempotency, and an engine given the idempotency step",
+			"pages": ["spec/idempotency.md"],
+			"vectors": ["spec/vectors/idempotency.json"],
+			"fixtures": [],
+			"conformance": [],
+			"errorCodes": ["IDEMPOTENCY_KEY_REUSED", "IDEMPOTENCY_IN_PROGRESS", "OUTCOME_UNKNOWN"],
+			"capabilities": [
+				"command.idempotency",
+				"single.idempotency-key",
+				"middleware.idempotency-step"
+			]
+		},
+		{
+			"id": "http",
+			"title": "HTTP",
+			"version": "1.0",
+			"optIn": "A server that serves MCP on Streamable HTTP",
+			"pages": ["spec/http.md"],
+			"vectors": [],
+			"fixtures": [],
+			"conformance": [],
+			"pendingVectors": "https://github.com/lushly-dev/afd/issues/2905",
+			"errorCodes": [],
+			"capabilities": [
+				"mcp.streamable-http",
+				"mcp.transport-context",
+				"mcp.server-instances",
+				"mcp.http-hardening",
+				"pc.header-mismatch",
+				"pc.get-405"
+			]
+		}
+	],
+	"parts": [
+		{
+			"file": "spec/protocol-conformance.json",
+			"sections": {
+				"streamSupport": "streaming",
+				"streamCases": "streaming"
+			},
+			"entries": [
+				{
+					"path": "tests",
+					"key": "name",
+					"owners": {
+						"contexts": [
+							"context_list_configured",
+							"context_legacy_enter_allows_read",
+							"context_legacy_enter_blocks_edit",
+							"context_legacy_unknown_context",
+							"context_modern_meta_allows_read",
+							"context_modern_meta_blocks_edit_statelessly"
+						]
+					}
+				}
+			]
+		},
+		{
+			"file": "spec/vectors/dispatch.json",
+			"entries": [
+				{
+					"path": "cases",
+					"key": "id",
+					"owners": {
+						"contexts": ["out-of-context", "out-of-context-before-validation"],
+						"approvals": ["approval-required"],
+						"confirmations": ["mcp-confirmation-required", "mcp-confirmation-acknowledged"]
+					}
+				}
+			]
+		},
+		{
+			"file": "spec/vectors/journal-seams.json",
+			"sections": {
+				"approvalSummary": "approvals"
+			}
+		},
+		{
+			"file": "spec/vectors/mcp-resources.json",
+			"sections": {
+				"toolMetaKeys": "core"
+			}
+		},
+		{
+			"file": "spec/vectors/tool-strategies.json",
+			"sections": {
+				"contextTools": "contexts",
+				"contexts": "contexts"
+			},
+			"entries": [
+				{
+					"path": "servers",
+					"key": "id",
+					"owners": {
+						"contexts": ["contexts"]
+					}
+				},
+				{
+					"path": "servers[id=no-contexts]/calls",
+					"key": "tool",
+					"owners": {
+						"confirmations": ["note-delete"]
+					}
+				},
+				{
+					"path": "constructionFailures",
+					"key": "id",
+					"owners": {
+						"contexts": ["context-tool"]
+					}
+				}
+			]
+		}
+	],
+	"outsideContract": {
+		"files": [
+			"spec/CHANGELOG.md",
+			"spec/VERSION",
+			"spec/package.json",
+			"spec/registry.json",
+			"spec/registry.md",
+			"spec/capabilities/*",
+			"spec/schema/README.md",
+			"spec/vectors/README.md",
+			"spec/vectors/generate-*.mjs",
+			"spec/wire/README.md"
+		],
+		"capabilities": [
+			"wire.result-constructors",
+			"wire.result-guards",
+			"exec.timeout-progress",
+			"hts.handoff-client",
+			"mcp.raw-json-schema",
+			"mcp.jsonrpc-types",
+			"pc.client-negotiation",
+			"tooling.mcp-client",
+			"tooling.browser-transport",
+			"tooling.direct-client",
+			"tooling.direct-interface",
+			"tooling.cli",
+			"tooling.auth-adapter",
+			"tooling.testing",
+			"tooling.skill-limits",
+			"tooling.ui-packages",
+			"tooling.browser-stores",
+			"tooling.platform-connectors",
+			"middleware.auth",
+			"middleware.default-bundle",
+			"middleware.tracing-compose",
+			"exec.single-pipeline-engine",
+			"hts.handoff",
+			"hts.telemetry-types",
+			"hts.telemetry-middleware",
+			"hts.similarity"
+		]
+	}
+}
