@@ -6,7 +6,7 @@
 
 import type { Actor, CommandContext, CommandError, CommandResult } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-core';
-import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3 } from '@lushly-dev/loam-manifest';
 import type { AppStoreV1, LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import { kernelFailure, LoamKernelError, PAGE_DECIDED } from '../errors.js';
 import type { HandlerFrame, KernelPorts, McpToolCallResult } from '../types.js';
@@ -82,7 +82,7 @@ export function toolCallResult(result: CommandResult): McpToolCallResult {
 }
 
 /** Whether a view may call the app's own `name`: its `tool_meta.ui.visibility` leaves out `app` (6.2). */
-export function visibleToApp(manifest: ManifestV2, name: string): boolean {
+export function visibleToApp(manifest: ManifestV3, name: string): boolean {
 	const command = manifest.commands?.find((candidate) => candidate.name === name);
 	const visibility = command === undefined ? undefined : visibilityOf(command);
 	return visibility === undefined || visibility.includes('app');

@@ -602,11 +602,11 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		jsonSchema: EMPTY_INPUT_JSON,
 		async handler() {
 			return success({
-				kernelInterface: 5 as const,
+				kernelInterface: 6 as const,
 				layoutState: 0 as const,
 				storeInterface: 1 as const,
 				tokenContract: 1 as const,
-				manifestVersion: 2 as const,
+				manifestVersion: 3 as const,
 				appProtocol: 1 as const,
 				surfaceCatalog: 1 as const,
 				compositionLibrary: 1 as const,

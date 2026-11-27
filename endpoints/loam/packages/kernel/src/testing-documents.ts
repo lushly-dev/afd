@@ -6,7 +6,7 @@
  * Exported from `@lushly-dev/loam-kernel/testing`.
  */
 
-import type { ManifestV2, ProjectionV3 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import {
 	type AppCallContextV1,
 	defineApp,
@@ -39,7 +39,7 @@ const command = (name: string, effects: string[], input: object) => ({
 });
 
 /** The fixture's manifest: version 2, with `store`, `clock` and `documents`. */
-export const PROBE_DOCUMENTS_MANIFEST: ManifestV2 = {
+export const PROBE_DOCUMENTS_MANIFEST: ManifestV3 = {
 	manifest_version: 2,
 	protocol: 1,
 	plugin: {
@@ -139,7 +139,7 @@ export const PROBE_DOCUMENTS_MANIFEST: ManifestV2 = {
 			},
 		],
 	},
-} as unknown as ManifestV2;
+} as unknown as ManifestV3;
 
 /** The fixture's handlers. Each reads and writes only its own store, under the call's scope. */
 export const PROBE_DOCUMENTS_DEFINITION = defineApp({

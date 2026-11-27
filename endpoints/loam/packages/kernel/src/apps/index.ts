@@ -6,8 +6,9 @@
 
 import type { CommandContext, CommandError, CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
+import { createAppCallRegistry } from '@lushly-dev/afd-server/direct';
 import {
-	type ManifestV2,
+	type ManifestV3,
 	NOTICES_V1,
 	type ProjectionAppV1,
 	SHELL_DOMAINS_V1,
@@ -15,6 +16,7 @@ import {
 import { needsInput, readManifest } from '@lushly-dev/loam-manifest/validate';
 import type { AppDefinitionV1 } from '@lushly-dev/loam-sdk';
 import type { AppCommandRowV1, AppsRuntime, CommandOwner } from '../apps-runtime.js';
+import { ADMISSION, type AdmissionV1, appCallGranted } from '../call-grant.js';
 import { INTERNAL_COMMANDS } from '../commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
@@ -127,7 +129,7 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 
 	function hostFor(
 		record: AppRecord,
-		manifest: ManifestV2,
+		manifest: ManifestV3,
 		packageUrl: string,
 		config: Readonly<Record<string, unknown>>,
 		granted: ReadonlySet<string>
@@ -150,6 +152,8 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 			host,
 			ports,
 			granted,
+			admits: (command, scope) =>
+				callGrant(command, { caller: record.instance, scope } as unknown as CommandContext),
 			load(): Promise<AppDefinitionV1> {
 				if (native) return native.load();
 				return Promise.reject(
@@ -226,7 +230,7 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 			return invoke(name, input, context);
 		};
 
-	function admit(record: AppRecord, entry: ProjectionAppV1, manifest: ManifestV2) {
+	function admit(record: AppRecord, entry: ProjectionAppV1, manifest: ManifestV3) {
 		const { kind } = record;
 		const instanceRefusal =
 			kind !== 'mounted' && entry.instance !== entry.app
@@ -327,6 +331,8 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 				app: entry.app,
 				instance: entry.instance,
 				needsInput: needsInput(definition.jsonSchema),
+				// A version 3 manifest's command another app may call under its grant (phase 5 specification, 9.1).
+				...(definition.expose?.apps === true ? { apps: true as const } : {}),
 			});
 		}
 		const needing = new Map(
@@ -443,12 +449,51 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 		}
 	});
 
+	/**
+	 * `createAppCallRegistry`'s grant check (phase 5 specification, 9.1's step 2), read live: the caller a loaded app,
+	 * enabled, holding the grant; the callee another loaded instance, enabled; `[[calls]]` naming the command by its
+	 * app; the command's `expose.apps`, which AFD checks too. An admitted call marks its `ADMISSION` holder, so the port
+	 * journals only a denial (step 3).
+	 */
+	function callGrant(command: string, context: CommandContext): boolean {
+		const caller = (context as KernelFieldContext).caller;
+		if (typeof caller !== 'string') return false;
+		const from = records.get(caller);
+		const callee = owners.get(command);
+		if (from?.manifest === undefined || from.state !== 'ready' || callee === undefined)
+			return false;
+		const target = records.get(callee.instance);
+		if (target?.state !== 'ready') return false;
+		const disabled = (instance: string) =>
+			host.scope.workspaceApps.get(instance)?.overrides.enabled === false ||
+			host.gate?.gated(instance) === true;
+		if (disabled(caller) || disabled(callee.instance)) return false;
+		// Enabled in the call's scope (9.1's step 2): the callee opens there, by its levels and its project list.
+		const project = (context as { scope?: { project?: unknown } }).scope?.project;
+		if (
+			!host.scope.opensIn(
+				callee.instance,
+				target.scopeLevels,
+				typeof project === 'string' ? project : undefined
+			)
+		)
+			return false;
+		const granted = new Set(
+			from.detail.grants.filter((grant) => grant.served).map((grant) => grant.name)
+		);
+		if (!appCallGranted(callee, command, caller, granted, from.manifest.calls)) return false;
+		const holder = (context as unknown as Record<symbol, AdmissionV1 | undefined>)[ADMISSION];
+		if (holder) holder.admitted = true;
+		return true;
+	}
+
 	return {
 		...createOperations(records, host),
 		storeQuota: host.storeQuota,
 		commands,
 		owners,
 		keybindings,
+		appCallRegistry: (given, options) => createAppCallRegistry(given, { ...options, callGrant }),
 		async dispose() {
 			await Promise.allSettled(hosts.map((held) => held.dispose()));
 		},

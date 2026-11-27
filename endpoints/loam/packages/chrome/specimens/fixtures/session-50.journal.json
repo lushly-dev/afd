@@ -17,11 +17,11 @@
 		"result": {
 			"success": true,
 			"data": {
-				"kernelInterface": 5,
+				"kernelInterface": 6,
 				"layoutState": 0,
 				"storeInterface": 1,
 				"tokenContract": 1,
-				"manifestVersion": 2,
+				"manifestVersion": 3,
 				"appProtocol": 1,
 				"surfaceCatalog": 1,
 				"compositionLibrary": 1,
@@ -2055,11 +2055,11 @@
 		"result": {
 			"success": true,
 			"data": {
-				"kernelInterface": 5,
+				"kernelInterface": 6,
 				"layoutState": 0,
 				"storeInterface": 1,
 				"tokenContract": 1,
-				"manifestVersion": 2,
+				"manifestVersion": 3,
 				"appProtocol": 1,
 				"surfaceCatalog": 1,
 				"compositionLibrary": 1,

@@ -47,7 +47,7 @@ export interface DocumentCommandDeps {
 	};
 	/** The kernel's `run`, for `document-export`'s nested query (11.1). */
 	run<T>(
-		iface: 'palette' | 'agent',
+		iface: 'palette' | 'agent' | 'apps',
 		name: string,
 		input: unknown,
 		options: CallOptions,
@@ -704,7 +704,9 @@ export function createDocumentCommands(
 			}
 			// A nested query at the document's scope, journaled under this call (11.1).
 			const exported = await deps.run<{ content?: unknown }>(
-				context.interface === 'agent' ? 'agent' : 'palette',
+				context.interface === 'agent' || context.interface === 'apps'
+					? context.interface
+					: 'palette',
 				command,
 				{ document: record.id },
 				{},

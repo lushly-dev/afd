@@ -7,7 +7,7 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { type CommandResult, type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import { defineCommandWithSchema } from '@lushly-dev/afd-server/define';
-import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -96,13 +96,17 @@ describe('P2-E7: the checks of a surface port, in the order `checkedCall` makes 
 		expect(nested.data).toEqual({ here: ATLAS, wide: WORKSPACE });
 	});
 
-	it('2. answers a boot-only command as one that does not exist, through a port too (E10)', async () => {
+	it('2. answers a boot-only command as one that does not exist, and through a port as AFD refuses any ungranted name (E10, P5-B1)', async () => {
 		const workspace = await scoped();
 		const surface = workspace.kernel.appPort('dual').surface({ scope: ATLAS });
 		const input = { generation: 'forged', workspace: { id: 'personal', name: 'P' }, entries: [] };
 		for (const result of [
 			await surface.call('workspace-deployment-apply', input),
 			await workspace.kernel.appPort('dual').call('workspace-deployment-apply', input),
+		]) {
+			expect(codeOf(result)).toBe('CALL_NOT_GRANTED');
+		}
+		for (const result of [
 			await workspace.kernel.call('workspace-deployment-apply', input),
 			await workspace.kernel.agent.call('workspace-deployment-apply', input),
 		]) {
@@ -430,7 +434,7 @@ describe("P2-E7: a view's broker is its surface's", () => {
 		...probeViewManifest('probev'),
 		manifest_version: 2,
 		app: { scope_levels: ['workspace', 'project'] },
-	} as ManifestV2;
+	} as ManifestV3;
 	const viewDefinition = defineApp({
 		sdk: 1,
 		handlers: {

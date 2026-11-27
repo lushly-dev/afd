@@ -14,7 +14,7 @@ import {
 	type McpToolCallResult,
 	type MountTransport,
 } from '@lushly-dev/loam-kernel/mounted';
-import type { ManifestV2, ProjectionAppV1 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3, ProjectionAppV1 } from '@lushly-dev/loam-manifest';
 
 /** How often every instance is discovered again. */
 export const CATALOG_REFRESH_MS = 10 * 60_000;
@@ -132,7 +132,7 @@ export interface CatalogInstance {
 	url: string;
 	bearer?: string;
 	/** The app's manifest, from the written site. */
-	manifest(): Promise<ManifestV2>;
+	manifest(): Promise<ManifestV3>;
 	/** Whether the server's `workspace-app` record enables it now: a disabled instance is not discovered. */
 	enabled(): Promise<boolean>;
 }

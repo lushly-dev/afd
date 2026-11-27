@@ -14,7 +14,7 @@ import {
 	type DeploymentWorkspaceV2,
 	type HostKindV1,
 	type IdentityV1,
-	type ManifestV2,
+	type ManifestV3,
 	NOTICES_V1,
 	SHELL_DOMAINS_V1,
 } from '@lushly-dev/loam-manifest';
@@ -90,7 +90,7 @@ export function desktopOrigins(platform: NodeJS.Platform = process.platform): {
 interface PackageState {
 	/** The kind the package says, read as data even when the manifest is refused. */
 	rawKind?: unknown;
-	manifest?: ManifestV2;
+	manifest?: ManifestV3;
 }
 
 export interface InstanceEffect {
@@ -104,7 +104,7 @@ export interface InstanceEffect {
 	transport?: 'http' | 'stdio';
 	rawKind?: unknown;
 	/** The manifest, when `readManifest` accepted it: what its boot record is read from. */
-	manifest?: ManifestV2;
+	manifest?: ManifestV3;
 }
 
 export interface DeploymentAnalysis {
@@ -156,7 +156,7 @@ async function readPackage(directory: string): Promise<{ state: PackageState; fo
 function configFindings(
 	id: string,
 	entry: InstanceEffect['entry'],
-	manifest: ManifestV2
+	manifest: ManifestV3
 ): DeploymentFinding[] {
 	const schema = manifest.config?.schema;
 	const refuse = (message: string): DeploymentFinding[] => [
@@ -198,7 +198,7 @@ const MOUNTED_KEYS = [
 function kindFindings(
 	id: string,
 	entry: InstanceEffect['entry'],
-	manifest: ManifestV2
+	manifest: ManifestV3
 ): DeploymentFinding[] {
 	const found: DeploymentFinding[] = [];
 	if (manifest.plugin.id !== entry.app) {

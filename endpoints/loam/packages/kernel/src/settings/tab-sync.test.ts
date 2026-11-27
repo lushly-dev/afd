@@ -6,7 +6,7 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { IdentityV1, ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { IdentityV1, ManifestV3 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createKernelParts } from '../kernel.js';
@@ -287,7 +287,7 @@ describe('tab-sync unit (#2108)', () => {
 });
 
 describe('cross-tab kernel sync integration (#2108)', () => {
-	function gatedManifest(): ManifestV2 {
+	function gatedManifest(): ManifestV3 {
 		return {
 			...PROBE_DOCUMENTS_MANIFEST,
 			app: { ...PROBE_DOCUMENTS_MANIFEST.app, requires_experiment: 'probe.beta' },
@@ -306,7 +306,7 @@ describe('cross-tab kernel sync integration (#2108)', () => {
 					},
 				],
 			},
-		} as unknown as ManifestV2;
+		} as unknown as ManifestV3;
 	}
 
 	async function bootTwoTabs(store: MemoryAdapter, manifest = gatedManifest()) {

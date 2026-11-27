@@ -8,7 +8,7 @@ import { coreRules } from './core-rules.js';
 import { loamRules, versionKeyFindings } from './loam-rules.js';
 import { toRead, toRefusal } from './read-common.js';
 import { refusalsFrom } from './refusal-map.js';
-import type { ManifestRead, ManifestV2 } from './types.js';
+import type { ManifestRead, ManifestV3 } from './types.js';
 import { validateManifest } from './validate.generated.js';
 import { pointerOf } from './validator-errors.js';
 
@@ -40,7 +40,7 @@ export function readManifest(json: unknown): ManifestRead {
 	// rules would otherwise lead, and a loader reports the first refusal.
 	const told = versionKeyFindings(json);
 	if (told.length > 0) return { ok: false, refusals: told.map(toRefusal), warnings: [] };
-	const manifest = json as ManifestV2;
+	const manifest = json as ManifestV3;
 	const core = coreRules(json as Parameters<typeof coreRules>[0]);
 	const loam = loamRules(manifest);
 	return toRead(

@@ -14,7 +14,7 @@ import {
 	success,
 } from '@lushly-dev/afd-core';
 import { defineCommand, type ZodCommandDefinition } from '@lushly-dev/afd-server/define';
-import type { ManifestV2, ProjectionAppV1, ProjectionMountedV1 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3, ProjectionAppV1, ProjectionMountedV1 } from '@lushly-dev/loam-manifest';
 import { deriveMutation, mountCommandName } from '@lushly-dev/loam-manifest/validate';
 import { z } from 'zod';
 import type { CommandOwner } from '../apps-runtime.js';
@@ -41,8 +41,6 @@ import type { AppRecord } from './operations.js';
 import type { AppsHost } from './types.js';
 
 export const DISCOVERY_DEADLINE_MS = 10_000;
-/** A definition's twin on the app-call registry (7.5), by `Symbol.for`, so the kernel reads it without this chunk. */
-const APPS_TWIN = Symbol.for('dev.loam/apps-twin');
 export const MOUNTED_CALL_DEADLINE_MS = 60_000;
 /** At most one automatic discovery per instance in this time (7.3). */
 export const AUTO_DISCOVERY_MS = 30_000;
@@ -592,7 +590,7 @@ export const isMetaTool = (name: string): boolean => /^\s*afd[^a-z0-9]/i.test(na
  */
 export async function discoverInstance(
 	entry: Pick<ProjectionAppV1, 'instance' | 'prefix' | 'expose' | 'commands'>,
-	manifest: ManifestV2,
+	manifest: ManifestV3,
 	transport: MountTransport,
 	signal?: AbortSignal
 ): Promise<InstanceCatalogV1> {
@@ -783,7 +781,7 @@ export interface MountedHost {
 export interface MountedHostOptions {
 	record: AppRecord;
 	entry: ProjectionAppV1;
-	manifest: ManifestV2;
+	manifest: ManifestV3;
 	host: AppsHost;
 	ports: KernelPorts;
 	/** The runtime's live list and map, which the kernel's registries read from. */
@@ -1039,22 +1037,11 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 	}
 
 	/**
-	 * A command the entry lets apps call (7.5) gets a twin exposed to the palette's interface, registered only on the
-	 * kernel's app-call registry, which an app port's call alone reaches (the review's B2): the person's palette and the
-	 * public client keep the entry's own exposure. The port checks the grant.
+	 * A command the entry lets apps call (7.5) sets `expose.apps` (phase 5 specification, 9.1), so only AFD's
+	 * `createAppCallRegistry` runs another app's call to it, after `call-grant.ts`'s rule: the person's palette and the
+	 * agent keep the entry's own exposure.
 	 */
 	function define(command: CatalogCommandV1): ZodCommandDefinition {
-		const definition = defineOne(command);
-		if (command.expose.apps === true && !command.expose.palette) {
-			(definition as unknown as Record<symbol, unknown>)[APPS_TWIN] = defineOne({
-				...command,
-				expose: { ...command.expose, palette: true },
-			});
-		}
-		return definition;
-	}
-
-	function defineOne(command: CatalogCommandV1): ZodCommandDefinition {
 		return defineCommand({
 			name: command.name,
 			description: command.description,
@@ -1069,6 +1056,7 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 				agent: command.expose.agent,
 				mcp: false,
 				cli: false,
+				...(command.expose.apps === true ? { apps: true } : {}),
 			},
 			handler: (input: unknown, context: CommandContext) => call(command, input, context),
 		}) as unknown as ZodCommandDefinition;

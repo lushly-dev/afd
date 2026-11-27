@@ -710,7 +710,14 @@ export async function replayKernel(
 	let kept = false;
 	try {
 		const recorded: number[] = [];
-		const target: JournalReplayTarget = {
+		/** The entry `replayJournal` replays next, from its `context` option, which it reads first for each entry. */
+		let replaying: JournalEntry | undefined;
+		const target: JournalReplayTarget & { readonly interface?: string } = {
+			// The registry the next entry runs on, as AFD's guard reads it: an app's call to another app's command only on
+			// the `apps` registry, which re-checks its grant (phase 5 specification, 9.1).
+			get interface() {
+				return replaying?.contextDigest.interface === 'apps' ? 'apps' : undefined;
+			},
 			async execute(name: string, input: unknown, context: CommandContext = {}) {
 				const base = traceBaseOf(context.traceId);
 				if (base !== session) {
@@ -780,12 +787,15 @@ export async function replayKernel(
 				// A call `run` made, as each entry was: the actor's changes replay as they ran (3.4).
 				(context as Record<symbol, unknown>)[CALL_MARK] = 'run';
 				const { registries } = parts;
-				// Boot's own work is in a registry of its own, which only boot and a replay reach (2.2).
+				// Boot's own work is in a registry of its own, which only boot and a replay reach (2.2). An app's call to
+				// another app's command replays on the `apps` registry with its recorded caller, re-checking the grant (9.1).
 				const registry = BOOT_ONLY.includes(name)
 					? registries.boot
 					: context.interface === 'agent'
 						? registries.agent
-						: registries.palette;
+						: context.interface === 'apps'
+							? (registries.apps ?? registries.palette)
+							: registries.palette;
 				let replayPrincipal: import('./scope/principal.js').KernelPrincipalV1 | undefined;
 				let restoreSession: { had: string | null } | undefined;
 				if (options.gate === 'principal') {
@@ -846,6 +856,10 @@ export async function replayKernel(
 		const report = withNestedProblems(
 			await replayJournal(target, ordered, {
 				ignore: [...REPLAY_IGNORE, ...(options.ignore ?? [])],
+				context: (entry) => {
+					replaying = entry;
+					return {};
+				},
 			}),
 			ordered,
 			nested.problems,

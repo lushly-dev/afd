@@ -6,7 +6,7 @@
  */
 
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
-import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3 } from '@lushly-dev/loam-manifest';
 import type { DocumentRecordV1, NewItemV1 } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -35,7 +35,7 @@ const TASKS_WITH_NEW = {
 		...TASKS_MANIFEST.ui,
 		new: [{ title: 'Task', icon: 'system/checkmark', command: 'tasks-list' }],
 	},
-} as unknown as ManifestV2;
+} as unknown as ManifestV3;
 
 /** `probe` with six templates of its own type, for the recents' bound. */
 const PROBE_SIX = (() => {
@@ -47,10 +47,10 @@ const PROBE_SIX = (() => {
 		for (const n of [3, 4, 5, 6])
 			probe.templates.push({ id: `t${n}`, title: `T${n}`, content: { text: '' } });
 	}
-	return manifest as unknown as ManifestV2;
+	return manifest as unknown as ManifestV3;
 })();
 
-const ports = (probe: ManifestV2 = PROBE_DOCUMENTS_MANIFEST) =>
+const ports = (probe: ManifestV3 = PROBE_DOCUMENTS_MANIFEST) =>
 	createFixturePorts({
 		...scopedPackages(),
 		'fixtures/tasks/': { manifest: TASKS_WITH_NEW, definition: TASKS_DEFINITION },
@@ -59,7 +59,7 @@ const ports = (probe: ManifestV2 = PROBE_DOCUMENTS_MANIFEST) =>
 
 async function workspace(
 	options: ScopedWorkspaceOptions = {},
-	probe?: ManifestV2
+	probe?: ManifestV3
 ): Promise<ScopedWorkspace> {
 	const held = await createScopedWorkspace({
 		deployment: documentsDeployment(),
@@ -478,7 +478,7 @@ describe('P2-D10: (kernel unit) every layout read agrees while the inspector is 
 				({ inspector: _gone, ...type }) => type
 			),
 		},
-	} as ManifestV2;
+	} as ManifestV3;
 
 	it('answers the inspector closed in layout-get, layout-set’s and layout-reset’s results and view-state-get, storing nothing, and an undo applies as recorded', async () => {
 		const store = new MemoryAdapter();
@@ -619,7 +619,7 @@ describe("P2-D8: (kernel unit) the palette's needs-input flag agrees with New's 
 			ports: createFixturePorts({
 				...scopedPackages(),
 				'fixtures/tasks/': {
-					manifest: manifest as unknown as ManifestV2,
+					manifest: manifest as unknown as ManifestV3,
 					definition: TASKS_DEFINITION,
 				},
 				'fixtures/probe/': {

@@ -6,10 +6,9 @@
  */
 
 import { type Actor, type CommandResult, failure } from '@lushly-dev/afd-core';
-import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3 } from '@lushly-dev/loam-manifest';
 import type { AppDefinitionV1, LoamClientV1, OverlayResultV1, ScopeV1 } from '@lushly-dev/loam-sdk';
-import { mountCallGranted } from '../call-grant.js';
-import { BOOT_ONLY } from '../commands.js';
+import { ADMISSION, type AdmissionV1 } from '../call-grant.js';
 import type { KernelCallFields } from '../context-fields.js';
 import { LoamKernelError } from '../errors.js';
 import { measureJson } from '../limits.js';
@@ -39,12 +38,18 @@ export type AppCallOptions = CallOptions & { level?: unknown; scope?: unknown };
 
 export interface AppPortOptions {
 	record: AppRecord;
-	manifest: ManifestV2;
+	manifest: ManifestV3;
 	config: Readonly<Record<string, unknown>>;
 	packageUrl: string;
 	host: AppsHost;
 	ports: KernelPorts;
 	granted: ReadonlySet<string>;
+	/**
+	 * Whether the `apps` registry's grant check would admit this app's call to `command` now (phase 5 specification,
+	 * 9.1), asked before a nested or embedded mutation is refused, so its refusal never tells an ungranted command apart.
+	 * Absent: never.
+	 */
+	admits?(command: string, scope: ScopeV1 | undefined): boolean;
 	load(): Promise<AppDefinitionV1>;
 	/** A view's broker, closed over one caller's `call`: the port's, or a surface's (3.6). */
 	/** `scope`, the surface's: a linked call's result reaches it only from a call in that scope. */
@@ -82,6 +87,8 @@ interface Binding {
 	parent?: string;
 	/** The outer call's actor, for a handler's nested call (phase 3 specification, 3.1). */
 	actor?: Actor;
+	/** A sandboxed view frame's call, through its broker: never another app's command (phase 5 specification, 9.1). */
+	frame?: true;
 }
 
 export function createAppPort(options: AppPortOptions): {
@@ -93,13 +100,6 @@ export function createAppPort(options: AppPortOptions): {
 	// `late/`'s list, which loads before any app (phase 2 specification, 11.2); with none, nothing is callable.
 	const callable =
 		host.scope.callable?.(granted, APP_CALLABLE_SHELL_COMMANDS_BASE) ?? new Set<string>();
-	/**
-	 * A mounted instance's command this app's `calls` grant names (phase 5 specification, 7.5; D30, D152): both the
-	 * grant and `[[calls]]` naming it by the callee's app, and the callee's entry setting its `expose.apps`. Read at each
-	 * call, since a mounted catalog is discovered after the port is made. Native callees wait for milestone B.
-	 */
-	const grantedMount = (command: string): boolean =>
-		mountCallGranted(host.owners().get(command), command, instance, granted, manifest.calls);
 	let modalRefusedUntil = 0;
 	/**
 	 * Set while this view's `modal-open` is in flight or the modal it opened is open, and cleared when both
@@ -113,13 +113,18 @@ export function createAppPort(options: AppPortOptions): {
 	 * the second runs an internal command, so it is journaled.
 	 *
 	 * 1. A scope the app names: only `level: 'workspace'` widens, anything else is `SCOPE_NOT_GRANTED`.
-	 * 2. A boot-only command answers, here, as a name that does not exist, `COMMAND_NOT_FOUND`.
-	 * 3. Neither its own nor callable with its grants, nor a mounted command its `calls` grant names that the
-	 *    callee's entry exposes to apps (phase 5 specification, 7.5): `CALL_NOT_GRANTED`.
-	 * 4. A command that names an instance, naming another: `CALL_NOT_GRANTED`.
-	 * 5. A handler's nested mutation: `NESTED_MUTATION_REFUSED`.
-	 * 6. An embed's mutation: `EMBED_READ_ONLY`.
-	 * 7. A view's modal within the cooldown, checked once its earlier modal has closed: `OVERLAY_COOLDOWN`.
+	 * 2. Neither its own nor a shell command callable with its grants (phase 5 specification, 9.1's three ways): every
+	 *    other name, another app's command, a mounted one, an unknown one, an uncallable shell command or a boot-only one,
+	 *    runs on the `apps` registry, AFD's `createAppCallRegistry`, which refuses it AFD's fixed `CALL_NOT_GRANTED`
+	 *    before lookup unless `call-grant.ts`'s rule admits it; a denial alone is journaled, through `app-call-refuse`.
+	 *    Its nested or embedded mutation is refused (4, 5) only once the grant admits it, so a refusal never says more.
+	 *    A sandboxed view frame's call never takes that path (9.1's step 5): it reaches its own app's commands and the
+	 *    callable shell commands alone, and any other name is `app-call-refuse` without the grant being asked; only a
+	 *    view's handler frame, a nested client, may use `[[calls]]`.
+	 * 3. A command that names an instance, naming another: `CALL_NOT_GRANTED`.
+	 * 4. A handler's nested mutation: `NESTED_MUTATION_REFUSED`.
+	 * 5. An embed's mutation: `EMBED_READ_ONLY`.
+	 * 6. A view's modal within the cooldown, checked once its earlier modal has closed: `OVERLAY_COOLDOWN`.
 	 *
 	 * Before all of them, the limits the port enforces (phase 4 specification, section 11): the instance's call rate,
 	 * `RATE_LIMITED`, every call taking its place whatever answers it; then its input, over `inputBytes` of JSON,
@@ -182,18 +187,11 @@ export function createAppPort(options: AppPortOptions): {
 		) {
 			return refuse('app-scope-refuse');
 		}
-		// Answered here, as a name that does not exist: never forwarded, whatever registered it since (2.2).
-		if (BOOT_ONLY.includes(command)) {
-			return Promise.resolve(
-				failure({
-					code: 'COMMAND_NOT_FOUND',
-					message: `Command '${command}' not found`,
-					suggestion: 'Use afd-discover to list all commands.',
-				})
-			);
-		}
 		const own = host.owners().get(command)?.instance === instance;
-		if (!own && !callable.has(command) && !grantedMount(command)) return refuse('app-call-refuse');
+		if (!own && !callable.has(command))
+			return binding.frame
+				? refuse('app-call-refuse')
+				: appsCall<T>(command, input, rest, fields, binding);
 		if (
 			SCOPED_TO_CALLER.has(command) &&
 			(input as { instance?: unknown } | null | undefined)?.instance !== instance
@@ -244,6 +242,35 @@ export function createAppPort(options: AppPortOptions): {
 			})();
 		}
 		return host.runAs<T>(command, input, rest, fields);
+	}
+
+	/**
+	 * Another app's command, or any name neither its own nor callable (9.1): on the `apps` registry, which admits it only
+	 * under the grant. A denial ran no middleware, so the port journals it through `app-call-refuse`, which answers AFD's
+	 * fixed `callNotGranted()`; an admitted call's own refusal its own entry journaled, so it is never journaled twice.
+	 * A nested or embedded mutation is asked about first, without running anything, so it is refused only once admitted.
+	 */
+	async function appsCall<T>(
+		command: string,
+		input: unknown,
+		rest: CallOptions,
+		fields: KernelCallFields,
+		binding: Binding
+	): Promise<CommandResult<T>> {
+		const refuse = (internal: string): Promise<CommandResult<T>> =>
+			host.runAs<T>(internal, { command: command.slice(0, 256) }, rest, fields);
+		const mutation = host.isMutation(command);
+		if (mutation && (binding.parent !== undefined || binding.readOnly)) {
+			if (options.admits?.(command, fields.scope ?? host.scope.active()) !== true)
+				return refuse('app-call-refuse');
+			return refuse(binding.parent !== undefined ? 'app-nested-refuse' : 'app-embed-refuse');
+		}
+		const admission: AdmissionV1 = { admitted: false };
+		const result = await host.runApps<T>(command, input, rest, {
+			...fields,
+			[ADMISSION]: admission,
+		} as KernelCallFields);
+		return admission.admitted ? result : refuse('app-call-refuse');
 	}
 
 	async function readResource(uri: string): Promise<string> {
@@ -313,13 +340,16 @@ export function createAppPort(options: AppPortOptions): {
 			const readOnly = surfaceOptions.readOnly === true;
 			const surfaceCall: SurfacePort['call'] = (name, input, callOptions) =>
 				checkedCall(name, input, callOptions, { scope, readOnly });
+			// The view's frame, through its broker: the surface's binding, never another app's command (9.1's step 5).
+			const frameCall: SurfacePort['call'] = (name, input, callOptions) =>
+				checkedCall(name, input, callOptions, { scope, readOnly, frame: true });
 			return Object.freeze({
 				scope,
 				readOnly,
 				call: surfaceCall,
 				...(options.view
 					? {
-							view: options.view(surfaceCall, readResource, scope, (overlayId) =>
+							view: options.view(frameCall, readResource, scope, (overlayId) =>
 								port.waitOverlay(overlayId)
 							),
 						}
@@ -345,7 +375,14 @@ export function createAppPort(options: AppPortOptions): {
 				}
 			: {}),
 		// The port's own broker, unbound: it hears no linked call, and only tests use it (T4).
-		...(options.view ? { view: options.view(call, readResource) } : {}),
+		...(options.view
+			? {
+					view: options.view(
+						(name, input, callOptions) => checkedCall(name, input, callOptions, { frame: true }),
+						readResource
+					),
+				}
+			: {}),
 	};
 	return {
 		port,

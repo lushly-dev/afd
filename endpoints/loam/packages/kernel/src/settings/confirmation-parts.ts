@@ -46,7 +46,7 @@ export type StoredConfirmation = NotificationV1 & {
 	ckey: string;
 	/** The actor that asked, and the interface it asked through: the shell's run is the same call (7.2). */
 	cactor?: Actor;
-	ciface: 'palette' | 'agent';
+	ciface: 'palette' | 'agent' | 'apps';
 	/**
 	 * Who raised it, as the kernel tells callers apart (the trust review's R1): an app's instance, or the agent
 	 * interface's bucket, one per person (the copilot apart), since an agent's name is the caller's own choice. The key,
@@ -421,6 +421,8 @@ export function settleInputOf(z: SettingsKit['z']) {
 					project: z.optional(z.string().check(z.minLength(1), z.maxLength(128))),
 				}),
 				input: z.unknown(),
+				// The interface the declined call came through (phase 5's 9.1): an app's call to another app's command is `apps`.
+				ciface: z.optional(z.enum(['palette', 'apps'])),
 			})
 		),
 		open: z.optional(

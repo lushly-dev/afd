@@ -5,7 +5,7 @@
  */
 
 import type { JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3 } from '@lushly-dev/loam-manifest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { INTERNAL_COMMANDS } from '../commands.js';
 import { HUMAN_COMMANDS } from '../identity/identity-commands.js';
@@ -36,22 +36,22 @@ afterEach(async () => {
 });
 
 /** `solo` with `solo-put` exposed to MCP and asking first (`confirm_prompt`), and `solo-where` not exposed. */
-const SOLO_INBOUND: ManifestV2 = {
+const SOLO_INBOUND: ManifestV3 = {
 	...SOLO_MANIFEST,
 	commands: (SOLO_MANIFEST.commands ?? []).map((command) =>
 		command.name === 'solo-put'
 			? { ...command, expose: { mcp: true }, confirm_prompt: 'Put {key}?' }
 			: command
 	),
-} as ManifestV2;
+} as ManifestV3;
 
 /** `dual` with `dual-where`, which answers the scope its call ran in, exposed to MCP. */
-const DUAL_INBOUND: ManifestV2 = {
+const DUAL_INBOUND: ManifestV3 = {
 	...DUAL_MANIFEST,
 	commands: (DUAL_MANIFEST.commands ?? []).map((command) =>
 		command.name === 'dual-where' ? { ...command, expose: { mcp: true } } : command
 	),
-} as ManifestV2;
+} as ManifestV3;
 
 async function open(
 	options: ScopedWorkspaceOptions = {}

@@ -162,7 +162,7 @@ export type LateCommandDeps = ShellCommandDeps &
 		paletteCommands?(): Array<{ name: string; inputSchema?: unknown }>;
 		/** The kernel's `execute`, past the queue: a top-level call journaled as its own (phase 4's 7.1, 7.2). */
 		runNow?(
-			iface: 'palette' | 'agent',
+			iface: 'palette' | 'agent' | 'apps',
 			name: string,
 			input: unknown,
 			fields: Record<string | symbol, unknown>

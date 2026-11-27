@@ -13,6 +13,7 @@ import {
 	success,
 } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
+import type { AppCallRegistryOptions, DirectCommandRegistry } from '@lushly-dev/afd-server/direct';
 import type { BootProjectionV2 } from '@lushly-dev/loam-manifest';
 import type { MountReleaseV1 } from './apps/mounted-release.js';
 import type { StoreQuota } from './apps/store.js';
@@ -86,6 +87,14 @@ export interface AppsRuntime {
 	reconcileLayouts(): void;
 	/** The mounted instances, for `startInstances`. */
 	mountedInstances(): string[];
+	/**
+	 * The `apps` registry over `commands` (phase 5 specification, 9.1): AFD's `createAppCallRegistry`, whose grant check
+	 * is `call-grant.ts`'s rule over these apps, read live. Absent before `apps/` loads, when no app can call another.
+	 */
+	appCallRegistry?(
+		commands: ZodCommandDefinition[],
+		options: Omit<AppCallRegistryOptions, 'callGrant'>
+	): DirectCommandRegistry;
 	summaries(): AppSummary[];
 	/** `statusItems` answer for `project`, the call's scope, as `setStatusItem` keys them (7.6). */
 	detail(instance: string, project?: string): CommandResult<AppDetail>;

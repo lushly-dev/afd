@@ -6,7 +6,7 @@
  */
 
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { IdentityV1, ManifestV2, ProjectionV3, ProjectionV4 } from '@lushly-dev/loam-manifest';
+import type { IdentityV1, ManifestV3, ProjectionV3, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { MembershipV1 } from '../scope/access.js';
@@ -72,7 +72,7 @@ const gatedProbe = (experiments: Experiment[] = [experiment('beta'), experiment(
 				},
 			],
 		},
-	}) as unknown as ManifestV2;
+	}) as unknown as ManifestV3;
 
 const deployment = (extra: Partial<ProjectionV4> = {}) =>
 	({
@@ -85,14 +85,14 @@ const deployment = (extra: Partial<ProjectionV4> = {}) =>
 		...extra,
 	}) as unknown as ProjectionV3;
 
-const ports = (manifest: ManifestV2 = gatedProbe()) =>
+const ports = (manifest: ManifestV3 = gatedProbe()) =>
 	createFixturePorts({
 		...scopedPackages(),
 		'fixtures/probe/': { manifest, definition: PROBE_DOCUMENTS_DEFINITION },
 	});
 
 async function workspace(
-	options: ScopedWorkspaceOptions & { manifest?: ManifestV2 } = {}
+	options: ScopedWorkspaceOptions & { manifest?: ManifestV3 } = {}
 ): Promise<ScopedWorkspace> {
 	const { manifest, ...rest } = options;
 	const made = await createScopedWorkspace({
@@ -632,7 +632,7 @@ describe("P4-E5: the reviews' cases (step 9)", () => {
 		} as const;
 		const all = gatedProbe([experiment('beta'), experiment('pane'), experiment('extra')]);
 		const boot = async (
-			manifest: ManifestV2,
+			manifest: ManifestV3,
 			email: string,
 			work?: (kernel: LoamKernel) => Promise<unknown>
 		) => {
@@ -664,7 +664,7 @@ describe("P4-E5: the reviews' cases (step 9)", () => {
 			empty: true,
 			clock: () => tick++,
 		} as const;
-		const withVersion = (version: string, experiments: Experiment[]): ManifestV2 => {
+		const withVersion = (version: string, experiments: Experiment[]): ManifestV3 => {
 			const base = gatedProbe(experiments);
 			return { ...base, plugin: { ...base.plugin, version } };
 		};
@@ -723,7 +723,7 @@ describe("P4-E5: the reviews' cases (step 9)", () => {
 		const store = new MemoryAdapter();
 		const longV2 =
 			'2.0.0-prerelease.with.a.very.long.identifier.segment.over.sixty.four.chars+build.20261122';
-		const withVersion = (version: string, experiments: Experiment[]): ManifestV2 => {
+		const withVersion = (version: string, experiments: Experiment[]): ManifestV3 => {
 			const base = gatedProbe(experiments);
 			return { ...base, plugin: { ...base.plugin, version } };
 		};
@@ -794,7 +794,7 @@ describe("P4-E5: the reviews' cases (step 9)", () => {
 
 	it('does not let a concurrent unlisted legacy shell wipe a newer versioned declaration (#2114)', async () => {
 		const store = new MemoryAdapter();
-		const withVersion = (version: string, experiments: Experiment[]): ManifestV2 => {
+		const withVersion = (version: string, experiments: Experiment[]): ManifestV3 => {
 			const base = gatedProbe(experiments);
 			return { ...base, plugin: { ...base.plugin, version } };
 		};

@@ -548,21 +548,23 @@ describe('P2-E10: what no command, app or agent may write (D55, D56, D73)', () =
 		}
 	});
 
-	it('answers each boot-only command as missing, on both interfaces and through a port', async () => {
+	it('answers each boot-only command as missing on both interfaces, and through a port as AFD refuses any ungranted name', async () => {
 		const workspace = await createScopedWorkspace();
 		kernels.push(workspace.kernel);
 		const { kernel } = workspace;
 		for (const name of BOOT_ONLY) {
+			for (const result of [await kernel.call(name, {}), await kernel.agent.call(name, {})]) {
+				expect(result.error?.code, name).toBe('COMMAND_NOT_FOUND');
+			}
+			// Phase 5's 9.1: on the `apps` registry, before lookup, so a boot-only name says no more than any other.
 			for (const result of [
-				await kernel.call(name, {}),
-				await kernel.agent.call(name, {}),
 				await kernel.appPort('dual').call(name, {}),
 				await kernel
 					.appPort('dual')
 					.surface({ scope: { workspace: 'personal' } })
 					.call(name, {}),
 			]) {
-				expect(result.error?.code, name).toBe('COMMAND_NOT_FOUND');
+				expect(result.error?.code, name).toBe('CALL_NOT_GRANTED');
 			}
 		}
 	});

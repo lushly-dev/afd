@@ -27,7 +27,7 @@ export interface ProjectSummaryDeps {
 	summaries(): AppSummary[];
 	/** The kernel's `run`: a call with `parent` is nested, journaled when it ends and never queued (11.1). */
 	run<T>(
-		iface: 'palette' | 'agent',
+		iface: 'palette' | 'agent' | 'apps',
 		name: string,
 		input: unknown,
 		options: CallOptions,
@@ -81,7 +81,9 @@ export function createProjectSummaryCommand(deps: ProjectSummaryDeps): ZodComman
 				deps,
 				at,
 				context.traceId ?? '',
-				context.interface === 'agent' ? 'agent' : 'palette',
+				context.interface === 'agent' || context.interface === 'apps'
+					? context.interface
+					: 'palette',
 				context.actor
 			);
 			const warnings = rows.droppedWarnings(summaries);

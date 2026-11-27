@@ -176,11 +176,11 @@ describe('registries and exposure', () => {
 		const { kernel: k } = await kernel({ host: 'browser', storeKind: 'indexeddb' });
 		// Kernel interface version 3 (phase 3 specification, 12): the identity, `local` with no `[identity]`.
 		expect((await k.call('shell-info-get')).data).toEqual({
-			kernelInterface: 5,
+			kernelInterface: 6,
 			layoutState: 0,
 			storeInterface: 1,
 			tokenContract: 1,
-			manifestVersion: 2,
+			manifestVersion: 3,
 			appProtocol: 1,
 			surfaceCatalog: 1,
 			compositionLibrary: 1,
@@ -189,7 +189,7 @@ describe('registries and exposure', () => {
 			store: 'indexeddb',
 			identity: { mode: 'local', organization: null },
 		});
-		expect(k.version).toBe(5);
+		expect(k.version).toBe(6);
 	});
 });
 

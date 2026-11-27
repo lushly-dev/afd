@@ -2,7 +2,7 @@
  * @fileoverview Loam's internal kernel interface (current shape, version 5): the surface shared
  * between `@lushly-dev/loam-kernel` and its in-repository consumers (`chrome`, `web`, `host`,
  * `desktop`, `testing`). External wire/manifest/SDK/persisted contracts (`ScopeV1`, `IdentityV1`,
- * `ManifestV2`, `ResourceLinkV1`, etc.) keep their explicit version tags.
+ * `ManifestV3`, `ResourceLinkV1`, etc.) keep their explicit version tags.
  */
 
 import type { AuthAdapter } from '@lushly-dev/afd-auth';
@@ -18,7 +18,7 @@ import type {
 	BootProjectionV2,
 	IdentityV1,
 	ManifestRefusal,
-	ManifestV2,
+	ManifestV3,
 	ProjectionMountedV1,
 	ProjectionV4,
 } from '@lushly-dev/loam-manifest';
@@ -53,7 +53,7 @@ export type {
 export type { IdentityV1, ProjectSummaryV1, ResourceLinkV1, ScopeV1 };
 
 /** Current kernel interface version reported by `kernel.version` and `shell-info-get`. */
-export const KERNEL_INTERFACE_VERSION = 5;
+export const KERNEL_INTERFACE_VERSION = 6;
 
 export interface LoamKernel {
 	/** Bind the local chrome that can perform reserved keyboard actions. */
@@ -128,7 +128,7 @@ export interface CommandSummary {
 
 export interface KernelEvent {
 	command: string;
-	interface: 'palette' | 'agent';
+	interface: 'palette' | 'agent' | 'apps';
 	success: boolean;
 	mutation: boolean;
 	seq?: number;
@@ -396,7 +396,7 @@ export interface SurfacePort {
 export interface AppPort {
 	readonly instance: string;
 	/** The validated manifest: what the chrome renders from. */
-	readonly manifest: ManifestV2;
+	readonly manifest: ManifestV3;
 	readonly config: Readonly<Record<string, unknown>>;
 	readonly packageUrl: string;
 	/** Imports the native module once. Rejects with `APP_HANDLER_MISSING` and sets `failed`. */
@@ -545,7 +545,7 @@ export interface ShellInfo {
 	layoutState: 0;
 	storeInterface: 1;
 	tokenContract: 1;
-	manifestVersion: 2;
+	manifestVersion: 3;
 	appProtocol: 1;
 	surfaceCatalog: 1;
 	compositionLibrary: 1;

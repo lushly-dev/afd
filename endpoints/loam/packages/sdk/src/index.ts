@@ -5,11 +5,11 @@
  */
 
 import type { Actor, CommandResult } from '@lushly-dev/afd-core';
-import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3 } from '@lushly-dev/loam-manifest';
 
 export type { Actor, CommandError, CommandResult } from '@lushly-dev/afd-core';
 export { failure, success } from '@lushly-dev/afd-core/result';
-export type { ManifestV1, ManifestV2 } from '@lushly-dev/loam-manifest';
+export type { ManifestV1, ManifestV2, ManifestV3 } from '@lushly-dev/loam-manifest';
 
 export const SDK_VERSION = 1;
 
@@ -334,7 +334,7 @@ export interface ProjectSummaryV1 {
  * view app's `main` resource) through a surface port fixed to the workspace. Its handlers see the caller as
  * `context.actor`, never an email, a session or a credential.
  */
-export type AccountSectionV1 = NonNullable<NonNullable<ManifestV2['ui']>['account']>[number];
+export type AccountSectionV1 = NonNullable<NonNullable<ManifestV3['ui']>['account']>[number];
 
 /** A project as an app sees it: no members, and no one who wrote it (phase 2 specification, 4.3). */
 export interface AppProjectV1 {

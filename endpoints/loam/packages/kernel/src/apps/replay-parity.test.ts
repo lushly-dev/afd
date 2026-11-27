@@ -19,7 +19,7 @@ import {
 import { createMcpHandler } from '@lushly-dev/afd-server';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ManifestV1, ProjectionV3 } from '@lushly-dev/loam-manifest';
-import { type AppCallContextV1, defineApp, type ManifestV2, success } from '@lushly-dev/loam-sdk';
+import { type AppCallContextV1, defineApp, type ManifestV3, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -96,7 +96,7 @@ const BOOK_MANIFEST = {
 		},
 	],
 	ui: { surfaces: { main: { element: 'book-main' } } },
-} as unknown as ManifestV2;
+} as unknown as ManifestV3;
 
 /** Told after `book-sign` changes the store, before its handler returns: hello's `changed()`. */
 const listeners = new Set<() => void>();

@@ -22,7 +22,7 @@ import {
 	type ReplayKernelResult,
 	replayKernel,
 } from '@lushly-dev/loam-kernel/testing';
-import type { AppDefinitionV1, ManifestV2 } from '@lushly-dev/loam-sdk';
+import type { AppDefinitionV1, ManifestV3 } from '@lushly-dev/loam-sdk';
 import { type RegistryScope, watchGlobalRegistry } from './global-registry.js';
 
 const SANDBOX_ORIGIN = 'https://sandbox.loam.test';
@@ -51,7 +51,7 @@ export type AppDefinitionSource =
 
 export interface AppTestKernelOptions {
 	/** A packed or scaffolded manifest: `readAppManifest` from `@lushly-dev/loam-cli` reads one. */
-	manifest: ManifestV2;
+	manifest: ManifestV3;
 	definition: AppDefinitionSource;
 	/** Keep only these of the manifest's grants, to test the app without the others. */
 	grants?: readonly string[];
@@ -95,7 +95,7 @@ export async function createAppTestKernel(options: AppTestKernelOptions): Promis
 	const definition = await definitionOf(options.definition);
 	refuseGlobalDefinitions();
 
-	// Kernel interface 2 holds a `ManifestV2` as the reader returns it (phase 2 specification, 8.1).
+	// Kernel interface 2 holds a `ManifestV3` as the reader returns it (phase 2 specification, 8.1).
 	const manifest =
 		options.grants === undefined
 			? options.manifest

@@ -7,7 +7,7 @@ import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type { JsonSchema, ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import {
 	checkSettingValue,
-	type ManifestV2,
+	type ManifestV3,
 	SETTING_SECTION_MAX_BYTES,
 	type SettingKeyV1,
 	type SettingLevelV1,
@@ -187,7 +187,7 @@ export function createSettings(deps: SettingsDeps): Settings {
 		const apps = deps.apps();
 		for (const app of apps.summaries()) {
 			if (scope.workspaceApps.get(app.instance)?.overrides.enabled === false) continue;
-			let manifest: ManifestV2 | undefined;
+			let manifest: ManifestV3 | undefined;
 			try {
 				manifest = apps.port(app.instance).manifest;
 			} catch {

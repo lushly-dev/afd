@@ -28,6 +28,7 @@
 		},
 		"./schemas/app-manifest.v1.json": "./schemas/app-manifest.v1.json",
 		"./schemas/app-manifest.v2.json": "./schemas/app-manifest.v2.json",
+		"./schemas/app-manifest.v3.json": "./schemas/app-manifest.v3.json",
 		"./schemas/deployment.v1.json": "./schemas/deployment.v1.json",
 		"./schemas/deployment.v2.json": "./schemas/deployment.v2.json",
 		"./schemas/deployment.v3.json": "./schemas/deployment.v3.json",

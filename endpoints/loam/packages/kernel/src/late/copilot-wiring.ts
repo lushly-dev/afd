@@ -15,7 +15,7 @@ import type {
 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppsRuntime } from '../apps-runtime.js';
-import { mountCallGranted } from '../call-grant.js';
+import { appCallGranted } from '../call-grant.js';
 import { INTERNAL_COMMANDS } from '../commands.js';
 import type { CopilotConfirmationCardV1, CopilotParts } from '../copilot/commands.js';
 import type { AttachedContentV1 } from '../copilot/types.js';
@@ -329,7 +329,7 @@ export const badCaller = (
 		? undefined
 		: `'${caller}' may not call it`;
 
-/** An app's call to a mounted callee (7.5): the port's own rule, read live (B7). */
+/** An app's call to another app's command (7.5, 9.1): the `apps` registry's own rule, read live (B7). */
 export function callsGranted(apps: AppsRuntime, caller: string, command: string): boolean {
 	const detail = apps.detail(caller);
 	let calls: ReturnType<AppsRuntime['port']>['manifest']['calls'];
@@ -343,7 +343,7 @@ export function callsGranted(apps: AppsRuntime, caller: string, command: string)
 			? (detail.data?.grants ?? []).filter((each) => each.served).map((each) => each.name)
 			: []
 	);
-	return mountCallGranted(apps.owners.get(command), command, caller, granted, calls);
+	return appCallGranted(apps.owners.get(command), command, caller, granted, calls);
 }
 
 /** Shell reads whose result lists a mounted catalog: its servers' names, descriptions and schemas (B1). */

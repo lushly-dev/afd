@@ -243,7 +243,7 @@ export function summaryRows(
 	deps: ProjectSummaryDeps,
 	at: Required<ScopeV1>,
 	parent: string,
-	iface: 'palette' | 'agent',
+	iface: 'palette' | 'agent' | 'apps',
 	actor?: Actor
 ): Promise<ProjectSummaryRow[]> {
 	const { scope } = deps;

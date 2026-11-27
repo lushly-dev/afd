@@ -49,6 +49,17 @@ export interface AppsHost {
 		fields: KernelCallFields,
 		unqueued?: true
 	): Promise<CommandResult<T>>;
+	/**
+	 * Run an app's call to another app's command on the `apps` registry (phase 5 specification, 9.1), queued as `runAs`
+	 * is: AFD's `createAppCallRegistry`, which refuses it `CALL_NOT_GRANTED` before lookup unless the grant check admits
+	 * it, marking `fields[ADMISSION]` when it does.
+	 */
+	runApps<T>(
+		name: string,
+		input: unknown,
+		options: CallOptions | undefined,
+		fields: KernelCallFields
+	): Promise<CommandResult<T>>;
 	clock(): number;
 	/**
 	 * The limits the kernel enforces from boot (phase 4 specification, section 11). `loadApps` makes its own with the
@@ -77,7 +88,7 @@ export interface AppsHost {
 	 */
 	scope: Pick<
 		ScopeRuntime,
-		'active' | 'allows' | 'projects' | 'workspaceApps' | 'oversized' | 'callable'
+		'active' | 'allows' | 'projects' | 'workspaceApps' | 'oversized' | 'callable' | 'opensIn'
 	>;
 }
 

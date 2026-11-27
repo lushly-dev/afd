@@ -15,9 +15,9 @@ import { documentRules } from './document-rules.js';
 import { experimentRules } from './experiments.js';
 import { keyOf, valueAt } from './pointers.js';
 import { settingRules } from './settings.js';
-import type { ManifestRefusalCode, ManifestV2 } from './types.js';
+import type { ManifestRefusalCode, ManifestV3 } from './types.js';
 
-type Ui = NonNullable<ManifestV2['ui']>;
+type Ui = NonNullable<ManifestV3['ui']>;
 type Surfaces = NonNullable<Ui['surfaces']>;
 
 const SERVED_GRANTS = SERVED_GRANTS_V2;
@@ -91,6 +91,12 @@ export const VERSION_TWO_KEYS: readonly VersionKey[] = [
 	{ pointer: '/ui/surfaces/status/requires_experiment' },
 ];
 
+/**
+ * The keys only a version 3 manifest may hold (phase 5 specification, 9.1): core version 2's `expose.apps`, each
+ * command's. `manifest-version-keys` refuses each under `manifest_version` 1 or 2, so those versions mean what they meant.
+ */
+export const VERSION_THREE_KEYS: readonly VersionKey[] = [{ pointer: '/commands/*/expose/apps' }];
+
 /** The concrete pointers of `key` a document holds: one at most, or one per item where the key has a `*`. */
 const heldAt = (document: unknown, key: VersionKey): string[] => {
 	const star = key.pointer.indexOf('/*/');
@@ -120,18 +126,34 @@ const describeKey = (key: VersionKey): string =>
  * looked inside them, and a version 1 manifest keeps that.
  */
 export function versionKeyFindings(document: unknown): Finding[] {
-	if (valueAt(document, '/manifest_version') !== 1) return [];
+	const version = valueAt(document, '/manifest_version');
+	// Version 3's keys under version 1 or 2 (phase 5 specification, 9.1), each told the version that holds it.
+	const three =
+		version === 1 || version === 2
+			? VERSION_THREE_KEYS.flatMap((key) =>
+					heldAt(document, key).map((pointer) => ({
+						code: 'MANIFEST_SURFACE_UNAVAILABLE' as const,
+						pointer,
+						message: `${describeKey({ ...key, pointer })} is a key of version 3, and this manifest says \`manifest_version = ${version}\`.`,
+						suggestion: 'Set manifest_version = 3.',
+					}))
+				)
+			: [];
+	if (version !== 1) return three;
 	// Each place a key of version 2 is held, a command's `confirm_prompt` among them (step 6), and a keybinding's
 	// sequence or `when` (step 7).
 	const keys = VERSION_TWO_KEYS.flatMap((key) =>
 		heldAt(document, key).map((pointer) => ({ pointer, said: describeKey({ ...key, pointer }) }))
 	);
-	return [...keys, ...versionTwoKeybindings(document)].map(({ pointer, said }) => ({
-		code: 'MANIFEST_SURFACE_UNAVAILABLE' as const,
-		pointer,
-		message: `${said} is a key of version 2, and this manifest says \`manifest_version = 1\`.`,
-		suggestion: 'Set manifest_version = 2.',
-	}));
+	return [
+		...[...keys, ...versionTwoKeybindings(document)].map(({ pointer, said }) => ({
+			code: 'MANIFEST_SURFACE_UNAVAILABLE' as const,
+			pointer,
+			message: `${said} is a key of version 2, and this manifest says \`manifest_version = 1\`.`,
+			suggestion: 'Set manifest_version = 2.',
+		})),
+		...three,
+	];
 }
 
 /**
@@ -159,11 +181,11 @@ export function versionTwoKeybindings(document: unknown): Array<{ pointer: strin
  * until the step that served it (phase 2 specification, 16, step 3); step 11 served the last, `ui.new`, and
  * took that list and its loop away with it, so a later key arrives with a manifest version of its own.
  */
-function versionRules(manifest: ManifestV2, found: Findings): void {
+function versionRules(manifest: ManifestV3, found: Findings): void {
 	found.refusals.push(...versionKeyFindings(manifest));
 }
 
-function packedRules(manifest: ManifestV2, found: Findings): void {
+function packedRules(manifest: ManifestV3, found: Findings): void {
 	const refuse = (pointer: string): void => {
 		found.refuse(
 			'MANIFEST_NOT_PACKED',
@@ -182,7 +204,7 @@ function packedRules(manifest: ManifestV2, found: Findings): void {
 	});
 }
 
-function identityRules(manifest: ManifestV2, found: Findings): void {
+function identityRules(manifest: ManifestV3, found: Findings): void {
 	const { id, domains } = manifest.plugin;
 	if (domains.length !== 1 || domains[0] !== id) {
 		found.refuse(
@@ -203,7 +225,7 @@ function identityRules(manifest: ManifestV2, found: Findings): void {
 	}
 }
 
-function grantRules(manifest: ManifestV2, found: Findings): void {
+function grantRules(manifest: ManifestV3, found: Findings): void {
 	const grants = manifest.grants ?? [];
 	const calls = manifest.calls ?? [];
 	if (manifest.plugin.kind === 'mounted') {
@@ -284,7 +306,7 @@ function grantRules(manifest: ManifestV2, found: Findings): void {
 	});
 }
 
-function toolMetaRules(manifest: ManifestV2, found: Findings): void {
+function toolMetaRules(manifest: ManifestV3, found: Findings): void {
 	const resources = new Set((manifest.ui?.resources ?? []).map((resource) => resource.uri));
 	(manifest.commands ?? []).forEach((command, index) => {
 		const meta = (command.tool_meta ?? {}) as Record<string, unknown>;
@@ -310,7 +332,7 @@ function toolMetaRules(manifest: ManifestV2, found: Findings): void {
 	});
 }
 
-function resourceRules(manifest: ManifestV2, found: Findings): void {
+function resourceRules(manifest: ManifestV3, found: Findings): void {
 	const resources = manifest.ui?.resources ?? [];
 	const prefix = `ui://${manifest.plugin.id}/`;
 	const seen = new Set<string>();
@@ -351,7 +373,7 @@ function resourceRules(manifest: ManifestV2, found: Findings): void {
 	});
 }
 
-function surfaceRules(manifest: ManifestV2, found: Findings): void {
+function surfaceRules(manifest: ManifestV3, found: Findings): void {
 	const surfaces = manifest.ui?.surfaces;
 	if (!surfaces) return;
 	const { kind } = manifest.plugin;
@@ -477,7 +499,7 @@ function elementRules(surfaces: Surfaces, found: Findings): void {
 	});
 }
 
-function commandRules(manifest: ManifestV2, surfaces: Surfaces, found: Findings): void {
+function commandRules(manifest: ManifestV3, surfaces: Surfaces, found: Findings): void {
 	const declared = new Set((manifest.commands ?? []).map((command) => command.name));
 	const check = (command: string | undefined, pointer: string): void => {
 		if (command !== undefined && !declared.has(command)) {
@@ -547,7 +569,7 @@ function chordRules(surfaces: Surfaces, found: Findings): void {
 	});
 }
 
-function layoutRules(manifest: ManifestV2, found: Findings): void {
+function layoutRules(manifest: ManifestV3, found: Findings): void {
 	const layout = manifest.ui?.layout;
 	if (!layout) return;
 	const bound = (
@@ -571,7 +593,7 @@ function layoutRules(manifest: ManifestV2, found: Findings): void {
 	bound(layout.panel?.height, '/ui/layout/panel/height', panel.min);
 }
 
-function compositionRules(manifest: ManifestV2, found: Findings): void {
+function compositionRules(manifest: ManifestV3, found: Findings): void {
 	(manifest.ui?.compositions ?? []).forEach((name, index) => {
 		if (name !== 'list-detail') return;
 		const surfaces = manifest.ui?.surfaces;
@@ -587,7 +609,7 @@ function compositionRules(manifest: ManifestV2, found: Findings): void {
 }
 
 /** `text` over Loam's own display keys, which reach a person's screen as the core's do. */
-function textRules(manifest: ManifestV2, found: Findings): void {
+function textRules(manifest: ManifestV3, found: Findings): void {
 	const add = (pointer: string, value: string | undefined): void => {
 		if (value !== undefined && CONTROL.test(value)) {
 			found.refuse(
@@ -633,7 +655,7 @@ function textRules(manifest: ManifestV2, found: Findings): void {
  * `app.resource_keys` (phase 2 specification, 8.3): each names a declared command and a property of its
  * input schema; the app needs the `store` grant, whose keys they are; a mounted app has no store.
  */
-function resourceKeyRules(manifest: ManifestV2, found: Findings): void {
+function resourceKeyRules(manifest: ManifestV3, found: Findings): void {
 	const keys = manifest.app?.resource_keys;
 	if (keys === undefined) return;
 	const pointer = '/app/resource_keys';
@@ -683,7 +705,7 @@ function resourceKeyRules(manifest: ManifestV2, found: Findings): void {
  * levels include `project`, since it runs at a project's scope with `{}` and outside any surface. A mounted
  * app's commands are unknown until discovery, so it has none. One refusal, the first that applies.
  */
-function summaryRules(manifest: ManifestV2, found: Findings): void {
+function summaryRules(manifest: ManifestV3, found: Findings): void {
 	const command = manifest.ui?.project_summary?.command;
 	if (command === undefined) return;
 	const declared = manifest.commands?.find((candidate) => candidate.name === command);
@@ -718,7 +740,7 @@ function summaryRules(manifest: ManifestV2, found: Findings): void {
  * `sidebar` element, or a view app's `main` resource. Anything else, and every mounted app's, is undefined.
  */
 export function accountSurfaceOf(
-	manifest: ManifestV2,
+	manifest: ManifestV3,
 	surface: string
 ): { element: string } | { resource: string } | undefined {
 	const surfaces = manifest.ui?.surfaces;
@@ -744,7 +766,7 @@ export function accountSurfaceOf(
  * section does; each `surface` one the app declares that shows something; each id once. The limit of two is the
  * schema's `maxItems`, which `refusal-map.ts` refuses as `MANIFEST_ACCOUNT_LIMIT`; titles are `textRules`'.
  */
-function accountRules(manifest: ManifestV2, found: Findings): void {
+function accountRules(manifest: ManifestV3, found: Findings): void {
 	const sections = manifest.ui?.account;
 	if (sections === undefined) return;
 	// The key itself, empty or not: a mounted manifest has no account section to declare.
@@ -796,7 +818,7 @@ function accountRules(manifest: ManifestV2, found: Findings): void {
  * command of this manifest that needs no input, since New calls it with `{}` as the person, in levels the app
  * takes. A mounted manifest declares none: its commands are unknown until discovery, as for its types.
  */
-function newRules(manifest: ManifestV2, found: Findings): void {
+function newRules(manifest: ManifestV3, found: Findings): void {
 	const entries = manifest.ui?.new ?? [];
 	if (entries.length === 0) return;
 	if (manifest.plugin.kind === 'mounted') {
@@ -842,7 +864,7 @@ function newRules(manifest: ManifestV2, found: Findings): void {
  * `confirm` is the shell's word (phase 4 specification, 7.2): a command that declares a `confirm_prompt` may not take an
  * input of that name, so `confirm: true` is always refused naming `confirmation-get`, and never reads as an answer.
  */
-function confirmRules(manifest: ManifestV2, found: Findings): void {
+function confirmRules(manifest: ManifestV3, found: Findings): void {
 	(manifest.commands ?? []).forEach((command, index) => {
 		if ((command as { confirm_prompt?: unknown }).confirm_prompt === undefined) return;
 		const properties =
@@ -860,7 +882,7 @@ function confirmRules(manifest: ManifestV2, found: Findings): void {
 }
 
 /** Loam's rules, for a manifest that passed the schema. */
-export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings: Finding[] } {
+export function loamRules(manifest: ManifestV3): { refusals: Finding[]; warnings: Finding[] } {
 	const found = new Findings();
 	versionRules(manifest, found);
 	packedRules(manifest, found);

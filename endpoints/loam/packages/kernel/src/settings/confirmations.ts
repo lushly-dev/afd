@@ -537,6 +537,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 						danger: asked.danger,
 						scope,
 						input: summaryOf(jsonOf(input)),
+						...(call.interface === 'apps' ? { ciface: 'apps' as const } : {}),
 					},
 				})
 				.finally(() => {
@@ -568,6 +569,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			danger: boolean;
 			scope: ScopeV1;
 			input: unknown;
+			ciface?: 'palette' | 'apps';
 		},
 		context: CommandContext
 	): Promise<void> {
@@ -600,7 +602,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				// Not news: the person answered it in the slot.
 				readAt: now,
 				ckey: decline.key,
-				ciface: 'palette',
+				ciface: decline.ciface ?? 'palette',
 				cbucket: `app:${decline.caller}`,
 				cslot: true,
 			};
@@ -703,7 +705,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				createdAt: now,
 				ckey: key,
 				...(call.actor !== undefined ? { cactor: jsonOf(call.actor) as Actor } : {}),
-				ciface: call.interface === 'agent' ? 'agent' : 'palette',
+				ciface:
+					call.interface === 'agent' ? 'agent' : call.interface === 'apps' ? 'apps' : 'palette',
 				cbucket: caller,
 			};
 			// Ended ones past their key's life go, oldest first, keeping the newest few (no person's inbox grows forever).
@@ -875,7 +878,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		}
 		// The same re-checks, together, immediately before the handler, after this run's own awaits (fourth round, 3;
 		// fifth round, 2): the resources (lines 5 and 6) in place, then access, the app, the input and the person.
-		const caller = row.ciface === 'palette' ? row.source : undefined;
+		const caller = row.ciface === 'palette' || row.ciface === 'apps' ? row.source : undefined;
 		const refused =
 			(await deps.chainOf(call)?.check()) ??
 			stale(row.cactor, name, caller, row.scope, input, row.person);
@@ -1336,7 +1339,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					return { done: kit.success({ state: 'declined' as const }) };
 				}
 				// The re-check (7.2): the same chain as steps 2 and 3, for the actor that asked, in the confirmation's scope.
-				const caller = row.ciface === 'palette' ? row.source : undefined;
+				const caller = row.ciface === 'palette' || row.ciface === 'apps' ? row.source : undefined;
 				if (
 					refusedAccess(row.cactor, row.confirmation.command, caller, row.scope) ||
 					(caller !== undefined && deps.inputOver(row.confirmation.input ?? {}))
@@ -1356,7 +1359,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		);
 		if ('done' in decided) return decided.done;
 		const row = decided.claimed;
-		const caller = row.ciface === 'palette' ? row.source : undefined;
+		const caller = row.ciface === 'palette' || row.ciface === 'apps' ? row.source : undefined;
 		try {
 			approved.set(row.id, {
 				command: row.confirmation.command,

@@ -6,7 +6,7 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { ManifestV2, ProjectionV3 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { defineApp, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -79,7 +79,7 @@ const KEYS = {
 			],
 		},
 	},
-} as unknown as ManifestV2;
+} as unknown as ManifestV3;
 const KEYS_DEFINITION = defineApp({
 	sdk: 1,
 	handlers: {

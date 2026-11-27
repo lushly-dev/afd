@@ -9,11 +9,11 @@ import {
 	type ExposeOptions,
 	type ZodCommandDefinition,
 } from '@lushly-dev/afd-server/define';
-import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3 } from '@lushly-dev/loam-manifest';
 import { deriveMutation, fromJsonSchema } from '@lushly-dev/loam-manifest/validate';
 import { z } from 'zod';
 
-export type ManifestCommand = NonNullable<ManifestV2['commands']>[number];
+export type ManifestCommand = NonNullable<ManifestV3['commands']>[number];
 
 /** `tool_meta.ui.visibility`, when the manifest says who may see the command (6.2). */
 export function visibilityOf(command: ManifestCommand): readonly string[] | undefined {

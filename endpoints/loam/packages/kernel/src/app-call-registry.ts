@@ -1,10 +1,11 @@
 /**
- * @fileoverview Two pieces of the kernel's dispatch for phase 5's step 4, kept out of `kernel.ts`:
+ * @fileoverview Two pieces of the kernel's dispatch, kept out of `kernel.ts`:
  *
- * - **The app-call registry** (phase 5 specification, 7.5): a mounted command an entry lets apps call carries a twin
- *   exposed to the palette's interface (`apps/mounted.ts`), registered only on a registry an app port's call reaches
- *   (`fields.caller`), so `expose.apps` widens neither the person's palette nor an agent's reach. A stopgap until
- *   milestone B runs app calls through AFD's `createAppCallRegistry`.
+ * - **The registry a call runs on** (phase 5 specification, 9.1): one per interface, `boot`'s, and the `apps`
+ *   registry, AFD's `createAppCallRegistry`, which the `apps` chunk builds on the first app-to-app call after each
+ *   change of commands, so first paint holds none of it. Every app call to another app's command runs there, with
+ *   `interface: 'apps'`, and is refused AFD's fixed `CALL_NOT_GRANTED` before lookup unless the command sets
+ *   `expose.apps` and `call-grant.ts`'s rule holds.
  * - **The copilot's traces** (3.2, 5.3): by trace ID while a call runs, and the traced calls that have ended, so a
  *   handler's client kept past its call is refused rather than run untraced.
  */
@@ -14,32 +15,10 @@ import type { DirectCommandRegistry } from '@lushly-dev/afd-server/direct';
 import type { CopilotTraceV1 } from './copilot/types.js';
 import { kernelFailure } from './errors.js';
 
-/** The kernel's registries: one per interface, `boot`'s, and the app-call registry when an entry lets apps call. */
+/** The kernel's registries: one per interface and `boot`'s; `apps` once an app has called another app's command. */
 export type KernelRegistries = Record<'palette' | 'agent' | 'boot', DirectCommandRegistry> & {
 	apps?: DirectCommandRegistry;
 };
-
-/** A mounted definition's twin on the app-call registry, by `Symbol.for`, so this module imports nothing of `apps/`. */
-const APPS_TWIN = Symbol.for('dev.loam/apps-twin');
-
-/** The commands with each twin in its place, or undefined when no command has one. */
-export function appCallTwins<T extends object>(commands: readonly T[]): T[] | undefined {
-	const twins = commands.map(
-		(command) => ((command as Record<symbol, unknown>)[APPS_TWIN] ?? command) as T
-	);
-	return twins.some((twin, index) => twin !== commands[index]) ? twins : undefined;
-}
-
-/** The registry a call runs on: an app port's palette call reaches the app-call registry when there is one. */
-export function registryFor(
-	registries: KernelRegistries,
-	iface: 'palette' | 'agent',
-	caller: unknown
-): DirectCommandRegistry {
-	return (
-		(iface === 'palette' && caller !== undefined ? registries.apps : undefined) ?? registries[iface]
-	);
-}
 
 /** The copilot's traces by trace ID, and the traced calls that have ended (B12). */
 export function createTraces() {
@@ -57,8 +36,10 @@ export function createTraces() {
 			fields: { parent?: string; confirmation?: unknown; trace?: CopilotTraceV1 }
 		): CopilotTraceV1 | undefined {
 			if (iface === 'agent' && minted !== undefined) return minted;
+			// A confirmed re-run of the copilot's call, or of an app's call to another app made under its trace (9.1's step
+			// 4, L2): the trace its confirmation stored, so a tainted session stays tainted.
 			if (
-				iface === 'agent' &&
+				(iface === 'agent' || iface === 'apps') &&
 				typeof fields.confirmation === 'string' &&
 				fields.trace !== undefined
 			)

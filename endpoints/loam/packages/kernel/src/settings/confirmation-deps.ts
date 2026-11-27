@@ -73,7 +73,7 @@ export interface ConfirmationDeps {
 	personLabel(): string | null;
 	/** The kernel's `execute`, past the queue: a top-level call journaled as its own (7.2's run, 7.1's). */
 	runNow(
-		iface: 'palette' | 'agent',
+		iface: 'palette' | 'agent' | 'apps',
 		name: string,
 		input: unknown,
 		fields: Record<string | symbol, unknown>

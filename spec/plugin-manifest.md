@@ -94,6 +94,7 @@ no two hosts claim one name:
 | `bind_space` | A mount tool | Umbel |
 | `ui` | Top level, in the core as an object | Loam, which defines its contents |
 | `app`, `native`, `view`, `agent` | Top level | Loam |
+| `calls` | Top level: the other apps' commands a plugin holding Loam's `calls` grant may call, by app | Loam, from its manifest version 2; a callee's command lets the call run with core version 2's `expose.apps`, which Loam's manifest version 3 admits |
 
 A change to this table is a change to this page.
 
@@ -350,8 +351,8 @@ cannot forge it.
   a reserved key defined, or a value in an open vocabulary. A meaning or default never changes and a
   key is never removed. Anything else is a new format. Version 2 (Loam phase 5 step 0b) defines
   `expose.apps`, reserved in version 1, and changes nothing else, which
-  `scripts/plugin-manifest.test.mjs` checks. Umbel's and Loam's profiles conform to version 1; Loam's
-  adopts version 2 with a new manifest version in its phase 5's milestone B.
+  `scripts/plugin-manifest.test.mjs` checks. Umbel's profile conforms to version 1. Loam's manifest
+  versions 1 and 2 conform to version 1, and its manifest version 3 (phase 5's step 10) to version 2.
 - **Profiles.** Each manifest version pins one core version and follows its host's rules. Adopting a
   newer core version means a new manifest version, so an older host refuses the newer file and says
   what it serves.

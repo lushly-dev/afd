@@ -88,7 +88,8 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"mcp",
 			"agent",
 			"cli",
-			"palette"
+			"palette",
+			"apps"
 		],
 		"/commands/*/examples": [],
 		"/commands/*/examples/*": [

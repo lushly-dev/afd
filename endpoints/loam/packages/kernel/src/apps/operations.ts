@@ -4,8 +4,9 @@
  */
 
 import { type CommandError, type CommandResult, failure, success } from '@lushly-dev/afd-core';
+import { callNotGranted } from '@lushly-dev/afd-core/internal/app-calls';
 import { defineCommand, type ZodCommandDefinition } from '@lushly-dev/afd-server/define';
-import type { ManifestRefusal, ManifestV2, ProjectionAppV1 } from '@lushly-dev/loam-manifest';
+import type { ManifestRefusal, ManifestV3, ProjectionAppV1 } from '@lushly-dev/loam-manifest';
 import { z } from 'zod';
 import { type AppCommandRowV1, type AppsRuntime, unknownApp } from '../apps-runtime.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
@@ -37,7 +38,7 @@ export interface AppRecord {
 	readonly rail: boolean;
 	readonly entry: ProjectionAppV1;
 	/** Absent when the manifest was refused or could not be read. */
-	readonly manifest?: ManifestV2;
+	readonly manifest?: ManifestV3;
 	port?: AppPort;
 	/** A mounted `http` instance's discovery and calls. */
 	mounted?: MountedHost;
@@ -470,13 +471,10 @@ export function createRefusalCommands(): ZodCommandDefinition[] {
 			mutation: false,
 			executionTime: 'instant',
 			input: refuseInput,
-			async handler(input) {
-				return kernelFailure(
-					'CALL_NOT_GRANTED',
-					`An app may not call '${input.command}'`,
-					'An app calls its own commands and a fixed list of shell commands; the calls grant arrives in phase 5',
-					{ details: { command: input.command } }
-				);
+			// AFD's fixed refusal (phase 5 specification, 9.1's step 3): no command name and no details reach the caller; the
+			// journal holds the name in this entry's input, and the calling app in its context.
+			async handler() {
+				return failure(callNotGranted());
 			},
 		}),
 		defineCommand<typeof refuseInput, never>({

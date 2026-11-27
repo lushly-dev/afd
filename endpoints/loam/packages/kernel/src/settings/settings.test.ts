@@ -6,7 +6,7 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { type CommandResult, MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { IdentityV1, ManifestV2, ProjectionV3, ProjectionV4 } from '@lushly-dev/loam-manifest';
+import type { IdentityV1, ManifestV3, ProjectionV3, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -30,7 +30,7 @@ function manifestOf(
 	grants: string[],
 	settings: unknown[],
 	commands: string[]
-): ManifestV2 {
+): ManifestV3 {
 	return {
 		manifest_version: 2,
 		protocol: 1,
@@ -53,7 +53,7 @@ function manifestOf(
 			input_schema: EMPTY,
 		})),
 		ui: { surfaces: { main: { element: `${id}-main` } }, settings },
-	} as unknown as ManifestV2;
+	} as unknown as ManifestV3;
 }
 
 const keys = (properties: Record<string, unknown>) => ({

@@ -5,7 +5,7 @@
  */
 
 import type { CommandResult } from '@lushly-dev/afd-core';
-import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV3 } from '@lushly-dev/loam-manifest';
 import type { LoamClientV1, OverlayResultV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import { LoamKernelError } from '../errors.js';
 import { LIMIT_DEFAULTS, measureJson } from '../limits.js';
@@ -19,7 +19,7 @@ import type { HandlerRefusal } from './types.js';
 const RESOURCE_MIME = 'text/html;profile=mcp-app';
 
 export interface ViewBrokerOptions {
-	manifest: ManifestV2;
+	manifest: ManifestV3;
 	sandboxOrigin: string | null;
 	/**
 	 * The instance's guard (phase 4 specification, section 11): the gate on every message its frame sends, the rate it
@@ -56,7 +56,7 @@ export interface ViewHost {
 }
 
 /** The resource a command's `tool_meta.ui.resourceUri` names, if any. */
-function linkedResource(manifest: ManifestV2, name: string): string | undefined {
+function linkedResource(manifest: ManifestV3, name: string): string | undefined {
 	const command = manifest.commands?.find((candidate) => candidate.name === name);
 	const uri = (command?.tool_meta?.ui as { resourceUri?: unknown } | undefined)?.resourceUri;
 	return typeof uri === 'string' ? uri : undefined;
