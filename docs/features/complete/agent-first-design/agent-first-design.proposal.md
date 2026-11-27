@@ -747,7 +747,8 @@ Two other parts of it meet [epic #1385](https://github.com/lushly-dev/afd/issues
   [#1157](https://github.com/lushly-dev/afd/issues/1157)). Each of its packages carries its
   Markdown documentation for the installed version (`node_modules/@ui-sdk/react/docs/llms.txt`),
   and `@ui-sdk/core` carries a skill (`node_modules/@ui-sdk/core/skills/ui-sdk/SKILL.md`).
-  `violet-elements`' pack is not in its npm package.
+  `violet-elements`' pack was not in its npm package when this was read (2026-11-24); since
+  #1157 the package ships it in Specimen's exported form at `dist/pack/`.
 - **WebMCP** (step 12, [#2278](https://github.com/lushly-dev/afd/issues/2278)). Its
   `registerTools` registers three tools for any page, `snapshot`, `act` and `query`, through
   `document.modelContext`, with `readOnlyHint` on `snapshot`, `consequentialHint` on `act` and

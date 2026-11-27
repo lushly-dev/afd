@@ -12,7 +12,10 @@
  *    `theme-builtin`, `custom-elements.json`, `tokens/*`, `package.json`) resolve;
  *  - non-published paths (`dist/*`, `src/*`, `scripts/*`) stay blocked;
  *  - `sideEffects` lists only the define modules, `all.js` and the root `index.js`;
- *  - every shipped source map carries `sourcesContent`.
+ *  - every shipped source map carries `sourcesContent`;
+ *  - `dist/pack/` is the component pack in Specimen's exported form: valid, stamped with this
+ *    package's name and version, holding exactly the committed records and rules (#1157), and
+ *    reachable as `./pack/*`.
  *
  * Run `pnpm --dir packages/violet-elements build` first.
  */
@@ -23,6 +26,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { checkPack, packCatalog, readPackFiles } from "@lushly-dev/specimen/pack";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageName = "@lushly-dev/violet-elements";
@@ -64,6 +68,8 @@ try {
     "dist/button/violet-button.define.d.ts",
     "dist/all.js",
     "tokens/interface.json",
+    "dist/pack/data/violet-elements/library.json",
+    "dist/pack/rules/violet-elements.json",
   ]) {
     check(files.includes(required), `tarball is missing ${required}`);
   }
@@ -122,6 +128,7 @@ try {
     "./theme-builtin",
     "./custom-elements.json",
     "./tokens/*",
+    "./pack/*",
     "./package.json",
   ];
   const expectedKeys = new Set([
@@ -145,6 +152,7 @@ try {
     [`${packageName}/theme-css`]: "dist/theme/violet-theme-css.js",
     [`${packageName}/theme-runtime`]: "dist/theme/violet-theme-runtime.js",
     [`${packageName}/theme-builtin`]: "dist/theme/violet-theme-builtin.js",
+    [`${packageName}/pack/data/violet-elements/library.json`]: "dist/pack/data/violet-elements/library.json",
   };
   for (const element of elements) {
     mustResolve[`${packageName}/${element.subpath}`] = `${classModule(element)}.js`;
@@ -218,6 +226,44 @@ try {
     JSON.stringify(pkg.sideEffects) === JSON.stringify(["./dist/**/*.define.js", "./dist/all.js", "./dist/index.js"]),
     `sideEffects must list only the define modules, all.js and index.js, got ${JSON.stringify(pkg.sideEffects)}`,
   );
+
+  // The component pack, as a deployment copies it: valid in the exported form, stamped with this
+  // package, and the committed records and rules byte for byte, with nothing else beside them.
+  const packRoot = path.join(installed, "dist", "pack");
+  const shipped = existsSync(packRoot) ? await readPackFiles(packRoot) : new Map();
+  const packProblems = checkPack(shipped, { form: "exported" }).problems;
+  check(
+    packProblems.length === 0,
+    `dist/pack is not a valid exported pack: ${packProblems.map((problem) => `${problem.code} at ${problem.path}`).join("; ")}`,
+  );
+  const catalogBytes = shipped.get("data/violet-elements/library.json");
+  const stamp = catalogBytes && JSON.parse(new TextDecoder().decode(catalogBytes)).package;
+  check(
+    stamp?.name === pkg.name && stamp?.version === pkg.version,
+    `dist/pack's catalog is stamped ${JSON.stringify(stamp)}, not ${pkg.name}@${pkg.version}`,
+  );
+  // The files a library owns in a pack, as Specimen's committedFiles (src/pack-files.ts) and
+  // export-pack.mjs filter them.
+  const ownPackFile = (file) =>
+    file === "rules/violet-elements.json" || file.startsWith("data/violet-elements/components/") || file.startsWith("data/violet-elements/patterns/");
+  const committedPack = new Map([...(await readPackFiles(path.join(packageRoot, "pack")))].filter(([file]) => ownPackFile(file)));
+  const expectedPack = [...committedPack.keys(), "data/violet-elements/library.json"].sort();
+  check(
+    JSON.stringify([...shipped.keys()].sort()) === JSON.stringify(expectedPack),
+    "dist/pack's files are not the committed records, the rules and library.json; run the build again",
+  );
+  const { pack: packSettings } = JSON.parse(readFileSync(path.join(packageRoot, "specimen.config.json"), "utf8"));
+  const expectedCatalog = packCatalog(committedPack, "violet-elements", {
+    title: packSettings.title,
+    package: { name: pkg.name, version: pkg.version },
+    prefix: packSettings.prefix,
+  });
+  check(
+    catalogBytes !== undefined && new TextDecoder().decode(catalogBytes) === expectedCatalog,
+    "dist/pack's library.json is not the catalog of the committed records with this package's stamp; run the build again",
+  );
+  const changed = [...committedPack].filter(([file, bytes]) => !(shipped.has(file) && Buffer.compare(shipped.get(file), bytes) === 0)).map(([file]) => file);
+  check(changed.length === 0, `dist/pack differs from the committed pack in ${changed.join(", ")}; run the build again`);
 
   let maps = 0;
   const walk = (directory) => {

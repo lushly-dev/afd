@@ -501,6 +501,7 @@ Object.assign(exportsMap, {
 	'./theme-builtin': entry('theme/violet-theme-builtin'),
 	'./custom-elements.json': './custom-elements.json',
 	'./tokens/*': './tokens/*',
+	'./pack/*': './dist/pack/*',
 	'./package.json': './package.json',
 });
 pkg.exports = exportsMap;
