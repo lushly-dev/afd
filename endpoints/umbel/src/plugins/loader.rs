@@ -864,7 +864,8 @@ fn prepare(
         pipeline_schemas.push(schema);
     }
 
-    // 5b. The packs: the plugin's defaults and the spaces' overrides, read now (D46).
+    // 5b. The packs: the plugin's defaults and the spaces' overrides, checked now (D46) and each
+    // override again on each call that reads it (D222).
     let packs = PackSet::load(
         &workspace.layout().spaces_dir(),
         &manifest.plugin.id,

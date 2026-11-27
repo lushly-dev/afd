@@ -10,8 +10,8 @@
 //! plugin is Rust code with the host's privileges (owner decision 1 of 2026-11-01).
 
 use std::collections::BTreeSet;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use afd::CommandContext;
 use serde_json::Value;
@@ -82,7 +82,7 @@ pub(crate) struct Shared {
     pub(crate) config: Value,
     /// The spaces the instance is enabled for.
     pub(crate) spaces: Vec<SpaceId>,
-    /// The plugin's packs with each space's override (D46).
+    /// The plugin's packs; each space's override is found on each call that reads it (D46, D222).
     pub(crate) packs: PackSet,
     pub(crate) workspace: Arc<Workspace>,
     pub(crate) projector: Arc<Projector>,
@@ -229,6 +229,7 @@ impl Services {
             as_principal: None,
             read_only: false,
             pack_bytes: AtomicU64::new(0),
+            pack_copies: Mutex::new(BTreeMap::new()),
             log_bytes: AtomicU64::new(0),
             content_bytes: AtomicU64::new(0),
         }
@@ -349,6 +350,10 @@ pub struct CallServices {
     pub(super) as_principal: Option<String>,
     pub(super) read_only: bool,
     pack_bytes: AtomicU64,
+    /// Each pack this call has read, as its first read found it: the rest of the call stays on
+    /// that copy, the default or the one override directory that was checked (D222). Its files
+    /// are still read from disk when asked for, so a copy written meanwhile can show through.
+    pack_copies: Mutex<BTreeMap<String, Arc<PackCopy>>>,
     log_bytes: AtomicU64,
     pub(super) content_bytes: AtomicU64,
 }
@@ -374,6 +379,7 @@ impl CallServices {
             as_principal: Some(principal.to_owned()),
             read_only: true,
             pack_bytes: AtomicU64::new(0),
+            pack_copies: Mutex::new(BTreeMap::new()),
             log_bytes: AtomicU64::new(0),
             content_bytes: AtomicU64::new(0),
         }
@@ -545,6 +551,7 @@ impl CallServices {
             as_principal: None,
             read_only: false,
             pack_bytes: AtomicU64::new(0),
+            pack_copies: Mutex::new(BTreeMap::new()),
             log_bytes: AtomicU64::new(0),
             content_bytes: AtomicU64::new(0),
         }
@@ -602,14 +609,32 @@ impl CallServices {
     }
 
     /// The call's space's effective copy of the pack `id`: the space's override, else the
-    /// plugin's default.
-    fn pack(&self, id: &str) -> Result<&PackCopy, ServiceError> {
-        self.shared.packs.effective(id, &self.space).ok_or_else(|| {
-            ServiceError::NotFound(format!(
-                "the plugin declares no pack `{id}`; its packs are: {}",
-                self.shared.packs.ids().collect::<Vec<_>>().join(", ")
-            ))
-        })
+    /// plugin's default. The first read in a call finds it and checks an override against
+    /// section 8.2's rules; the call's later reads take the same copy (D222).
+    fn pack(&self, id: &str) -> Result<Arc<PackCopy>, ServiceError> {
+        let mut copies = self
+            .pack_copies
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(copy) = copies.get(id) {
+            return Ok(Arc::clone(copy));
+        }
+        let found = self
+            .shared
+            .packs
+            .effective(id, &self.space)
+            .ok_or_else(|| {
+                ServiceError::NotFound(format!(
+                    "the plugin declares no pack `{id}`; its packs are: {}",
+                    self.shared.packs.ids().collect::<Vec<_>>().join(", ")
+                ))
+            })?;
+        let copy = found.map_err(|error| {
+            tracing::warn!(plugin = %self.shared.instance, pack = id, "{error}");
+            ServiceError::Invalid(error.to_string())
+        })?;
+        copies.insert(id.to_owned(), Arc::clone(&copy));
+        Ok(copy)
     }
 }
 
