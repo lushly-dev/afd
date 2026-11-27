@@ -101,6 +101,10 @@ pub struct EngineState {
     /// The engine's persistent, non-bearer instance identity key (5.2), 64 lowercase hex characters.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proof_key: Option<String>,
+    /// D166 opt-in Linux keyring-less fallback: when true, the bearer lives in owner-only
+    /// `mounts.json` (mode `0600`) instead of `bearer_keychain`, still behind `proof_key`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub file_fallback: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -187,6 +191,7 @@ impl DesktopState {
                     PORTS.contains(&engine.port)
                         && ports.insert(engine.port)
                         && engine.token_id.is_some() == engine.proof_key.is_some()
+                        && (!engine.file_fallback || engine.token_id.is_some())
                         && engine.token_id.as_deref().is_none_or(token_id)
                         && engine.proof_key.as_deref().is_none_or(hex64)
                 })
@@ -436,6 +441,7 @@ mod tests {
                 port: 17400,
                 token_id: Some("tok_1".into()),
                 proof_key: Some("b".repeat(64)),
+                file_fallback: false,
             }),
         }
     }

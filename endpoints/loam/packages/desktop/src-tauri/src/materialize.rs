@@ -15,7 +15,7 @@ use crate::models::{KeyRef, Kind, Provider};
 use crate::mounts::read_owner_only;
 use crate::plugin_manifest::{self, AuthMode};
 use sha2::{Digest, Sha256};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 /// Compile-time digest of the bundled shell (`../dist`), polyfill, and desktop build metadata
@@ -336,12 +336,119 @@ struct Built {
     package: Package,
 }
 
-/// The files `state` materializes to, from the bundles installed under `data`, or [`INVALID`] when the state, or a
-/// bundle it names, is not one this host builds on. Reads only; nothing is written.
+/// Owner-only D166 per-token fallback file `<data>/keys/mount-<instance>.<tokenId>.key` so a crash
+/// between overwriting `mounts.json` and committing `desktop-state.json` during rotation or
+/// upgrade never loses the previously committed bearer token.
+pub(crate) fn mount_fallback_key_path(data: &Path, instance: &str, token_id: &str) -> PathBuf {
+    data.join("keys")
+        .join(format!("mount-{instance}.{token_id}.key"))
+}
+
+pub(crate) fn write_mount_fallback_key(
+    data: &Path,
+    instance: &str,
+    token_id: &str,
+    bearer: &str,
+) -> Result<(), &'static str> {
+    crate::connection::ensure_dir_owner_only(&data.join("keys")).map_err(|_| FAILED)?;
+    write_owner_only(
+        &mount_fallback_key_path(data, instance, token_id),
+        bearer.as_bytes(),
+    )
+    .map_err(unwritten)
+}
+
+pub(crate) fn read_mount_fallback_key(
+    data: &Path,
+    instance: &str,
+    token_id: &str,
+) -> Option<String> {
+    let bytes = read_owner_only(
+        &mount_fallback_key_path(data, instance, token_id),
+        16 * 1024,
+    )
+    .ok()?;
+    let text = String::from_utf8(bytes).ok()?;
+    let trimmed = text.trim_end_matches(['\r', '\n']);
+    if crate::models::key_shaped(trimmed) {
+        Some(trimmed.to_owned())
+    } else {
+        None
+    }
+}
+
+pub(crate) fn delete_mount_fallback_key(data: &Path, instance: &str, token_id: &str) {
+    let _ = std::fs::remove_file(mount_fallback_key_path(data, instance, token_id));
+}
+
+/// Reads any existing owner-only `mounts.json` plaintext bearers keyed by instance id so
+/// D166 Linux file-fallback bearers survive reconciliation and unrelated plugin commits without
+/// ever storing secrets in `desktop-state.json`.
+pub(crate) fn read_existing_fallback_bearers(data: &Path) -> HashMap<String, String> {
+    let Ok(bytes) = read_owner_only(&data.join("mounts.json"), 1024 * 1024) else {
+        return HashMap::new();
+    };
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+        return HashMap::new();
+    };
+    let mut map = HashMap::new();
+    if let Some(mounts) = value.get("mounts").and_then(|v| v.as_array()) {
+        for entry in mounts {
+            if let (Some(instance), Some(bearer)) = (
+                entry.get("instance").and_then(|v| v.as_str()),
+                entry.get("bearer").and_then(|v| v.as_str()),
+            ) {
+                map.insert(instance.to_owned(), bearer.to_owned());
+            }
+        }
+    }
+    map
+}
+
+/// Loads D166 Linux file-fallback bearers by reading `mounts.json` first and then overlaying
+/// per-token owner-only key files (`<data>/keys/mount-<instance>.<tokenId>.key`) for every
+/// `file_fallback` engine in `state.plugins`. Because the per-token file wins over `mounts.json`,
+/// rollback or crash recovery never lets a revoked bearer in `mounts.json` shadow the committed
+/// token's bearer.
+fn load_fallback_bearers(data: &Path, state: &DesktopState) -> HashMap<String, String> {
+    let mut map = read_existing_fallback_bearers(data);
+    for plugin in &state.plugins {
+        if let Some(eng) = &plugin.engine
+            && eng.file_fallback
+            && let Some(tid) = &eng.token_id
+            && let Ok(bytes) = std::fs::read(
+                data.join("plugins")
+                    .join(&plugin.id)
+                    .join(&plugin.bundle_sha256)
+                    .join("plugin-manifest.json"),
+            )
+            && let Some((manifest, _)) = crate::plugin_manifest::read(&bytes)
+            && let Some(em) = manifest.engine
+            && let Some(tok) = read_mount_fallback_key(data, &em.mount_app, tid)
+        {
+            map.insert(em.mount_app, tok);
+        }
+    }
+    map
+}
+
+/// Like [`project_with_fallbacks`], reading D166 Linux file-fallback bearers from per-token
+/// owner-only key files (`<data>/keys/mount-<instance>.<tokenId>.key`) with `mounts.json` fallback.
 pub fn project(
     data: &Path,
     state: &DesktopState,
     profile: &Profile,
+) -> Result<Materialized, &'static str> {
+    let existing = load_fallback_bearers(data, state);
+    project_with_fallbacks(data, state, profile, &existing)
+}
+
+/// Like [`project`], with explicit D166 Linux file-fallback bearers keyed by mounted instance id.
+pub fn project_with_fallbacks(
+    data: &Path,
+    state: &DesktopState,
+    profile: &Profile,
+    fallback_bearers: &HashMap<String, String>,
 ) -> Result<Materialized, &'static str> {
     if !state.valid() {
         return Err(INVALID);
@@ -457,13 +564,22 @@ pub fn project(
                     ),
                 ];
                 if let (Some(token), Some(proof)) = (&record.token_id, &record.proof_key) {
-                    access.push((
-                        "bearer_keychain".to_owned(),
-                        Json::obj([
-                            ("keychain", Json::str(profile.mount_keychain)),
-                            ("account", Json::Str(format!("{}.{token}", app.id))),
-                        ]),
-                    ));
+                    if record.file_fallback {
+                        let bearer = fallback_bearers
+                            .get(&app.id)
+                            .cloned()
+                            .or_else(|| read_mount_fallback_key(data, &app.id, token))
+                            .ok_or(INVALID)?;
+                        access.push(("bearer".to_owned(), Json::Str(bearer)));
+                    } else {
+                        access.push((
+                            "bearer_keychain".to_owned(),
+                            Json::obj([
+                                ("keychain", Json::str(profile.mount_keychain)),
+                                ("account", Json::Str(format!("{}.{token}", app.id))),
+                            ]),
+                        ));
+                    }
                     access.push(("proof_key".to_owned(), Json::str(proof)));
                 }
                 mount = Some(Json::Obj(access));
@@ -860,7 +976,23 @@ pub fn commit(
     profile: &Profile,
     shell_build: &str,
 ) -> Result<Materialized, &'static str> {
-    let built = project(data, state, profile)?;
+    commit_with_fallbacks(data, state, profile, shell_build, &HashMap::new())
+}
+
+/// Like [`commit`], supplying explicit D166 Linux file-fallback bearers (merged over per-token
+/// owner-only key files and any existing `mounts.json` bearers for other installed plugins).
+pub fn commit_with_fallbacks(
+    data: &Path,
+    state: &DesktopState,
+    profile: &Profile,
+    shell_build: &str,
+    fallback_overrides: &HashMap<String, String>,
+) -> Result<Materialized, &'static str> {
+    let mut fallbacks = load_fallback_bearers(data, state);
+    for (k, v) in fallback_overrides {
+        fallbacks.insert(k.clone(), v.clone());
+    }
+    let built = project_with_fallbacks(data, state, profile, &fallbacks)?;
     // Refused now, not at the next start: a state its own reader would refuse is never committed.
     let state_bytes = desktop_state::bytes(state);
     if state_bytes.len() > desktop_state::FILE_MAX {

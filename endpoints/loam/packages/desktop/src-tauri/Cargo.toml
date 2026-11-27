@@ -48,6 +48,13 @@ getrandom = "=0.3.4"
 # and `loam-mail` already pin.
 sha2 = "=0.11.1"
 hmac = "=0.13.0"
+# Canonical `.loam-plugin` archive inspection (phase 5 no-terminal amendment, 4.4 & 7.1): raw deflate
+# inflation, CRC-32, and Unicode NFC/NFKC/GeneralCategory parity with `@lushly-dev/loam-manifest`,
+# all at the exact versions `Cargo.lock` already pins.
+crc32fast = "=1.5.5"
+flate2 = { version = "=1.1.11", default-features = false, features = ["rust_backend"] }
+icu_normalizer = { version = "=2.4.0", default-features = false, features = ["compiled_data"] }
+icu_properties = { version = "=2.4.0", default-features = false, features = ["compiled_data"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
@@ -70,6 +77,8 @@ windows-sys = { version = "=0.61.2", features = [
     "Win32_Security_Credentials",
     "Win32_Storage_FileSystem",
     "Win32_System_Console",
+    "Win32_System_JobObjects",
+    "Win32_System_Registry",
     "Win32_System_SystemServices",
     "Win32_System_Threading",
 ] }
@@ -90,4 +99,12 @@ custom-protocol = ["tauri/custom-protocol"]
 [[test]]
 name = "updater"
 path = "tests/updater.rs"
+harness = false
+
+# Phase 5 step 9c end-to-end plugin lifecycle & CLI integration harness: doubles as a native
+# cross-platform `http-service` fixture engine when invoked with `--version`, `pair`, `unpair`, or
+# `serve`, and runs the full P5-S9-2 / P5-S9-3 / P5-S9-4 integration suite under `cargo test`.
+[[test]]
+name = "plugin_lifecycle"
+path = "tests/plugin_lifecycle.rs"
 harness = false

@@ -39,7 +39,7 @@ pub(crate) const PLUGIN_KEYCHAIN_UNAVAILABLE: &str = "PLUGIN_KEYCHAIN_UNAVAILABL
 /// Typed failure from [`write`] or [`delete`]. Never contains the secret or raw platform text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
-pub(crate) enum KeychainError {
+pub enum KeychainError {
     /// `service` or `account` failed [`crate::models::keychain_name`].
     InvalidName,
     /// On Windows, the secret's UTF-16LE encoding exceeds [`WINDOWS_CREDENTIAL_BLOB_MAX`] (2,560 bytes).

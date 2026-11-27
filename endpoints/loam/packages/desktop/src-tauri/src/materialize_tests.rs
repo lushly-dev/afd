@@ -130,6 +130,7 @@ fn install(data: &Path, golden: &Json) -> DesktopState {
                     port: u16::try_from(*port).unwrap(),
                     token_id: (auth != "none").then(|| TOKEN_ID.to_owned()),
                     proof_key: (auth != "none").then(proof_key),
+                    file_fallback: false,
                 });
             }
         }
@@ -481,6 +482,7 @@ fn refuses_a_state_its_bundles_do_not_match() {
                     port: 17401,
                     token_id: None,
                     proof_key: None,
+                    file_fallback: false,
                 });
             }),
         ),
