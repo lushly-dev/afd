@@ -6,7 +6,7 @@
 //! `spaces/<space>/packs/<plugin id>/<pack id>/`, which replaces the default whole.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use toml::{Table, Value};
@@ -226,7 +226,8 @@ impl PackOrigin {
 }
 
 /// The files of one effective pack: the plugin's default, or a space's override that replaced it
-/// whole. Validated at `seal`; bytes are read when a plugin asks for them.
+/// whole. A default is validated at `seal`; an override at `seal` and again each time a call
+/// first reads it (D222). Bytes are read when a plugin asks for them.
 pub(crate) struct PackCopy {
     pub(crate) origin: PackOrigin,
     pub(crate) version: String,
@@ -258,15 +259,14 @@ pub(crate) struct PackState {
     pub(crate) files: usize,
 }
 
-/// One instance's packs, with the per-space overrides read at `seal` (D46).
+/// One instance's packs. The defaults are read at `seal`; each space's override is checked at
+/// `seal` (D46) and found and checked again on each call that reads it (D222), so a new, changed
+/// or removed override is served without a restart.
 pub(crate) struct PackSet {
-    entries: BTreeMap<String, Entry>,
+    entries: BTreeMap<String, Arc<PackCopy>>,
     spaces: Vec<SpaceId>,
-}
-
-struct Entry {
-    default: PackCopy,
-    overrides: BTreeMap<SpaceId, PackCopy>,
+    spaces_dir: PathBuf,
+    plugin: String,
 }
 
 impl PackSet {
@@ -294,40 +294,21 @@ impl PackSet {
                 files_source: Arc::clone(files),
                 root: decl.path.clone(),
             };
-            let mut overrides = BTreeMap::new();
-            for space in spaces {
-                let dir = spaces_dir
-                    .join(space.as_str())
-                    .join("packs")
-                    .join(plugin)
-                    .join(&decl.id);
-                if !dir.is_dir() {
-                    continue;
-                }
-                let report = check_pack(&dir, &decl.id, plugin)?;
-                let source = DirFiles::new(&dir).map_err(|error| {
-                    PluginError::pack_invalid(
-                        &dir.display().to_string(),
-                        format!("cannot be read: {error}"),
-                    )
-                })?;
-                overrides.insert(
-                    space.clone(),
-                    PackCopy {
-                        origin: PackOrigin::Override,
-                        version: report.manifest.version,
-                        files: report.files,
-                        files_source: Arc::new(source),
-                        root: ".".to_owned(),
-                    },
-                );
-            }
-            entries.insert(decl.id.clone(), Entry { default, overrides });
+            entries.insert(decl.id.clone(), Arc::new(default));
         }
-        Ok(Self {
+        let set = Self {
             entries,
             spaces: spaces.to_vec(),
-        })
+            spaces_dir: spaces_dir.to_path_buf(),
+            plugin: plugin.to_owned(),
+        };
+        // An invalid override still fails the instance's load (D46).
+        for id in set.entries.keys() {
+            for space in spaces {
+                set.effective(id, space).transpose()?;
+            }
+        }
+        Ok(set)
     }
 
     /// The ids of the packs, in name order.
@@ -335,13 +316,51 @@ impl PackSet {
         self.entries.keys().map(String::as_str)
     }
 
-    /// The effective copy of `pack` in `space`: the space's override, else the default.
-    pub(crate) fn effective(&self, pack: &str, space: &SpaceId) -> Option<&PackCopy> {
-        let entry = self.entries.get(pack)?;
-        Some(entry.overrides.get(space).unwrap_or(&entry.default))
+    /// The effective copy of `pack` in `space` as the disk holds it now: the space's override,
+    /// found and checked against section 8.2's rules on this call, else the plugin's default
+    /// (D222). `None` when the plugin declares no such pack.
+    ///
+    /// # Errors
+    /// `PACK_INVALID` for an override that breaks a rule of section 8.2.
+    pub(crate) fn effective(
+        &self,
+        pack: &str,
+        space: &SpaceId,
+    ) -> Option<Result<Arc<PackCopy>, PluginError>> {
+        let default = self.entries.get(pack)?;
+        // Only the instance's own spaces have overrides, whatever gate let the call through.
+        if !self.spaces.contains(space) {
+            return Some(Ok(Arc::clone(default)));
+        }
+        let dir = self
+            .spaces_dir
+            .join(space.as_str())
+            .join("packs")
+            .join(&self.plugin)
+            .join(pack);
+        // Messages name the override relative to the workspace: a plugin passes them on, and the
+        // workspace's own path is not the plugin's to know.
+        let label = format!("spaces/{}/packs/{}/{pack}", space.as_str(), self.plugin);
+        // One open of the directory: the copy is the directory that was checked, and one removed
+        // between a look and the open gives way to the default instead of failing the call.
+        let source = match DirFiles::new(&dir) {
+            Ok(source) if source.root().is_dir() => source,
+            Ok(_) => return Some(Ok(Arc::clone(default))),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Some(Ok(Arc::clone(default)));
+            }
+            Err(error) => {
+                return Some(Err(PluginError::pack_invalid(
+                    &label,
+                    format!("cannot be read: {error}"),
+                )));
+            }
+        };
+        Some(override_copy(source, &label, pack, &self.plugin).map(Arc::new))
     }
 
-    /// Every pack's state in every one of the instance's spaces, for `plugin-show`.
+    /// Every pack's state in every one of the instance's spaces, as `plugin-show` reports it from
+    /// `seal`. A space whose override is invalid is left out.
     pub(crate) fn states(&self) -> Vec<(String, Vec<PackState>)> {
         self.entries
             .keys()
@@ -350,7 +369,8 @@ impl PackSet {
                     .spaces
                     .iter()
                     .filter_map(|space| {
-                        self.effective(id, space).map(|copy| PackState {
+                        let copy = self.effective(id, space)?.ok()?;
+                        Some(PackState {
                             space: space.as_str().to_owned(),
                             origin: copy.origin,
                             version: copy.version.clone(),
@@ -362,4 +382,21 @@ impl PackSet {
             })
             .collect()
     }
+}
+
+/// A space's override, opened, checked against section 8.2's rules; `label` names it in messages.
+fn override_copy(
+    source: DirFiles,
+    label: &str,
+    id: &str,
+    plugin: &str,
+) -> Result<PackCopy, PluginError> {
+    let report = check_pack_files(&source, ".", label, id, plugin)?;
+    Ok(PackCopy {
+        origin: PackOrigin::Override,
+        version: report.manifest.version,
+        files: report.files,
+        files_source: Arc::new(source),
+        root: ".".to_owned(),
+    })
 }

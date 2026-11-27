@@ -38,6 +38,12 @@ description = "Read one file of the pack in the call's space."
 effects = ["inspect"]
 input_schema = { type = "object", properties = { space = { type = "string" }, path = { type = "string" } }, additionalProperties = false }
 
+[[commands]]
+name = "packer-twice"
+description = "List the pack, remove a directory, then read one file, all in one call."
+effects = ["inspect"]
+input_schema = { type = "object", properties = { space = { type = "string" }, remove = { type = "string" }, path = { type = "string" } }, additionalProperties = false }
+
 [[packs]]
 id = "p"
 path = "packs/p"
@@ -86,6 +92,7 @@ impl CompiledPlugin for Packer {
 
     fn commands(&self, services: Services) -> Result<Vec<PluginCommand>, PluginError> {
         let lister = services.clone();
+        let twice = services.clone();
         let reader = services;
         Ok(vec![
             closure("packer-list", move |input, context| {
@@ -104,6 +111,21 @@ impl CompiledPlugin for Packer {
                     Ok(bytes) => afd::success(json!({ "text": String::from_utf8_lossy(&bytes) })),
                     Err(error) => failed(&error),
                 }
+            }),
+            closure("packer-twice", move |input, context| {
+                let call = twice.call(&input, &context);
+                let files = match call.pack_list("p") {
+                    Ok(files) => files,
+                    Err(error) => return failed(&error),
+                };
+                if let Some(dir) = input["remove"].as_str() {
+                    fs::remove_dir_all(dir).unwrap();
+                }
+                let read = match call.pack_read("p", input["path"].as_str().unwrap_or_default()) {
+                    Ok(bytes) => json!({ "text": String::from_utf8_lossy(&bytes) }),
+                    Err(error) => json!({ "error": error.to_string() }),
+                };
+                afd::success(json!({ "files": files, "read": read }))
             }),
         ])
     }
@@ -401,4 +423,133 @@ async fn the_test_kit_gives_a_space_its_own_copy_of_a_pack() {
     };
     assert_eq!(greeting("main").await, "Hello, Ada!");
     assert_eq!(greeting("ranch").await, "Howdy, Ada!");
+}
+
+async fn list_result(host: &umbel::Host, space: &str) -> afd::CommandResult<Value> {
+    call(host, agent("a"), "packer-list", json!({ "space": space })).await
+}
+
+#[tokio::test]
+async fn an_override_written_after_seal_is_served_without_a_restart() {
+    let dir = workspace_with("");
+    let host = seal(dir.path(), |b| b.with_compiled(Packer::new())).unwrap();
+    assert_eq!(
+        list(&host, "second").await["files"],
+        json!(["data/a.txt", "data/b.txt", "pack.toml"])
+    );
+
+    // D222: a space's override is found on the call that reads it, not only at seal.
+    let over = override_dir(dir.path(), "second");
+    write(&over, "pack.toml", &pack_toml("2.0.0"));
+    write(&over, "data/a.txt", "second a");
+    assert_eq!(
+        list(&host, "second").await["files"],
+        json!(["data/a.txt", "pack.toml"])
+    );
+    assert_eq!(
+        list(&host, "main").await["files"],
+        json!(["data/a.txt", "data/b.txt", "pack.toml"]),
+        "another space keeps the default"
+    );
+}
+
+#[tokio::test]
+async fn a_removed_override_falls_back_to_the_default() {
+    let dir = workspace_with("");
+    let over = override_dir(dir.path(), "second");
+    write(&over, "pack.toml", &pack_toml("2.0.0"));
+    write(&over, "data/a.txt", "second a");
+    let host = seal(dir.path(), |b| b.with_compiled(Packer::new())).unwrap();
+    assert_eq!(
+        list(&host, "second").await["files"],
+        json!(["data/a.txt", "pack.toml"])
+    );
+
+    fs::remove_dir_all(&over).unwrap();
+    assert_eq!(
+        list(&host, "second").await["files"],
+        json!(["data/a.txt", "data/b.txt", "pack.toml"])
+    );
+}
+
+#[tokio::test]
+async fn a_changed_override_is_checked_again_and_refused_while_it_breaks_a_rule() {
+    let dir = workspace_with("");
+    let over = override_dir(dir.path(), "second");
+    write(&over, "pack.toml", &pack_toml("2.0.0"));
+    write(&over, "data/a.txt", "second a");
+    let host = seal(dir.path(), |b| b.with_compiled(Packer::new())).unwrap();
+    assert!(list_result(&host, "second").await.success);
+
+    // A file the pack may not hold: the call is refused with the rule and the path, the
+    // instance stays loaded, and another space is unaffected.
+    write(&over, "notes.txt", "stray");
+    let refused = list_result(&host, "second").await;
+    assert!(!refused.success, "{refused:?}");
+    let message = refused.error.unwrap().message;
+    assert!(message.contains("PACK_INVALID"), "{message}");
+    assert!(message.contains("holds `notes.txt`"), "{message}");
+    // Named relative to the workspace: the plugin passes the message on, so it never carries the
+    // workspace's own path.
+    assert!(
+        message.contains("spaces/second/packs/packer/p"),
+        "names the override's path: {message}"
+    );
+    let root = dir.path().to_string_lossy().into_owned();
+    assert!(!message.contains(&root), "{message}");
+    assert!(list_result(&host, "main").await.success);
+
+    // Past the file limit, which seal alone used to check.
+    fs::remove_file(over.join("notes.txt")).unwrap();
+    for index in 0..umbel::plugins::MAX_PACK_FILES {
+        write(&over, &format!("data/f{index}.txt"), "x");
+    }
+    let refused = list_result(&host, "second").await;
+    assert!(!refused.success);
+    // pack.toml, data/a.txt and the thousand files.
+    assert!(refused.error.unwrap().message.contains("1002 files"));
+
+    // Put right, it is served again.
+    fs::remove_dir_all(over.join("data")).unwrap();
+    write(&over, "data/a.txt", "fixed a");
+    let read = call(
+        &host,
+        agent("a"),
+        "packer-read",
+        json!({ "space": "second", "path": "data/a.txt" }),
+    )
+    .await;
+    assert_eq!(read.data.unwrap()["text"], "fixed a");
+}
+
+#[tokio::test]
+async fn one_call_keeps_the_copy_it_found_first() {
+    let dir = workspace_with("");
+    let over = override_dir(dir.path(), "second");
+    write(&over, "pack.toml", &pack_toml("2.0.0"));
+    write(&over, "data/a.txt", "second a");
+    let host = seal(dir.path(), |b| b.with_compiled(Packer::new())).unwrap();
+
+    // The override goes between the call's two reads. The second read stays on the override the
+    // first found (D222): `data/b.txt`, which only the default holds, is not read from the default.
+    let result = call(
+        &host,
+        agent("a"),
+        "packer-twice",
+        json!({ "space": "second", "remove": over.to_string_lossy(), "path": "data/b.txt" }),
+    )
+    .await;
+    let data = result.data.unwrap();
+    assert_eq!(data["files"], json!(["data/a.txt", "pack.toml"]));
+    assert!(data["read"]["text"].is_null(), "{data}");
+
+    // The next call finds no override and reads the default.
+    let next = call(
+        &host,
+        agent("a"),
+        "packer-read",
+        json!({ "space": "second", "path": "data/b.txt" }),
+    )
+    .await;
+    assert_eq!(next.data.unwrap()["text"], "default b");
 }

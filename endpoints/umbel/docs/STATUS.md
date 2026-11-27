@@ -258,11 +258,13 @@ to 2026-11-18; a row there is still edited in place when its status changes, unl
 | 2026-11-25 | Plugin trust stance and mount isolation ([D205](decisions.md)) | Updates the 2026-11-01 row, "Operating-system sandboxing for stdio mounts": placed by the owner as a planned phase, Linux first (Landlock; macOS and Windows designed separately). Hosted deployments should not allow stdio mounts until then | Open, planned phase (Linux first) |
 | 2026-11-25 | Secret command flag ([D205](decisions.md), [#2589](https://github.com/lushly-dev/afd/pull/2589)) | A compiled plugin's `secret` command writes no journal entry (the host redactor drops it, tapes included), so event streams do not see its mutations. No command declares `secret` today | Open: decide between no entry and a cut-down change-only entry when a plugin first needs a secret mutation |
 | 2026-11-26 | The SDK split, D218 ([#1775](https://github.com/lushly-dev/afd/issues/1775)) | Remove the frozen `HostServices` from the SDK. First, a plugin-only pull request moves `plugins/ideas/tests/support/stub.rs` to the family traits. Then an SDK-only pull request deletes the trait and its blanket impls, as SDK 0.3.0 with a changelog entry. | Open |
+| 2026-11-27 | Pack overrides on each call, D222 ([#2900](https://github.com/lushly-dev/afd/issues/2900)) | `plugin-show` reports each space's pack as `seal` saw it, and the doctor's `plugins.pack_checks` (D172) checks the overrides `seal` saw, so after a new, changed or removed override either can name a copy the calls no longer read. Resolving them there too needs the instance's `PackSet`, not the load report | Open |
 
 ### Follow-ups: the `components` plugin
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
+| 2026-11-27 | Pack overrides on each call, D222 ([#2900](https://github.com/lushly-dev/afd/issues/2900)) | An override that breaks a rule after `seal` reaches the plugin as `Invalid` carrying `PACK_INVALID`'s message, which it answers as `PACK_UNREADABLE`, "a file the pack listed could not be read", with a retry. That fits a half-written copy, not a stray file or a pack past the limits: the answer could carry the host's message and say to fix the override. A plugin change, so a pull request of its own | Open |
 
 ### Follow-ups: the `ideas` plugin and its host records
 

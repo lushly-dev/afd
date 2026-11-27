@@ -1279,14 +1279,17 @@ description = "Salutations hello-greet uses."   # required
   `pack.toml` (same `id` and `plugin`) replaces the default pack **whole** in
   that space; files are never merged. Its `version` is the deployer's. A
   space without an override uses the plugin's default. The override is read
-  at `seal`.
+  at `seal`, and found and checked again on the first read of each call, which
+  keeps that copy for its other reads (D222): a new, changed or removed
+  override is served without a restart.
 - **Limits:** at most 1 000 files and 64 MiB per pack; no symlink leaves the
   pack; file names are UTF-8.
 - **Validation** (`PACK_INVALID`, naming the path): the schema, the id and
   plugin match, the limits. An invalid override fails the instance's load
-  (`required` decides as in section 6).
+  (`required` decides as in section 6); one that becomes invalid after `seal`
+  refuses the calls that read it, with the same message, and nothing else (D222).
 - `plugin-show` reports each pack per space as `default` or `override` with
-  its version and file count.
+  its version and file count, as `seal` found them.
 
 ### 8.3 Skills
 
@@ -1572,7 +1575,7 @@ the file-only checks even when `seal` fails; a doctor run with no catalog
 | `plugins.loaded` | Every instance loaded; reports kinds and counts, and "trusted, not sandboxed" beside each compiled instance's grants | An optional instance failed (names the code); a mounted tool skipped (`PLUGIN_TOOL_UNNAMEABLE`, `PLUGIN_TOOL_SCHEMA_UNSUPPORTED`); a mounted description matched by the `description-injection` rule | Never: a required failure stops the host from opening | `skip` |
 | `plugins.first_class` | Suggestions fit the cap | Suggestions dropped | | `skip` |
 | `plugins.pipelines` | Every pipeline registered | A pipeline not registered (names the missing step) | | `skip` |
-| `plugins.pack_checks` (added 2026-11-11, D172) | Every space override of a compiled instance's pack passes the plugin's own check (`umbel_sdk::Plugin::check_pack`), or the plugin offers none (counted, layout only) | An optional instance's override fails it, or the failure is retryable | A required instance's override fails it (names the instance, pack, space, the plugin's code, message and first problems) | `skip` |
+| `plugins.pack_checks` (added 2026-11-11, D172) | Every space override that `seal` found of a compiled instance's pack passes the plugin's own check (`umbel_sdk::Plugin::check_pack`), or the plugin offers none (counted, layout only) | An optional instance's override fails it, or the failure is retryable | A required instance's override fails it (names the instance, pack, space, the plugin's code, message and first problems) | `skip` |
 | `plugins.config_checks` (added 2026-11-25, D206) | Every loaded compiled instance's configuration passes the plugin's own check (`umbel_sdk::Plugin::check_config`), or the plugin offers none (counted, schema only) | An optional instance's configuration fails it, or the failure is retryable | A required instance's configuration fails it (names the instance, the plugin's code, message and first problems) | `skip` |
 
 ### 9.3 Error codes
@@ -2205,7 +2208,7 @@ use `plugins::resolve_source`, which answers `ResolvedSource::Unresolved`
 | 8.5 | A pipeline is "registered as a command of the plugin" | Also: its result is `{ "steps": [ { index, command, as?, status, data? } ] }`; a failing step fails the pipeline with the step's own error, plus `details.pipeline`, `details.step` and `details.command`; a pipeline is not a transaction, so earlier steps stay done. The pipeline command is not projected into an event (its steps are, as the calls they are); `effects` still set its `mutation` | Spec was silent on the result; projecting both would write each change twice |
 | 2, 8.5 | A command's `contexts` are "AFD contexts this command belongs to" | Each must be declared in the same manifest's `[[contexts]]`, else `PLUGIN_MANIFEST_INVALID` naming `commands[i].contexts` | An undeclared context would hide the command from every context without saying so |
 | 8.5 | Contexts: names start with a domain so they never collide | The loader also refuses two instances declaring one context name (`PLUGIN_CONFLICT`); the doctor's `mcp.surface` re-check builds its server with no contexts, because the live registry already holds the context commands | Step 7 of the load sequence names contexts; `register_context_commands` refuses a second registration |
-| 8.2 | "The override is read at `seal`" | Validated and counted at `seal`; a plugin's reads open the files when it asks, confined to the pack directory. The plugin's own default pack is validated at load too, for every kind (so a broken default pack fails the instance with `PACK_INVALID`) | Holding up to 64 MiB per pack per space in memory is not worth the guarantee |
+| 8.2 | "The override is read at `seal`" | Validated and counted at `seal`, and since D222 found and validated again on each call's first read of the pack; a plugin's reads open the files when it asks, confined to the pack directory. The plugin's own default pack is validated at load too, for every kind (so a broken default pack fails the instance with `PACK_INVALID`) | Holding up to 64 MiB per pack per space in memory is not worth the guarantee |
 | 8.4 | Suggestions past the cap are dropped and the doctor warns | As written, for the default set only; with the deployer's `mcp.first_class_tools` set, the doctor's `plugins.first_class` passes and says the list wins and which suggestions it did not use | The deployer's list is not a failure to fit |
 | 10.1 | `TestHostBuilder::pack_override(space, pack, dir)` | Copies `dir` to `spaces/<space>/packs/<plugin id>/<pack>/` of the temporary workspace; `replay` repeats it for the fresh host | Same layout the host reads |
 | 8.4 | Mounted overrides can suggest first-class tools | Step 5; the loader's `suggestions` list takes manifest commands only for now | Mounted tools do not exist yet |
