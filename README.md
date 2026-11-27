@@ -575,7 +575,7 @@ The projects were built separately, and each one is used by the others:
 |--------|---------------|
 | **Stable** | Published on the default tag at 1.0 or later, on a final (not release-candidate) AFD contract; breaking changes only in a major version. None yet. |
 | **Beta** | Published on the registry's default tag; breaking changes only in a major version (below 1.0, the minor is the major). Now: TypeScript, Python, Botcore. |
-| **Preview** | Published, on npm only under the `preview` tag; may change in any release. Now: Rust, C++, Violet, FAST-AF, Specimen. |
+| **Preview** | Published, on npm only under the `preview` tag (npm's `latest` stays on a `0.0.0` placeholder, so a plain install never gets a preview); may change in any release. Now: Rust, C++, Violet, FAST-AF, Specimen. |
 | **In development** | Built and tested here, not published. Now: Umbel, Loam. |
 | **Internal** | This repository's own tooling, not offered for use elsewhere. Now: Alfred, Health. |
 <!-- generated:maturity:ladder:end -->

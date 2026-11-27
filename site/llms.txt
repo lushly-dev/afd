@@ -101,7 +101,7 @@ Projects in the same repository that take the method one layer up, arranged by w
 - Run and operate: Umbel (In development), Loam (In development), Botcore (Beta)
 - This repository's tools: Alfred (Internal), Health (Internal)
 
-Status words. Stable: published on the default tag at 1.0 or later, on a final (not release-candidate) AFD contract; breaking changes only in a major version. Beta: published on the registry's default tag; breaking changes only in a major version (below 1.0, the minor is the major). Preview: published, on npm only under the `preview` tag; may change in any release. In development: built and tested here, not published. Internal: this repository's own tooling, not offered for use elsewhere.
+Status words. Stable: published on the default tag at 1.0 or later, on a final (not release-candidate) AFD contract; breaking changes only in a major version. Beta: published on the registry's default tag; breaking changes only in a major version (below 1.0, the minor is the major). Preview: published, on npm only under the `preview` tag (npm's `latest` stays on a `0.0.0` placeholder, so a plain install never gets a preview); may change in any release. In development: built and tested here, not published. Internal: this repository's own tooling, not offered for use elsewhere.
 <!-- generated:maturity:map:end -->
 
 - [Violet](https://github.com/lushly-dev/afd/tree/main/foundations/violet): a hierarchical design token engine. Nodes inherit tokens from their parents and add, override or remove them; exports CSS, SCSS, TypeScript, JSON, Swift, Kotlin, Dart, Tailwind and Lua. Includes a browser runtime, a `violet` CLI and a `violet-mcp` server. Status: Preview. `npm install @lushly-dev/violet-core@preview`.
