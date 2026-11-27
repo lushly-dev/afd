@@ -93,6 +93,7 @@ pub mod errors;
 #[cfg_attr(docsrs, doc(cfg(feature = "frontmatter")))]
 pub mod frontmatter;
 pub mod handoff;
+pub mod idempotency;
 pub mod journal;
 pub mod mcp;
 mod meta_keys;
@@ -198,6 +199,11 @@ pub use cancellation::{
 pub use canonical::{approval_id, input_digest};
 pub use credentials::{
     credentials_binding, is_scope_token, principal_binding, Credentials, IncompleteCredentials,
+};
+pub use idempotency::{
+    derive_idempotency_key, invalid_idempotency_key_error, is_idempotency_key,
+    is_idempotency_support, IdempotencyRequestKind, IdempotencySupport,
+    AFD_IDEMPOTENCY_KEY_META_KEY,
 };
 pub use meta_keys::{check_meta_entry, MCP_APPS_META_KEY};
 pub use output_budget::{OutputBudget, AFD_OUTPUT_BUDGET_META_KEY, MAX_OUTPUT_BUDGET_BYTES};

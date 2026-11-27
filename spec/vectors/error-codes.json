@@ -51,6 +51,9 @@
 		{ "code": "OUTPUT_BUDGET_EXCEEDED", "retryable": false, "profile": "output-budgets" },
 		{ "code": "INSUFFICIENT_SCOPE", "retryable": false, "profile": "authorization" },
 		{ "code": "TASK_TOKEN_EXPIRED", "retryable": "varies", "profile": "tasks" },
-		{ "code": "CALL_NOT_GRANTED", "retryable": false, "profile": "app-calls" }
+		{ "code": "CALL_NOT_GRANTED", "retryable": false, "profile": "app-calls" },
+		{ "code": "IDEMPOTENCY_KEY_REUSED", "retryable": false, "profile": "idempotency" },
+		{ "code": "IDEMPOTENCY_IN_PROGRESS", "retryable": true, "profile": "idempotency" },
+		{ "code": "OUTCOME_UNKNOWN", "retryable": false, "profile": "idempotency" }
 	]
 }

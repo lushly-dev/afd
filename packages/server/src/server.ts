@@ -34,6 +34,8 @@ import {
 	sessionStoreLimits,
 } from './http-sessions.js';
 import { createHumanRelayGate } from './human-relay.js';
+import { createIdempotencyStep } from './idempotency-step.js';
+import { InMemoryIdempotencyStore } from './idempotency-store.js';
 import { checkInstanceState, warnInstancesOnce } from './instance-state.js';
 import {
 	checkAuthOptions,
@@ -135,6 +137,11 @@ function createServerCore(options: McpHandlerOptions) {
 		confirmations: options.confirmations,
 		hasHumanRelay: Boolean(options.humanRelay),
 		middleware,
+		// The default store, or one given explicitly, keeps keys in this process only (S13).
+		perProcessIdempotency:
+			options.idempotency !== undefined &&
+			(options.idempotency.store === undefined ||
+				options.idempotency.store instanceof InMemoryIdempotencyStore),
 	});
 	// A copy: the set must not change while the server runs.
 	const firstClassTools = options.firstClassTools ? [...options.firstClassTools] : undefined;
@@ -144,6 +151,15 @@ function createServerCore(options: McpHandlerOptions) {
 	// and snapshots the validated budget so later mutation of the input object cannot alter it.
 	const validatedCommands = commands.map((command) => {
 		assertToolMeta(command.name, command.toolMeta);
+		if (
+			command.idempotency !== undefined &&
+			command.idempotency !== 'natural' &&
+			command.idempotency !== 'keyed'
+		) {
+			throw new Error(
+				`command "${command.name}": idempotency must be 'natural' or 'keyed' (spec/idempotency.md, D1)`
+			);
+		}
 		return command.outputBudget !== undefined
 			? { ...command, outputBudget: validateOutputBudget(command.outputBudget, command.name) }
 			: command;
@@ -220,6 +236,29 @@ function createServerCore(options: McpHandlerOptions) {
 	const { maxBatchSize, maxBatchParallelism } = options;
 
 	const contextDefaults = { clock: options.clock, random: options.random };
+	// The idempotency step, one for every engine of this server, so a key reserved on one lane is
+	// held on all of them (spec/idempotency.md, S1 to S13). S8 is checked against the default
+	// deadline, so a server that would let a key become new while its first call runs is refused.
+	const idempotency =
+		options.idempotency === undefined
+			? undefined
+			: createIdempotencyStep(options.idempotency, {
+					clock: options.clock,
+					defaultTimeoutMs,
+					// Verified credentials under MCP authorization, else `createContext`'s.
+					credentialsOf: (context) => scopeViewOf(context)?.credentials ?? context.credentials,
+				});
+	/**
+	 * Whether the server tells apart the HTTP caller with `credentials` (S3), as for MCP Tasks:
+	 * it verifies tokens and the request carries one, or the host declared that `createContext`
+	 * identifies every caller.
+	 */
+	const identifiesHttpCaller = (credentials: unknown): boolean =>
+		(Boolean(options.auth) && credentials !== undefined && credentials !== null) ||
+		(Boolean(options.createContext) &&
+			(idempotency?.options.callersIdentifiedByHook === true ||
+				options.taskOptions?.callersIdentifiedByHook === true));
+	const stepDeps = idempotency ? { idempotency, defaultTimeoutMs } : {};
 	const commandMiddleware = withCommandDeadlines(middleware, defaultTimeoutMs);
 	// Whether the caller is shown a command under MCP authorization (M6): a refusal names it only
 	// then. Read here, from the request's scope view, so the engine never loads `scope-view`.
@@ -258,6 +297,7 @@ function createServerCore(options: McpHandlerOptions) {
 		maxBatchParallelism,
 		maxValidationIssues,
 		relay: relayHooks,
+		...stepDeps,
 	});
 
 	const remoteCommands = registeredCommands.filter((command) => isMcpExposed(command));
@@ -302,6 +342,7 @@ function createServerCore(options: McpHandlerOptions) {
 		maxBatchParallelism,
 		maxValidationIssues,
 		relay: relayHooks,
+		...stepDeps,
 	};
 	// The MCP lanes: the router serves the meta-tools there, so a refusal may name them.
 	const remoteEngine = createExecutionEngine(remoteDeps);
@@ -331,6 +372,7 @@ function createServerCore(options: McpHandlerOptions) {
 		contextState,
 		confirmations,
 		humanRelay,
+		idempotency,
 		maxBatchSize,
 		maxBatchParallelism,
 	});
@@ -355,6 +397,7 @@ function createServerCore(options: McpHandlerOptions) {
 			contextState,
 			confirmations,
 			humanRelay,
+			idempotency,
 			maxBatchSize,
 			maxBatchParallelism,
 			metaTools: false,
@@ -410,6 +453,7 @@ function createServerCore(options: McpHandlerOptions) {
 		confirmationKey: instanceState.confirmationKey,
 		actor: options.actor ?? { kind: 'agent' },
 		approver: options.approver,
+		identifiesHttpCaller,
 		resources,
 		resourcesTtlMs,
 		tasks: taskRuntime,
@@ -429,6 +473,7 @@ function createServerCore(options: McpHandlerOptions) {
 
 	return {
 		engine,
+		identifiesHttpCaller,
 		contextFields,
 		routeToolCall,
 		httpRouting,
@@ -510,6 +555,7 @@ function createHttpRuntime(core: ServerCore, options: McpHandlerOptions) {
 		getToolsList: core.getToolsList,
 		routeToolCall: core.routeToolCall,
 		approver: options.approver,
+		identifiesHttpCaller: core.identifiesHttpCaller,
 		actor: options.actor ?? { kind: 'agent' },
 		restRouter,
 		executeStream: httpEngine.executeStream,

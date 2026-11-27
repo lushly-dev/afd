@@ -21,11 +21,13 @@ import {
 	createFailedBatchResult,
 	failedBatchRequest,
 	failure,
+	invalidIdempotencyKeyError,
 	isBatchRequest,
 	isPipelineRequest,
 	truncateName,
 } from '@lushly-dev/afd-core';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
+import { resolveIdempotencyKey } from '@lushly-dev/afd-core/internal/idempotency';
 import {
 	approvalRelay,
 	bindUpFrontApproval,
@@ -56,6 +58,7 @@ import {
 	InputRequiredSignal,
 } from './confirmations.js';
 import { resolveContextState } from './context-scope.js';
+import type { IdempotencyStep } from './idempotency-step.js';
 import { executeDetail, executeDiscover } from './lazy-tools.js';
 import {
 	batchArgsSchema,
@@ -176,6 +179,11 @@ export interface ToolRouterDeps {
 	confirmations?: ConfirmationGate;
 	/** Host-verified confirmation gate (`confirmationMode: 'host-verified'`); MCP servers only. */
 	humanRelay?: HumanRelayGate;
+	/**
+	 * The server's idempotency step, so that a call it cannot tell apart is refused before the
+	 * confirmation gate (`spec/idempotency.md`, S3).
+	 */
+	idempotency?: IdempotencyStep;
 	/** Maximum commands accepted in a single batch (default: 500). */
 	maxBatchSize?: number;
 	/** Maximum parallelism accepted in a single batch (default: 16). */
@@ -353,6 +361,10 @@ export function createToolRouter(deps: ToolRouterDeps): ToolRouter {
 				outcome
 			) => out({ success: false, error: outcome.error }, true)
 		): Promise<RouteOutcome | undefined> => {
+			// The key before confirmation (spec/dispatch.md, "The idempotency step"): a malformed one,
+			// and a keyed call the server cannot tell apart, are refused here (K2, S3).
+			const refusal = idempotencyRefusal(steps);
+			if (refusal) return toResult({ kind: 'error', error: refusal });
 			if (!gate || gate.mode === 'off') return undefined;
 			// A lane whose acknowledgement is not an argument (the HTTP routes' `Afd-Confirm`
 			// header) says what it acknowledges and how to send it; an argument counts for nothing.
@@ -369,6 +381,30 @@ export function createToolRouter(deps: ToolRouterDeps): ToolRouter {
 			if (outcome.kind === 'input-required') throw new InputRequiredSignal(outcome.result);
 			return toResult(outcome);
 		};
+		/**
+		 * The refusal of a call's idempotency key before confirmation, or `undefined`: K2's form, and
+		 * S3 for a step that names a `keyed` command on a server with the idempotency step. Credentials
+		 * the step cannot bind are thrown to the lane, which answers an internal error.
+		 */
+		function idempotencyRefusal(
+			steps: ReadonlyArray<{ command: string }>
+		): CommandError | undefined {
+			// Decided as the engine decides it: a key the outer handler was given is none (K6), and a
+			// derived or restored one is the engine's.
+			const key = resolveIdempotencyKey(callContext);
+			if (key.kind === 'none') return undefined;
+			if (key.kind === 'invalid') return invalidIdempotencyKeyError();
+			const step = deps.idempotency;
+			if (!step || !steps.some((entry) => lookup(entry.command)?.idempotency === 'keyed')) {
+				return undefined;
+			}
+			const decided = step.principal(callContext);
+			if (decided.kind === 'refused') return decided.error;
+			if (decided.kind === 'internal') {
+				throw new Error(step.internalError().message);
+			}
+			return undefined;
+		}
 		const traced = (prefix: string): CommandContext => ({
 			...callContext,
 			traceId: `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -379,6 +415,9 @@ export function createToolRouter(deps: ToolRouterDeps): ToolRouter {
 			prefix: string
 		): Promise<RouteOutcome | undefined> => {
 			if (!deps.humanRelay || cmd?.confirmationMode !== 'host-verified') return undefined;
+			// Before the person is asked, as before confirmation (spec/idempotency.md, K2, S3).
+			const refusal = idempotencyRefusal([{ command: cmd.name }]);
+			if (refusal) return out(failure(refusal), true);
 			const outcome = await deps.humanRelay.check(cmd, input, traced(prefix));
 			if (outcome.kind === 'input-required') throw new InputRequiredSignal(outcome.result);
 			if (outcome.kind === 'error') return out(failure(outcome.error), true);

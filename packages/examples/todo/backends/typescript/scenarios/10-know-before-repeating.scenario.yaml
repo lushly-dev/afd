@@ -1,0 +1,20 @@
+# Job 4 of the idempotency keys proposal (docs/features/active/idempotency-keys): the metadata says
+# whether a repeat is safe, so an agent need not read a description to find out. A keyed repeat
+# itself needs a key in _meta, which a scenario step cannot send yet; src/commands/__tests__ and
+# spec/vectors/idempotency.json cover it.
+name: An agent can tell from a command's metadata whether a repeat is safe
+description: >-
+  When I plan a retry, I want the command's metadata to say whether a repeat is safe, so that I do
+  not have to read a description to find out.
+job: know-before-repeating
+tags: [idempotency]
+steps:
+  - description: Creating a todo is safe to repeat only with an idempotency key
+    command: afd-help
+    input: { format: full, filter: todo-create }
+    expect:
+      success: true
+      data:
+        commands:
+          - { name: todo-create, idempotency: keyed }
+          - { name: todo-create-batch, idempotency: keyed }

@@ -451,6 +451,10 @@ export function createJournalMiddleware(
 				const draft: JournalRecord = {
 					timestamp: new Date(start).toISOString(),
 					...(typeof context.traceId === 'string' ? { traceId: context.traceId } : {}),
+					// The call's idempotency key, derived ones as derived (spec/journal.md).
+					...(typeof context.idempotencyKey === 'string'
+						? { idempotencyKey: context.idempotencyKey }
+						: {}),
 					command: commandName,
 					input: toJson(input),
 					...(actor ? { actor } : {}),

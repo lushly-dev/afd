@@ -844,6 +844,15 @@ pub mod error_codes {
     /// exist, does not set `expose.apps`, or the registry's call grant does not grant it
     /// (`spec/command-metadata.md`, "App-to-app calls"). One answer for every case.
     pub const CALL_NOT_GRANTED: &str = "CALL_NOT_GRANTED";
+    /// The idempotency key is already held for a call with another input
+    /// (`spec/idempotency.md`, "Errors"). No Rust engine sends it yet (#2676).
+    pub const IDEMPOTENCY_KEY_REUSED: &str = "IDEMPOTENCY_KEY_REUSED";
+    /// An earlier call with the same idempotency key and input is still running
+    /// (`spec/idempotency.md`, "Errors"). No Rust engine sends it yet (#2676).
+    pub const IDEMPOTENCY_IN_PROGRESS: &str = "IDEMPOTENCY_IN_PROGRESS";
+    /// An earlier call may have run and nobody can say whether it was applied: a client's lost
+    /// answer, or the idempotency step's never-settled reservation (`spec/idempotency.md`).
+    pub const OUTCOME_UNKNOWN: &str = "OUTCOME_UNKNOWN";
 }
 
 /// Standard error code alias for parity with other AFD implementations.
@@ -1119,6 +1128,21 @@ pub const ERROR_CODE_CATALOG: &[ErrorCodeInfo] = &[
         code: error_codes::CALL_NOT_GRANTED,
         retryable: Some(false),
         profile: "app-calls",
+    },
+    ErrorCodeInfo {
+        code: error_codes::IDEMPOTENCY_KEY_REUSED,
+        retryable: Some(false),
+        profile: "idempotency",
+    },
+    ErrorCodeInfo {
+        code: error_codes::IDEMPOTENCY_IN_PROGRESS,
+        retryable: Some(true),
+        profile: "idempotency",
+    },
+    ErrorCodeInfo {
+        code: error_codes::OUTCOME_UNKNOWN,
+        retryable: Some(false),
+        profile: "idempotency",
     },
 ];
 

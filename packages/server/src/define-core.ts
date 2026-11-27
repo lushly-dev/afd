@@ -16,6 +16,7 @@ import type {
 	CommandParameter,
 	CommandResult,
 	ExposeOptions,
+	IdempotencySupport,
 	JsonSchema,
 	OutputBudget,
 	TaskSupport,
@@ -164,6 +165,15 @@ export interface ZodCommandOptions<TInput extends $ZodType, TOutput> {
 	task?: TaskSupport;
 
 	/**
+	 * Whether a call may be repeated (`spec/idempotency.md`, D1 to D5): `'natural'` when a repeat
+	 * leaves the same state as one call (a set, a delete by id), reported as the MCP annotation
+	 * `idempotentHint: true`; `'keyed'` when a repeat that carries the same idempotency key and
+	 * input is safe, because the handler answers it or the server has the idempotency step. Unset
+	 * claims nothing. Reported as `_meta.idempotency`, by `afd-detail` and by `afd-help` (`full`).
+	 */
+	idempotency?: IdempotencySupport;
+
+	/**
 	 * Declared output budget in UTF-8 bytes of canonical JSON without `metadata`
 	 * (`spec/output-budgets.md`, B1): `{ defaultBytes, maxBytes }`. Validated at define time;
 	 * reported as `_meta["dev.afd/outputBudget"]` on command tools and grouped action entries,
@@ -280,6 +290,9 @@ export interface ZodCommandDefinition<TInput extends $ZodType = ZodType, TOutput
 
 	/** MCP task support (`spec/command-metadata.md`, "Tasks") */
 	task?: TaskSupport;
+
+	/** What the command declares about repeating a call (`spec/idempotency.md`, D1 to D5) */
+	idempotency?: IdempotencySupport;
 
 	/** Declared output budget (`spec/output-budgets.md`, B1) */
 	outputBudget?: OutputBudget;
@@ -403,6 +416,9 @@ export function defineCommandWithSchema<TInput extends $ZodType, TOutput>(
 		...(options.scopes && { scopes: options.scopes }),
 		...(options.confirmationMode !== undefined && { confirmationMode: options.confirmationMode }),
 		...(options.task !== undefined && { task: options.task }),
+		...(options.idempotency !== undefined && {
+			idempotency: checkIdempotency(options.idempotency, options.name),
+		}),
 		...(outputBudget && { outputBudget }),
 		...(options.secret === true && { secret: true }),
 	};
@@ -439,6 +455,16 @@ export function defineCommandWithSchema<TInput extends $ZodType, TOutput>(
 			};
 		},
 	};
+}
+
+/** The command's `idempotency`, checked: `natural` or `keyed` (`spec/idempotency.md`, D1). */
+function checkIdempotency(value: unknown, name: string): IdempotencySupport {
+	if (value !== 'natural' && value !== 'keyed') {
+		throw new TypeError(
+			`Command "${name}": idempotency must be 'natural' or 'keyed', got ${JSON.stringify(value)}`
+		);
+	}
+	return value;
 }
 
 function isJsonObject(value: unknown): value is JsonSchema {

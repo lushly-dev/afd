@@ -71,11 +71,13 @@ A server or registry given an idempotency step runs it between stages 9 and 10, 
 carries an idempotency key to a command that declares `idempotency: "keyed"`
 ([idempotency, S1 to S13](./idempotency.md#the-engines-step)). The step may return a stored
 result or a refusal in place of running the handler; stages 11 to 13 then run on what it
-returned. Before stage 5 the engine validates the key and sets it on the command context, as it
-does a declared context field in stage 7 ([idempotency, K1 to K6](./idempotency.md#the-key)). A
-call the step would act on from a caller the server cannot tell apart is refused before stage 5
-(S3), and the engine's cancellation check runs again between the step's reservation and the
-handler (S5). No implementation has the key or the step yet.
+returned. Between stages 4 and 5 the engine validates the key and sets it on the command context,
+as it does a declared context field in stage 7 ([idempotency, K1 to K6](./idempotency.md#the-key)),
+so a malformed key comes ahead of `CONFIRMATION_REQUIRED`, though rules 2 and 5 otherwise put
+confirmation before validation. A call the step would act on from a caller the server cannot tell
+apart is refused at the same point (S3), and the engine's cancellation check runs again between
+the step's reservation and the handler (S5). TypeScript implements the key and the step; Python,
+Rust and C++ do not yet ([#2676](https://github.com/lushly-dev/afd/issues/2676)).
 
 ## Normative rules
 

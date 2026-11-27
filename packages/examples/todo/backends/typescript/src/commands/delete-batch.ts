@@ -57,6 +57,7 @@ export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>(
 	expose: { mcp: true },
 	tags: ['todo', 'delete', 'write', 'batch', 'destructive'],
 	mutation: true,
+	idempotency: 'natural',
 	destructive: true,
 	undoable: true,
 	// It can be undone, so it is not held for approval

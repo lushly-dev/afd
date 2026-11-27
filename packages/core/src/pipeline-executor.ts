@@ -11,6 +11,7 @@
 
 import { executionFailure } from './command-execution.js';
 import type { CommandError } from './errors.js';
+import { withDerivedIdempotencyKey } from './idempotency-keys.js';
 import type {
 	PipelineContext,
 	PipelineMetadata,
@@ -308,11 +309,20 @@ export async function executePipeline(
 				controller.abort();
 				result = timeoutResult;
 			} else {
-				const execution = execute(step.command, resolvedInput, {
-					...context,
-					signal,
-					traceId: (context.traceId as string | undefined) ?? `${pipelineId}-step-${i}`,
-				});
+				// Each step runs under the key derived from the request's (spec/idempotency.md, K4).
+				const execution = execute(
+					step.command,
+					resolvedInput,
+					withDerivedIdempotencyKey(
+						{
+							...context,
+							signal,
+							traceId: (context.traceId as string | undefined) ?? `${pipelineId}-step-${i}`,
+						},
+						'pipeline',
+						i
+					)
+				);
 				result =
 					remainingMs === undefined
 						? await execution

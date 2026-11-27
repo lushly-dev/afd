@@ -18,6 +18,7 @@ import type { BatchCommand, BatchCommandResult, BatchRequest, BatchResult } from
 import { createBatchResult, createFailedBatchResult } from './batch.js';
 import type { CommandContext } from './commands.js';
 import type { CommandError } from './errors.js';
+import { withDerivedIdempotencyKey } from './idempotency-keys.js';
 import type { CommandExecutor } from './pipeline-executor.js';
 import { isBatchRequest } from './request-validation.js';
 import type { CommandResult } from './result.js';
@@ -268,7 +269,12 @@ export async function executeBatch(
 			execute,
 			command.command,
 			command.input,
-			{ ...context, signal, traceId: `${batchTraceId}-${index}` },
+			// Each item runs under the key derived from the request's (spec/idempotency.md, K4).
+			withDerivedIdempotencyKey(
+				{ ...context, signal, traceId: `${batchTraceId}-${index}` },
+				'batch',
+				index
+			),
 			devMode
 		);
 		if (remainingMs === undefined) return execution;

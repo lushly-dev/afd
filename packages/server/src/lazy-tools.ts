@@ -5,6 +5,7 @@
 import type {
 	CommandConfirmationMode,
 	CommandResult,
+	IdempotencySupport,
 	JsonSchema,
 	OutputBudget,
 	TaskSupport,
@@ -69,6 +70,8 @@ interface DetailResult {
 	confirmationMode?: CommandConfirmationMode;
 	/** MCP task support (`spec/command-metadata.md`, "Tasks"), reported only when set. */
 	task?: TaskSupport;
+	/** What the command declares about repeats (`spec/idempotency.md`, D3), reported only when set. */
+	idempotency?: IdempotencySupport;
 	/** Declared output budget (`spec/output-budgets.md`, B1), reported only when set. */
 	outputBudget?: OutputBudget;
 }
@@ -252,6 +255,7 @@ export function executeDetail(
 			...(cmd.scopes?.length && { scopes: cmd.scopes }),
 			...(cmd.confirmationMode !== undefined && { confirmationMode: cmd.confirmationMode }),
 			...(cmd.task !== undefined && { task: cmd.task }),
+			...(cmd.idempotency !== undefined && { idempotency: cmd.idempotency }),
 			...(cmd.outputBudget && {
 				outputBudget: {
 					defaultBytes: cmd.outputBudget.defaultBytes,

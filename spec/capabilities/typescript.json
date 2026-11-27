@@ -104,13 +104,17 @@
 			"evidence": ["packages/core/src/command-metadata.ts", "packages/server/src/tools.ts"]
 		},
 		"command.idempotency": {
-			"status": "planned",
-			"note": "([#2675](https://github.com/lushly-dev/afd/issues/2675))",
+			"status": "yes",
+			"note": ": `_meta.idempotency`, `afd-detail`, `afd-help` (`full`); `afd validate --surface` notes an undeclared mutation",
 			"views": {
-				"status": "([#2675](https://github.com/lushly-dev/afd/issues/2675))"
+				"status": ""
 			},
-			"issue": "#2675",
-			"evidence": ["packages/server/src/idempotency-vectors.test.ts"]
+			"evidence": [
+				"packages/core/src/command-metadata.ts",
+				"packages/server/src/define-core.ts",
+				"packages/testing/src/surface/rules.ts",
+				"packages/server/src/idempotency-vectors.test.ts"
+			]
 		},
 		"single.dispatch-order": {
 			"status": "yes",
@@ -373,13 +377,17 @@
 			]
 		},
 		"middleware.idempotency-step": {
-			"status": "planned",
-			"note": "([#2675](https://github.com/lushly-dev/afd/issues/2675))",
+			"status": "yes",
+			"note": ": `idempotency: { store, ttlMs, leaseMs }` on the MCP server, `createIdempotencyStep` for a direct registry; the chain keeps running after `TIMEOUT` (S7, `continues`)",
 			"views": {
-				"status": "([#2675](https://github.com/lushly-dev/afd/issues/2675))"
+				"status": ""
 			},
-			"issue": "#2675",
-			"evidence": ["packages/server/src/idempotency-vectors.test.ts"]
+			"evidence": [
+				"packages/server/src/idempotency-step.ts",
+				"packages/server/src/idempotency-store.ts",
+				"packages/server/src/middleware.ts",
+				"packages/server/src/idempotency-vectors.test.ts"
+			]
 		},
 		"middleware.up-front-approval": {
 			"status": "yes",
@@ -835,13 +843,18 @@
 			]
 		},
 		"single.idempotency-key": {
-			"status": "planned",
-			"note": "([#2675](https://github.com/lushly-dev/afd/issues/2675))",
+			"status": "yes",
+			"note": ": `afd call --idempotency-key`, DirectClient's and `McpClient`'s `idempotencyKey`",
 			"views": {
-				"status": "([#2675](https://github.com/lushly-dev/afd/issues/2675))"
+				"status": ""
 			},
-			"issue": "#2675",
-			"evidence": ["packages/server/src/idempotency-vectors.test.ts"]
+			"evidence": [
+				"packages/core/src/idempotency.ts",
+				"packages/server/src/execution.ts",
+				"packages/server/src/admission.ts",
+				"packages/server/src/journal.ts",
+				"packages/server/src/idempotency-vectors.test.ts"
+			]
 		}
 	}
 }

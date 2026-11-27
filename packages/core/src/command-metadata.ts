@@ -8,6 +8,7 @@ type MetadataFields = Pick<
 	| 'category'
 	| 'requires'
 	| 'mutation'
+	| 'idempotency'
 	| 'destructive'
 	| 'undoable'
 	| 'examples'
@@ -48,6 +49,7 @@ export function commandToolMeta(
 		...(command.category != null && { category: command.category }),
 		...(command.requires?.length && { requires: command.requires }),
 		...(command.mutation != null && { mutation: command.mutation }),
+		...(command.idempotency != null && { idempotency: command.idempotency }),
 		...(command.destructive != null && { destructive: command.destructive }),
 		...(command.undoable != null && { undoable: command.undoable }),
 		...(approval && { approval }),
@@ -71,6 +73,7 @@ export function commandToolMeta(
 export interface CommandToolAnnotations {
 	readOnlyHint?: boolean;
 	destructiveHint?: boolean;
+	idempotentHint?: boolean;
 }
 
 /**
@@ -78,16 +81,18 @@ export interface CommandToolAnnotations {
  * assume a tool that is not read-only may be destructive, so only fields the command sets are
  * reported: `mutation: false` gives `readOnlyHint: true`; `mutation: true` gives
  * `readOnlyHint: false` and `destructiveHint` (false when `destructive` is unset); an unset
- * `mutation` gives no annotations.
+ * `mutation` gives neither. `idempotency: 'natural'` adds `idempotentHint: true`
+ * (`spec/idempotency.md`, D2); no other value, and no default, reports it.
  */
 export function commandToolAnnotations(
-	command: Pick<CommandDefinition, 'mutation' | 'destructive'>
+	command: Pick<CommandDefinition, 'mutation' | 'destructive' | 'idempotency'>
 ): CommandToolAnnotations | undefined {
-	if (command.mutation === false) return { readOnlyHint: true };
+	const idempotent = command.idempotency === 'natural' ? { idempotentHint: true } : undefined;
+	if (command.mutation === false) return { readOnlyHint: true, ...idempotent };
 	if (command.mutation === true) {
-		return { readOnlyHint: false, destructiveHint: command.destructive === true };
+		return { readOnlyHint: false, destructiveHint: command.destructive === true, ...idempotent };
 	}
-	return undefined;
+	return idempotent;
 }
 
 /** Keywords whose value is a schema, in the subset `spec/validation.md` names. */

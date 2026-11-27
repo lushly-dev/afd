@@ -8,6 +8,7 @@ import {
 	checkDescriptionQuality,
 	checkMissingCategory,
 	checkMissingContext,
+	checkMissingIdempotency,
 	checkMissingOutputSchema,
 	checkNamingCollision,
 	checkNamingConvention,
@@ -1663,6 +1664,44 @@ describe('validateCommandSurface missing-output-schema integration', () => {
 		expect(outputFindings).toHaveLength(1);
 		expect(outputFindings[0]?.severity).toBe('info');
 		expect(result.summary.rulesEvaluated).toContain('missing-output-schema');
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MISSING IDEMPOTENCY (spec/idempotency.md, D4)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('checkMissingIdempotency', () => {
+	it('notes a mutation that declares no idempotency, and nothing else', () => {
+		const findings = checkMissingIdempotency([
+			{ name: 'todo-create', description: 'Creates a todo', mutation: true },
+			{
+				name: 'todo-update',
+				description: 'Updates a todo',
+				mutation: true,
+				idempotency: 'natural',
+			},
+			{ name: 'todo-add', description: 'Adds a todo', mutation: true, idempotency: 'keyed' },
+			{ name: 'todo-list', description: 'Lists todos', mutation: false },
+			{ name: 'todo-count', description: 'Counts todos' },
+		]);
+		expect(findings.map((finding) => finding.commands)).toEqual([['todo-create']]);
+		expect(findings[0]?.rule).toBe('missing-idempotency');
+		expect(findings[0]?.severity).toBe('info');
+	});
+
+	it('runs in validateCommandSurface, reading a Zod command', () => {
+		const result = validateCommandSurface([
+			{
+				name: 'todo-create',
+				description: 'Creates a todo item in the list',
+				jsonSchema: { type: 'object', properties: {} },
+				inputSchema: {},
+				mutation: true,
+			},
+		]);
+		expect(result.summary.rulesEvaluated).toContain('missing-idempotency');
+		expect(result.findings.filter((f) => f.rule === 'missing-idempotency')).toHaveLength(1);
 	});
 });
 

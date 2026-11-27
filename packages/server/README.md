@@ -910,7 +910,23 @@ const server = createMcpServer({
 
 `createRetryMiddleware` reruns a command whose failure code passes `shouldRetry` (default: `TRANSIENT_ERROR` and `TIMEOUT`), up to `maxRetries` times (default: 3). The backoff is exponential and capped: retry `n` backs off `min(maxDelay, retryDelay * 2 ** (n - 1))`, with `retryDelay` defaulting to 100 ms and `maxDelay` to 5000 ms. With `jitter` (the default) each wait is a random time between half and all of that backoff; `jitter: false` waits exactly the backoff. When `context.signal` aborts, for example because the client disconnected or a batch deadline passed, the wait ends and the last failure is returned without further retries.
 
-A command that declares `mutation: true` is never retried unless you pass `retryMutations: true`: a handler that returned `TIMEOUT` after a downstream write may already have applied it, and a retry would apply it again. The middleware reads `mutation` from the command the engine runs, not from its name; called directly, outside the engine, it counts every call as a mutation. Set `retryMutations` only when every mutation it wraps is safe to repeat.
+What it repeats follows the command's declaration ([`spec/idempotency.md`](../../spec/idempotency.md#retrying), R1): a command declaring `idempotency: 'natural'` is retried; one declaring `idempotency: 'keyed'` only when the call carries an idempotency key; any other unless it declares `mutation: true`. A handler that returned `TIMEOUT` after a downstream write may already have applied it, and a retry of an undeclared mutation would apply it again. The middleware reads the declaration from the command the engine runs, not from its name; called directly, outside the engine, it counts every call as a mutation that declares nothing. Pass `retryMutations: true` only when every command it wraps is safe to repeat.
+
+### Idempotency keys
+
+A caller that does not know whether its change was applied sends the same call again with the same key ([`spec/idempotency.md`](../../spec/idempotency.md)): in `_meta["dev.afd/idempotencyKey"]` over MCP, in a meta-tool's `meta` argument, or as `context.idempotencyKey` in process. The engine validates the key and puts it on the handler's context, so a handler that writes to a transactional store can commit the key with its write and answer a repeat itself. A server given the `idempotency` option does that for handlers that cannot, for commands that declare `idempotency: 'keyed'`:
+
+```typescript
+const server = createMcpServer({
+  name: 'orders',
+  version: '1.0.0',
+  commands: [placeOrder], // declares mutation: true, idempotency: 'keyed'
+  // The default store is in memory, for this process only; several processes share one.
+  idempotency: { ttlMs: 86_400_000, leaseMs: 60_000 },
+});
+```
+
+A repeat with the same key and input gets the first result with `metadata.idempotentReplay: true`; another input gets `IDEMPOTENCY_KEY_REUSED`, a repeat while the first still runs `IDEMPOTENCY_IN_PROGRESS`, and a repeat of a call whose handler returned `TIMEOUT` or threw `OUTCOME_UNKNOWN`, since nobody can say whether it was applied. A direct registry takes a step built with `createIdempotencyStep(options, { clock })`.
 
 ```typescript
 import { createRetryMiddleware } from '@lushly-dev/afd-server';

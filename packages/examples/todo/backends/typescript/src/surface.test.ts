@@ -21,6 +21,12 @@ describe('the command surface', () => {
 		expect(result.valid).toBe(true);
 	});
 
+	it('reports no undeclared mutation (spec/idempotency.md, D4)', () => {
+		const result = validateCommandSurface(allCommands);
+		expect(result.summary.rulesEvaluated).toContain('missing-idempotency');
+		expect(result.findings.filter((finding) => finding.rule === 'missing-idempotency')).toEqual([]);
+	});
+
 	it('declares a title, an output and an example on every command', () => {
 		for (const command of allCommands) {
 			expect(command.title, command.name).toBeTruthy();

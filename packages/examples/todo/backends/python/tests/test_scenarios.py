@@ -27,6 +27,16 @@ NOT_HERE = {
     ),
 }
 
+NOT_YET = {
+    "10-know-before-repeating.scenario.yaml": (
+        "Job 10 (know-before-repeating, job 4 of the idempotency keys proposal) reads each "
+        "command's idempotency in afd-help, which Python's afd does not report yet "
+        "(https://github.com/lushly-dev/afd/issues/2676)"
+    ),
+}
+"""Jobs expected to fail here until Python implements what they check; strict, so each fails
+once it passes and the entry must go."""
+
 
 def scenario_files() -> list[Path]:
     return sorted(SCENARIOS.glob("*.scenario.yaml"))
@@ -37,9 +47,11 @@ def test_has_the_jobs():
 
 
 @pytest.mark.parametrize("path", scenario_files(), ids=lambda path: path.name)
-async def test_job(path: Path, store):
+async def test_job(path: Path, store, request: pytest.FixtureRequest):
     if path.name in NOT_HERE:
         pytest.skip(NOT_HERE[path.name])
+    if path.name in NOT_YET:
+        request.applymarker(pytest.mark.xfail(strict=True, reason=NOT_YET[path.name]))
     parsed = parse_scenario_file(str(path))
     assert parsed.success, getattr(parsed, "error", None)
 

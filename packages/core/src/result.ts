@@ -165,6 +165,12 @@ export interface ResultMetadata {
 	 */
 	actorKind?: ActorKind;
 
+	/**
+	 * Present, and `true`, only on a result the idempotency step answered from its store instead
+	 * of running the handler (`spec/idempotency.md`, S9). The engine sets it; a handler cannot.
+	 */
+	idempotentReplay?: true;
+
 	/** Output budget report attached on passing budgeted results (`spec/output-budgets.md`, B6). */
 	'dev.afd/outputBudget'?: OutputBudgetReport;
 

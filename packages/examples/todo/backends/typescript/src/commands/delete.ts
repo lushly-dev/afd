@@ -27,6 +27,7 @@ export const deleteTodo = defineCommand<typeof inputSchema, DeleteResult>({
 	expose: { mcp: true },
 	tags: ['todo', 'delete', 'write', 'single', 'destructive'],
 	mutation: true,
+	idempotency: 'natural',
 	destructive: true,
 	undoable: true,
 	// It can be undone, so it is not held for approval

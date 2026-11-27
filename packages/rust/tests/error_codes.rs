@@ -74,6 +74,9 @@ fn error_codes_match_the_shared_catalog() {
         error_codes::INSUFFICIENT_SCOPE,
         error_codes::TASK_TOKEN_EXPIRED,
         error_codes::CALL_NOT_GRANTED,
+        error_codes::IDEMPOTENCY_KEY_REUSED,
+        error_codes::IDEMPOTENCY_IN_PROGRESS,
+        error_codes::OUTCOME_UNKNOWN,
     ];
     assert_eq!(catalog.as_slice(), expected_codes.as_slice());
 

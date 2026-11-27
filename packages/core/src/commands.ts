@@ -12,6 +12,12 @@ import type { Clock, RandomSource } from './clock.js';
 import { type CommandToolMeta, commandToolMeta } from './command-metadata.js';
 import { setDispatchId, takeDispatchId } from './dispatch-id.js';
 import {
+	type IdempotencySupport,
+	invalidIdempotencyKeyError,
+	isIdempotencySupport,
+} from './idempotency.js';
+import { deliverIdempotencyKey, resolveIdempotencyKey } from './idempotency-keys.js';
+import {
 	AFD_OUTPUT_BUDGET_META_KEY,
 	MAX_OUTPUT_BUDGET_BYTES,
 	type OutputBudget,
@@ -305,6 +311,14 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	mutation?: boolean;
 
 	/**
+	 * Whether a call may be repeated (`spec/idempotency.md`, D1 to D5): `natural` when a repeat
+	 * leaves the same state as one call (reported as the MCP annotation `idempotentHint: true`),
+	 * `keyed` when a repeat that carries the same idempotency key and input is safe. Unset claims
+	 * nothing. Reported in `_meta.idempotency`, `afd-detail` and `afd-help` (`full`).
+	 */
+	idempotency?: IdempotencySupport;
+
+	/**
 	 * Estimated execution time category.
 	 */
 	executionTime?: 'instant' | 'fast' | 'slow' | 'long-running';
@@ -497,6 +511,15 @@ export interface CommandContext {
 	 */
 	outputBudget?: number;
 
+	/**
+	 * The call's idempotency key (`spec/idempotency.md`, K1 to K6), a reserved name: a caller sends
+	 * it in `_meta["dev.afd/idempotencyKey"]`, or an in-process caller sets it here. The engine
+	 * validates it before middleware runs and delivers it on every call, whatever the command
+	 * declares, so a handler can commit it with its write. A command a handler runs through the
+	 * registry does not inherit it (K6).
+	 */
+	idempotencyKey?: string;
+
 	/** Custom context values */
 	[key: string]: unknown;
 }
@@ -669,6 +692,11 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 			if (command.confirmationMode !== undefined && command.confirmationMode !== 'host-verified') {
 				throw new Error(`Invalid confirmationMode for '${command.name}'`);
 			}
+			if (command.idempotency !== undefined && !isIdempotencySupport(command.idempotency)) {
+				throw new Error(
+					`Command '${command.name}' has invalid idempotency '${String(command.idempotency)}' (expected 'natural' or 'keyed')`
+				);
+			}
 			if (command.task !== undefined) {
 				if (
 					command.task !== 'never' &&
@@ -781,6 +809,13 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 				}
 			}
 
+			// The idempotency key (spec/idempotency.md, K2, K3, K6): a malformed one fails the call,
+			// a valid one reaches the handler, and one the outer handler was given does not.
+			const key = resolveIdempotencyKey(context);
+			if (key.kind === 'invalid') {
+				return { success: false, error: invalidIdempotencyKeyError() };
+			}
+			deliverIdempotencyKey(handlerContext, key);
 			try {
 				const result = await command.handler(input, handlerContext);
 				return result as CommandResult<TOutput>;

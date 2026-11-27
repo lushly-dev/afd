@@ -60,6 +60,15 @@ function schemaOf(value: unknown): JsonSchema | undefined {
 	return isRecord(value) ? (value as unknown as JsonSchema) : undefined;
 }
 
+/** `mutation` and `idempotency` as a tool's `_meta`, an action or an afd-detail entry reports them. */
+function repeatDeclaration(source: unknown): Pick<SurfaceCommand, 'mutation' | 'idempotency'> {
+	if (!isRecord(source)) return {};
+	return {
+		...(typeof source.mutation === 'boolean' && { mutation: source.mutation }),
+		...(typeof source.idempotency === 'string' && { idempotency: source.idempotency }),
+	};
+}
+
 function optionalArray<T>(value: unknown): T[] | undefined {
 	return Array.isArray(value) ? (value as T[]) : undefined;
 }
@@ -75,6 +84,7 @@ function toolToSurfaceCommand(tool: McpTool): SurfaceCommand {
 		examples: tool._meta?.examples,
 		outputJsonSchema: tool._meta?.outputSchema as SurfaceCommand['outputJsonSchema'],
 		contexts: tool._meta?.contexts,
+		...repeatDeclaration(tool._meta),
 	};
 }
 
@@ -89,6 +99,7 @@ function actionToSurfaceCommand(action: McpToolAction): SurfaceCommand {
 		examples: action.examples,
 		outputJsonSchema: action.outputSchema as SurfaceCommand['outputJsonSchema'],
 		contexts: action.contexts,
+		...repeatDeclaration(action),
 	};
 }
 
@@ -300,5 +311,6 @@ function detailToSurfaceCommand(entry: Json): SurfaceCommand {
 		requires: optionalArray<string>(entry.requires),
 		examples: optionalArray<NonNullable<SurfaceCommand['examples']>[number]>(entry.examples),
 		contexts: optionalArray<string>(entry.contexts),
+		...repeatDeclaration(entry),
 	};
 }

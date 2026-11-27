@@ -182,6 +182,14 @@ from afd.core.handoff import (
     is_handoff_protocol,
     is_reconnect_policy,
 )
+from afd.core.idempotency import (
+    AFD_IDEMPOTENCY_KEY_META_KEY,
+    IdempotencySupport,
+    derive_idempotency_key,
+    invalid_idempotency_key_error,
+    is_idempotency_key,
+    is_idempotency_support,
+)
 from afd.core.journal import (
     FileJournalSink,
     JournalContextDigest,
@@ -534,6 +542,13 @@ __all__ = [
     "ApprovalDecision",
     "ApprovalPolicy",
     "approval_mode",
+    # Idempotency keys
+    "AFD_IDEMPOTENCY_KEY_META_KEY",
+    "IdempotencySupport",
+    "derive_idempotency_key",
+    "invalid_idempotency_key_error",
+    "is_idempotency_key",
+    "is_idempotency_support",
     # Output budgets
     "AFD_OUTPUT_BUDGET_META_KEY",
     "MAX_OUTPUT_BUDGET_BYTES",

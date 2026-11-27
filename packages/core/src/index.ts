@@ -137,6 +137,15 @@ export {
 	isHandoffProtocol,
 	isReconnectPolicy,
 } from './handoff.js';
+// Idempotency keys (spec/idempotency.md)
+export {
+	AFD_IDEMPOTENCY_KEY_META_KEY,
+	deriveIdempotencyKey,
+	type IdempotencySupport,
+	invalidIdempotencyKeyError,
+	isIdempotencyKey,
+	isIdempotencySupport,
+} from './idempotency.js';
 // Command journal (the file sink is in '@lushly-dev/afd-core/journal-file')
 export type {
 	JournalContextDigest,
@@ -201,6 +210,7 @@ export {
 	createWarning,
 	updateStepStatus,
 } from './metadata.js';
+
 // Output budgets (spec/output-budgets.md)
 export type { OutputBudget } from './output-budget.js';
 export { AFD_OUTPUT_BUDGET_META_KEY, MAX_OUTPUT_BUDGET_BYTES } from './output-budget.js';

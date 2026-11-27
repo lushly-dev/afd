@@ -282,6 +282,9 @@ export function createTodoServerOptions(env: Env, deps: TodoServerDeps = {}): Mc
 		// Registers afd-context-list, -enter and -exit (src/contexts.ts).
 		contexts: TODO_CONTEXTS,
 		...(taskOptions ? { taskOptions } : {}),
+		// Answers a repeat of todo-create, todo-toggle and todo-toggle-batch, which declare
+		// idempotency: 'keyed', from an in-memory store (spec/idempotency.md, S1 to S13).
+		idempotency: {},
 
 		middleware: createTodoMiddleware(env, deps),
 

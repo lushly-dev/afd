@@ -205,6 +205,10 @@ inline constexpr char INSUFFICIENT_SCOPE[] = "INSUFFICIENT_SCOPE";
 inline constexpr char TASK_TOKEN_EXPIRED[] = "TASK_TOKEN_EXPIRED";
 // App calls (`spec/command-metadata.md`, "App-to-app calls")
 inline constexpr char CALL_NOT_GRANTED[] = "CALL_NOT_GRANTED";
+// Idempotency keys (`spec/idempotency.md`, "Errors"); no C++ engine sends them yet (#2676)
+inline constexpr char IDEMPOTENCY_KEY_REUSED[] = "IDEMPOTENCY_KEY_REUSED";
+inline constexpr char IDEMPOTENCY_IN_PROGRESS[] = "IDEMPOTENCY_IN_PROGRESS";
+inline constexpr char OUTCOME_UNKNOWN[] = "OUTCOME_UNKNOWN";
 } // namespace error_codes
 
 /// Reserved prefix for host-defined error codes (`spec/error-codes.md`).
@@ -219,7 +223,7 @@ struct ErrorCodeInfo {
 };
 
 /// The shared error-code catalog with retryability and contract profile, in catalog order.
-inline constexpr std::array<ErrorCodeInfo, 50> error_code_catalog = {{
+inline constexpr std::array<ErrorCodeInfo, 53> error_code_catalog = {{
     {error_codes::VALIDATION_ERROR, false, "core"},
     {error_codes::INVALID_INPUT, false, "core"},
     {error_codes::MISSING_REQUIRED_FIELD, false, "core"},
@@ -270,6 +274,9 @@ inline constexpr std::array<ErrorCodeInfo, 50> error_code_catalog = {{
     {error_codes::INSUFFICIENT_SCOPE, false, "authorization"},
     {error_codes::TASK_TOKEN_EXPIRED, std::nullopt, "tasks"},
     {error_codes::CALL_NOT_GRANTED, false, "app-calls"},
+    {error_codes::IDEMPOTENCY_KEY_REUSED, false, "idempotency"},
+    {error_codes::IDEMPOTENCY_IN_PROGRESS, true, "idempotency"},
+    {error_codes::OUTCOME_UNKNOWN, false, "idempotency"},
 }};
 
 /// `{code, message}` plus any of `options`. A `recovery` that fails `Recovery::validate()` is

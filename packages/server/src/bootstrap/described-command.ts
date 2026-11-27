@@ -8,6 +8,7 @@ import type {
 	CommandExample,
 	CommandParameter,
 	ExposeOptions,
+	IdempotencySupport,
 	JsonSchema,
 	OutputBudget,
 } from '@lushly-dev/afd-core';
@@ -25,6 +26,7 @@ export interface DescribedCommand {
 	category?: string;
 	tags?: string[];
 	mutation?: boolean;
+	idempotency?: IdempotencySupport;
 	destructive?: boolean;
 	confirmPrompt?: string;
 	undoable?: boolean;

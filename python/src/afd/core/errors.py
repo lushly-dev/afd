@@ -312,6 +312,11 @@ class ErrorCodes:
     # App calls (spec/command-metadata.md, "App-to-app calls")
     CALL_NOT_GRANTED = "CALL_NOT_GRANTED"
 
+    # Idempotency keys (spec/idempotency.md, "Errors"); no Python engine sends them yet (#2676)
+    IDEMPOTENCY_KEY_REUSED = "IDEMPOTENCY_KEY_REUSED"
+    IDEMPOTENCY_IN_PROGRESS = "IDEMPOTENCY_IN_PROGRESS"
+    OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
+
 
 HOST_ERROR_CODE_PREFIX: str = "HOST_"
 """Reserved prefix for host-defined error codes (``spec/error-codes.md``)."""
@@ -377,6 +382,9 @@ ERROR_CODE_CATALOG: tuple[ErrorCodeInfo, ...] = (
     ErrorCodeInfo(ErrorCodes.INSUFFICIENT_SCOPE, False, "authorization"),
     ErrorCodeInfo(ErrorCodes.TASK_TOKEN_EXPIRED, "varies", "tasks"),
     ErrorCodeInfo(ErrorCodes.CALL_NOT_GRANTED, False, "app-calls"),
+    ErrorCodeInfo(ErrorCodes.IDEMPOTENCY_KEY_REUSED, False, "idempotency"),
+    ErrorCodeInfo(ErrorCodes.IDEMPOTENCY_IN_PROGRESS, True, "idempotency"),
+    ErrorCodeInfo(ErrorCodes.OUTCOME_UNKNOWN, False, "idempotency"),
 )
 
 

@@ -144,7 +144,8 @@ export type SurfaceRule =
 	| 'schema-complexity'
 	| 'unresolved-prerequisite'
 	| 'circular-prerequisite'
-	| 'missing-output-schema';
+	| 'missing-output-schema'
+	| 'missing-idempotency';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // INJECTION TYPES
@@ -332,4 +333,8 @@ export interface SurfaceCommand {
 	examples?: CommandExample[];
 	outputJsonSchema?: JsonSchema;
 	contexts?: string[];
+	/** Whether the command declares `mutation: true` (or `false`). */
+	mutation?: boolean;
+	/** What it declares about repeats (`spec/idempotency.md`, D1): `natural` or `keyed`. */
+	idempotency?: string;
 }

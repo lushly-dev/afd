@@ -16,6 +16,7 @@ import type {
 import type { ApproverPredicate } from './approver.js';
 import type { ContextField } from './context-fields.js';
 import type { HumanRelay } from './human-relay.js';
+import type { IdempotencyOptions } from './idempotency-step.js';
 import type { McpAuthOptions, PreDispatchCheck, PreDispatchCheckOptions } from './mcp-auth.js';
 import type { Credentials } from './mcp-auth-rules.js';
 import type { ResourcesOption } from './resources.js';
@@ -450,6 +451,17 @@ export interface McpServerOptions {
 	 * `callersIdentifiedByHook`.
 	 */
 	taskOptions?: TaskOptions;
+
+	/**
+	 * The engine's idempotency step (`spec/idempotency.md`, S1 to S13): answers a repeat of a call
+	 * that carries an idempotency key, to a command declaring `idempotency: 'keyed'`, from a store
+	 * instead of running the handler again. `{ store, ttlMs, leaseMs, callersIdentifiedByHook }`;
+	 * `{}` gives the defaults (an in-memory store for this process, one day, one minute). Off when
+	 * unset: keys are still validated and delivered to handlers. `ttlMs` must exceed
+	 * `defaultTimeoutMs` plus `leaseMs`. Several processes behind one address share a store or
+	 * leave this off (S13).
+	 */
+	idempotency?: IdempotencyOptions;
 
 	/**
 	 * Server-level default per-command deadline in milliseconds (`spec/execution-controls.md`).

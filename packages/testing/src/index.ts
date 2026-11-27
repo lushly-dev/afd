@@ -329,6 +329,7 @@ export {
 	checkInjection,
 	checkMissingCategory,
 	checkMissingContext,
+	checkMissingIdempotency,
 	checkMissingOutputSchema,
 	checkNamingCollision,
 	checkNamingConvention,

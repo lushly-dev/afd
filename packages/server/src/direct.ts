@@ -90,6 +90,23 @@ export {
 } from './direct-registry.js';
 export { createDirectToolSurface, type DirectToolSurfaceOptions } from './direct-tool-surface.js';
 export {
+	createIdempotencyStep,
+	DEFAULT_IDEMPOTENCY_LEASE_MS,
+	DEFAULT_IDEMPOTENCY_TTL_MS,
+	type IdempotencyOptions,
+	type IdempotencyStep,
+	type IdempotencyStepDeps,
+} from './idempotency-step.js';
+export {
+	type IdempotencyRecord,
+	type IdempotencyReservationRequest,
+	type IdempotencyReserveOutcome,
+	type IdempotencySettlement,
+	type IdempotencyStore,
+	InMemoryIdempotencyStore,
+	type InMemoryIdempotencyStoreOptions,
+} from './idempotency-store.js';
+export {
 	createJournalMiddleware,
 	JOURNAL_RESULT_UNSERIALIZABLE,
 	type JournalMiddlewareOptions,

@@ -26,15 +26,24 @@ import {
 	executeStream as executeCoreStream,
 	executionFailure,
 	failure,
+	invalidIdempotencyKeyError,
 	isActorKind,
 	withContextDefaults,
 } from '@lushly-dev/afd-core';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
 import { setDispatchId, takeDispatchId } from '@lushly-dev/afd-core/internal/dispatch-id';
 import {
+	deliverIdempotencyKey,
+	IDEMPOTENCY_KEY_SET_BY_ENGINE,
+	requestIdempotencyContext,
+	resolveIdempotencyKey,
+} from '@lushly-dev/afd-core/internal/idempotency';
+import {
 	beginAdmission,
 	markEngineNext,
+	markIdempotencyStepActed,
 	needsAdmission,
+	recordCallKey,
 	takeAdmission,
 } from './approval-admission.js';
 import { filterAllowed, isCommandAllowed } from './command-allow.js';
@@ -49,6 +58,8 @@ import {
 } from './command-routing.js';
 import { applyContextFields, type ContextField } from './context-fields.js';
 import { type ContextState, resolveContextState } from './context-scope.js';
+import { hostState } from './host-state.js';
+import type { IdempotencyCall, IdempotencyStep } from './idempotency-step.js';
 import {
 	applyOutputBudget,
 	checkOutputBudgetResult,
@@ -105,6 +116,16 @@ export interface ExecutionDeps {
 		input: unknown,
 		context: CommandContext
 	) => Promise<EnhancedValidationResult<unknown> | undefined> | undefined;
+	/**
+	 * The idempotency step (`spec/idempotency.md`, S1 to S13), shared by every engine of one server
+	 * or registry. Without it, keys are still validated and delivered (K1 to K6).
+	 */
+	idempotency?: IdempotencyStep;
+	/**
+	 * The deadline the server gives a call that sets no `timeout` (`null` or unset: none), from
+	 * which the step dates a reservation's lease (S7).
+	 */
+	defaultTimeoutMs?: number | null;
 	/** Maximum commands accepted in a single batch (default: 500). */
 	maxBatchSize?: number;
 	/** Maximum parallelism accepted in a single batch (default: 16). */
@@ -184,12 +205,15 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		const skipOutputBudget = Boolean(
 			(callerContext as unknown as Record<symbol, unknown>)[SKIP_OUTPUT_BUDGET]
 		);
+		const step = deps.idempotency;
 		const context = withContextDefaults(callerContext, deps.contextDefaults);
 		// This dispatch's id (spec/dispatch.md, "The dispatch id"): made here (or by the surface's
 		// own check before this engine, such as an app call's grant), never taken from the caller,
 		// and fixed on this context for every middleware and the handler (I3).
 		setDispatchId(context, takeDispatchId(context));
 		deps.relay?.transfer(callerContext, context);
+		const key = resolveIdempotencyKey(callerContext);
+		deliverIdempotencyKey(context, key);
 		// A command hidden from the caller (MCP authorization, M6) is looked up as a name that
 		// does not exist, before validation, middleware or the handler.
 		const command = deps.hidden?.(commandName, callerContext)
@@ -222,6 +246,24 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 
 		if (activeContext && !isAccessibleInContext(command, activeContext)) {
 			return failure(notInContextError(commandName, activeContext, command.contexts, can));
+		}
+		// The key, between the context check and validation (spec/dispatch.md, "The idempotency
+		// step"): a malformed one fails the call before any middleware or handler (K2).
+		if (key.kind === 'invalid') return failure(invalidIdempotencyKeyError());
+		// A task run carries no key for the step or the retry middleware (S11).
+		const taskRun = hostState(callerContext).taskRun === true;
+		recordCallKey(context, key.kind === 'key' && !taskRun);
+		const stepKey =
+			step && key.kind === 'key' && command.idempotency === 'keyed' && !taskRun
+				? key.key
+				: undefined;
+		// The step acts only where it can tell this caller apart (S3).
+		let principal: string | undefined;
+		if (step && stepKey !== undefined) {
+			const decided = step.principal(context);
+			if (decided.kind === 'refused') return failure(decided.error);
+			if (decided.kind === 'internal') return failure(step.internalError());
+			principal = decided.principal;
 		}
 		// Validate input with enhanced error messages. Schema callbacks (.refine,
 		// .superRefine, .transform, .preprocess) run here, so an exception they throw
@@ -286,6 +328,25 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		}
 		const data = validation.data;
 
+		// The call as the step compares it: its declared context fields and validated input (S4).
+		let stepCall: IdempotencyCall | undefined;
+		if (step && stepKey !== undefined && principal !== undefined) {
+			const prepared = await step.prepare({
+				command: commandName,
+				key: stepKey,
+				fields: deps.contextFields?.map((field) => field.name) ?? [],
+				input: data,
+				context,
+				defaultTimeoutMs: deps.defaultTimeoutMs,
+			});
+			if (prepared.kind === 'refused') return failure(prepared.error);
+			stepCall = prepared.call;
+		}
+
+		// When the chain, and the deadline the server's outermost link enforces, start on the step's
+		// clock: a reservation's lease counts from that deadline (S7).
+		let chainStartedAt = 0;
+
 		// Build middleware chain
 		const runHandler = async (): Promise<CommandResult> => {
 			// A declared approval policy holds without the approval middleware: a command whose
@@ -320,7 +381,17 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			deps.relay?.clear(context);
 			const { clock } = context;
 			const startTime = clock.now();
-			const rawResult = await command.handler(data, context);
+			// The idempotency step sits here, between the admission check and the handler (S1).
+			const rawResult = step
+				? await step.run(stepCall, {
+						context,
+						commandName,
+						startedAt: chainStartedAt,
+						handler: () => command.handler(data, context),
+						onReserved: () => markIdempotencyStepActed(context),
+						reportError,
+					})
+				: await command.handler(data, context);
 			// Post-handler output budget check (spec/output-budgets.md, B5 & B6): runs before
 			// metadata stamping and before middleware or the journal see the result; skipped on
 			// buffered executeStream (B7).
@@ -355,6 +426,7 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		}
 
 		let result: CommandResult;
+		if (step) chainStartedAt = step.clock.now();
 		try {
 			result = await next();
 		} catch (error) {
@@ -377,7 +449,8 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 	 * error handling as a single call.
 	 */
 	function executeBatch(request: BatchRequest, context: CommandContext = {}): Promise<BatchResult> {
-		return executeCoreBatch(request, executeCommand, context, {
+		// Each item runs under the key derived from the request's (spec/idempotency.md, K4).
+		return executeCoreBatch(request, executeCommand, requestIdempotencyContext(context), {
 			devMode,
 			maxBatchSize: deps.maxBatchSize,
 			maxBatchParallelism: deps.maxBatchParallelism,
@@ -398,6 +471,15 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		const runnerContext: CommandContext = {};
 		if (context.traceId !== undefined) runnerContext.traceId = context.traceId;
 		if (context.signal !== undefined) runnerContext.signal = context.signal;
+		// The request's key, from which each step's is derived (spec/idempotency.md, K4).
+		const keyed = requestIdempotencyContext(context);
+		if (keyed.idempotencyKey !== undefined) {
+			runnerContext.idempotencyKey = keyed.idempotencyKey;
+			const marked = (keyed as Record<symbol, unknown>)[IDEMPOTENCY_KEY_SET_BY_ENGINE];
+			if (marked !== undefined) {
+				(runnerContext as Record<symbol, unknown>)[IDEMPOTENCY_KEY_SET_BY_ENGINE] = marked;
+			}
+		}
 		return executeCorePipeline(
 			request,
 			(name, input, stepContext) => executeCommand(name, input, { ...context, ...stepContext }),

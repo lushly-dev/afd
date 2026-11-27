@@ -2,7 +2,7 @@
  * @fileoverview Shared error-code catalog metadata and reserved host prefix.
  *
  * Kept in its own module so browser/direct bundles that import `ErrorCodes` or
- * error factories from `./errors.js` tree-shake the 50-entry catalog cleanly.
+ * error factories from `./errors.js` tree-shake the 53-entry catalog cleanly.
  */
 
 import type { ErrorCode } from './errors.js';
@@ -75,4 +75,7 @@ export const ERROR_CODE_CATALOG: readonly ErrorCodeInfo[] = [
 	{ code: 'INSUFFICIENT_SCOPE', retryable: false, profile: 'authorization' },
 	{ code: 'TASK_TOKEN_EXPIRED', retryable: 'varies', profile: 'tasks' },
 	{ code: 'CALL_NOT_GRANTED', retryable: false, profile: 'app-calls' },
+	{ code: 'IDEMPOTENCY_KEY_REUSED', retryable: false, profile: 'idempotency' },
+	{ code: 'IDEMPOTENCY_IN_PROGRESS', retryable: true, profile: 'idempotency' },
+	{ code: 'OUTCOME_UNKNOWN', retryable: false, profile: 'idempotency' },
 ] as const;

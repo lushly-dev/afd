@@ -20,6 +20,12 @@ export interface InstanceStateOptions {
 	confirmations?: string;
 	hasHumanRelay?: boolean;
 	middleware?: readonly CommandMiddleware[];
+	/**
+	 * Whether the idempotency step keeps its keys in this process's memory: no `store`, or an
+	 * `InMemoryIdempotencyStore` given explicitly. A host's own store (a wrapper included) is taken
+	 * as shared.
+	 */
+	perProcessIdempotency?: boolean;
 }
 
 export interface InstanceState {
@@ -88,12 +94,17 @@ export function checkInstanceState(options: InstanceStateOptions): InstanceState
 			"the approval middleware's nonceStore (spent single-use tokens are kept in this process's memory, so a token works once on each process)"
 		);
 	}
+	if (options.perProcessIdempotency) {
+		missing.push(
+			"the idempotency step's store (keys are kept in this process's memory, so a repeat that reaches another process runs again: spec/idempotency.md, S13)"
+		);
+	}
 	if (missing.length === 0) return { confirmationKey };
 
 	if (instances === 'multiple') {
 		throw new Error(
 			`[AFD] ${options.name}: instances: 'multiple' needs ${missing.join(' and ')}. ` +
-				'Pass the same confirmationKey (at least 32 bytes) to every instance, and give createApprovalMiddleware a nonceStore every instance shares.'
+				'Pass the same confirmationKey (at least 32 bytes) to every instance, give createApprovalMiddleware a nonceStore every instance shares, and give idempotency a store every instance shares.'
 		);
 	}
 	return {

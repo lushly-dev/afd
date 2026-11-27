@@ -17,14 +17,21 @@ the pull request's number.
 
 - **2. Spec and vectors** ([#2674](https://github.com/lushly-dev/afd/issues/2674)): merged in #2803. [`spec/idempotency.md`](../../../../spec/idempotency.md) (D1 to D5, K1 to K6, S1 to S13, R1 to R4), pointers in seven other spec pages, `metadata.idempotentReplay` in the result schema, and `spec/vectors/idempotency.json` (88 cases in nine sections, every language a documented gap). Each language has a loader that skips every case.
 
-- **3. TypeScript** ([#2675](https://github.com/lushly-dev/afd/issues/2675)): not started. Needs step 2.
+- **3. TypeScript** ([#2675](https://github.com/lushly-dev/afd/issues/2675)): merged in #2864. Every case of `spec/vectors/idempotency.json` runs in `packages/server/src/idempotency-vectors.test.ts` (the `waits`, `cancels` and `drops` engines' S7 cases skipped as another engine's); the three codes are in the catalog with constants in all four languages; the todo example declares its nine mutations, and `afd validate --surface` reports none undeclared (`missing-idempotency`). A direct registry takes a step built with `createIdempotencyStep`, so `/direct` hosts without it do not bundle it.
 
 - **4. Python, Rust and C++** ([#2676](https://github.com/lushly-dev/afd/issues/2676)): not started. Needs step 3. Split per language when it is planned.
 
 ## Follow-ups not yet issues
 
-- The todo example's scenarios gain jobs 4 and 8 in step 3, and a keyed repeat once the scenario
-  runner can send `_meta`. The runner change has no issue.
+- The todo example's scenarios have jobs 4 and 8 (`backends/typescript/scenarios/10-*` and `11-*`);
+  a keyed repeat joins them once the scenario runner can send `_meta`. The runner change has no
+  issue.
+- `spec/meta-tools.json`'s `meta` description names `dev.afd/idempotencyKey` only once every
+  language accepts it, since every server lists that file; TypeScript accepts it already. Part of
+  step 4.
+- The default in-memory store sweeps expired keys but has no cap on live ones, so an identified
+  caller can fill it with unique keys for `ttlMs`. A `maxEntries` that refuses new reservations
+  with a retryable error is a possible follow-up. No issue.
 
 ## What future sessions must know
 
@@ -36,11 +43,18 @@ the pull request's number.
   lists as transport-specific and not in the shared catalog. It joins the new `idempotency`
   profile with the first implementation. Do not add a third new code.
 - Umbel's and Factory Gateway's keys travel in command input and stay as they are (I5).
-- Three things the spec leaves for the first implementation, because tests pin them to what the
-  code does today: the two new codes' entries in `spec/vectors/error-codes.json` with their
-  constants in all four languages (the rule in `spec/error-codes.md`, "Specified, not yet in the
-  catalog"), the key in `spec/meta-tools.json`'s `meta` argument, and the rows of
-  `spec/recovery.md`'s engine table.
+- TypeScript's engine keeps a call's chain running after it answers `TIMEOUT` (S7, `continues`):
+  the reservation stays live and is settled when the handler returns. The step reads the server's
+  clock (`clock` option), never the call's.
+- The step is not a middleware: `execution.ts` calls it in the innermost link, after the approval
+  admission check, and `command-timeout.ts` reads whether it reserved the key (R3) from the
+  engine's admission record. It binds the scope to the principal middleware left (an auth
+  middleware may set the actor), and dates the lease from when the call's chain, and its
+  deadline, started.
+- Every TypeScript engine resolves a key one way, `resolveIdempotencyKey` in
+  `@lushly-dev/afd-core/internal/idempotency`: the router, the server engine, the core registry and
+  the meta argument, so a nested call from a batch item never trips K2 on its parent's derived
+  key.
 
 ## How to keep this file
 
