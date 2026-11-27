@@ -1229,3 +1229,17 @@ async def test_server_telemetry_metadata_is_camel_case_without_unset_fields():
     assert "executionTimeMs" in metadata
     assert not any("_" in key for key in metadata)
     assert None not in metadata.values()
+
+
+def test_a_composition_holding_the_journal_carries_its_marker() -> None:
+    from afd import MemoryJournalSink
+    from afd.server import create_journal_middleware
+    from afd.server.middleware import compose_middleware as compose
+
+    async def logging_mw(name, input, context, next_fn):  # type: ignore[no-untyped-def]
+        return await next_fn()
+
+    journal = create_journal_middleware(MemoryJournalSink())
+    assert getattr(journal, "__afd_journal__", False) is True
+    assert getattr(compose(logging_mw, compose(journal)), "__afd_journal__", False) is True
+    assert getattr(compose(logging_mw), "__afd_journal__", False) is False

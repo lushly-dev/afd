@@ -7,11 +7,14 @@ not adversarial confinement. Undeclared commands fail closed in every profile.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import difflib
 import inspect
 import uuid
-from collections.abc import Awaitable, Callable
-from dataclasses import asdict, dataclass
+import warnings
+from collections.abc import Awaitable, Callable, Iterator
+from contextvars import ContextVar
+from dataclasses import asdict, dataclass, replace
 from pathlib import PureWindowsPath
 from typing import Any, cast
 
@@ -22,8 +25,21 @@ from afd.direct import CommandContext as DirectCommandContext
 from afd.direct import CommandInfo
 from afd.server.middleware import compose_middleware
 
+try:  # afd 0.14.0 or later: the journal behind the host reads a command's `secret`.
+    from afd.core import open_dispatch
+    from afd.core.commands import declared_secret
+    from afd.server.journal import run_off_tape
+except ImportError:  # pragma: no cover - an older afd cannot honour `secret` (#2695)
+    open_dispatch = None  # type: ignore[assignment]
+    declared_secret = None  # type: ignore[assignment]
+    run_off_tape = None  # type: ignore[assignment]
+
 from botcore.context import PROFILE_EFFECTS, ExecutionContext, use_call, use_context
 from botcore.host_inputs import check_arguments, describe_inputs, summary, validate_arguments
+
+#: Whether the installed afd reads ``secret`` declarations (0.14.0 or later); before that its
+#: ``define_command`` takes no ``secret`` and its journal behind the host reads unknown.
+SECRET_AWARE = open_dispatch is not None
 
 VERDICTS = {"passed", "failed", "skipped", "unavailable", "error"}
 EFFECTS = {
@@ -47,6 +63,8 @@ class CommandPolicy:
     effects may depend on validated arguments (e.g. lint fix versus inspect).
     inspection permits only inspect, so subprocesses and their caches are denied.
     quality is an explicit bool/count/verdict field or the native execution adapter.
+    secret declares that the command takes or returns a secret (``spec/journal.md``): AFD's
+    journal behind the host never records a call to it without ``redact``.
     """
 
     effects: tuple[str, ...] | Callable[[dict[str, Any]], tuple[str, ...]] = ("inspect",)
@@ -55,6 +73,11 @@ class CommandPolicy:
     quality: str | None = None
     output_scope: str | None = None
     possible_effects: tuple[str, ...] = ()
+    secret: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.secret, bool):
+            raise TypeError(f"secret must be a bool, got {type(self.secret).__name__}")
 
     def declared(self) -> tuple[str, ...]:
         """Every effect a call may have: the static effects, or possible_effects."""
@@ -68,6 +91,7 @@ class CommandPolicy:
             "paths": list(self.paths),
             "quality": self.quality,
             "output_scope": self.output_scope,
+            "secret": self.secret,
         }
 
 
@@ -172,6 +196,18 @@ class CommandHost:
         declared = policy.declared()
         if (callable(policy.effects) and not declared) or set(declared) - EFFECTS:
             raise ValueError(f"Declare known effects for {name}")
+        if declared_secret is not None:
+            # A handler decorated with define_command(secret=True) is secret whatever the policy.
+            secret = declared_secret(name, handler, policy.secret)
+            if secret != policy.secret:
+                policy = replace(policy, secret=secret)
+        elif policy.secret:  # afd before 0.14.0
+            warnings.warn(
+                f"{name} declares secret, but the installed afd predates 0.14.0 and its journal "
+                "records the call unless a redact removes the secret; upgrade afd",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         self._commands[name] = handler
         self._policies[name] = policy
 
@@ -347,6 +383,12 @@ class CommandHost:
         args: dict[str, Any] | None = None,
         context: CommandContext | DirectCommandContext | None = None,
     ) -> CommandResult[Any]:
+        """Run one command through the host's policy and middleware.
+
+        Inside :func:`isolated_call` the host does not run a secret call off tape itself.
+        """
+        # Read once, for this call only: commands it runs in turn are not isolated.
+        isolated = _ISOLATED.get()
         checked = self.validate_call(name, args)
         if isinstance(checked, CommandResult):
             return checked
@@ -366,13 +408,29 @@ class CommandHost:
 
         call = self.call_context(context)
         try:
-            with use_context(self.context), use_call(call):
-                result = (
-                    await compose_middleware(*self.middleware)(
-                        served, kwargs, cast(CommandContext, call), invoke
+            # Bind the command's `secret` to the chain's continuation, so AFD's journal behind
+            # the host reads the declaration as it does behind AFD's own executor.
+            with (
+                use_context(self.context),
+                use_call(call),
+                _not_isolated(),
+                _dispatch(call, policy.secret) as dispatch,
+            ):
+
+                async def run() -> Any:
+                    if not self.middleware:
+                        return await invoke()
+                    chain_next = dispatch.bind(invoke) if dispatch is not None else invoke
+                    return await compose_middleware(*self.middleware)(
+                        served, kwargs, cast(CommandContext, call), chain_next
                     )
-                    if (self.middleware)
-                    else await invoke()
+
+                # A secret call reads no recording parent's tape, even when no journal is in
+                # the host's own chain (an outer journal records the call that runs it).
+                result = (
+                    await run_off_tape(call, run)
+                    if policy.secret and not isolated and run_off_tape is not None
+                    else await run()
                 )
             if not isinstance(result, CommandResult):
                 return error(
@@ -393,6 +451,42 @@ class CommandHost:
                 str(exc),
                 suggestion="Inspect the selected target and command configuration",
             )
+
+
+_ISOLATED: ContextVar[bool] = ContextVar("botcore_isolated_call", default=False)
+
+
+@contextlib.contextmanager
+def isolated_call() -> Iterator[None]:
+    """Mark the next ``host.execute`` as already kept off its parents' tapes.
+
+    The caller's engine does that, and may be recording the call on its own entry: AFD's journal
+    does for the command ``create_host_mcp_server`` registers when it is in the server's
+    middleware. The host then does not run a secret call off tape again, which would strip that
+    recording's own tape. A context variable, not an argument, so subclasses that override
+    ``execute`` keep working.
+    """
+    token = _ISOLATED.set(True)
+    try:
+        yield
+    finally:
+        _ISOLATED.reset(token)
+
+
+@contextlib.contextmanager
+def _not_isolated() -> Iterator[None]:
+    token = _ISOLATED.set(False)
+    try:
+        yield
+    finally:
+        _ISOLATED.reset(token)
+
+
+def _dispatch(call: Any, secret: bool) -> Any:
+    """The dispatch binding ``secret`` for AFD's journal, or none on an older afd."""
+    if open_dispatch is None:  # pragma: no cover - afd before 0.14.0
+        return contextlib.nullcontext(None)
+    return open_dispatch(call, secret=secret)
 
 
 def create_host_policy_middleware(host: CommandHost) -> CommandMiddleware:
@@ -508,7 +602,8 @@ def narrow_policy(name: str, plugin: CommandPolicy, host: CommandPolicy) -> Comm
     arguments. It may not add an effect, stop confining a path, or leave out an effect
     the command always has. The plugin's per-argument effects still apply, so a call
     whose effects fall outside the host's set is denied. The host's capabilities,
-    quality and output scope replace the plugin's where the host sets them.
+    quality and output scope replace the plugin's where the host sets them. Either may
+    declare the command secret; the host may not unset the plugin's declaration.
     """
     plugin_effects, host_effects = set(plugin.declared()), set(host.declared())
     always = set() if callable(plugin.effects) else plugin_effects
@@ -547,6 +642,7 @@ def narrow_policy(name: str, plugin: CommandPolicy, host: CommandPolicy) -> Comm
         host.quality or plugin.quality,
         host.output_scope or plugin.output_scope,
         tuple(sorted(host_effects)) if dynamic else (),
+        plugin.secret or host.secret,
     )
 
 

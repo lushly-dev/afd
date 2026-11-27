@@ -208,6 +208,7 @@ from afd.server.journal import (
     create_journal_middleware,
     journal_context_fields,
     replay_journal,
+    run_off_tape,
 )
 from afd.server.middleware import (
     CommandMiddleware,
@@ -447,6 +448,7 @@ __all__ = [
     "ContextHookResult",
     # Command journal: recording middleware and replay
     "create_journal_middleware",
+    "run_off_tape",
     "journal_context_fields",
     "MAX_JOURNAL_CONTEXT_BYTES",
     "replay_journal",

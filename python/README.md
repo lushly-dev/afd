@@ -381,8 +381,22 @@ it unless it was given `redact`, whatever `filter` says; it reads the declaratio
 command the engine runs, not from its name. A `redact` whose second positional parameter has no
 default (or that has a parameter named `info`) gets a `JournalRedactInfo` whose `secret` says
 which calls those are (`None` where the journal cannot read it: a `DirectClient`'s own
-middleware, another host's chain or a chain a handler runs, where no call is recorded without
-`redact`). The default `filter` also skips commands named `auth-*`.
+middleware, another host's chain that binds no dispatch, or a chain a handler runs, where no
+call is recorded without `redact`). The default `filter` also skips commands named `auth-*`.
+
+An engine of its own that runs AFD middleware outside AFD's executor, such as Botcore's
+`CommandHost`, gives the journal the declaration with `afd.core.open_dispatch`: open a dispatch on
+the context it passes down the chain, bind the continuation it hands the chain, and close it when
+the call ends (as a context manager it closes itself). `compose_middleware` passes the binding on.
+An engine whose own chain may hold no recorder runs a secret call through
+`afd.server.run_off_tape(context, next_fn)`, so it reads no recording parent's tape.
+
+```python
+from afd.core import open_dispatch
+
+with open_dispatch(context, secret=command_is_secret) as dispatch:
+    result = await chain(name, input, context, dispatch.bind(run_handler))
+```
 
 ```python
 from afd.server import JournalRedactInfo

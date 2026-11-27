@@ -245,7 +245,7 @@
 		},
 		"single.journal-secret": {
 			"status": "yes",
-			"note": "`secret` on `CommandDefinition`/`define_command`/`@server.command`; the shared executor carries the declaration of the command each dispatch runs with its middleware chain and `create_journal_middleware` reads it there, passing `JournalRedactInfo(secret=...)` to a `redact` that asks for it",
+			"note": "`secret` on `CommandDefinition`/`define_command`/`@server.command`; the shared executor carries the declaration of the command each dispatch runs with its middleware chain and `create_journal_middleware` reads it there, passing `JournalRedactInfo(secret=...)` to a `redact` that asks for it; an engine of its own (Botcore's `CommandHost`) binds it with `afd.core.open_dispatch` and keeps a secret call off tape with `afd.server.run_off_tape`",
 			"evidence": [
 				"python/src/afd/server/journal.py",
 				"python/src/afd/core/running_command.py",

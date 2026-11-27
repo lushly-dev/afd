@@ -3,19 +3,25 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import difflib
 import inspect
 import json
 import warnings
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import click
 from afd import Actor, CommandResult, error, success
 from afd.core.commands import CommandContext
 from afd.core.result import failure
 
-from botcore.host import CommandHost, create_host_policy_middleware
+from botcore.host import (
+    SECRET_AWARE,
+    CommandHost,
+    create_host_policy_middleware,
+    isolated_call,
+)
 from botcore.host_inputs import describe_inputs
 
 if TYPE_CHECKING:
@@ -168,7 +174,13 @@ def _register_host_command(afd_server: AfdMCPServer, host: CommandHost, served_n
     from afd.server import define_command
 
     description, input_schema = describe_inputs(host.handler(served_name))
-    read_only = set(host.policy(served_name).declared()) <= {"inspect"}
+    policy = host.policy(served_name)
+    read_only = set(policy.declared()) <= {"inspect"}
+
+    # When AFD's own journal is in the server's middleware, it keeps a secret call off its
+    # parents' tapes and may record it on its own entry, so the host must not strip that tape.
+    # Without one (or one it cannot recognise), the host isolates the call itself.
+    isolated = bool(getattr(afd_server, "_botcore_journaled", False))
 
     async def host_command_handler(
         payload: Any = None,
@@ -176,7 +188,8 @@ def _register_host_command(afd_server: AfdMCPServer, host: CommandHost, served_n
         *,
         _name: str = served_name,
     ) -> CommandResult[Any]:
-        return await host.execute(_name, payload, context)
+        with isolated_call() if isolated else contextlib.nullcontext():
+            return await host.execute(_name, payload, context)
 
     # Botcore hosts may serve legacy snake_case names (kebab_names=False); suppress the
     # advisory kebab-case warning so construction stays quiet.
@@ -189,6 +202,8 @@ def _register_host_command(afd_server: AfdMCPServer, host: CommandHost, served_n
             advertised_input_schema=input_schema,
             mutation=not read_only,
             destructive=not read_only,
+            # An afd before 0.14.0 has no `secret` here.
+            **cast(dict[str, Any], {"secret": policy.secret} if SECRET_AWARE else {}),
             expose=ExposeOptions(mcp=True),
         )(host_command_handler)
         afd_server.register(decorated)
@@ -678,6 +693,9 @@ def create_host_mcp_server(
         tool_strategy=strategy,
         actor=actor,
         **options,
+    )
+    afd_server._botcore_journaled = any(  # type: ignore[attr-defined]
+        getattr(middleware, "__afd_journal__", False) is True for middleware in extra_middleware
     )
     reserved = _reserved_names(host, afd_server)
     for name in host.list_command_names():
