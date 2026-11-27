@@ -571,6 +571,29 @@ def skill_usage_triggers_cmd(
     _format_result(result, _is_json(ctx))
 
 
+@cli.command("skill-usage-effect")
+@click.option("--days", type=int, default=30, show_default=True, help="Days to report")
+@click.option(
+    "--repo",
+    default=None,
+    help="The repository's checkout (default: the one holding the working directory)",
+)
+@_json_option
+@click.pass_context
+def skill_usage_effect_cmd(
+    ctx: click.Context,
+    days: int,
+    repo: str | None,
+    **_kwargs: Any,
+) -> None:
+    """Report how often merged changes made each declared mistake with and without the skill
+    loaded. Read-only."""
+    from botcore.commands.skill_usage import skill_usage_effect
+
+    result = _run_async(skill_usage_effect(days=days, repo=repo))
+    _format_result(result, _is_json(ctx))
+
+
 @cli.command("gate-outcome-collect")
 @click.option(
     "--since-days",

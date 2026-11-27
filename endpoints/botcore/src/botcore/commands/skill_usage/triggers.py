@@ -22,9 +22,10 @@ from __future__ import annotations
 import hashlib
 import re
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from afd import CommandResult, error, success
 
@@ -114,6 +115,7 @@ class Merged:
     latest: datetime | None  # its newest change: a checkout that was not fetched ends early
     changes: list[Change]  # oldest first
     shared: set[int]  # numbers that more than one change of the branch carries, ever
+    ref: str = ""  # the ref read, as git resolves it (origin/HEAD, origin/main, ...)
 
 
 class _NoBranch(Exception):
@@ -169,7 +171,8 @@ def merged_changes(root: Path, since: datetime) -> Merged:
     except GitError:
         branch = ""
     branch = branch or ref.removeprefix("refs/remotes/").removeprefix("refs/heads/")
-    return Merged(branch, latest, sorted(changes, key=lambda c: (c.at, c.number or 0)), shared)
+    ordered = sorted(changes, key=lambda c: (c.at, c.number or 0))
+    return Merged(branch, latest, ordered, shared, ref)
 
 
 def required_skills(root: Path) -> dict[str, list[str]]:
@@ -327,9 +330,8 @@ async def skill_usage_triggers(days: int = 30, repo: str | None = None) -> Comma
     return await run_blocking(_skill_usage_triggers_sync, days, repo)
 
 
-def _skill_usage_triggers_sync(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one report
-    days: int, repo: str | None
-) -> CommandResult[dict]:
+def checkout_root(days: int, repo: str | None) -> Path | CommandResult[dict]:
+    """The checkout a report reads, or why it cannot: `days` out of range or no checkout."""
     if not 1 <= days <= MAX_DAYS:
         return _fail(
             "INVALID_INPUT",
@@ -343,21 +345,152 @@ def _skill_usage_triggers_sync(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             f"No repository checkout at {repo}" if repo else "Not inside a repository checkout",
             "Run it from inside the repository, or pass repo with the path of its checkout",
         )
-    try:
-        rules = required_skills(root)
-    except Exception as exc:  # noqa: BLE001 - any way the configuration fails to load
-        return _fail(
-            "CONFIG_INVALID",
-            f"The botcore configuration of {root} could not be read: {exc}",
-            "Fix its botcore.toml (or [tool.botcore] in pyproject.toml) and run it again",
-        )
-    if not rules:
-        return _fail(
-            "NO_REQUIRED_SKILLS",
-            f"{root.name} declares no required skill",
-            'Declare one in its botcore.toml: [[skills.required]] with skill = "<name>" and '
-            'paths = ["<glob>", ...]',
-        )
+    return root
+
+
+def config_refused(root: Path, exc: Exception) -> CommandResult[dict]:
+    return _fail(
+        "CONFIG_INVALID",
+        f"The botcore configuration of {root} could not be read: {exc}",
+        "Fix its botcore.toml (or [tool.botcore] in pyproject.toml) and run it again",
+    )
+
+
+@dataclass
+class Verdict:
+    """How one merged change stands against one skill."""
+
+    verdict: str  # `loaded`, `missed` or the reason it is unknown
+    only_subagent: bool  # loaded only through a subagent
+    openers: list[str]  # the sessions judged: its opener, or those its fold names
+    fleet: bool  # judged by its fold's `Factory-session:` trailers
+    own: bool  # its subject names a pull request no other change on the branch names
+
+
+@dataclass
+class Judging:
+    """Everything a report needs to judge a repository's merged changes against skills: the
+    record, the merged changes, each skill's loads and the project's names for its skills."""
+
+    root: Path
+    project: str
+    days: int
+    now: datetime
+    since: datetime
+    merged: Merged
+    directory: Path
+    record: Any
+    here: Any
+    links: _Links
+    tags: dict[str, str]
+    loads: dict[str, _Loads]
+    waits: dict[str, datetime | None]
+    renames: dict[str, str]
+    held: Any
+    outdated: int
+    awaited: set[str] = field(default_factory=set)
+
+    def named(self, skill: str) -> str:
+        """A skill under the name the project's default branch gives it now."""
+        return current_name(skill, self.renames, self.held)
+
+    def certain(self, change: Change) -> bool:
+        """Whether every machine waited for has collected since the change merged."""
+        late = {name for name, when in self.waits.items() if when is None or when < change.at}
+        self.awaited.update(late)
+        return self.record.whole and not late
+
+    def judge(self, change: Change, skill: str) -> Verdict:
+        """One merged change against one skill (named as `named` names it)."""
+        links, merged = self.links, self.merged
+        # a number two merged changes carry is neither's own: a later push that names it
+        own = change.number is not None and change.number not in merged.shared
+        openers = links.opened.get(change.number, {}) if own and change.number else {}
+        fleet = not openers and bool(change.sessions)
+        if fleet:
+            # A fleet cell's change: the lane opened its pull request, and the sessions its
+            # fold names made it. They handed it over when the commit was written.
+            openers = _fleet_openers(change, self.tags)
+        only_subagent = False
+        if openers:
+            verdict, only_subagent = _judge(
+                change, openers, self.loads.get(skill, _Loads({}, {})), self.record.sessions
+            )
+            # A miss needs every session its fold names: one no record holds may be the one
+            # that loaded it. A load by any of them stands.
+            unheld = fleet and len(openers) < len(set(change.sessions))
+            if verdict == MISSED and (unheld or not self.certain(change)):
+                verdict = "incomplete_record"
+        elif change.sessions:
+            verdict = "no_session"  # no machine's record holds a session its fold names
+        elif not own:
+            verdict = "no_pull_request"
+        else:
+            attached = change.number in links.attached
+            verdict = "opened_elsewhere" if attached else "no_session"
+        return Verdict(verdict, only_subagent, sorted(openers), fleet, own)
+
+    def warnings(self) -> list[str]:
+        record, events, project = self.record, self.record.events, self.project
+        warnings = record_warnings(record, self.here, self.now)
+        if self.outdated and not (
+            record.recognizer is not None and record.recognizer >= RECOGNIZER
+        ):
+            warnings.append(  # a load an older botcore did not know reads as a miss
+                f"{self.outdated} events were recognised by an older botcore, which may have "
+                "missed loads: run skill-usage-collect --rebuild to read them again"
+            )
+        if self.awaited:
+            warnings.append(
+                f"No change is called missed until every machine has collected since it "
+                f"merged, and {', '.join(sorted(self.awaited))} had not for some: run "
+                "skill-usage-collect there. A machine that is switched off can be named in "
+                "skill_usage_away in this machine's settings, and is then not waited for"
+            )
+        if self.links.unsaid:
+            warnings.append(
+                f"{self.links.unsaid} links to {project} pull requests do not say which "
+                "session opened them, so their changes are unknown: run skill-usage-collect "
+                "with this botcore to record it"
+            )
+        if not any(event.project == project for event in events) and not any(
+            entry.get("project") == project for entry in record.sessions.values()
+        ):
+            known = sorted({event.project for event in events})
+            warnings.append(
+                f"The record holds nothing for {project}, so every change is unknown; it "
+                f"holds {', '.join(known) or 'no project'}. Collect on a machine that works in it"
+            )
+        return warnings
+
+    def frame(self) -> dict[str, Any]:
+        """The window, branch and record a report was read from."""
+        record, merged = self.record, self.merged
+        return {
+            "project": self.project,
+            "window": {
+                "days": self.days,
+                "since": self.since.isoformat(timespec="seconds"),
+                "until": self.now.isoformat(timespec="seconds"),
+            },
+            "merged": {
+                "branch": merged.branch,
+                "latest": merged.latest.isoformat(timespec="seconds") if merged.latest else None,
+            },
+            "record": {
+                "state_dir": str(self.directory),
+                "shared": str(record.shared) if record.shared else None,
+                "machines": sorted(
+                    {event.machine for event in record.events} | set(record.collected)
+                ),
+                "collected_at": record.state.get("collected_at"),
+                "collected": dict(sorted(record.collected.items())),
+            },
+        }
+
+
+def prepare_judging(root: Path, days: int) -> Judging | CommandResult[dict]:  # noqa: PLR0911
+    """Read the record and the default branch's changes for a report, or say why not."""
     directory = state_dir()
     try:
         here = local()
@@ -432,7 +565,7 @@ def _skill_usage_triggers_sync(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
     accounts = [here_now, record.skills.get(project)]
     account: dict = newest_inventory([one for one in accounts if one]) or dict(NOTHING_HELD)
     account_aliases = account.get("aliases")
-    project_renames = {
+    renames = {
         **(here_now["renames"] if here_now else {}),
         **record.renames.get(project, {}),
         **account["renames"],
@@ -448,20 +581,6 @@ def _skill_usage_triggers_sync(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         for machine, when in record.collected.items()
         if machine == here.machine or machine not in here.away
     }
-    awaited: set[str] = set()  # the machines a change that would be a miss is waiting for
-
-    def certain(change: Change) -> bool:
-        late = {name for name, moment in waits.items() if moment is None or moment < change.at}
-        awaited.update(late)
-        return record.whole and not late
-
-    def named(skill: str) -> str:
-        return current_name(skill, project_renames, held)
-
-    # A skill once, under the name it has now, with every path declared for it
-    declared: dict[str, list[str]] = {}
-    for skill, paths in rules.items():
-        declared.setdefault(named(skill), []).extend(paths)
 
     # A session's loads count whichever project the harness filed the session under: one
     # started in another project can open a pull request here, and it loaded the skill all
@@ -473,69 +592,93 @@ def _skill_usage_triggers_sync(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         moment = _parse(event.at)
         if moment is None or event.path == EDIT:
             continue
-        of_skill = loads.setdefault(named(event.skill), _Loads({}, {}))
+        of_skill = loads.setdefault(current_name(event.skill, renames, held), _Loads({}, {}))
         if event.path in PATHS:
             load = (moment, event.agent == SUBAGENT)
             of_skill.known.setdefault(event.thread, []).append(load)
         else:  # a kind of event a newer botcore wrote: it may be a load
             of_skill.unsure.setdefault(event.thread, []).append(moment)
 
-    links = _links(sessions, project)
-    tags = {session_tag(session_id): session_id for session_id in sessions}
+    return Judging(
+        root=root,
+        project=project,
+        days=days,
+        now=now,
+        since=since,
+        merged=merged,
+        directory=directory,
+        record=record,
+        here=here,
+        links=_links(sessions, project),
+        tags={session_tag(session_id): session_id for session_id in sessions},
+        loads=loads,
+        waits=waits,
+        renames=renames,
+        held=held,
+        outdated=outdated,
+    )
+
+
+def touching(changes: list[Change], paths: list[str]) -> list[Change]:
+    """The changes that touched any of the globs."""
+    patterns = [_matcher(path) for path in paths]
+    return [
+        change
+        for change in changes
+        if any(pattern.match(file) for file in change.files for pattern in patterns)
+    ]
+
+
+def _skill_usage_triggers_sync(days: int, repo: str | None) -> CommandResult[dict]:
+    root = checkout_root(days, repo)
+    if not isinstance(root, Path):
+        return root
+    try:
+        rules = required_skills(root)
+    except Exception as exc:  # noqa: BLE001 - any way the configuration fails to load
+        return config_refused(root, exc)
+    if not rules:
+        return _fail(
+            "NO_REQUIRED_SKILLS",
+            f"{root.name} declares no required skill",
+            'Declare one in its botcore.toml: [[skills.required]] with skill = "<name>" and '
+            'paths = ["<glob>", ...]',
+        )
+    judging = prepare_judging(root, days)
+    if not isinstance(judging, Judging):
+        return judging
+
+    # A skill once, under the name it has now, with every path declared for it
+    declared: dict[str, list[str]] = {}
+    for skill, paths in rules.items():
+        declared.setdefault(judging.named(skill), []).extend(paths)
+
     report: list[dict] = []
     for skill, paths in sorted(declared.items()):
-        patterns = [_matcher(path) for path in paths]
         counts = {LOADED: 0, MISSED: 0}
         unknown = dict.fromkeys(_UNKNOWN, 0)
         misses: list[dict] = []
         by_subagent = 0
-        matching = [
-            change
-            for change in merged.changes
-            if any(pattern.match(file) for file in change.files for pattern in patterns)
-        ]
+        matching = touching(judging.merged.changes, paths)
         for change in matching:
-            # a number two merged changes carry is neither's own: a later push that names it
-            own = change.number is not None and change.number not in merged.shared
-            openers = links.opened.get(change.number, {}) if own and change.number else {}
-            fleet = not openers and bool(change.sessions)
-            if fleet:
-                # A fleet cell's change: the lane opened its pull request, and the sessions
-                # its fold names made it. They handed it over when the commit was written.
-                openers = _fleet_openers(change, tags)
-            if openers:
-                verdict, only_subagent = _judge(
-                    change, openers, loads.get(skill, _Loads({}, {})), sessions
-                )
-                by_subagent += only_subagent
-                # A miss needs every session its fold names: one no record holds may be the
-                # one that loaded it. A load by any of them stands.
-                unheld = fleet and len(openers) < len(set(change.sessions))
-                if verdict == MISSED and (unheld or not certain(change)):
-                    verdict = "incomplete_record"
-            elif change.sessions:
-                verdict = "no_session"  # no machine's record holds a session its fold names
-            elif not own:
-                verdict = "no_pull_request"
+            found = judging.judge(change, skill)
+            by_subagent += found.only_subagent
+            if found.verdict in counts:
+                counts[found.verdict] += 1
             else:
-                attached = change.number in links.attached
-                verdict = "opened_elsewhere" if attached else "no_session"
-            if verdict in counts:
-                counts[verdict] += 1
-            else:
-                unknown[verdict] += 1
-            if verdict == MISSED and fleet:
+                unknown[found.verdict] += 1
+            if found.verdict == MISSED and found.fleet:
                 # its subject may carry no number: the lane merged the commit it validated,
                 # before the pull request had one (lushly-dev/afd#2023)
                 misses.append(
                     {
-                        "change": change.number if own else None,
+                        "change": change.number if found.own else None,
                         "commit": change.commit[:12],
-                        "sessions": sorted(openers),
+                        "sessions": found.openers,
                     }
                 )
-            elif verdict == MISSED:
-                misses.append({"change": change.number, "sessions": sorted(openers)})
+            elif found.verdict == MISSED:
+                misses.append({"change": change.number, "sessions": found.openers})
         judged = counts[LOADED] + counts[MISSED]
         report.append(
             {
@@ -552,56 +695,16 @@ def _skill_usage_triggers_sync(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             }
         )
 
-    warnings = record_warnings(record, here, now)
-    if outdated and not (record.recognizer is not None and record.recognizer >= RECOGNIZER):
-        warnings.append(  # a load an older botcore did not know reads as a miss
-            f"{outdated} events were recognised by an older botcore, which may have missed "
-            "loads: run skill-usage-collect --rebuild to read them again"
-        )
-    if awaited:
-        warnings.append(
-            f"No change is called missed until every machine has collected since it merged, "
-            f"and {', '.join(sorted(awaited))} had not for some: run skill-usage-collect "
-            "there. A machine that is switched off can be named in skill_usage_away in this "
-            "machine's settings, and is then not waited for"
-        )
-    if links.unsaid:
-        warnings.append(
-            f"{links.unsaid} links to {project} pull requests do not say which session opened "
-            "them, so their changes are unknown: run skill-usage-collect with this botcore to "
-            "record it"
-        )
-    if not any(event.project == project for event in events) and not any(
-        entry.get("project") == project for entry in sessions.values()
-    ):
-        known = sorted({event.project for event in events})
-        warnings.append(
-            f"The record holds nothing for {project}, so every change is unknown; it holds "
-            f"{', '.join(known) or 'no project'}. Collect on a machine that works in it"
-        )
-
+    frame = judging.frame()
     judged = sum(rule[LOADED] + rule[MISSED] for rule in report)
     return success(
         {
-            "project": project,
-            "window": {
-                "days": days,
-                "since": since.isoformat(timespec="seconds"),
-                "until": now.isoformat(timespec="seconds"),
-            },
-            "merged": {
-                "branch": merged.branch,
-                "latest": merged.latest.isoformat(timespec="seconds") if merged.latest else None,
-            },
+            "project": frame["project"],
+            "window": frame["window"],
+            "merged": frame["merged"],
             "rules": report,
-            "record": {
-                "state_dir": str(directory),
-                "shared": str(record.shared) if record.shared else None,
-                "machines": sorted({event.machine for event in events} | set(record.collected)),
-                "collected_at": state.get("collected_at"),
-                "collected": dict(sorted(record.collected.items())),
-            },
-            "warnings": warnings,
+            "record": frame["record"],
+            "warnings": judging.warnings(),
         },
         reasoning=f"{sum(rule['changes'] for rule in report)} merged changes needed a skill; "
         f"{sum(rule[MISSED] for rule in report)} of the {judged} the record can judge came "

@@ -43,9 +43,9 @@ already record every one of these loads, so the usage record is derived from wha
 - No prompt, command, argument or file contents in the record, ever.
 - No hosted service. The record is a file on each machine.
 - Neither usage nor the missed-trigger rate shows that a skill helped: skills are loaded on
-  the harder tasks. Effect needs a design of its own
-  ([#1829](https://github.com/lushly-dev/afd/issues/1829)) and the measures under
-  [Later](#later).
+  the harder tasks. [Effect](#effect) compares how often merged changes make a mistake a skill
+  names with and without it loaded ([#1829](https://github.com/lushly-dev/afd/issues/1829)),
+  which shows a difference, not its cause; the measures under [Later](#later) go further.
 
 ## Jobs
 
@@ -62,6 +62,7 @@ for, so each job's steps are run by the pytest cases in
 | [stay-quiet-about-what-was-said](scenarios/04-stay-quiet-about-what-was-said.scenario.yaml) | Loads are collected from my threads, and only the load may be recorded | 1 |
 | [find-missed-triggers](scenarios/05-find-missed-triggers.scenario.yaml) | A repository requires a skill for a kind of change, and I want the merged changes no session loaded it for | 2 |
 | [one-report-across-machines](scenarios/06-one-report-across-machines.scenario.yaml) | I work on three machines with two harnesses, and want one report | 3 |
+| [measure-a-skills-effect](scenarios/07-measure-a-skills-effect.scenario.yaml) | A skill names a checkable mistake, and I want to see whether sessions that loaded it make the mistake less often | Effect (#1829) |
 
 **What writing them changed.** `see-a-rewrite-work` could not be written with a report that
 only looked back from today, so the report takes `ending_days_ago`; and a count alone could
@@ -310,6 +311,7 @@ machines gave different totals from one record
 | `skill-usage-collect` | `since_days`, `t3_store` with `machine`, `rebuild` | `machine`, `added`, `events`, `sessions`, and per source `status` (`read`, `absent`, `off`), `since`, `scanned`, `found`, `added` | `INVALID_INPUT`, `SOURCE_NOT_FOUND`, `SOURCE_SCHEMA_CHANGED`, `SOURCE_UNREADABLE`, `RECORD_UNAVAILABLE`, `COLLECT_RUNNING` |
 | `skill-usage-report` | `days`, `ending_days_ago`, `project`, `harness`, `skill`, `agent`, `limit` | `window`, `totals`, `skills` (per skill: `sessions`, `of_sessions`, `share`, `loads`, `typed_sessions`, `harnesses`, `models`, `machines`, `agents`, `paths`, `last_used`, `also_loaded_as`, `authoring_sessions`, `size_bytes`, `max_context_bytes`, `listing_chars`), `more`, `quiet`, `record`, `warnings` | `INVALID_INPUT`, `NOT_COLLECTED`, `RECORD_UNAVAILABLE` |
 | `skill-usage-triggers` | `days`, `repo` | `project`, and per required skill `changes`, `loaded`, `missed`, `unknown` with `unknown_why`, `rate`, and `misses` naming each change and its sessions | `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`, `GIT_FAILED`, `RECORD_DAMAGED`, `RECORD_UNAVAILABLE`, `INVALID_INPUT` |
+| `skill-usage-effect` | `days`, `repo` | `project`, and per trap `changes`, `exempt`, `loaded` and `missed` (`changes`, `hits`, `rate`), `unknown` with `unknown_why`, `delta`, and `examples` naming each change that made the mistake, its arm and sessions | `NO_TRAPS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`, `GIT_FAILED`, `RECORD_DAMAGED`, `RECORD_UNAVAILABLE`, `INVALID_INPUT` |
 
 The unit of the report is a session that used a skill, out of the sessions the project had. A
 skill read three times in one session, in parts, is one use; `loads` counts the reads.
@@ -422,6 +424,58 @@ session that had only repaired and merged the change.
 The declaration is the one source of which skill a change requires. A repository whose
 instruction file also lists required skills checks that list against it. Which skills a
 repository requires is that repository's decision: this one declares none yet.
+
+### Effect
+
+Usage and missed triggers say whether a skill was loaded when a change needed it, not that it
+helped. Effect asks the narrower question a record can answer: of the merged changes that
+could make a mistake a skill names, how often did they make it when their session had loaded
+the skill, and how often when it had not ([#1829](https://github.com/lushly-dev/afd/issues/1829);
+the owner chose the scope, the name and the first skill on 2026-11-26).
+
+A repository names each checkable mistake in its botcore configuration:
+
+```toml
+[[skills.traps]]
+id = "unquarantined-skip"
+skill = "maintain-gates"
+paths = ["**/*.test.ts", "**/*.test.mjs", "**/test_*.py"]
+added_pattern = '\.(skip|only)\(|@pytest\.mark\.skip'
+unless_paths = ["scripts/policy/test-quarantine.json"]
+```
+
+- **The check reads git, and runs nothing.** `added_pattern` is a regular expression over the
+  lines a change adds to files matching `paths`, against its first parent; `commit_pattern`
+  is one over its commit message; a change makes the mistake when either given one matches.
+  `unless_paths` exempts a change that also touches one of its globs: it did the thing the
+  right way. A command run by the check is deferred: a report would run the repository's code.
+  The window is read in a few batched `git log` calls, renames found whatever git's settings
+  say (a file moved into a trap's paths adds only what the move changed), and paths are given
+  to git literally.
+- **A change is judged as missed triggers judge it.** The session that opened its pull
+  request, or the sessions a fleet's fold names, had loaded the skill by then (`loaded`), never
+  had (`missed`), or cannot be told (unknown, with the same reasons). Nothing new is collected:
+  neither a session's words nor its commands are read.
+- **Two arms, compared only when both hold enough.** Each arm gives `changes`, `hits` and
+  `rate`. `delta` is the missed arm's rate less the loaded arm's once each arm has twenty
+  judged changes, and null before, with a warning. The issue's approach suggested five; a
+  review measured AFD's skip pattern at 19 hits in 703 changes, where one hit moves a rate of
+  five by a fifth. The report also warns when neither arm made the mistake and when more
+  changes cannot be judged than can. `examples` names the changes that made the
+  mistake, newest first, without the matched line.
+- **What it cannot see.** Only mistakes that reached the default branch: one that a check or a
+  review caught before the merge is never counted, so the rates are of mistakes that escaped.
+  Skills are loaded on harder work, so a difference is not its cause. A later observer may read
+  the first push's check results (a named check failing on the first push) without recording
+  anything that was said.
+- **The first skill measured** is the one that keeps gates honest: `gate-discipline`, which
+  AFD exports as `maintain-gates`. Its first two traps are a test skipped without a quarantine
+  entry and a workflow step made unable to fail (`continue-on-error: true`). The issue's
+  second, a workflow job with no `timeout-minutes`, is a missing line, which a pattern over
+  added lines cannot see. AFD declares them
+  once every machine runs a botcore that reads `[[skills.traps]]`: an older one refuses the
+  unknown key, and every botcore command would refuse AFD's configuration
+  ([#2738](https://github.com/lushly-dev/afd/issues/2738)).
 
 ### Every machine
 
@@ -633,8 +687,8 @@ in his words and without the author's conclusions.
 
 ## Later
 
-- **Trap rate.** A skill names one or two checkable mistakes; compare how often they happen
-  with and without the skill loaded.
+- **Trap rate, before the merge.** [Effect](#effect) counts only the mistakes that reached
+  the default branch; a first push's check results would count the ones a check caught.
 - **Before and after an edit.** The version of a skill file in force at a load is derivable
   from the load's time and the file's history.
 - **Replay.** Rerun merged work with and without a skill and grade blind. This is the measure

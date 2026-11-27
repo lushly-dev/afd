@@ -84,6 +84,7 @@ from botcore.commands.skill import (
 from botcore.commands.skill_lint import skill_lint_spec
 from botcore.commands.skill_usage import (
     skill_usage_collect,
+    skill_usage_effect,
     skill_usage_report,
     skill_usage_triggers,
 )
@@ -120,6 +121,7 @@ __all__ = [
     "skill_usage_collect",
     "skill_usage_report",
     "skill_usage_triggers",
+    "skill_usage_effect",
     # Gate outcomes
     "gate_outcome_collect",
     "gate_outcome_report",

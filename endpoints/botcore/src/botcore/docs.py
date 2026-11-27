@@ -325,6 +325,38 @@ declared today judges the record as it stands.
   `RECORD_DAMAGED` (a line of a machine's record cannot be read: rebuild on that machine, or
   wait for its copy to finish syncing), `RECORD_UNAVAILABLE`, `MACHINE_SETTINGS_INVALID`,
   `INVALID_INPUT`.
+
+## skill_usage_effect(days=30, repo=None)
+Read-only. Whether a loaded skill prevents the mistakes it names. A repository names each
+checkable mistake in its botcore configuration, `[[skills.traps]]`: `id`, `skill`, `paths`
+(globs as `[[skills.required]]` writes them), and `added_pattern` (a Python regular
+expression over the lines a change adds to files matching `paths`), `commit_pattern` (one over
+its commit message, matched with no flags: write `(?m)` for `^` to start each line) or both;
+a change makes the mistake when either matches. `unless_paths` exempts a change that also
+touches one of its globs: it did the thing the right way, such as a skipped test registered
+in a quarantine file. Nothing in the repository is run; the patterns come from the checkout's
+own configuration and run on its history, so keep them linear (a line over 10,000 characters
+is not checked, and `warnings` counts them).
+- Each merged change to a trap's paths is judged as `skill_usage_triggers` judges it:
+  `loaded`, `missed` or unknown with the same reasons, fleet cells included. Per trap:
+  `changes`, `exempt`, `loaded` and `missed` (`changes`, `hits`, `rate`), `unknown`
+  (`changes`, `hits`) with `unknown_why`, `delta` (the missed arm's rate less the loaded
+  arm's, once each arm has twenty judged changes; null before, with a warning) and `examples`
+  (up to 20 changes that made the mistake, newest first: `change`, `commit`, `arm`,
+  `sessions`). No matched line is reported. `warnings` also says when a trap's skill is one
+  the project neither holds nor any session loaded, when neither arm made the mistake, when
+  more changes cannot be judged than can, and when the checkout is shallow (its oldest
+  commit reads as adding everything).
+- A change's added lines are read against its first parent, with renames found whatever
+  git's settings say: a file moved into a trap's paths adds only what the move changed. On a
+  history of merge commits, the message read is the merge's, not those of the commits it
+  merged.
+- It sees only what reached the default branch: a mistake that review or a check caught
+  before the merge is never counted, so the rates are of mistakes that escaped.
+- Errors: `NO_TRAPS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID` (also a pattern that
+  is not a regular expression, a trap that checks nothing, or an `id` given twice),
+  `GIT_FAILED`, `RECORD_DAMAGED`, `RECORD_UNAVAILABLE`, `MACHINE_SETTINGS_INVALID`,
+  `INVALID_INPUT`.
 """,
     "gate-outcome": """\
 # Gate Outcome Commands

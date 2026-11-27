@@ -159,7 +159,7 @@ Language detection is automatic. botcore inspects workspace markers (`Cargo.toml
 | Domain | Commands | What they do |
 |--------|----------|-------------|
 | **Dev** | `dev_lint`, `dev_test`, `dev_build` + 9 more | Language-aware linting, testing, building, quality gates, static analysis |
-| **Skills** | `skill_seed`, `skill_list`, `skill_status`, `skill_lint`, `skill_adopt`, `skill_index`, `skill_usage_collect`, `skill_usage_report`, `skill_usage_triggers` | Seed, track, lint, and manage skill ownership across repos; report which skills agents load |
+| **Skills** | `skill_seed`, `skill_list`, `skill_status`, `skill_lint`, `skill_adopt`, `skill_index`, `skill_usage_collect`, `skill_usage_report`, `skill_usage_triggers`, `skill_usage_effect` | Seed, track, lint, and manage skill ownership across repos; report which skills agents load |
 | **Gate outcomes** | `gate_outcome_collect`, `gate_outcome_report` | Read a repository's workflow runs, attempts, jobs, steps and hook group summaries from GitHub; report each workflow's or each check's runs by event, how they ended and what they cost, with quiet and never-observed checks |
 | **CDP** | 33 `cdp_*` functions | Browser automation from Python (`botcore.commands.cdp`; not registered on the MCP server or CLI): launch, navigate, click, screenshot, forms, console, traces |
 | **Docs** | `docs_lint`, `docs_check_changelog`, `docs_check_agents` | Documentation quality checks |
@@ -247,6 +247,13 @@ listing_budget = 8000              # skill_lint's SK019 cap on listed descriptio
 [[skills.required]]                # skill-usage-triggers: a change to these paths needs this skill
 skill = "gate-discipline"
 paths = ["lefthook.yml", ".github/workflows/*.yml"]
+
+[[skills.traps]]                   # skill-usage-effect: a mistake this skill is there to prevent
+id = "unquarantined-skip"
+skill = "gate-discipline"
+paths = ["**/*.test.ts", "**/test_*.py"]
+added_pattern = '\.skip\(|@pytest\.mark\.skip'
+unless_paths = ["scripts/policy/test-quarantine.json"]
 
 [languages.python]
 root = "python/"
@@ -347,6 +354,9 @@ botcore skill-usage-report --days 30 --ending-days-ago 30 --skill my-skill
 
 # The merged changes that needed a skill the session that opened them had not loaded
 botcore skill-usage-triggers --days 30
+
+# How often merged changes made a mistake a skill names, with and without it loaded
+botcore skill-usage-effect --days 30
 ```
 
 The loads are read from T3 Code's store and, for sessions it did not run, from Claude Code's

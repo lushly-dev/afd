@@ -339,7 +339,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - A removed checkout's skills leave the reports (#2123): merged in #2152.
 
-- Whether a loaded skill prevents the mistakes it names (#1829): needs its design first.
+- Whether a loaded skill prevents the mistakes it names (#1829): `skill-usage-effect` over `[[skills.traps]]` (the owner, 2026-11-26), merged in #2795; AFD's first traps wait for #2738.
 
 - Judging a change whose pull request a script opened, as a fleet's merge lane does (#1887): the lane's `Factory-session:` trailer (the owner, 2026-11-26), merged in #2769.
 

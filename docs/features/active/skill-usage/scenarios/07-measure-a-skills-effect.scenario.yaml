@@ -1,0 +1,48 @@
+# JTBD scenario for the Skill usage proposal. The data is invented. No fixture can stand in for
+# another program's store on the machine, so this file is checked, not run: the pytest cases in
+# endpoints/botcore/tests/test_skill_usage_effect.py run the job against a store built to that shape.
+# Not expressible here: the `warnings` that say an arm has too few changes to compare, and a
+# configuration whose pattern does not compile (CONFIG_INVALID); pytest shows both.
+name: See whether sessions that loaded a skill make the mistake it names less often
+description: >-
+  When a skill names a checkable mistake, I want to see how often merged changes made it when
+  their session had loaded the skill and when it had not, so that I can tell whether the skill
+  prevents it.
+job: measure-a-skills-effect
+tags: [effect]
+steps:
+  - description: Each trap, its two arms and their difference, and the changes that made the mistake
+    command: skill-usage-effect
+    input: { days: 30 }
+    expect:
+      success: true
+      data:
+        project: acme/garden
+        traps:
+          - trap: unquarantined-skip
+            skill: gate-discipline
+            changes: 42
+            exempt: 1
+            loaded: { changes: 20, hits: 2, rate: 0.1 }
+            missed: { changes: 20, hits: 12, rate: 0.6 }
+            unknown: { changes: 1, hits: 1 }
+            delta: 0.5
+            examples:
+              - { change: 301, arm: unknown, sessions: [] }
+              - { change: 211, arm: missed, sessions: [session-c] }
+  - description: A repository that names no mistake is told how to name one
+    command: skill-usage-effect
+    input: { days: 30, repo: /work/shed }
+    expect:
+      success: false
+      error:
+        code: NO_TRAPS
+        suggestion: { contains: skills.traps }
+  - description: A path that is not a checkout is refused
+    command: skill-usage-effect
+    input: { days: 30, repo: /work/nowhere }
+    expect:
+      success: false
+      error:
+        code: NO_WORKSPACE
+        suggestion: { contains: repo }
