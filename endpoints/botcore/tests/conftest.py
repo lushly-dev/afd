@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, ConfigDict
 
+from botcore._test_temp import configure_pytest_temp
 from botcore.plugin import PluginRegistry
 
 
@@ -237,3 +238,8 @@ def _isolate_git_routing(monkeypatch):
     for key in tuple(os.environ):
         if key.startswith("GIT_"):
             monkeypatch.delenv(key)
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """On Windows, move ``tmp_path`` off a ``%TEMP%`` the token store refuses (#2713)."""
+    configure_pytest_temp(config)
