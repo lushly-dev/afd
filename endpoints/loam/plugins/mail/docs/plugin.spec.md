@@ -265,7 +265,7 @@ run as separate walks.
 | Command | Exposed to | Held | Preview |
 | --- | --- | --- | --- |
 | `mail-draft-send` | `cli`, `mcp` | Every call (`ApprovalPolicy::Required`) | `mail-draft-show` |
-| `mail-replyset-send` | `cli`, `mcp` | Every call | `mail-replyset-show` |
+| `mail-replyset-send` | `cli`, `mcp` | Every call | `mail-replyset-preview` (D175; `mail-replyset-show` at the terminal) |
 | `mail-unsubscribe` | `cli`, `mcp` | Every call | `mail-unsubscribe-show` (new) |
 | `mail-operation-approve` | `cli`, `mcp` | Every call | `mail-operation-show` |
 
@@ -403,14 +403,50 @@ query at most what `mail-selection-create` accepts.
 MiB) and 3.5 MiB MCP reply cap govern the transport contract so every draft or reply set up to M39's
 bounds is readable whole over HTTP MCP and at the terminal without `OUTPUT_BUDGET_EXCEEDED` or
 `REPLY_TOO_LARGE`. Loam's desktop confirmation shell (`mounted-approvals.ts`, phase 5 §7.2) enforces
-a tighter fail-closed display ceiling of **64 KiB canonical JSON and 200 JSON values**
-(`MOUNT_APPROVAL_UNAVAILABLE`, directing the person to the server's own terminal rather than cutting
-any value). Ordinary drafts (and every unsubscribe and proposal preview) stay well under 64 KiB and
-200 values and confirm directly in Loam; small reply sets (up to ~3–4 replies under the current full
-`mail-replyset-show` preview shape) also confirm directly in Loam, while larger reply sets (tracked
-in `#2410` for Phase 5 Step 7) and extreme M39 targets (such as 100 recipients or 48 KiB of heavily
-escaped control characters) remain readable whole over MCP and sendable at the terminal while Loam
-fails closed.
+a tighter fail-closed display ceiling of **64 KiB canonical JSON and 200 JSON values**, containers
+counted (`MOUNT_APPROVAL_UNAVAILABLE`, directing the person to the server's own terminal rather than
+cutting any value), which is not raised (D175). Ordinary drafts (and every unsubscribe and proposal
+preview) stay well under it and confirm directly in Loam. A reply set's whole show
+(`mail-replyset-show`) is past 200 values by 5 replies (F-T6) (#2410), so **`mail-replyset-send`'s
+preview in Loam is `mail-replyset-preview`** (D175), which keeps everything the person decides on
+and drops the set's audit:
+
+- the set's `id`, `revision`, `state` and `from` (the sending account's address), and a labelled
+  part with `sharedText` and `alreadySent`, the recipient of each reply already sent, which a send
+  never sends again, so every recipient of the set is shown;
+- for each reply the send would send (never sent, or refused cleanly before handover), in the
+  set's order: `differs` (whether its text differs from the shared text), `replyToDiffers`, its
+  `author` (the writer's token id, or its kind when it presented no token) and `authorName` (the
+  token's name saved when it was written; section 6's "Who submitted each reply"), and a labelled
+  part with `to`, `toName`, `subject` and `text`, exactly what the send gives SMTP;
+- not the questions and answers, each reply's id, `message`, `source`, `unit`, `generation`,
+  `inputs`, submission and edit counts or `outbound` id, nor any time: they stay in
+  `mail-replyset-show`, which agents and the terminal keep using.
+
+It takes `mail-replyset-show`'s input and budget, and **shows only a set the send would send now**:
+it fails, with the send's own error, wherever `mail-replyset-send` fails before its hold (a stale
+`revision`, `PREVIEW_CHANGED`; a set sending, sent or with a reply of unknown outcome, `WORK_RUNNING`,
+`INVALID_INPUT` or `SEND_OUTCOME_UNKNOWN`; a reply with no text, `REPLYSET_INCOMPLETE`; a removed
+account; `PREVIEW_TOO_LARGE`), and on a reply still being handed over (`WORK_RUNNING`), so Loam never
+asks for a send the engine refuses. Its data is never larger than `mail-replyset-show`'s, which every
+change measures, so every set the send would send reads whole.
+
+**Where it stops fitting.** With u replies to send and s already sent, the preview is
+**11 + 11·u + s JSON values**, and Loam shows it only when that is at most 200 and its canonical
+JSON at most 64 KiB:
+
+- a set with none sent fits up to **17 replies** (198 values); 18 are 209 and Loam fails closed on
+  them however short their text, as before, while the set stays readable whole over MCP and
+  sendable at the terminal;
+- a `partial` set fits while 11·u + s ≤ 189: 17 replies to send with 2 sent are 200 values and fit,
+  with 3 sent 201 and do not; a set of M39's 50 replies confirms in Loam only once at most 13 remain;
+- the 64 KiB bound covers the whole canonical JSON, the shared text with it, so no count of replies
+  guarantees a fit: two replies of 32,768 characters do not.
+
+The engine pins these counts against its own output (`tests/replyset_preview.rs`, measured as
+`mounted-approvals.ts` measures), and Loam's kernel pins the shell's side at 200 and 201 values and
+65,536 and 65,537 bytes (`mounted-approvals.test.ts`, D175). The engine's copy of the two ceilings
+(`SHELL_VALUES_MAX`, `SHELL_MAX_BYTES`) changes with Loam's.
 
 **Stable for an unchanged target.** Loam calls the preview again under its hold and compares the
 two results' canonical digests. So a preview's result holds no time of reading, no cursor that
@@ -423,7 +459,8 @@ does not cover them (section 7).
 | Preview | Input keys (`preview.input`) | Returns |
 | --- | --- | --- |
 | `mail-draft-show` | `["draft", "revision"]` | Top-level fields as D3 ships them: `draft` (id), `revision`, `state`, `account` (id), `from` (sending address), `answers` (answered message id or null), `recipients` (count), `recipientBasis` (`{ to, cc, bcc }` parallel arrays of `own` / `thread` / `written-to` / `new`, section 8.2), `replyToDiffers`, `authors` (who wrote `recipients`, `subject` and `body`, by kind and token id/name, never a second copy of text), `createdAt`, `updatedAt`, `discardedAt` (when discarded), and `content` (`"trust": "content"`, with `to`, `cc`, `bcc`, `subject` and `body`) |
-| `mail-replyset-show` | `["replyset", "revision"]` | `replyset`: `id`, `revision`, `state`, the account, the shared text in a labelled part, and every reply, each with its id, `recipient` (labelled; stored when the set was made, section 9.4), `text` (labelled), `differs` (whether its text differs from the shared text), `source` (`submitted` or `edited`), the submitter or editor by token id and name, and its `inputs` (section 9.4) |
+| `mail-replyset-show` | `["replyset", "revision"]` | `replyset`: `id`, `revision`, `state`, the account, the shared text in a labelled part, and every reply, each with its id, `recipient` (labelled; stored when the set was made, section 9.4), `text` (labelled), `differs` (whether its text differs from the shared text), `source` (`submitted` or `edited`), the submitter or editor by token id and name, and its `inputs` (section 9.4). The terminal's preview of the send |
+| `mail-replyset-preview` (D175) | `["replyset", "revision"]` | `replyset`: `id`, `revision`, `state`, `from`, a labelled part with the shared text and `alreadySent`, and each reply the send would send with `differs`, `replyToDiffers`, `author`, `authorName` and a labelled part with `to`, `toName`, `subject` and `text`, as "Two ceilings" above gives it; fails as the send would before its hold. The send's preview in Loam |
 | `mail-unsubscribe-show` (new) | `["message", "digest"]` | `unsubscribe`: `message`, `account`, `method` (`one-click` for an HTTPS post the message declares with `List-Unsubscribe-Post`, or `mail`), the target URL or address in a labelled part, the list's id in a labelled part, and `digest` |
 | `mail-operation-show` | `["operation", "digest"]` | `operation`, `command`, `asked`, `query` (labelled), the proposal (its proposer, generation and times), and `preview` as step D1's third part built it, gaining `digest`; no `items`, `nextCursor` or `refused` |
 
@@ -433,7 +470,9 @@ does not cover them (section 7).
   no usable `List-Unsubscribe` header fails with the code D3 gives `mail-unsubscribe` for it.
 - **Who submitted each reply.** Any agent that called `mail-replyset-next` can race Loam's composer
   with a submit of its own, so the set's preview names each reply's submitter by its token's name,
-  the person's own words, beside its id.
+  the person's own words, beside its id. `mail-replyset-preview` (D175) gives the token's id as
+  `author` and its name as `authorName`, so a revoked token and a later one given its name are told
+  apart.
 - **Display.** Loam measures each held call's input by AFD's display rules before it shows a
   confirmation. Every released command's input is ids, an integer and a 43-character digest, so
   it always passes.
@@ -791,7 +830,7 @@ preview = { command = "mail-draft-show", input = ["draft", "revision"] }
 
 [apps.mail.commands."mail-replyset-send"]
 expose = { agent = true, apps = true }
-preview = { command = "mail-replyset-show", input = ["replyset", "revision"] }
+preview = { command = "mail-replyset-preview", input = ["replyset", "revision"] }
 
 [apps.mail.commands."mail-unsubscribe"]
 expose = { agent = true, apps = true }

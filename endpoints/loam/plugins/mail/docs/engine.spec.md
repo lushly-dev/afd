@@ -2218,7 +2218,14 @@ from the shared text.
   `MOST_BUDGET` default and max, optional `revision` check returning `PREVIEW_CHANGED`) returns the
   whole set deterministically with `"trust": "content"` on shared text, questions, recipients, subjects
   and reply texts, marking each reply's `differs` boolean against `sharedText` (every reply marked
-  differing when `sharedText` is empty). `mail-replyset-send` is person-only, destructive, held for
+  differing when `sharedText` is empty). `mail-replyset-preview` (D175, #2410; same input and budget)
+  is the send's confirmation preview in Loam: the set's id, revision, state and sending address, the
+  shared text, the recipients of replies already sent (`alreadySent`), and for each reply the send
+  would send its `differs`, `replyToDiffers`, author (token id, or kind without one) and saved token
+  name and a labelled part with `to`, `toName`, `subject` and `text`; nothing of the set's audit. It
+  fails with the send's own error wherever the send fails before its hold. It is 11 + 11·u + s JSON
+  values for u replies to send and s sent, which Loam shows while it is at most 200: 17 to send fit
+  with up to 2 sent, fewer to send leave room for more (plugin.spec.md §6). `mail-replyset-send` is person-only, destructive, held for
   approval (`ApprovalPolicy::Required`), exposed to `cli` alone (M18, M29), with a content-free
   summary. Pre-approval middleware and the send transaction both check `revision` (`PREVIEW_CHANGED`)
   and completeness (`REPLYSET_INCOMPLETE`) before holding or sending. At a terminal the command line
@@ -2321,6 +2328,7 @@ says otherwise.
 | `mail-replyset-next` | E, F3 | Read | cli, mcp | Step E3/F3 ([10.3](#103-reply-sets)): pure stateless read (not journaled); hands out the next unwritten reply as `dev.loam/unit` with only its own source message visible text (`NOT_HELD` if body missing), linked answers, and a 43-char HMAC-SHA256 `claim` |
 | `mail-replyset-submit` | F3 | Local | cli, mcp | Step F3 ([10.3](#103-reply-sets)): non-destructive mutation, no approval; takes `{ replyset, reply, unit, claim, text }` (1–32 768 chars, no recipient/subject/account), records `instructions_version` and audit event, spends claim (`UNIT_NOT_OPEN`), checks `PREVIEW_TOO_LARGE` |
 | `mail-replyset-show` | E, F3 | Read | cli, mcp | Step E3/F3 ([10.3](#103-reply-sets)): whole deterministic preview (`MOST_BUDGET`), optional `revision` check (`PREVIEW_CHANGED`), marks every reply's `differs` against `sharedText`, exposes `unit`, `source`, `inputs` (including `instructionsVersion`) and submission/edit counts |
+| `mail-replyset-preview` | F3 | Read | cli, mcp | D175 ([#2410](https://github.com/lushly-dev/afd/issues/2410)): the send's confirmation preview, with `mail-replyset-show`'s input and budget; every recipient, subject and text the send would send with `differs`, `replyToDiffers` and author (token id), the shared text and `alreadySent`; fails as the send does before its hold; 11 + 11·u + s JSON values (u to send, s sent), at most 200 for Loam's ceiling: 17 to send with up to 2 sent |
 | `mail-replyset-send` | E, F3 | Remote, destructive; a person (released) | cli, mcp | Step E3 ([10.3](#103-reply-sets)): names previewed `revision`, refuses incomplete (`REPLYSET_INCOMPLETE`), oversized (`PREVIEW_TOO_LARGE`) or stale (`PREVIEW_CHANGED`) before hold, sends each unsent reply over SMTP with `outbound` (`kind = 'replyset'`) and Sent copy. Released over MCP in step F3 (`ApprovalPolicy::Required`, pre-hold + transactional check) |
 | `afd-help`, `afd-docs`, `afd-schema` | F1 | Read (AFD bootstrap) | mcp | Registered via `afd::register_bootstrap_commands` for discovery (e.g. Loam's `afd-help { format: "full" }`); exempted by name in `rules.rs` |
 

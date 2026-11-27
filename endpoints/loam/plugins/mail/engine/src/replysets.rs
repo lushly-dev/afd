@@ -1,7 +1,8 @@
 //! Reply sets (steps E3 and F3; the specification's 10.3, section 11, M18
 //! amended and M29; plugin.spec.md sections 6, 7 and 9): `mail-replyset-create`,
 //! `mail-replyset-update`, `mail-replyset-next`, `mail-replyset-submit`,
-//! `mail-replyset-show` and `mail-replyset-send`.
+//! `mail-replyset-show`, `mail-replyset-preview` (the send's confirmation
+//! preview, D175) and `mail-replyset-send`.
 //!
 //! Each reply's recipient is derived by the engine from its source message's
 //! `From` header at creation and stored with the reply so callers cannot set
@@ -12,11 +13,16 @@
 //! `mail-replyset-send` is destructive and held for approval at the terminal or
 //! through an approver over MCP, bound to the previewed `revision`.
 
+#[path = "replysets_preview.rs"]
+mod preview;
 #[path = "replysets_send.rs"]
 mod send;
 #[path = "replysets_units.rs"]
 mod units;
 
+pub use preview::{
+    HEAD_VALUES, REPLY_VALUES, SHELL_MAX_BYTES, SHELL_REPLIES, SHELL_VALUES_MAX, preview,
+};
 pub use send::{approval_summary, pre_approval_check, send};
 pub use units::{INSTRUCTIONS_VERSION, UNIT_INSTRUCTIONS, next, submit};
 
@@ -54,6 +60,8 @@ pub const NEXT: &str = "mail-replyset-next";
 pub const SUBMIT: &str = "mail-replyset-submit";
 /// Command name for previewing a reply set whole.
 pub const SHOW: &str = "mail-replyset-show";
+/// Command name for the send's confirmation preview (D175).
+pub const PREVIEW: &str = "mail-replyset-preview";
 /// Command name for sending a reply set after preview and approval.
 pub const SEND: &str = "mail-replyset-send";
 
@@ -72,7 +80,8 @@ pub const MOST_TEXT_CHARS: usize = 32_768;
 pub const MOST_QA_CHARS: usize = 4_096;
 /// Maximum character window of source message text handed out in one unit.
 pub(super) const UNIT_TEXT_LIMIT: usize = 32_768;
-/// Default and maximum output budget for `mail-replyset-show` (plugin.spec.md 6).
+/// Default and maximum output budget for `mail-replyset-show` and
+/// `mail-replyset-preview` (plugin.spec.md 6).
 const SHOW_BUDGET: u64 = MOST_BUDGET;
 /// Maximum MCP wire size for a rendered preview (3.5 MiB, leaving 0.5 MiB under
 /// the 4 MiB server/desktop reply limit; plugin.spec.md 6).
@@ -101,7 +110,9 @@ pub(super) fn preview_changed(revision: i64) -> CommandError {
             "The reply set changed since its preview was read (now at revision {revision}). Nothing was sent."
         ),
     )
-    .with_suggestion("Read it again with mail-replyset-show and ask the person again.")
+    .with_suggestion(
+        "Read it again with mail-replyset-preview or mail-replyset-show and ask the person again.",
+    )
     .with_retryable(false)
 }
 

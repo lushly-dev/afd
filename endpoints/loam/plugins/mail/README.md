@@ -177,7 +177,7 @@ for the full contract.
 
    [apps.mail.commands."mail-replyset-send"]
    expose = { agent = true, apps = true }
-   preview = { command = "mail-replyset-show", input = ["replyset", "revision"] }
+   preview = { command = "mail-replyset-preview", input = ["replyset", "revision"] }
 
    [apps.mail.commands."mail-replyset-submit"]
    expose = { agent = true }

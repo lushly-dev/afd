@@ -81,7 +81,7 @@ impl Store {
         let pending = detail
             .replies
             .iter()
-            .filter(|r| matches!(r.send_state, ReplySendState::None | ReplySendState::Failed))
+            .filter(|r| r.send_state.will_send())
             .count();
         if pending == 0 {
             return Ok(Err(ReplySetSendRefusal::NothingToSend));

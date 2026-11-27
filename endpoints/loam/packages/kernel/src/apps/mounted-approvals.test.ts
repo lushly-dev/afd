@@ -9,7 +9,8 @@
  * is shown again and runs nothing; the hold keeps an agent's and an app's calls to the instance waiting until the
  * outcome, while the preview's own read passes it; the person's own send from the palette asks in the slot with the
  * preview; an instance without `approvals = "shell"`, or a send with no preview, or a server that names no approver,
- * gives `MOUNT_APPROVAL_UNAVAILABLE`; a `dev.afd/approval` key in any input is refused. What it does not prove: the
+ * gives `MOUNT_APPROVAL_UNAVAILABLE`; a `dev.afd/approval` key in any input is refused; a reply set's slim preview
+ * (D175) is asked and sent at 200 values and 64 KiB, and refused one past either. What it does not prove: the
  * desktop's transport over a real MCP 2026-07-28 connection (the desktop suite) or the panel's drawing (Chromium).
  */
 
@@ -22,6 +23,7 @@ import { p5Base, type SeededKernel } from '../../scenarios/seeds.js';
 import { contentParts } from '../copilot/labels.js';
 import type { CopilotTurnV1 } from '../copilot/types.js';
 import { previewDigest } from '../late/mounted-approvals.js';
+import { canonicalJson } from '../trust-records.js';
 import type { LoamKernel } from '../types.js';
 import {
 	createInstanceHold,
@@ -600,6 +602,146 @@ describe("P5-A6: the person's own send", () => {
 		expect(await confirmations(kernel)).toEqual([]);
 		expect(await sentOf(kernel)).toHaveLength(1);
 		expect(carried(made)).toHaveLength(1);
+	});
+});
+
+/**
+ * A reply set's confirmation preview in the shape mail's engine gives `mail-replyset-preview` (D175, #2410): 11 values
+ * for the set, 11 for each reply the send would send and 1 for each already sent. The kernel's suite loads no real
+ * plugin (D109), so the shape is written here; the engine's `tests/replyset_preview.rs` pins the same counts against its
+ * own output, and the desktop suite confirms the real engine's. The engine keeps its own copy of the two ceilings
+ * (`SHELL_VALUES_MAX`, `SHELL_MAX_BYTES`): a change to `PREVIEW_VALUES_MAX` or `PREVIEW_MAX_BYTES` fails here, and its
+ * copy there must change with it.
+ */
+function replysetPreview(
+	replies: number,
+	{
+		sent = 0,
+		text = (index: number) => `Thanks, confirmed for item ${index}.`,
+	}: { sent?: number; text?: (index: number) => string } = {}
+) {
+	return {
+		replyset: {
+			id: 1,
+			revision: 2 * replies + 1,
+			state: sent > 0 ? 'partial' : 'open',
+			from: 'me@example.com',
+			content: {
+				trust: 'content',
+				sharedText: 'Thanks, confirmed.',
+				alreadySent: Array.from({ length: sent }, (_, index) => `sent${index + 1}@example.org`),
+			},
+			replies: Array.from({ length: replies }, (_, index) => ({
+				differs: true,
+				replyToDiffers: false,
+				author: `tok_${index % 2}`,
+				authorName: 'Copilot',
+				content: {
+					trust: 'content',
+					to: `sender${index + 1}@example.org`,
+					toName: `Sender ${index + 1}`,
+					subject: `Re: Cohort item ${index + 1}`,
+					text: text(index + 1),
+				},
+			})),
+		},
+	};
+}
+
+/** Loam's two measures of a preview: its values, containers counted, and its canonical JSON's UTF-8 bytes. */
+const valuesOf = (value: unknown): number =>
+	typeof value === 'object' && value !== null
+		? 1 + Object.values(value).reduce<number>((sum, each) => sum + valuesOf(each), 0)
+		: 1;
+const bytesOf = (value: unknown): number => new TextEncoder().encode(canonicalJson(value)).length;
+
+/** A 10-reply preview whose canonical JSON is exactly `bytes` long, its first reply's text padded. */
+function previewOfBytes(bytes: number) {
+	const bare = bytesOf(replysetPreview(10, { text: (index) => (index === 1 ? '' : 'Hi.') }));
+	const made = replysetPreview(10, {
+		text: (index) => (index === 1 ? 'x'.repeat(bytes - bare) : 'Hi.'),
+	});
+	expect(bytesOf(made)).toBe(bytes);
+	return made;
+}
+
+describe("D175: a reply set's slim preview within the shell's ceiling (#2410)", () => {
+	/** Every read of the send's preview answered with `preview`, as the server would answer an unchanged set. */
+	const answerPreview = (made: SeededKernel, preview: unknown) => {
+		const transport = mailfixOf(made).transport;
+		const through = transport.callTool.bind(transport);
+		transport.callTool = async (tool, args, signal, meta) => {
+			const named = tool === 'afd-call' ? String((args as { command?: string }).command) : tool;
+			if (named !== MAILFIX_SEND_PREVIEW.command) return through(tool, args, signal, meta);
+			const body = { success: true, data: preview };
+			return { content: [{ type: 'text', text: JSON.stringify(body) }], structuredContent: body };
+		};
+	};
+
+	it('counts as the engine does: 11 values, 11 a reply to send and 1 a reply sent', () => {
+		expect(
+			[
+				[0, 0],
+				[1, 0],
+				[17, 0],
+				[17, 2],
+				[17, 3],
+				[18, 0],
+			].map(([replies, sent]) => valuesOf(replysetPreview(replies as number, { sent })))
+		).toEqual([11, 22, 198, 200, 201, 209]);
+	});
+
+	it.each([
+		['10 replies', () => replysetPreview(10)],
+		['17 replies (198 values)', () => replysetPreview(17)],
+		['17 replies and 2 sent (200 values)', () => replysetPreview(17, { sent: 2 })],
+		['10 replies at 65,536 bytes', () => previewOfBytes(64 * 1024)],
+	])('asks for %s with the preview whole, and sends on confirm', async (_name, build) => {
+		const made = await seed();
+		const { kernel } = made;
+		const preview = build();
+		answerPreview(made, preview);
+		const { turn } = await send(kernel, 'script:reply-thr-1');
+		expect(turn.calls.map((call) => call.outcome)).toEqual(['ok', 'ok', 'pending']);
+		// Read by its id, whole: a notice past `notification-list`'s 32 KiB page is listed no other way.
+		const [row, ...rest] = data<{ notifications: NotificationV1[] }>(
+			await kernel.call('notification-list', {
+				notification: turn.calls.at(-1)?.notification,
+				body: true,
+			})
+		).notifications as [NotificationV1];
+		expect(rest).toEqual([]);
+		const shown = row.confirmation?.preview;
+		expect(shown).toMatchObject({ command: MAILFIX_SEND_PREVIEW.command, labels: 'per-part' });
+		// Whole: every recipient, subject and text, none cut.
+		expect(shown?.data).toEqual(preview);
+		expect(shown?.digest).toBe(await previewDigest(preview));
+		expect(
+			data(await kernel.call('notification-act', { notification: row.id, answer: 'confirm' }))
+		).toEqual({ state: 'confirmed' });
+		// The re-read under the hold had the same digest, so the send went once.
+		expect(await sentOf(kernel)).toHaveLength(1);
+		expect(carried(made)).toHaveLength(1);
+	});
+
+	it.each([
+		['18 replies (209 values)', () => replysetPreview(18)],
+		['17 replies and 3 sent (201 values)', () => replysetPreview(17, { sent: 3 })],
+		['10 replies at 65,537 bytes', () => previewOfBytes(64 * 1024 + 1)],
+	])('asks nothing for %s, and sends nothing', async (_name, build) => {
+		const made = await seed();
+		const { kernel } = made;
+		data(
+			await mailfixOf(made).server.execute('mailfix-draft-create', { thread: 'thr_1', body: 'Hi.' })
+		);
+		answerPreview(made, build());
+		const refused = await kernel.agent.call('mailfix-draft-send', { draft: 'drf_1', revision: 1 });
+		expect(refused.error?.code).toBe('MOUNT_APPROVAL_UNAVAILABLE');
+		expect(refused.error?.message).toContain('more than the shell shows whole');
+		expect(refused.error?.suggestion).toMatch(/terminal/);
+		expect(await confirmations(kernel)).toEqual([]);
+		expect(carried(made)).toEqual([]);
+		expect(await sentOf(kernel)).toEqual([]);
 	});
 });
 

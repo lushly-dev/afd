@@ -421,6 +421,7 @@ fn mutation_declarations_match_expected_store_writers() {
         "mail-policy-show",
         "mail-record-list",
         "mail-replyset-next",
+        "mail-replyset-preview",
         "mail-replyset-show",
         "mail-search",
         "mail-sender-list",

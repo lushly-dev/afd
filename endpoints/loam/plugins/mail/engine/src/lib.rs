@@ -175,6 +175,7 @@ pub fn registry(engine: &Arc<Engine>) -> Result<Arc<CommandRegistry>, String> {
     registry.register(replysets::next(Arc::clone(engine)))?;
     registry.register(replysets::submit(Arc::clone(engine)))?;
     registry.register(replysets::show(Arc::clone(engine)))?;
+    registry.register(replysets::preview(Arc::clone(engine)))?;
     registry.register(replysets::send(Arc::clone(engine)))?;
     afd::register_bootstrap_commands(&registry)?;
     let broken = rules::check(&registry);

@@ -91,6 +91,14 @@ impl ReplySendState {
         }
     }
 
+    /// Whether a send of its set would send this reply: never sent, or failed
+    /// cleanly before handover. The one rule the send, its pre-hold check, its
+    /// approval summary and `mail-replyset-preview` share.
+    #[must_use]
+    pub fn will_send(self) -> bool {
+        matches!(self, Self::None | Self::Failed)
+    }
+
     /// Human-readable state shown in `mail-replyset-show`.
     #[must_use]
     pub fn display_str(self) -> &'static str {

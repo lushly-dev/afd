@@ -899,9 +899,9 @@ fn ft6_replyset_preview_stability_shell_ceiling_and_m39_transport_cap() {
     });
     assert!(accepted_replies > 0);
 
-    // Pin the Loam 200-value shell ceiling boundary (#2410): a 3-reply set with
-    // one shared question fits <= 200 JSON values, while a 5-reply set exceeds
-    // 200 values and fails closed in Loam's shell (terminal send still works).
+    // Pin the Loam 200-value shell ceiling boundary (#2410): a 3-reply set's
+    // full show with one shared question fits <= 200 JSON values, a 5-reply
+    // set's exceeds it, and its slim confirmation preview (D175) fits.
     let set3 = many_fixture.person(
         "mail-replyset-create",
         json!({
@@ -962,8 +962,20 @@ fn ft6_replyset_preview_stability_shell_ceiling_and_m39_transport_cap() {
     assert_eq!(show5["success"], true, "{show5}");
     assert!(
         count_json_values(&show5["data"]) > 200,
-        "5-reply set currently crosses 200-value shell ceiling (tracked in #2410), got {}",
+        "5-reply set's full show crosses the 200-value shell ceiling, got {}",
         count_json_values(&show5["data"])
+    );
+    // D175 (#2410): the send's confirmation preview of the same set fits.
+    let preview5 = many_fixture.person("mail-replyset-preview", json!({ "replyset": set5_id }));
+    assert_eq!(preview5["success"], true, "{preview5}");
+    assert!(count_json_values(&preview5["data"]) <= 200, "{preview5}");
+
+    // The largest accepted worst-case set still has replies with no text, so
+    // its confirmation preview refuses it as the send does: Loam asks nothing.
+    let big_preview = many_fixture.person("mail-replyset-preview", json!({ "replyset": big_id }));
+    assert_eq!(
+        big_preview["error"]["code"], "REPLYSET_INCOMPLETE",
+        "{big_preview}"
     );
 }
 

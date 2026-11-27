@@ -112,6 +112,25 @@ steps:
       success: false
       error:
         code: PREVIEW_CHANGED
+  - description: The send's confirmation preview shows every recipient and text whole, and none of the audit
+    command: mail-replyset-preview
+    input: { replyset: 1, revision: "${{ steps[6].data.replyset.revision }}" }
+    expect:
+      success: true
+      data:
+        replyset:
+          id: 1
+          state: open
+          content: { trust: content, alreadySent: { length: 0 } }
+          replies:
+            '0':
+              differs: { exists: true }
+              unit: { notExists: true }
+              inputs: { notExists: true }
+              content: { trust: content, to: ada@example.com, text: "Dear Ada, Thursday works." }
+            '1':
+              content: { trust: content, to: bea@example.com, text: "Dear Bea, the invoice is attached." }
+            '2': { notExists: true }
   - description: Sending the set at the revision shown is held for the person
     command: mail-replyset-send
     input: { replyset: 1, revision: "${{ steps[6].data.replyset.revision }}" }
