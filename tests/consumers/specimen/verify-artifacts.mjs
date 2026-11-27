@@ -194,12 +194,17 @@ function typecheck(cwd) {
 // Packed manifests: portable ranges, no workspace protocol, native has no cross-family edges.
 const sourceManifest = async (path) =>
 	JSON.parse(await readFile(join(repository, path, 'package.json'), 'utf8'));
-const specimenVersion = (await sourceManifest('foundations/specimen')).version;
+const specimenManifest = await sourceManifest('foundations/specimen');
+const specimenVersion = specimenManifest.version;
+// Specimen's schemas reach afd-server's types through specimen-afd, so the application supplies
+// the one copy of Zod both use (#2628): every consumer below installs it beside Specimen.
+const zodRange = specimenManifest.peerDependencies.zod;
+const zod = { zod: zodRange };
 const integrationPeers = (await sourceManifest('integrations/specimen-afd')).peerDependencies;
 const native = packedManifest('@lushly-dev/specimen');
 assert.equal(native.version, specimenVersion);
 assert.equal(native.bin, undefined);
-assert.equal(native.peerDependencies, undefined);
+assert.deepEqual(native.peerDependencies, zod);
 assert.deepEqual(
 	native.optionalDependencies,
 	Object.fromEntries(hostPackages.map((name) => [name, specimenVersion]))
@@ -218,13 +223,18 @@ assert.deepEqual(Object.keys(native.exports), [
 	'./pattern.schema.json',
 ]);
 assert(!Object.keys(native.dependencies).some((name) => name.startsWith('@lushly-dev/')));
+assert.equal(native.dependencies.zod, undefined, 'zod is a peer of Specimen, not a dependency');
 assert(!Object.keys(native.scripts ?? {}).some((key) => /install|prepare/.test(key)));
 const integration = packedManifest('@lushly-dev/specimen-afd');
+// Every runtime import of the integration is a peer, Zod included: it has no dependencies.
+assert.equal(integration.dependencies, undefined);
 assert.deepEqual(Object.keys(integrationPeers), [
 	'@lushly-dev/specimen',
 	'@lushly-dev/afd-core',
 	'@lushly-dev/afd-server',
+	'zod',
 ]);
+assert.equal(integrationPeers.zod, zodRange);
 // Its Specimen peer is `workspace:^`, which pack writes as the version it was built against (#1066).
 assert.equal(integrationPeers['@lushly-dev/specimen'], 'workspace:^');
 const packedPeers = { ...integrationPeers, '@lushly-dev/specimen': `^${specimenVersion}` };
@@ -242,6 +252,8 @@ for (const afd of ['@lushly-dev/afd-core', '@lushly-dev/afd-server'])
 		assert(!semver.satisfies('2.4.0', range), `${owner} ${afd}@${range} admits 2.4.0`);
 	}
 assert.deepEqual(cli.bin, { specimen: './dist/bin.js' });
+// The CLI is an application: it supplies the Zod that Specimen, specimen-afd and afd-server peer.
+assert.equal(cli.dependencies.zod, zodRange);
 const host = packedManifest(hostPackage);
 assert.equal(host.version, native.version);
 assert.equal(host.scripts?.install ?? host.scripts?.postinstall, undefined);
@@ -273,6 +285,7 @@ passed(`packed ${hostPackage}: an executable host at Specimen's version, and not
 // Native only: integration and every other family absent.
 const { root: nativeRoot } = await install('native-only', {
 	'@lushly-dev/specimen': file('@lushly-dev/specimen'),
+	...zod,
 });
 const installed = await readdir(join(nativeRoot, 'node_modules/.pnpm'));
 assert(!installed.some((name) => forbiddenFamilies.test(name)), installed.join('\n'));
@@ -378,7 +391,7 @@ passed('native exports, schemas, in-process and process-worker render/reuse/buil
 // Without optional dependencies there is no host: rendering names the package to install.
 const { root: hostlessRoot } = await install(
 	'native-without-host',
-	{ '@lushly-dev/specimen': file('@lushly-dev/specimen') },
+	{ '@lushly-dev/specimen': file('@lushly-dev/specimen'), ...zod },
 	{ optional: false }
 );
 await cp(fixtures, join(hostlessRoot, 'fixtures'), { recursive: true });
@@ -502,7 +515,7 @@ passed(
 // Integration and endpoint present. Unpublished local units are wired through overrides.
 const { root: fullRoot } = await install(
 	'integration-present',
-	Object.fromEntries(Object.keys(packs).map((name) => [name, file(name)])),
+	{ ...Object.fromEntries(Object.keys(packs).map((name) => [name, file(name)])), ...zod },
 	{ overrides: true }
 );
 await cp(fixtures, join(fullRoot, 'fixtures'), { recursive: true });
@@ -572,7 +585,12 @@ const missing = await install(
 );
 assert.match(missing.log, /ERR_PNPM_PEER_DEP_ISSUES/);
 const wantedBy = `@lushly-dev/specimen-afd@${integration.version}`;
-for (const peer of ['@lushly-dev/specimen', '@lushly-dev/afd-core', '@lushly-dev/afd-server'])
+for (const peer of [
+	'@lushly-dev/specimen',
+	'@lushly-dev/afd-core',
+	'@lushly-dev/afd-server',
+	'zod',
+])
 	assert.ok(
 		peerIssue(missing.log, 'missing', peer)?.wanted[packedPeers[peer]]?.includes(wantedBy),
 		`expected missing ${peer}@${packedPeers[peer]}:\n${missing.log}`
@@ -600,6 +618,7 @@ for (const [peer, fakeVersion] of Object.entries(incompatible)) {
 		'@lushly-dev/specimen': file('@lushly-dev/specimen'),
 		'@lushly-dev/afd-core': file('@lushly-dev/afd-core'),
 		'@lushly-dev/afd-server': file('@lushly-dev/afd-server'),
+		...zod,
 		[peer]: version,
 	};
 	const result = await install(`integration-incompatible-${peer.split('/')[1]}`, dependencies, {

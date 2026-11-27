@@ -11,7 +11,7 @@ It runs stories in Storybook's format, with their plays, helpers and accessibili
 ## Install
 
 ```sh
-npm install @lushly-dev/specimen@preview
+npm install @lushly-dev/specimen@preview zod
 npx playwright@<version> install --only-shell chromium
 ```
 

@@ -70,8 +70,7 @@
 		"axe-core": "4.14.0",
 		"chai": "^5.2.0",
 		"playwright": "1.64.1",
-		"vite": "^8.3.0",
-		"zod": "^4.6.6"
+		"vite": "^8.3.0"
 	},
 	"optionalDependencies": {
 		"@lushly-dev/specimen-host-darwin-arm64": "workspace:*",
@@ -95,7 +94,8 @@
 		"rimraf": "^6.1.4",
 		"storybook": "10.6.7",
 		"typescript": "^7.0.2",
-		"vitest": "^5.1.1"
+		"vitest": "^5.1.1",
+		"zod": "^4.6.6"
 	},
 	"publishConfig": {
 		"access": "public"
@@ -105,5 +105,8 @@
 		"url": "https://github.com/lushly-dev/afd.git",
 		"directory": "foundations/specimen"
 	},
-	"license": "MIT"
+	"license": "MIT",
+	"peerDependencies": {
+		"zod": "^4.6.6"
+	}
 }
