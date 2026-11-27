@@ -156,8 +156,32 @@ function schemaRefusal(error: ValidatorError): PluginRefusal {
 	);
 }
 
+/**
+ * A bundle path as a case-insensitive volume compares it, so two that fold alike name one file there (4.4, rule 3):
+ * Unicode NFC, then the full lower-case mapping, the full upper-case mapping and the full lower-case mapping again,
+ * then NFC (ECMAScript's `String.prototype.toLowerCase` and `toUpperCase`, or Rust's `str::to_lowercase` and
+ * `to_uppercase`: Unicode's default case mappings with SpecialCasing, no locale). The round trip folds what lower case
+ * alone leaves apart, such as `ſ` and `s`, `ß` and `ss`, and a final `ς` and `σ`; the lower case first makes it stable
+ * for `ẞ` (U+1E9E), whose upper case is itself and whose lower case is `ß`. Checked against Unicode 17.0 (Node.js 26's
+ * ICU 78); a mapping a later Unicode changes may fold differently.
+ */
+export function foldBundlePath(path: string): string {
+	return path.normalize('NFC').toLowerCase().toUpperCase().toLowerCase().normalize('NFC');
+}
+
+/** A path segment's longest name, in UTF-8 bytes: what APFS, ext4 and NTFS each hold at most (4.4, rule 3). */
+export const BUNDLE_SEGMENT_MAX_BYTES = 255;
+
+/**
+ * A bundle path's longest, in UTF-8 bytes (4.4, rule 3): macOS's whole-path limit, so a bundle unpacks anywhere, and
+ * the bound an archive's size allowance is reckoned from.
+ */
+export const BUNDLE_PATH_MAX_BYTES = 1024;
+
 /** What is wrong with a bundle path (4.4, rule 3), or undefined. */
 export function bundlePathProblem(path: string): string | undefined {
+	if (new TextEncoder().encode(path).length > BUNDLE_PATH_MAX_BYTES)
+		return `is longer than ${BUNDLE_PATH_MAX_BYTES} bytes of UTF-8`;
 	if (path.includes('\\')) return 'uses `\\`; a bundle path uses `/` only';
 	if (path.startsWith('/')) return 'is absolute';
 	// A `:` is a drive or an alternate data stream on Windows; NUL ends a path in C.
@@ -171,6 +195,8 @@ export function bundlePathProblem(path: string): string | undefined {
 			return 'holds one of `<>"|?*`, which a Windows name cannot';
 		// Windows drops a trailing dot or space, so `mail.` would land on `mail`.
 		if (/[. ]$/.test(segment)) return 'has a segment ending in a dot or a space';
+		if (new TextEncoder().encode(segment).length > BUNDLE_SEGMENT_MAX_BYTES)
+			return `has a segment longer than ${BUNDLE_SEGMENT_MAX_BYTES} bytes of UTF-8`;
 	}
 	// macOS stores names decomposed and Linux as given: one spelling, NFC, so the digest's bytes are one.
 	if (path !== path.normalize('NFC')) return 'is not in Unicode normalization form C';
@@ -273,15 +299,15 @@ function nameRefusals(manifest: PluginManifestV1): PluginRefusal[] {
 		} else seen.set(app.id, index);
 		const problem = bundlePathProblem(app.path);
 		if (problem) refusals.push(pathRefusal(`/apps/${index}/path`, problem));
-		else if (paths.has(app.path.toLowerCase())) {
+		else if (paths.has(foldBundlePath(app.path))) {
 			refusals.push(
 				invalid(
 					`/apps/${index}/path`,
-					`The path is also \`apps[${paths.get(app.path.toLowerCase())}]\`'s, ignoring case.`,
+					`The path is also \`apps[${paths.get(foldBundlePath(app.path))}]\`'s, ignoring case.`,
 					'Pack each app into a directory of its own, such as `apps/<id>`.'
 				)
 			);
-		} else paths.set(app.path.toLowerCase(), index);
+		} else paths.set(foldBundlePath(app.path), index);
 	});
 	return refusals;
 }

@@ -3,7 +3,7 @@
  * (`plugin-manifest.json`), checked under the phase 5 no-terminal amendment's 4.4 with nothing of it run. The
  * manifest's own rules are `@lushly-dev/loam-manifest/plugin`'s; this adds what needs the disk: each app's packed
  * manifest, regular files only, each engine's SHA-256, the bundle's bounds and its digest (7.1). A `.loam-plugin`
- * archive is step 9a2's.
+ * archive (step 9a2) is read by `plugin-archive.ts`, which stages its files and checks them here as a bundle.
  */
 
 import { createHash } from 'node:crypto';
@@ -12,6 +12,7 @@ import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
 import { join, posix, resolve } from 'node:path';
 import {
 	bundlePathProblem,
+	foldBundlePath,
 	PLUGIN_TARGETS_V1,
 	type PluginManifestV1,
 	pluginAppsRefusals,
@@ -21,6 +22,7 @@ import { readManifest } from '@lushly-dev/loam-manifest/validate';
 import { parse as parseToml } from 'smol-toml';
 import type { Finding } from './check.js';
 import { builtPaths } from './file-rules.js';
+import { checkPluginArchive, PLUGIN_ARCHIVE_EXTENSION } from './plugin-archive.js';
 import { OUTPUT_MARKER } from './tree.js';
 
 export const PLUGIN_SOURCE = 'loam-plugin.toml';
@@ -44,10 +46,13 @@ export interface BundleFile {
 export interface PluginCheckReport {
 	ok: boolean;
 	refusals: Finding[];
-	/** `loam-plugin.toml` for a source, `plugin-manifest.json` for a packed bundle. */
-	form?: 'source' | 'bundle';
+	/** `loam-plugin.toml` for a source, `plugin-manifest.json` for a packed bundle, a `.loam-plugin` file for an archive. */
+	form?: 'source' | 'bundle' | 'archive';
 	manifest?: PluginManifestV1;
-	/** Every file the bundle holds but its manifest, sorted by path; only when nothing was refused. */
+	/**
+	 * Every file the bundle holds but its manifest, sorted by path; only when nothing was refused. An archive's `source`
+	 * is `<archive>!<path>`, since the files it was checked as are gone once the check returns.
+	 */
 	files?: BundleFile[];
 	/** 7.1's digest of the bundle as it is (a bundle) or as `plugin pack` writes it (a source). */
 	bundleSha256?: string;
@@ -204,7 +209,7 @@ async function manifestSource(
 	if (!stats) return missing('The directory does not exist.');
 	if (!stats.isDirectory())
 		return missing(
-			'It is not a directory; this version checks a source or a directory bundle, and a `.loam-plugin` archive comes in step 9a2.'
+			`It is not a directory or a \`${PLUGIN_ARCHIVE_EXTENSION}\` archive: \`loam plugin check\` reads a source, a directory bundle or an archive \`loam plugin pack\` wrote.`
 		);
 	const source = existsSync(join(root, PLUGIN_SOURCE));
 	const bundle = existsSync(join(root, PLUGIN_MANIFEST));
@@ -422,7 +427,7 @@ async function engineFiles(
 
 /**
  * Two paths that one case-insensitive file system would make one (macOS's and Windows' defaults), compared at every
- * segment: `apps/Mail/a` and `apps/mail/b` share a directory there, and a file named as another path's directory
+ * segment as `foldBundlePath` folds them: `apps/Mail/a` and `apps/mail/b` share a directory there, and a file named as another path's directory
  * (`apps/a` and `apps/A/b`) cannot be unpacked at all.
  */
 export function collisionRefusals(paths: readonly string[]): Finding[] {
@@ -434,9 +439,9 @@ export function collisionRefusals(paths: readonly string[]): Finding[] {
 		for (let index = 0; index < segments.length; index++) {
 			const spelled = segments.slice(0, index + 1).join('/');
 			const file = index === segments.length - 1;
-			const held = seen.get(spelled.toLowerCase());
+			const held = seen.get(foldBundlePath(spelled));
 			if (!held) {
-				seen.set(spelled.toLowerCase(), { spelled, file });
+				seen.set(foldBundlePath(spelled), { spelled, file });
 				continue;
 			}
 			if (held.file !== file) {
@@ -469,6 +474,11 @@ export async function pluginCheck(options: { dir?: string } = {}): Promise<Plugi
 	// The directory named may be a link to the plugin, as `plugin pack` reads it; nothing below it may.
 	const named = resolve(options.dir ?? '.');
 	const root = await realpath(named).catch(() => named);
+	if (
+		root.endsWith(PLUGIN_ARCHIVE_EXTENSION) &&
+		(await lstat(root).catch(() => undefined))?.isFile()
+	)
+		return checkPluginArchive(root, pluginCheck, PLUGIN_BUNDLE_LIMITS);
 	const refused = (refusals: Finding[], rest: Partial<PluginCheckReport> = {}) => ({
 		ok: false,
 		refusals,

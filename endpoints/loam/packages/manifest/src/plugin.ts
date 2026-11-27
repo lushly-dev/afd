@@ -5,7 +5,10 @@
  */
 
 export {
+	BUNDLE_PATH_MAX_BYTES,
+	BUNDLE_SEGMENT_MAX_BYTES,
 	bundlePathProblem,
+	foldBundlePath,
 	isReservedPluginName,
 	PLUGIN_ADMITTED_KEYS_V1,
 	PLUGIN_FORBIDDEN_KEYS_V1,

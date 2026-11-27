@@ -20,6 +20,11 @@ export interface Finding {
 	key: string;
 	message: string;
 	suggestion: string;
+	/**
+	 * Why, as a stable tag, where a code alone does not say: a `.loam-plugin` archive's refusals carry one, which
+	 * loam-desktop's Rust inspect gives too (the phase 5 no-terminal amendment, 4.4's archive rules).
+	 */
+	reason?: string;
 }
 
 export interface Trust {

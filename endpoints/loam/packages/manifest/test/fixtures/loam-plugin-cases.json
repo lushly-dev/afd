@@ -1,5 +1,5 @@
 {
-	"description": "Cases for a plugin bundle's manifest (phase 5 no-terminal amendment, 4.4), run by @lushly-dev/loam-manifest's read-plugin.test.ts and meant for loam-desktop's Rust inspect (step 9c). Each case is `base` with its `patch` applied as an RFC 7386 JSON merge patch (null removes a key; an array is replaced whole). `refused` lists every refusal by code and key, in no order; `appCases` add each app's packed manifest, as much of it as the rules read. `bundleDigest` is the amendment's 7.1 digest of a bundle's files, each given by its path and its bytes' SHA-256, computed apart from either implementation.",
+	"description": "Cases for a plugin bundle's manifest (phase 5 no-terminal amendment, 4.4), run by @lushly-dev/loam-manifest's read-plugin.test.ts and meant for loam-desktop's Rust inspect (step 9c). Each case is `base` with its `patch` applied as an RFC 7386 JSON merge patch (null removes a key; an array is replaced whole). `refused` lists every refusal by code and key, in no order; `appCases` add each app's packed manifest, as much of it as the rules read. `bundleDigest` is the amendment's 7.1 digest of a bundle's files, each given by its path and its bytes' SHA-256, computed apart from either implementation. `archives` holds the `.loam-plugin` archive cases (step 9a2), described in its own `description`.",
 	"base": {
 		"plugin_manifest_version": 1,
 		"plugin": {
@@ -1170,6 +1170,111 @@
 					"key": "apps[0].path"
 				}
 			]
+		},
+		{
+			"name": "two apps in one directory, by a final sigma",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/a\u03a3"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/a\u03c3"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[1].path"
+				}
+			]
+		},
+		{
+			"name": "two apps in one directory, by a long s",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/s"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/\u017f"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[1].path"
+				}
+			]
+		},
+		{
+			"name": "an app path with a segment longer than 255 bytes",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_PATH_ESCAPE",
+					"key": "apps[0].path"
+				}
+			]
+		},
+		{
+			"name": "two apps in one directory, by \u1e9e and \u00df",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/\u1e9e"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/\u00df"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[1].path"
+				}
+			]
+		},
+		{
+			"name": "an app path longer than 1,024 bytes, refused by the schema's own bound first",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp0/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp1/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp2/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp3/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp4/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp5"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[0].path"
+				}
+			]
 		}
 	],
 	"appCases": [
@@ -1481,5 +1586,2130 @@
 			}
 		],
 		"digest": "f3241323af6a3bd2b9b977a9dda45e0ae90331707efa38316c36812f6774011d"
+	},
+	"archives": {
+		"description": "Cases for a `.loam-plugin` archive (phase 5 no-terminal amendment, 4.4's archive rules; step 9a2), run by @lushly-dev/loam-cli's plugin-archive.test.ts and meant for loam-desktop's Rust inspect (step 9c), which must accept each valid case and refuse each refused one with the same code and the same `reason`. An archive is read only in the one canonical form `loam plugin pack` writes, and each refused case deviates from it in one field (or, under its name, in several, to pin the order in which faults are reported). A case's archive is built byte for byte, and `sha256` is the SHA-256 of its bytes, which `node scripts/archive-cases.mjs` in @lushly-dev/loam-manifest (Node.js alone, no package; `--write` sets them) builds apart from loam-cli's zip-test-support.ts and checks, and which a manifest test runs. Its entries are its base's (`base`, a pure-app bundle, unless the case says `\"base\": \"engine\"`, `engineBase`, a mounted app and its engine), less any in `remove`, with `set`'s fields set on the base entry of each path it names; then the case's `entries`; then for `repeat` `count` entries named by `path` with `{n}` from 0 and its other fields; `all`'s fields are set on every one. They are written in increasing order of the name's UTF-8 bytes unless `archive.unsorted`, after the archive's `prefixHex`: each entry's `gapHex`, its local header, its name, its local extra field, its body and, for `descriptor`, a data descriptor; then the archive's `beforeDirectoryHex`; then the central directory, one entry each in the same order; then the end record, its comment and `trailingHex`. An entry's name is `path` as UTF-8, or `nameHex`; its data `text` as UTF-8, `zeros` bytes of zero, or `hex`. It is deflated (method 8) unless `method` says otherwise, its body `bodyHex`, the raw deflate bytes given, so every builder writes the same ones; any other method's body is the data itself. Every field is little-endian and canonical unless the entry sets it. The local header: signature 0x04034b50; version needed `versionNeeded` (20); flags `flags` (0x0800, the name is UTF-8; bit 3 added by `descriptor`); method; time `time` (0); date `date` (0x0021, 1980-01-01); the CRC-32 (`crc`, else the data's), compressed size (`compressed`, else the body's length) and uncompressed size (`declared`, else the data's length), all 0 with `descriptor`; name length; extra length. `local` overrides the local header's `path`, `versionNeeded`, `flags`, `method`, `time`, `date`, `crc`, `compressed`, `declared` and `extraHex`. With `descriptor`, the body is followed by the signature 0x08074b50 (left out when `descriptor` is `unsigned`), the CRC-32 (`descriptorCrc`, else the entry's), the compressed size and the uncompressed size. A central entry: signature 0x02014b50; version made by, `madeBy` (3) shifted left 8 OR'd with `madeByVersion` (20); version needed; flags; method; time; date; the CRC-32 and both sizes; name length; extra length (of `extraHex`); comment length (of `commentHex`); disk `disk` (0); internal attributes `internal` (0); external attributes, the Unix `mode` in octal (`100644`, or `100755` with `executable`) shifted left 16 plus `dosAttributes` (0); and the local header's offset (`localOffset`, else where its record was written); then the name, `extraHex` and `commentHex`. The end record: signature 0x06054b50; `disk` and `directoryDisk` (0); the entry count on this disk (`countHere`, else `count`) and in all (`count`, else the entries'); the central directory's size plus `sizeDelta`; its offset (`offset`, else where it was written); the comment's length; then the comment, `commentHex` followed by `commentZeros` zero bytes. `refusals` lists each refusal by code, key and `reason`: `(archive)` names the archive as a whole, and any other key an entry's name or a bundle file. `reason` is the rule the refusal names, one stable tag each, which 9c must give too: of the structure, end-record, comment, signature-in-end-record, zip64, disk, entry-counts, directory-size, name-encoding, name-empty, name-order, made-by, version-needed, flags, stored, method, time-date, extra-field, internal-attributes, mode, not-regular, tiling, local-header, signature-in-directory; of the bounds, too-many-entries, declared-size, archive-size; of the data, stream-unfinished, stream-corrupt, stream-too-long, stream-trailing, size-crc; of the names, path, fold, file-in-file, duplicate; of what it holds, manifest-missing, staging, bundle (any of the directory bundle's own rules), mode-engine, mode-executable; and archive-file for a file that is not a regular one or changed while read. With more than one fault, the one reported is the first in this order (4.4's archive rules): the structure, then the bounds, then the data, then the names, then what the archive holds.",
+		"base": [
+			{
+				"path": "plugin-manifest.json",
+				"text": "{\n\t\"plugin_manifest_version\": 1,\n\t\"plugin\": {\n\t\t\"id\": \"sketch\",\n\t\t\"title\": \"Sketch\",\n\t\t\"version\": \"1.0.0\",\n\t\t\"description\": \"A pure-app plugin: one view, no engine.\"\n\t},\n\t\"apps\": [\n\t\t{\n\t\t\t\"id\": \"sketch\",\n\t\t\t\"path\": \"apps/sketch\"\n\t\t}\n\t]\n}\n",
+				"bodyHex": "6d8eb10e82400c86e7f6299ace88b0dee633381a43085468d4a3e10e1c08ef6e2e107570fdbee6efb720b03da64e7df5acbdde24c46a9631e8e0d951997d343b5a1080b565471cee129b9eb344a2c6872478fe81df0d2ef3222f36da4a6846b5b89b13d934caa136a3ed89a3c10bcd2aaf8cfc40e23bf59233c29a426ab3c08e2e089052feb4005b1dfb04d3ed713708b0225c71c537"
+			},
+			{
+				"path": "apps/sketch/app-manifest.json",
+				"text": "{\n\t\"manifest_version\": 1,\n\t\"protocol\": 1,\n\t\"plugin\": {\n\t\t\"id\": \"sketch\",\n\t\t\"title\": \"Sketch\",\n\t\t\"version\": \"1.0.0\",\n\t\t\"description\": \"Draw.\",\n\t\t\"kind\": \"view\",\n\t\t\"domains\": [\n\t\t\t\"sketch\"\n\t\t]\n\t},\n\t\"view\": {}\n}\n",
+				"bodyHex": "4d8e3b0ec3201044ebdd53a0ad2d64b7d4b941ca288a904d9295315840ec0271f708dbf994fbde686633024ddaf1ddc4745b4c88ec1d29d1350834079f7cefedf7b6af07579b1180782025288e26f54f6a2a499caca9f0fc077f9dd4c956b63b1d4cec03cfe930a7a057b99b91dd56bcb0598fac9f34bb484a5c10003e9308704528f5b12dab442e58f00d"
+			},
+			{
+				"path": "apps/sketch/index.html",
+				"text": "<!doctype html><title>Sketch</title>\n",
+				"bodyHex": "b3514cc94f2ea92c4855c828c9cdb1b329c92cc949b50bce4e2d49ceb0d187f0b800"
+			}
+		],
+		"engineBase": [
+			{
+				"path": "plugin-manifest.json",
+				"text": "{\n\t\"plugin_manifest_version\": 1,\n\t\"plugin\": {\n\t\t\"id\": \"sketch\",\n\t\t\"title\": \"Sketch\",\n\t\t\"version\": \"1.0.0\",\n\t\t\"description\": \"An engine-backed plugin: one mounted app and its engine.\"\n\t},\n\t\"apps\": [\n\t\t{\n\t\t\t\"id\": \"sketch\",\n\t\t\t\"path\": \"apps/sketch\"\n\t\t}\n\t],\n\t\"engine\": {\n\t\t\"id\": \"sketch-engine\",\n\t\t\"kind\": \"http-service\",\n\t\t\"mount_app\": \"sketch\",\n\t\t\"service_mode\": \"login\",\n\t\t\"artifacts\": {\n\t\t\t\"linux-x64\": {\n\t\t\t\t\"path\": \"engines/linux-x64/sketch-engine\",\n\t\t\t\t\"sha256\": \"6f3e66cc250deb6b02e51a95f0da1dcd3e394fcd4129ae9ceedc0749f658cc5e\"\n\t\t\t}\n\t\t},\n\t\t\"auth\": {\n\t\t\t\"mode\": \"none\"\n\t\t}\n\t}\n}\n",
+				"bodyHex": "6d90c16e83301044cff657583e870408d0c2addfd06355a18dbd042bc458d8449122febdb27192aacd756676f7eddc28e166988f4ab767d0aa43ebda0b4e568d9a372cdb3c6cdeb01b25842bc91bc6ed099de8f9c62b4eb901bdf8f94b7ceee0d936dda6ab2ad18a4919179d0fcd501f95c6e400e28492ada71a366a64e771d60e2503631868c994b331bde5942c9e0c8cb1bc615f9410cff6028e7003aef7a2cfeea243095928f9f62bd68daf9e4ba215c04f4a07ab77ce2416a78b12d109982d18f3b796986acfa30ced0ca36f31583039d5817036de257c507abe26d7aab82b4ff015c3ee1e91dd7f3e7fae87bcacfc40d5edb1aa84c8cb54e2a13aa4399619d465974ac8a4907bdcd745276491e535602d10a548df8abaabca77214af4f5f87e42c784c31c3856cefb337ad4186b5ce8427f00"
+			},
+			{
+				"path": "apps/sketch/app-manifest.json",
+				"text": "{\n\t\"manifest_version\": 1,\n\t\"protocol\": 1,\n\t\"plugin\": {\n\t\t\"id\": \"sketch\",\n\t\t\"title\": \"Sketch engine\",\n\t\t\"version\": \"1.0.0\",\n\t\t\"description\": \"Draw, served by an engine.\",\n\t\t\"kind\": \"mounted\",\n\t\t\"domains\": [\n\t\t\t\"sketch\"\n\t\t]\n\t},\n\t\"mount\": {\n\t\t\"prefix\": \"sketch\",\n\t\t\"transport\": \"http\"\n\t}\n}\n",
+				"bodyHex": "658e318ec2400c456bfb1423d751046d6a6e40b95aad86c4018bc4339a31eca2287747930428b6f4fb5fdf6f42a0d1abf49cede7ce294b506adcbe42a0988285360cef7bb89da5a413029074d438ca57b6f642552126367081c7053ad6b328afd9679af6f5aedeadb4e3dc2689b62587e47f2b9739ddb973a787f3ba6dd46bfd2aba3c1dc34d8dbb6d238c5e3453e3be10005e4608f08d3017efa5fed28e897bf9fba79ebce61852a9d1c52c12c28c333e01"
+			},
+			{
+				"path": "engines/linux-x64/sketch-engine",
+				"text": "Not an engine: the archive cases stand in for one and never run it.\n",
+				"bodyHex": "15c7b10d80300c04c09e297e0206600876b0c243dcbc25db647ec4757746c304ea71f1404fc2724c5fc4b062a1da74c1853b1221e2afb898c857f0deb70f",
+				"executable": true
+			}
+		],
+		"valid": [
+			{
+				"name": "the base bundle, as pack writes it",
+				"entries": [],
+				"sha256": "75d5d4409769782ebd29f23ec8758649567af89580372eec9514f51275f5e613"
+			},
+			{
+				"name": "a file in a nested directory",
+				"entries": [
+					{
+						"path": "apps/sketch/assets/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"sha256": "9019079b88082ee9563c4cc6df223b78bd616334db229104973ef2d73a8de850"
+			},
+			{
+				"name": "a name in Unicode NFC",
+				"entries": [
+					{
+						"path": "apps/sketch/caf\u00e9.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"sha256": "b7e80b4e40dca13051a62a8376e44f8d86dc4d17223530e084874243f7c423e7"
+			},
+			{
+				"name": "an empty file",
+				"entries": [
+					{
+						"path": "apps/sketch/empty.txt",
+						"text": "",
+						"bodyHex": "0300"
+					}
+				],
+				"sha256": "268cd2170db6726fbf2761dec743ded5a51bc3e4abc622f5c54d435f3ae808f4"
+			},
+			{
+				"name": "an engine-backed bundle, its engine at mode 100755",
+				"base": "engine",
+				"entries": [],
+				"sha256": "6ff23ef3d3495e195a88a38b3202804739ff105941d1451e8c6f12814c373b86"
+			}
+		],
+		"refused": [
+			{
+				"name": "bytes after the end record",
+				"entries": [],
+				"archive": {
+					"trailingHex": "78"
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "end-record"
+					}
+				],
+				"sha256": "a94f4af1a74cf95e94a7b9ceb531aaabeecf3a9862c5417c48b290e6c11a6752"
+			},
+			{
+				"name": "an end record with a comment",
+				"entries": [],
+				"archive": {
+					"commentHex": "6d61696c"
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "comment"
+					}
+				],
+				"sha256": "cf1334257ecafde46994282b3ae8bd79a1fe1db643c29667124bd52849eb8e2d"
+			},
+			{
+				"name": "an end record hidden in the comment",
+				"entries": [],
+				"archive": {
+					"commentHex": "504b0506000000000000000000000000000000000000"
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "directory-size"
+					}
+				],
+				"sha256": "97c792ca1f850c5ba3efd27bc05797146672fb480fb3f4aa770705da4fc6127a"
+			},
+			{
+				"name": "a fake end record in the comment, with one byte after it",
+				"entries": [],
+				"archive": {
+					"commentHex": "504b050600000000000000000000000000000000000078"
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "end-record"
+					}
+				],
+				"sha256": "1870bb0b631814516034ba8c229d8505cb5fd308c76faee77962c398901d655a"
+			},
+			{
+				"name": "a signature starting in the end record's own comment length: 0x4b50 and a comment starting 05 06",
+				"entries": [],
+				"archive": {
+					"commentHex": "0506",
+					"commentZeros": 19278
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "end-record"
+					}
+				],
+				"sha256": "da40fda699b76ff8d2c973e5595b573284fec185f4c0a7ebd8389aee0fcf7bb5"
+			},
+			{
+				"name": "an end record whose central directory offset spells a central header's signature",
+				"entries": [],
+				"archive": {
+					"offset": 33639248
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "signature-in-end-record"
+					}
+				],
+				"sha256": "43beda770eb04dad847d63a0a858041881505608c7e93d122d4eb034b72e052f"
+			},
+			{
+				"name": "an end record on another disk",
+				"entries": [],
+				"archive": {
+					"disk": 1
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "disk"
+					}
+				],
+				"sha256": "311f3f7332e81792a71bdc165520343af9f7367a68407ad26877909a4ed77248"
+			},
+			{
+				"name": "a central directory on another disk",
+				"entries": [],
+				"archive": {
+					"directoryDisk": 1
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "disk"
+					}
+				],
+				"sha256": "0ed8fc12371ff8cf768f9a0ca879ef9bb69590db0c2242458d62d21cac3f2849"
+			},
+			{
+				"name": "two entry counts that differ",
+				"entries": [],
+				"archive": {
+					"countHere": 1
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "entry-counts"
+					}
+				],
+				"sha256": "05a5cbdf1c6f1a5a1d392a755168b96021217534a3de12e86cf2482cddba01f6"
+			},
+			{
+				"name": "an entry count that is not the central directory's",
+				"entries": [],
+				"archive": {
+					"count": 2
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "directory-size"
+					}
+				],
+				"sha256": "53b95eddb1604391c50ca03cfa0c17826170655aeec49696615caf7fbcb6f697"
+			},
+			{
+				"name": "a ZIP64 entry count",
+				"entries": [],
+				"archive": {
+					"count": 65535
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "zip64"
+					}
+				],
+				"sha256": "342f9ae99c9158869552659984e6d4605e005782e857b93c72b637fb3d2dae74"
+			},
+			{
+				"name": "a ZIP64 central directory offset",
+				"entries": [],
+				"archive": {
+					"offset": 4294967295
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "zip64"
+					}
+				],
+				"sha256": "3cb74045c991c9bfeac384659d7c92ff39fc20bc42f618a16c05659ac58280f9"
+			},
+			{
+				"name": "a ZIP64 central directory size",
+				"entries": [],
+				"archive": {
+					"sizeDelta": 4294967086
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "zip64"
+					}
+				],
+				"sha256": "bd03ba60f72957ceff6628b5100fe426c0938e0ca226636c5522b9f99d749a5a"
+			},
+			{
+				"name": "a central directory that does not end at the end record",
+				"entries": [],
+				"archive": {
+					"sizeDelta": -1
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "directory-size"
+					}
+				],
+				"sha256": "911315f57382dfa9964971aced85c8e09ef4c4ac217bf400910605c145009134"
+			},
+			{
+				"name": "made by MS-DOS",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"madeBy": 0
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "made-by"
+					}
+				],
+				"sha256": "9b1f77ee0190bc45a580ed5126462bcd2548459c4bf23aa71437a7f68a64a7ba"
+			},
+			{
+				"name": "made by OS X",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"madeBy": 19
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "made-by"
+					}
+				],
+				"sha256": "496be7eec53b91f8a7f319ed8737b8a5bc0cbe6d3ea1e45611fc319aca9cd9bf"
+			},
+			{
+				"name": "made by another spec version",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"madeByVersion": 30
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "made-by"
+					}
+				],
+				"sha256": "87e127e4893b846c2a3f2d719abccf77cec2ce1307e6a5c0b1156ea3f5536499"
+			},
+			{
+				"name": "another version needed",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"versionNeeded": 45
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "version-needed"
+					}
+				],
+				"sha256": "4461d91657f9f5f6e2369150272c88f8bb994075cf0184cba8abbd543fa18f67"
+			},
+			{
+				"name": "flags without the UTF-8 bit",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"flags": 0
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "flags"
+					}
+				],
+				"sha256": "887f0f6cd3807288a8185e1564379f1cd02c8cdd8db609fd98a27dbe531f2526"
+			},
+			{
+				"name": "the encryption flag",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"flags": 2049
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "flags"
+					}
+				],
+				"sha256": "34d539752fe468889da029b515a6b5e80bdd5447365c0741b92f0f9ef5c52d72"
+			},
+			{
+				"name": "a data descriptor",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"descriptor": true
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "flags"
+					}
+				],
+				"sha256": "515697fee9803d72949ad7a9dc520ecaaa31324dd60b913f159f9916b68943ad"
+			},
+			{
+				"name": "an unsigned 12-byte data descriptor",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"descriptor": "unsigned"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "flags"
+					}
+				],
+				"sha256": "3781e1a3aad7e4b8af81eeaad93ca7309d60f82df33982e28e92c959def68709"
+			},
+			{
+				"name": "a stored entry",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"method": 0
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "stored"
+					}
+				],
+				"sha256": "3640dad27c403156e21640f33aaaa34fe6504dd42eefd92db323ccaebaaf4dac"
+			},
+			{
+				"name": "a method other than deflate or stored",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"method": 12
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "method"
+					}
+				],
+				"sha256": "830de41f89f99dbb358715bd118878698e0c6c56cd65f74c214c1fc626f97919"
+			},
+			{
+				"name": "a time other than 0",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"time": 1
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "time-date"
+					}
+				],
+				"sha256": "e6bd46e64a1e0bf13d6c2b4d2e6a4b0a2c24c08f2fdbb297e9a730f681bd946f"
+			},
+			{
+				"name": "a date other than 1980-01-01",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"date": 0
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "time-date"
+					}
+				],
+				"sha256": "213dfd576b12d880798b55333883d6a957102f571ebd84f1cf5df91808f5db06"
+			},
+			{
+				"name": "an extended timestamp extra field (0x5455)",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"extraHex": "5455050001000000aa"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "extra-field"
+					}
+				],
+				"sha256": "a8d2a4308905a98611f6d3c633d94c5cfa360a45215fe0a77cd43e7936488674"
+			},
+			{
+				"name": "an unknown extra field (0xcafe)",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"extraHex": "feca0000"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "extra-field"
+					}
+				],
+				"sha256": "d4b416744066947ff9c11ad8b4e2e51187a2ad8628dc131258792007fa809924"
+			},
+			{
+				"name": "an Info-ZIP Unicode path field (0x7075)",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"extraHex": "75700600000000000000"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "extra-field"
+					}
+				],
+				"sha256": "a5d58bb2eab26568ebd6a40de160b8a8752aa63d7e95f4b36ec3742c3eca69af"
+			},
+			{
+				"name": "an ASi Unix field (0x756e)",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"extraHex": "6e750000"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "extra-field"
+					}
+				],
+				"sha256": "ba0a16971dca84da391af7306e1480dd349616738feae540dc71ac77fddf2b82"
+			},
+			{
+				"name": "a ZIP64 extra field (0x0001)",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"extraHex": "0100100000000000000000000000000000000000"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "extra-field"
+					}
+				],
+				"sha256": "b1ddc07a1e4b5c32193c1ccb6f8489880a1f5b40671f7c8f8edf6e2b62e03714"
+			},
+			{
+				"name": "libarchive's xl field (0x6c78) naming a symbolic link, in the central entry",
+				"entries": [
+					{
+						"path": "apps/sketch/link.js",
+						"text": "../../../../../../tmp/loam-xl-target",
+						"bodyHex": "d3d3d3d7434525b905fa39f989b9ba1539ba258945e9a92500",
+						"extraHex": "786c07000514030000ffa1"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "extra-field"
+					}
+				],
+				"sha256": "a9d92ff838ce74ef757b3d6897f4f651d746d2ca0e9e5022d4eaa6264f582407"
+			},
+			{
+				"name": "libarchive's xl field (0x6c78) naming a symbolic link, in the local header",
+				"entries": [
+					{
+						"path": "apps/sketch/link.js",
+						"text": "../../../../../../tmp/loam-xl-target",
+						"bodyHex": "d3d3d3d7434525b905fa39f989b9ba1539ba258945e9a92500",
+						"local": {
+							"extraHex": "786c07000514030000ffa1"
+						}
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "extra-field"
+					}
+				],
+				"sha256": "ee4ac1535862138a83e3ef2bff05692bcc17a5d0c4c88f29031c37a1ffa51d8e"
+			},
+			{
+				"name": "libarchive's xl field (0x6c78) naming a symbolic link, in both headers",
+				"entries": [
+					{
+						"path": "apps/sketch/link.js",
+						"text": "../../../../../../tmp/loam-xl-target",
+						"bodyHex": "d3d3d3d7434525b905fa39f989b9ba1539ba258945e9a92500",
+						"extraHex": "786c07000514030000ffa1",
+						"local": {
+							"extraHex": "786c07000514030000ffa1"
+						}
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "extra-field"
+					}
+				],
+				"sha256": "c83d50a7c0f35547d54ef3136b5f6977f35eadd64dadcf4f65fc7bab691d85af"
+			},
+			{
+				"name": "an entry comment",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"commentHex": "6869"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "comment"
+					}
+				],
+				"sha256": "5860879d293c88f625784a61ef07bee5c2938d68ca08b0040b247907c6d92066"
+			},
+			{
+				"name": "a central directory entry on another disk",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"disk": 1
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "disk"
+					}
+				],
+				"sha256": "be21de7dd533ed142632ca4388f0f9ed26d877a0501cfe0080a138b6ae64c692"
+			},
+			{
+				"name": "internal attributes other than 0",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"internal": 1
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "internal-attributes"
+					}
+				],
+				"sha256": "a10828c6fba0f12a5b7f1345a80b33e772d88577610c04b89ba84a2a1c0e61b5"
+			},
+			{
+				"name": "a regular file with permissions other than 644 or 755",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"mode": "100600"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "mode"
+					}
+				],
+				"sha256": "7f0bdeb48c32be3e70c29dcb9788bc4af68b75163bf12f010d5611a61566fb9c"
+			},
+			{
+				"name": "a mode with permission bits and no type bits",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"mode": "600"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "mode"
+					}
+				],
+				"sha256": "5d4fd92d0b033e0ab76a1db52148ecdb5276e40d3dc4b4214acaf6d9b423c28f"
+			},
+			{
+				"name": "no mode at all",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"mode": "0"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "mode"
+					}
+				],
+				"sha256": "577d80d9585b0dca3c165a5abeb92c726bb306e2ff319bd82d371bc45d2fcb8f"
+			},
+			{
+				"name": "the MS-DOS archive attribute",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"dosAttributes": 32
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "mode"
+					}
+				],
+				"sha256": "1686d34f308f9c5044e226e684a186e065302f75049f789401c720ef80f15a93"
+			},
+			{
+				"name": "the MS-DOS directory attribute on a file",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"dosAttributes": 16
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "mode"
+					}
+				],
+				"sha256": "ddf6b1a281cf475619bc9a00e9ead5e6d61cea341fb5810f0b4673a7d2d3d82e"
+			},
+			{
+				"name": "the MS-DOS reparse-point attribute",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"dosAttributes": 1024
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "mode"
+					}
+				],
+				"sha256": "f887f84e09f7fd9ffb4c06563f40d986dad2fa537540b9a97ce384ccfc20d172"
+			},
+			{
+				"name": "an unknown file type",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"mode": "170644"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "mode"
+					}
+				],
+				"sha256": "f8c57611ba88500cfd3268edda86810ab64ba60634d9860383ef486482798425"
+			},
+			{
+				"name": "a ZIP64 size",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"declared": 4294967295
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "zip64"
+					}
+				],
+				"sha256": "12867605818e62f71e4d77b7d53211601959708e9d050578219799bef3e8c8df"
+			},
+			{
+				"name": "a ZIP64 local header offset",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"localOffset": 4294967295
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "zip64"
+					}
+				],
+				"sha256": "b7aa79b734926945c37b65a9f68d4f8f0619578160ded1893933479a91f655ad"
+			},
+			{
+				"name": "a symbolic link",
+				"entries": [
+					{
+						"path": "apps/sketch/link",
+						"text": "/etc/passwd",
+						"bodyHex": "d34f2d49d62f482c2e2e4f0100",
+						"mode": "120777"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/link",
+						"reason": "not-regular"
+					}
+				],
+				"sha256": "354f0c7242bd96792a81fa2b6d8df26b5612edd9e01296460c9c595d73715ffc"
+			},
+			{
+				"name": "a FIFO",
+				"entries": [
+					{
+						"path": "apps/sketch/pipe",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"mode": "010644"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/pipe",
+						"reason": "not-regular"
+					}
+				],
+				"sha256": "0f5fa6a4f5e2493e87385b63c36b4c947ad0881bb4d228a5739ad6c1db62d135"
+			},
+			{
+				"name": "a character device",
+				"entries": [
+					{
+						"path": "apps/sketch/tty",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"mode": "020644"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/tty",
+						"reason": "not-regular"
+					}
+				],
+				"sha256": "ad5f640e32eca7530dcd4b676a207a9401944bdeba1dbd2879bf9609c8b32587"
+			},
+			{
+				"name": "a block device",
+				"entries": [
+					{
+						"path": "apps/sketch/disk",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"mode": "060644"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/disk",
+						"reason": "not-regular"
+					}
+				],
+				"sha256": "dafb9ab810ea82dea163dfe679906a0f890c69dd5cdba1e0efc5a688caab5f59"
+			},
+			{
+				"name": "a socket",
+				"entries": [
+					{
+						"path": "apps/sketch/sock",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"mode": "140755"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/sock",
+						"reason": "not-regular"
+					}
+				],
+				"sha256": "7f73aebfd587cabdd30c967ed635bc6f8e053c5fc704b6ee929a43a45bc17b7e"
+			},
+			{
+				"name": "a directory entry",
+				"entries": [
+					{
+						"path": "apps/sketch/assets/",
+						"text": "",
+						"bodyHex": "0300",
+						"mode": "040755"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/assets",
+						"reason": "not-regular"
+					}
+				],
+				"sha256": "f29ce31bf55f73310cd0e65073d9f7fe3709a8bbb7410d82d0b9861a3452df61"
+			},
+			{
+				"name": "a name ending `/` typed as a file",
+				"entries": [
+					{
+						"path": "apps/sketch/assets/",
+						"text": "",
+						"bodyHex": "0300"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/assets",
+						"reason": "not-regular"
+					}
+				],
+				"sha256": "20a6798e73aefba6c9c521ad0a2c1d1358362863ca4c420873ab1551b1827600"
+			},
+			{
+				"name": "a directory type on a name without `/`",
+				"entries": [
+					{
+						"path": "apps/sketch/assets",
+						"text": "",
+						"bodyHex": "0300",
+						"mode": "040755"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/assets",
+						"reason": "not-regular"
+					}
+				],
+				"sha256": "7cc0f894ec602abdefa777381c9d9f04a18b68b22bb26a73bedab8a8078e0267"
+			},
+			{
+				"name": "entries out of the order of their names' bytes",
+				"entries": [
+					{
+						"path": "zz.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					},
+					{
+						"path": "apps/sketch/zz.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"archive": {
+					"unsorted": true
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "name-order"
+					}
+				],
+				"sha256": "a688847e102c86af575222f446e03704b474185dbeb682267dc0e8b4c5ca5241"
+			},
+			{
+				"name": "an entry named twice",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					},
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "name-order"
+					}
+				],
+				"sha256": "e0d11831b5df7231574cfee880d7f6403cea1d883d6acf681442ee2bbd44cfc0"
+			},
+			{
+				"name": "an entry with no name",
+				"entries": [
+					{
+						"path": "",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "name-empty"
+					}
+				],
+				"sha256": "af1b66f1f439b1d47d2760c3d3f3e517d15a0fb3b7e909b42037850d4dfcc570"
+			},
+			{
+				"name": "a name that is not UTF-8",
+				"entries": [
+					{
+						"nameHex": "617070732fff",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "name-encoding"
+					}
+				],
+				"sha256": "eea7a603af6bd4911993408ee5da622fc9e244554529abf7a41d7cd55893cf70"
+			},
+			{
+				"name": "bytes before the first local header",
+				"entries": [],
+				"archive": {
+					"prefixHex": "00"
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "tiling"
+					}
+				],
+				"sha256": "7f56b6bcc5b86dacb4398368cb010140e7d1deb7d1c158b650255b9b359cf179"
+			},
+			{
+				"name": "a gap between two local records",
+				"entries": [
+					{
+						"path": "apps/sketch/zz.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"gapHex": "00"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "tiling"
+					}
+				],
+				"sha256": "0ac362537112e018d2b791cdc7d3882f7242d99081daf491c1ce38638fdd0309"
+			},
+			{
+				"name": "two entries sharing one local record",
+				"entries": [
+					{
+						"path": "apps/sketch/zz.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"localOffset": 0
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "tiling"
+					}
+				],
+				"sha256": "2d64ec660fba735f3abfd11070dedc7e8f9d64f3102331a4e030ce48566c55d3"
+			},
+			{
+				"name": "a local header offset with no local header there",
+				"entries": [
+					{
+						"path": "apps/sketch/zz.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"localOffset": 1
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "tiling"
+					}
+				],
+				"sha256": "4baf6fe30938c5774845e69ee1c658f07d86931d32c3641bcce9454e466e88e7"
+			},
+			{
+				"name": "data that overruns the archive",
+				"entries": [
+					{
+						"path": "zz.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"compressed": 1048576
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "tiling"
+					}
+				],
+				"sha256": "ca5283922ed944d0b7b4929b3280c2fb0bacf6227a63619142cbef7beff9858e"
+			},
+			{
+				"name": "a local header naming another file",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"local": {
+							"path": "apps/sketch/b.js"
+						}
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "local-header"
+					}
+				],
+				"sha256": "9e34d31847e1ba447f442d9bb78253df0a0d4cb3b8f4f0e3aaba8dbaaeb7e24a"
+			},
+			{
+				"name": "a local header with another version needed",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"local": {
+							"versionNeeded": 10
+						}
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "local-header"
+					}
+				],
+				"sha256": "e80927010ab01cf87c494f92f931e4a13b06d46fe6424d55fe5f5c1291666f93"
+			},
+			{
+				"name": "a local header with another method",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"local": {
+							"method": 0
+						}
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "local-header"
+					}
+				],
+				"sha256": "150c9722b71105945faea7a7a8dfb755f8b7cb06a9c3ad7c657252097d8d9d59"
+			},
+			{
+				"name": "a local header with other flags",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"local": {
+							"flags": 0
+						}
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "local-header"
+					}
+				],
+				"sha256": "1022b12142a0a0c1dab33efc81dca4c7b2c2187408cf2009f41aa874aa5ff04b"
+			},
+			{
+				"name": "a local header with another date",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"local": {
+							"date": 0
+						}
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "local-header"
+					}
+				],
+				"sha256": "1248a75d0c91e9827e4a0cead5f61b55d9fc167e44ca48d15dd479c4e769bb24"
+			},
+			{
+				"name": "a local header with another CRC-32",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"local": {
+							"crc": 7
+						}
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "local-header"
+					}
+				],
+				"sha256": "fd57d6f6a0b5a3e291178b2bb3363fd8fd0ba9bec075526e743068881a5d842b"
+			},
+			{
+				"name": "a local header with other sizes",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"local": {
+							"compressed": 1,
+							"declared": 1
+						}
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "local-header"
+					}
+				],
+				"sha256": "026e99292963e8c90a6bf564f9d5cf4619fcd4336cd0f92f4b43f1b9d193643d"
+			},
+			{
+				"name": "a local header with an extra field",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"local": {
+							"extraHex": "5455050001000000aa"
+						}
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "extra-field"
+					}
+				],
+				"sha256": "3049f1d6d0421343e3540674b74ff377103dea6d921ba85163786dced4966628"
+			},
+			{
+				"name": "bytes between the last local record and the central directory",
+				"entries": [],
+				"archive": {
+					"beforeDirectoryHex": "00"
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "tiling"
+					}
+				],
+				"sha256": "385a3fb5d0f919d081e6767255279b0717e219b9ac373e292ef49b6566e62c7a"
+			},
+			{
+				"name": "a central entry's CRC-32 that spells a ZIP64 locator's signature, which a reader may look for there",
+				"entries": [
+					{
+						"path": "zz.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"crc": 117853008
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "signature-in-directory"
+					}
+				],
+				"sha256": "ba6d46c0c26d9f9ce44816bdac3744029aecc45cc32199c443d008e637fd5fbb"
+			},
+			{
+				"name": "a declared size larger than the data",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"declared": 7
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "size-crc"
+					}
+				],
+				"sha256": "19899a2c63d3e3ff34c943ef582c7c8324d8e62128ca725f40e6462e0957c191"
+			},
+			{
+				"name": "a declared size smaller than the data",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "twelve bytes",
+						"bodyHex": "2b294fcd294b5548aa2c492d0600",
+						"declared": 3
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "stream-too-long"
+					}
+				],
+				"sha256": "92eac22a515a6bfc20e863a1a211d09e355f8353b7b1b7c6e3a1293e93e15634"
+			},
+			{
+				"name": "a CRC-32 that is not the data's",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"crc": 1
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "size-crc"
+					}
+				],
+				"sha256": "dbbf2c6d2c9ee9a62e3680390e1f6279c3d1bc0a30b31bc6309252f02db59ff6"
+			},
+			{
+				"name": "a corrupt deflate stream",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "ffffffff"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "stream-corrupt"
+					}
+				],
+				"sha256": "3ae26f8873c99eb545c49df78130b6a05a212bf0ca43848dc5693a1e2300e40d"
+			},
+			{
+				"name": "a deflate stream with no final block (sync-flushed)",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "aae002000000ffff"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "stream-unfinished"
+					}
+				],
+				"sha256": "162efc8eccac188eb445300361848784fc0c2002c4a23d520fdbc005c2ce8f22"
+			},
+			{
+				"name": "bytes after the end of the deflate stream",
+				"entries": [
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe0020000"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "stream-trailing"
+					}
+				],
+				"sha256": "535ff41af9548f5e2dd98cd9e8a5cdfb6df633bf5427d9efb2d5402d77e1ea39"
+			},
+			{
+				"name": "a declared size past the 256 MiB cap, refused before it is read",
+				"entries": [
+					{
+						"path": "apps/sketch/big.bin",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"declared": 268435457
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_BUNDLE_TOO_LARGE",
+						"key": "(archive)",
+						"reason": "declared-size"
+					}
+				],
+				"sha256": "53bd897ff8f8deb7b500b6a7883f1ca72bc0a9be1962ea7226b5e1a998905a32"
+			},
+			{
+				"name": "two declared sizes that each fit and together pass the cap",
+				"entries": [
+					{
+						"path": "apps/sketch/a.bin",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"declared": 157286400
+					},
+					{
+						"path": "apps/sketch/b.bin",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"declared": 157286400
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_BUNDLE_TOO_LARGE",
+						"key": "(archive)",
+						"reason": "declared-size"
+					}
+				],
+				"sha256": "2f7e6b7615557b324cc54b788ce2aa5d02521bf06c9ad681bd6c0d06c6f679f8"
+			},
+			{
+				"name": "more than 2,000 files",
+				"repeat": {
+					"count": 2001,
+					"path": "apps/sketch/f{n}.txt",
+					"text": "",
+					"bodyHex": "0300"
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_BUNDLE_TOO_LARGE",
+						"key": "(archive)",
+						"reason": "too-many-entries"
+					}
+				],
+				"sha256": "96e4ec471d74e896779c700bdab524b442b148296f9a65cff24bde7cbd4cbe6f"
+			},
+			{
+				"name": "a `..` segment",
+				"entries": [
+					{
+						"path": "apps/../evil.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/../evil.js",
+						"reason": "path"
+					}
+				],
+				"sha256": "1f17f19992ff9783c1389ec21b4d1f190a31108934e995b3fd693cc4a6d64093"
+			},
+			{
+				"name": "an absolute name",
+				"entries": [
+					{
+						"path": "/etc/evil",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "/etc/evil",
+						"reason": "path"
+					}
+				],
+				"sha256": "a8b8b1dc1e2bbef2e6666c5f92ca177cc834d90d1523f66a6b9a68961784418e"
+			},
+			{
+				"name": "a backslash",
+				"entries": [
+					{
+						"path": "apps\\sketch\\x",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps\\sketch\\x",
+						"reason": "path"
+					}
+				],
+				"sha256": "d5bf68b6764d668007bd09f20d1e29d569f1a6c4d4ab8cc3bb47ee7b2ee825c1"
+			},
+			{
+				"name": "a segment ending in a dot",
+				"entries": [
+					{
+						"path": "apps/sketch/notes.",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/notes.",
+						"reason": "path"
+					}
+				],
+				"sha256": "d873778f148b9379ecfad50ede70907a04a2d7290d01bb3dc0477142bfcce285"
+			},
+			{
+				"name": "a segment ending in a space",
+				"entries": [
+					{
+						"path": "apps/sketch/notes ",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/notes ",
+						"reason": "path"
+					}
+				],
+				"sha256": "27d92f8e1827c1b8b388f7e45d81adefbfed43be836b7ea2137286b74459b46c"
+			},
+			{
+				"name": "a name Windows reserves",
+				"entries": [
+					{
+						"path": "apps/sketch/CON",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/CON",
+						"reason": "path"
+					}
+				],
+				"sha256": "cd9af8944dd3d1c4a4e20ac6a4f928989b306ae442b29d2092a49422cefbf081"
+			},
+			{
+				"name": "a name not in Unicode NFC",
+				"entries": [
+					{
+						"path": "apps/sketch/cafe\u0301.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/cafe\u0301.js",
+						"reason": "path"
+					}
+				],
+				"sha256": "eb2754b5a9d78cba3bbd551d8d90392953095f6bca551c4e025a7e2bca389b54"
+			},
+			{
+				"name": "a segment longer than 255 bytes of UTF-8",
+				"entries": [
+					{
+						"path": "apps/sketch/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						"reason": "path"
+					}
+				],
+				"sha256": "9387a31f4b086f416863c5705468b054c50d516f23e3ca8c1bbfaab1826e7f45"
+			},
+			{
+				"name": "a path longer than 1,024 bytes of UTF-8",
+				"entries": [
+					{
+						"path": "apps/sketch/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp0/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp1/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp2/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp3/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp4/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp5",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp0/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp1/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp2/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp3/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp4/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp5",
+						"reason": "path"
+					}
+				],
+				"sha256": "6fd37cb7d1ae4fb86168e1d5b5d6417bfbc6b99d54ac315d12a9af39deaeaf12"
+			},
+			{
+				"name": "two names that differ only in case",
+				"entries": [
+					{
+						"path": "apps/sketch/A.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					},
+					{
+						"path": "apps/sketch/a.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/a.js",
+						"reason": "fold"
+					}
+				],
+				"sha256": "f891ebde99cb216dc31b16d20e4b61feef21460092c1a146e2a59fdd1fee4152"
+			},
+			{
+				"name": "a parent directory spelled in another case",
+				"entries": [
+					{
+						"path": "apps/Sketch/extra.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/app-manifest.json",
+						"reason": "fold"
+					},
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/index.html",
+						"reason": "fold"
+					}
+				],
+				"sha256": "50eb457187c8ab236c7712a5856d98fb1cf772167a6348b2b9789b6203076dea"
+			},
+			{
+				"name": "two names that fold alike by a final sigma",
+				"entries": [
+					{
+						"path": "apps/sketch/a\u03a3.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					},
+					{
+						"path": "apps/sketch/a\u03c3.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/a\u03c3.js",
+						"reason": "fold"
+					}
+				],
+				"sha256": "5306a4e73400325a672f0cdbd6d50aca2bf4624ca58d523f356dd43820d70b93"
+			},
+			{
+				"name": "two names that fold alike by a long s",
+				"entries": [
+					{
+						"path": "apps/sketch/s.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					},
+					{
+						"path": "apps/sketch/\u017f.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/\u017f.js",
+						"reason": "fold"
+					}
+				],
+				"sha256": "241392b02ae8d3277d6e0e93af69c84f4fb512794fb113833bde2f24d4a9eea0"
+			},
+			{
+				"name": "two names that fold alike only when lower case comes first: \u1e9e and \u00df",
+				"entries": [
+					{
+						"path": "apps/sketch/\u00df.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					},
+					{
+						"path": "apps/sketch/\u1e9e.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/\u1e9e.js",
+						"reason": "fold"
+					}
+				],
+				"sha256": "370363796d8a24763283e15b1b611f9a712a247b3f3d99131d8794846da5f216"
+			},
+			{
+				"name": "a file inside a file",
+				"entries": [
+					{
+						"path": "apps/sketch/index.html/x",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/sketch/index.html/x",
+						"reason": "file-in-file"
+					}
+				],
+				"sha256": "117fd99ed1d2bd039555d6547bb35d242da9dc3b5005e13ce8de76ed70fec42f"
+			},
+			{
+				"name": "no plugin-manifest.json",
+				"remove": ["plugin-manifest.json"],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_MISSING",
+						"key": "(archive)",
+						"reason": "manifest-missing"
+					}
+				],
+				"sha256": "300f846fcb6564ead9fdfdb33e6a0cf54e76e0e124e486b22b35265cf594a056"
+			},
+			{
+				"name": "a source's loam-plugin.toml",
+				"entries": [
+					{
+						"path": "loam-plugin.toml",
+						"text": "plugin_manifest_version = 1\n",
+						"bodyHex": "2bc8294dcfcc8bcf4dcccb4c4b2d2e892f4b2d2acecccf53b05530e40200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_MISSING",
+						"key": "(archive)",
+						"reason": "manifest-missing"
+					}
+				],
+				"sha256": "fa6703a740de314e9f241bb78e8e9374684fe7c4627b1479dfeb9314fd74bbc8"
+			},
+			{
+				"name": "a file the manifest names no place for",
+				"entries": [
+					{
+						"path": "README.md",
+						"text": "Not named.\n",
+						"bodyHex": "f3cb2f51c84bcc4d4dd1e30200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "README.md",
+						"reason": "bundle"
+					}
+				],
+				"sha256": "f8c0743fd7a4db99bc3925bb5ec07cf532de73b6973e0c9f545e2efc7e91796f"
+			},
+			{
+				"name": "an executable file that is no engine",
+				"entries": [
+					{
+						"path": "apps/sketch/run.sh",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"executable": true
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "apps/sketch/run.sh",
+						"reason": "mode-executable"
+					}
+				],
+				"sha256": "3e907f727dc0176b5e04044d88bfe35ae81ecaad4b13dc85435af253937adf4d"
+			},
+			{
+				"name": "an engine at mode 100644",
+				"base": "engine",
+				"set": {
+					"engines/linux-x64/sketch-engine": {
+						"executable": false
+					}
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "engines/linux-x64/sketch-engine",
+						"reason": "mode-engine"
+					}
+				],
+				"sha256": "254fedcb1f869e654567f1d15c8c0972575d8d83695b1fc8e3813e18a1c7eb95"
+			},
+			{
+				"name": "an engine-backed bundle with another file at mode 100755",
+				"base": "engine",
+				"entries": [
+					{
+						"path": "apps/sketch/run.sh",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"executable": true
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "apps/sketch/run.sh",
+						"reason": "mode-executable"
+					}
+				],
+				"sha256": "502ee233ac91d1cd00d846560cfac0fc59e3c942a56dc53cb404b0c9fae52f4b"
+			},
+			{
+				"name": "faults of every kind at once: the structure is reported, and nothing after it",
+				"remove": ["plugin-manifest.json"],
+				"entries": [
+					{
+						"path": "apps/../evil.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"crc": 1
+					},
+					{
+						"path": "apps/sketch/big.bin",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"declared": 268435457
+					}
+				],
+				"archive": {
+					"trailingHex": "78"
+				},
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "end-record"
+					}
+				],
+				"sha256": "16436d3f5de5f550aa14c6b92c458722776a3b4b0eae8d0ad140f317cb830abc"
+			},
+			{
+				"name": "a bounds fault, a data fault and a name fault: the bounds are reported",
+				"entries": [
+					{
+						"path": "apps/../evil.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"crc": 1
+					},
+					{
+						"path": "apps/sketch/big.bin",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"declared": 268435457
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_BUNDLE_TOO_LARGE",
+						"key": "(archive)",
+						"reason": "declared-size"
+					}
+				],
+				"sha256": "e5b98eecb02d94cb56648bb8435fd353eb9da00b550d6f8069a846e31c5460d5"
+			},
+			{
+				"name": "a data fault and a name fault: the data is reported",
+				"entries": [
+					{
+						"path": "apps/../evil.js",
+						"text": "x\n",
+						"bodyHex": "abe00200",
+						"crc": 1
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "size-crc"
+					}
+				],
+				"sha256": "7a997cd4f95723bd6ff311229623dc0ed00120ebb7b126469a407583d3adbc2e"
+			},
+			{
+				"name": "a name fault and no manifest: the name is reported",
+				"remove": ["plugin-manifest.json"],
+				"entries": [
+					{
+						"path": "apps/../evil.js",
+						"text": "x\n",
+						"bodyHex": "abe00200"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_PATH_ESCAPE",
+						"key": "apps/../evil.js",
+						"reason": "path"
+					}
+				],
+				"sha256": "d2bd64c5f49ebab6a0b583189353b902cbb9bbd8738414e96c48f5076cb22ed9"
+			},
+			{
+				"name": "a polyglot: a ZIP64 locator and end record, and another central directory, in the last entry's unknown extra field (0xcafe), its local records in a deflated payload's stored block",
+				"entries": [
+					{
+						"path": "apps/sketch/payload.bin",
+						"hex": "504b0304140000080000000000004fd73e9e290000002900000016000000617070732f736b657463682f696e6465782e68746d6c3c21646f63747970652068746d6c3e3c7469746c653e4e6f7420536b657463683c2f7469746c653e0a504b030414000008000000000000b9c3df5d090000000900000013000000617070732f736b657463682f6576696c2e6a73616c6572742831290a",
+						"bodyHex": "01970068ff504b0304140000080000000000004fd73e9e290000002900000016000000617070732f736b657463682f696e6465782e68746d6c3c21646f63747970652068746d6c3e3c7469746c653e4e6f7420536b657463683c2f7469746c653e0a504b030414000008000000000000b9c3df5d090000000900000013000000617070732f736b657463682f6576696c2e6a73616c6572742831290a"
+					},
+					{
+						"path": "zz.txt",
+						"text": "z\n",
+						"bodyHex": "abe20200",
+						"extraHex": "fecad100504b01021403140000080000000000004fd73e9e2900000029000000160000000000000000000000a48156010000617070732f736b657463682f696e6465782e68746d6c504b0102140314000008000000000000b9c3df5d0900000009000000130000000000000000000000a481b3010000617070732f736b657463682f6576696c2e6a73504b06062c000000000000002d002d0000000000000000000200000000000000020000000000000085000000000000002b04000000000000504b060700000000b00400000000000001000000"
+					}
+				],
+				"refusals": [
+					{
+						"code": "PLUGIN_MANIFEST_INVALID",
+						"key": "(archive)",
+						"reason": "extra-field"
+					}
+				],
+				"sha256": "eaeff74958e772163f5afdf3d88e338297fdf340eca9e8100da365f38dc83348"
+			}
+		]
 	}
 }
