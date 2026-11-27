@@ -620,16 +620,19 @@ test('P3-E16: E12 reads P2-E2 under D115 too, so a first-paint row over its ceil
 
 test('P3-E16: the committed phase 3 minimums name every row and place the table does, each at least 1', () => {
 	const minimums = readMinimums(P3_MINIMUMS_FILE);
-	for (const { row, in: places } of P3_ROWS)
+	// The local rows and step 10's hosted ones (E8's Hosted among them), each place at least 1.
+	const rows = [...P3_ROWS, ...P3_HOSTED_ROWS];
+	for (const { row, in: places } of rows)
 		for (const key of places)
 			if (LOCATIONS[key].evidence !== 'budget')
 				assert.ok(minimums[row]?.[key] >= 1, `P3-${row} ${key}: ${minimums[row]?.[key]}`);
-	assert.deepEqual(
-		Object.keys(minimums),
-		P3_ROWS.filter(({ in: places }) =>
-			places.some((key) => LOCATIONS[key].evidence !== 'budget')
-		).map(({ row }) => row)
-	);
+	assert.deepEqual(Object.keys(minimums), [
+		...new Set(
+			rows
+				.filter(({ in: places }) => places.some((key) => LOCATIONS[key].evidence !== 'budget'))
+				.map(({ row }) => row)
+		),
+	]);
 });
 
 test("P3-E16: the phase 3 row table is section 18's Place column", () => {
