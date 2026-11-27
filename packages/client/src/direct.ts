@@ -314,6 +314,7 @@ export class DirectClient {
 					input: { ...args },
 					summary: held.summary,
 					expiresAt: held.expiresAt,
+					...(held.approvalId && { approvalId: held.approvalId }),
 					actor: { ...actor },
 					...(held.reason && { reason: held.reason }),
 					...(context?.signal && { signal: context.signal }),

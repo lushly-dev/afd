@@ -1016,6 +1016,25 @@ An `afd-batch` or `afd-pipe` from a client that can elicit is approved up front,
 
 Only the command the tool call routes to can use the relay, once: a command that a handler runs cannot elicit. An accepted approval that has expired or was already used is asked again, and the question says so. `onApprovalRequired` is not called on the relay path, since no token exists.
 
+#### Recording an approval beside the call
+
+A host that keeps its own record of what ran (an intent written before the handler, an audit trail stricter than the journal) needs two things AFD gives it ([`spec/dispatch.md`](../../spec/dispatch.md#the-dispatch-id), [the approval summary](../../spec/command-metadata.md#the-approval-summary)):
+
+- **`context.dispatchId`**, an id the engine makes for each call: 128 random bits as 22 characters of base64url, never taken from the caller. Each batch item, pipeline step and command a handler runs gets its own, whatever trace id they share; a retry inside the chain keeps it. Middleware and the handler read it; a value a caller puts there is replaced, and a middleware that changes it does not change what later links read. It is not enumerable, so it is in no result, journal entry or context digest, and spread copies leave it out.
+- **`onApprovalAccepted(summary, dispatchId)`**, called when the approval step admits a held call, before the handler, and waited for. The summary says how the call was admitted (`via`: `token`, `elicitation`, `relay` or `direct`), the command, an `inputDigest` and an `approvalId`, with `issuedAt` and `expiresAt` when the evidence carries them. It holds no token or nonce. A hook that throws or rejects fails the call with `COMMAND_EXECUTION_ERROR` before the handler runs, and the evidence stays spent, so a host that must record the approval first can rely on it.
+
+```typescript
+createApprovalMiddleware({
+  secret,
+  onApprovalRequired: ({ approvalId, approvalToken }) => notifyApprover(approvalId, approvalToken),
+  onApprovalAccepted: async (summary, dispatchId) => {
+    await audit.write({ dispatchId, approval: summary.approvalId, via: summary.via });
+  },
+});
+```
+
+`approvalId` is the join: `onApprovalRequired`'s request and DirectClient's `onApprovalNeeded` request carry the id the call's summary will have, so the surface that asks the person can keep it beside their answer. It names the approval, not the call: under `replay: 'within-ttl'` every call one token admits has the same `approvalId` and a different `dispatchId`. `inputDigest` is an unkeyed digest of the input, so store it only where you would store the input itself. Over the MCP relay no host code is asked, so only `onApprovalAccepted` sees the id.
+
 #### An approver client
 
 A trusted MCP client that shows a person the held action itself, such as an application shell that mounts this server, can carry the person's decision back (`spec/command-metadata.md`, "Approval evidence from an approver client"). Name it with `approver`, a predicate over the call's context after `createContext`:
@@ -1060,7 +1079,7 @@ await server.execute('project-summary', {}, { scope: { project: 'p-1' } });
 ```
 
 - The value is validated before middleware runs. An invalid value, or a missing `required: true` one, fails the call with `VALIDATION_ERROR`, whose `details` name the `field` and its `meta` key. `null` is no value. AFD's own `afd-*` commands do not enforce `required`, so a client can discover the fields first.
-- Names AFD already uses (`actor`, `approval`, `auth`, `clock`, `credentials`, `interface`, `random`, `session`, `signal`, `source`, `timeout`, `traceId`) are refused, as is a `meta` key without a reverse-DNS prefix or with `dev.afd/` or an MCP-reserved prefix.
+- Names AFD already uses (`actor`, `approval`, `auth`, `clock`, `credentials`, `dispatchId`, `interface`, `random`, `session`, `signal`, `source`, `timeout`, `traceId`) are refused, as is a `meta` key without a reverse-DNS prefix or with `dev.afd/` or an MCP-reserved prefix.
 - A field is a claim made by the caller: use it to narrow what a handler does (pick a project), never to grant access. Check the caller's access to the claimed scope.
 - `journal: true` keeps the value in the journal (below). Only declare it for a field that never holds a secret.
 - Over MCP the value comes from `tools/call`'s `params._meta[meta]`, on both eras and over stdio and HTTP; undeclared `_meta` keys are dropped, and a value `createContext` sets for the same name wins. On AFD's HTTP lanes, `/message` reads `params._meta`, `/rpc` reads `params._meta` and `/stream` the `_meta` member of its input (both leave it out of the command input), and `/batch` reads the body's `_meta`.

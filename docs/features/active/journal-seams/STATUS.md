@@ -17,7 +17,7 @@ the pull request's number.
 
 - **1. Spec and vectors, the dispatch id and the approval hook** ([#2679](https://github.com/lushly-dev/afd/issues/2679)): merged in #2796. `spec/dispatch.md` ("The dispatch id", I1 to I4), `spec/command-metadata.md` ("The approval summary"), `spec/vectors/journal-seams.json` (12 and 12 cases, every language a documented gap) and `approvalId` on each binding of `approval-tokens.json`. Each language has a loader that skips every case.
 
-- **2. TypeScript** ([#2680](https://github.com/lushly-dev/afd/issues/2680)): not started. Needs step 1.
+- **2. TypeScript** ([#2680](https://github.com/lushly-dev/afd/issues/2680)): in review in #2846. `context.dispatchId` from both engines (`packages/core/src/dispatch-id.ts`), `onApprovalAccepted` and `ApprovalSummary` on `createApprovalMiddleware`, `approvalId` on `ApprovalRequest` and DirectClient's `DirectApprovalRequest`. Every `journal-seams.json` case runs; `wire/journal.jsonl` is unchanged.
 
 - **3. Rust** ([#2681](https://github.com/lushly-dev/afd/issues/2681)): not started. Needs step 1. Loam OS M1 consumes it.
 

@@ -30,6 +30,7 @@ import {
 	withContextDefaults,
 } from '@lushly-dev/afd-core';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
+import { setDispatchId, takeDispatchId } from '@lushly-dev/afd-core/internal/dispatch-id';
 import {
 	beginAdmission,
 	markEngineNext,
@@ -184,6 +185,10 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			(callerContext as unknown as Record<symbol, unknown>)[SKIP_OUTPUT_BUDGET]
 		);
 		const context = withContextDefaults(callerContext, deps.contextDefaults);
+		// This dispatch's id (spec/dispatch.md, "The dispatch id"): made here (or by the surface's
+		// own check before this engine, such as an app call's grant), never taken from the caller,
+		// and fixed on this context for every middleware and the handler (I3).
+		setDispatchId(context, takeDispatchId(context));
 		deps.relay?.transfer(callerContext, context);
 		// A command hidden from the caller (MCP authorization, M6) is looked up as a name that
 		// does not exist, before validation, middleware or the handler.

@@ -3,6 +3,7 @@
  * 2025-era lane, failing predicates and unbindable credentials, the evidence taken once, a token
  * outside its approver's calls, and the HTTP routes.
  */
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
@@ -10,7 +11,7 @@ import { success } from '@lushly-dev/afd-core';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createApprovalMiddleware } from './approval.js';
+import { type ApprovalSummary, createApprovalMiddleware } from './approval.js';
 import { AFD_APPROVAL_META_KEY, approvalKeyInInput, bindApprover } from './approver.js';
 import { defineCommand } from './schema.js';
 import { createMcpHandler } from './server.js';
@@ -96,6 +97,47 @@ const token = (held: CommandResult) =>
 	(held.error?.details as { approvalToken?: string } | undefined)?.approvalToken;
 
 describe('the approver carrier', () => {
+	it("reports an approver's carried token to onApprovalAccepted as via token", async () => {
+		const accepted: Array<{ summary: ApprovalSummary; dispatchId: string | undefined }> = [];
+		const runs: string[] = [];
+		const list = commands(runs);
+		const { base } = await serve({
+			commands: list,
+			middleware: [
+				createApprovalMiddleware({
+					secret: SECRET,
+					commands: list,
+					onApprovalAccepted: (summary, dispatchId) => {
+						accepted.push({ summary, dispatchId });
+					},
+				}),
+			],
+		});
+		const client = await connect(`${base}/mcp`);
+		const held = result(await client.callTool({ name: 'todo-delete', arguments: { id: 7 } }));
+		const approval = token(held) as string;
+		expect(accepted).toEqual([]);
+		const ran = result(
+			await client.callTool({
+				name: 'todo-delete',
+				arguments: { id: 7 },
+				_meta: { [AFD_APPROVAL_META_KEY]: approval },
+			})
+		);
+		expect(ran.success).toBe(true);
+		const nonce = JSON.parse(
+			Buffer.from(approval.split('.')[1] as string, 'base64url').toString('utf8')
+		).n as string;
+		expect(accepted).toHaveLength(1);
+		expect(accepted[0]?.summary).toMatchObject({
+			via: 'token',
+			command: 'todo-delete',
+			approvalId: createHash('sha256').update(`approval\0${nonce}`, 'utf8').digest('base64url'),
+		});
+		expect(accepted[0]?.dispatchId).toMatch(/^[A-Za-z0-9_-]{21}[AQgw]$/);
+		expect(JSON.stringify(accepted[0]?.summary)).not.toContain(nonce);
+	});
+
 	it('gives an approver its token on a 2025-era request, and refuses the key there', async () => {
 		const { base, runs } = await serve();
 		const client = await connect(`${base}/mcp`, 'legacy');

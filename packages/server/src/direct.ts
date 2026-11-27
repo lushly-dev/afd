@@ -74,6 +74,7 @@ export {
 	type ApprovalRejection,
 	type ApprovalRequest,
 	type ApprovalSecret,
+	type ApprovalSummary,
 	createApprovalMiddleware,
 } from './approval.js';
 export * from './define.js';

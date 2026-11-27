@@ -661,7 +661,7 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #2599 (Violet's redrawn system icons: `folder`, `document`, `close`, `search` and
 	// `warning`, which first paint carries, grow and `settings` shrinks): measured 346,861 with `main` at `7e75987e9`
 	// merged, against 346,795 with main's icons (+66); set to 347,200.
-	jsMinified: 348_800, // D115: shell keys (348,039, 5ade6c0f4); #2645 (348,354, 871c1a98a); step 10's 9.1; its 9.2, 348,711.
+	jsMinified: 349_700, // D115: shell keys (348,039, 5ade6c0f4); #2645 (348,354, 871c1a98a); step 10's 9.1; its 9.2, 348,711; #2846's journal seams, 349,276 (55548acc8).
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -700,7 +700,7 @@ export const CEILINGS = Object.freeze({
 	// lowering first-paint gzip from 109,973 to 103,971 (-6,002) against `main` at `bd374912`; lowered to 105,000.
 	// #2107 (inject wrapper provenance and `redactWrapped` from `late/journal-wrappers.ts`):
 	// first-paint gzip dropped from 104,118 to 102,691 (-1,427) against `main` at `bd30d790b`; lowered to 103,600.
-	jsGzip: 104_050, // D115: local workspace export and shell key commands (103,742 on 5ade6c0f4).
+	jsGzip: 104_500, // D115: local workspace export and shell key commands (103,742 on 5ade6c0f4); #2846's journal seams, 104,017 to 104,223 (55548acc8).
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -894,7 +894,7 @@ export const CEILINGS = Object.freeze({
 	// `276855fc`: set to 474,000 under D115.
 	// Bug batch #2179/#2119/#2118/#2016/#1952 merged with `main` at `b868f8c1`: 474,014 (+217 over its 473,797 at
 	// `a5e79aab`, main's changes since); set to 474,500 under D115.
-	appsMinified: 481_000, // D115: phase 5 step 10's 9.1, 473,988 to 478,337; its 9.2, to 478,642; its 9.3 (mounted views), to 480,912.
+	appsMinified: 481_500, // D115: phase 5 step 10's 9.1, 473,988 to 478,337; its 9.2, to 478,642; its 9.3 (mounted views), to 480,912; #2846's journal seams, to 481,004.
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
 	// Phase 5's step 3 with phase 3's step 8 merged (`main` at `46f7ab11`; step 8's `surface-calls`, shared with

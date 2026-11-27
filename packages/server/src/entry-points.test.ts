@@ -336,6 +336,11 @@ const HOST_IMPORTS =
  *   imports its key on first use and answers a missing WebCrypto with `APPROVAL_UNAVAILABLE`
  *   (#1699): approval and every-export measure 68,511 / 121,533 on `main` at `257c9a493`
  *   with the change, with esbuild 0.28.2; raised to 68,800 and 121,800.
+ *   Journal seams in TypeScript (#2680, under D115): the engine's `dispatchId` (`dispatch-id.ts`
+ *   in `@lushly-dev/afd-core`, a read-only property of each call's context), and the approval middleware's summary and `onApprovalAccepted` hook with the
+ *   `approvalId` on each held call's request. Measured on `main` at `dec3cfc50` 52,466 / 68,511 /
+ *   92,596 / 121,533 bytes and 52,907 / 69,556 / 93,037 / 122,744 after, with esbuild 0.28.2;
+ *   raised to 53,000, 69,700, 93,200 and 123,000.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -348,19 +353,19 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 52_700,
+		bytes: 53_000,
 	},
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 68_800,
+		bytes: 69_700,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 92_900,
+		bytes: 93_200,
 	},
-	{ what: 'every export', imports: undefined, bytes: 121_800 },
+	{ what: 'every export', imports: undefined, bytes: 123_000 },
 ];
 
 /** The modules only the tool surface needs. */
