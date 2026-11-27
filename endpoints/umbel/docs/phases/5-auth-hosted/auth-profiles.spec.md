@@ -465,7 +465,7 @@ Each step is one pull request. AFD's steps change only `spec/`, `docs/` and `pac
 | U4. Doctor and presets (needs U2, U3) | 6.2 and 7.4; the README's hosted section names the presets and links here | The Umbel gate; `doctor_auth_provider.rs` passes |
 | E. Tenant tests (needs U4 and a tenant) | Section 9 run and recorded here; the provisional warning removed if all pass | Every row of section 9 recorded |
 
-Python implements 2.1 to 2.3 with its M1 to M4, from the same cases, as part of language parity closure's Python auth item (D6 of `docs/features/active/parity-closure/parity-closure.plan.md`); no Python step is planned here. Its loader, `python/tests/test_principal_binding.py`, reads only `principalBindings`, so it needs no skip.
+Python implements 2.1 to 2.3 with its M1 to M4, from the same cases, as part of language parity closure's Python auth item (D6 of `docs/features/complete/parity-closure/parity-closure.plan.md`); no Python step is planned here. Its loader, `python/tests/test_principal_binding.py`, reads only `principalBindings`, so it needs no skip.
 
 ## 12. Versions (D188)
 

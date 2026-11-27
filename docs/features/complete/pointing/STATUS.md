@@ -1,10 +1,10 @@
 # Pointing: status
 
-Epic: [#1110](https://github.com/lushly-dev/afd/issues/1110). File new work for this area as its sub-issue.
+Epic: [#1110](https://github.com/lushly-dev/afd/issues/1110), closed 2026-11-26 with Slices 1 and 2 merged. Slice 3's token preview (Jobs 5 and 6) is the standalone issue [#2045](https://github.com/lushly-dev/afd/issues/2045), still blocked on Specimen T09 ([#1211](https://github.com/lushly-dev/afd/issues/1211)).
 
 Read this before the [proposal](pointing.proposal.md). It records exactly what is done and what is not, so an
 agent never has to scan the code to learn what is current. It follows the shape of the
-[Patterns status](../patterns/STATUS.md).
+[Patterns status](../../active/patterns/STATUS.md).
 
 ## How to keep this file
 
@@ -19,7 +19,7 @@ agent never has to scan the code to learn what is current. It follows the shape 
 
 ## Status block
 
-- **State:** active. Approved by the owner on 2026-11-22 and promoted from `proposed/` to `active/`.
+- **State:** complete (epic closed 2026-11-26). Earlier: active. Approved by the owner on 2026-11-22 and promoted from `proposed/` to `active/`.
 - **Epic:** [#1110](https://github.com/lushly-dev/afd/issues/1110). Work happens in its sub-issues;
   this file is the source of truth for progress.
 - **Approved scope:** 9 jobs, 10 commands, 13 error codes, 9 scenario files, and confirmed §4.0
@@ -49,7 +49,7 @@ Each step is on its own blank-line-separated list item so concurrent pull reques
 
 - **Slice 2 — Pinned notes lifecycle ([#2044](https://github.com/lushly-dev/afd/issues/2044)):** Done 2026-11-24, merged in [#2512](https://github.com/lushly-dev/afd/pull/2512). Implemented `specimen-note-{add,list,check,move,resolve,reopen}` in `specimens/notes/<id>.json` across `foundations/specimen` (`src/note-types.ts`, `src/note.ts`, `src/note-run.ts`, `src/note-schema.ts`, `src/note-validate.ts`, `bench.ts`, `bench-runtime.ts`, worker IPC), `integrations/specimen-afd` (32 commands), `endpoints/specimen-cli` (one-shot `note-*`), and `endpoints/specimen-server` (warm MCP bench); verified with `src/note-unit.test.ts`, `src/note.test.ts` (in-process + process), `verify-artifacts.mjs`, `test:stories`, and an `InProcessExecutor` run of YAML scenarios `07`–`09` against the built commands.
 
-- **Slice 3 — Point-scoped token preview ([#2045](https://github.com/lushly-dev/afd/issues/2045)):** Deferred (`blocked` on T09 [#1211](https://github.com/lushly-dev/afd/issues/1211) and #2043). Optional `point` on `specimen-impact`, `nodeId` candidate tokens, `?overrides=` review link, and scenarios 05–06.
+- **Slice 3 — Point-scoped token preview ([#2045](https://github.com/lushly-dev/afd/issues/2045)):** Deferred, standalone since the epic closed on 2026-11-26 (`blocked` on T09 [#1211](https://github.com/lushly-dev/afd/issues/1211); #2043 has landed). Optional `point` on `specimen-impact`, `nodeId` candidate tokens, `?overrides=` review link, and scenarios 05–06.
 
 ## How the jobs were checked
 
@@ -99,7 +99,7 @@ only; no text or code was taken from it.
 
 | Date | Session | What changed |
 | --- | --- | --- |
-| 2026-11-13 | Scaffold | After the [Patterns](../patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
+| 2026-11-13 | Scaffold | After the [Patterns](../../active/patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
 | 2026-11-13 | Draft | The owner asked for the proposals to be filled in and kept as draft. Section 2 verified first-hand at `f7ecbd43`; jobs tightened (every job has a "so that"; job 3 and 9 stay quiet, jobs 4 and 8 refuse; the scaffold's "leave the rest alone" became job 6, "name what else moves"); design, eight commands and nine scenarios written; the three checks pass; six recommendations made for the owner |
 | 2026-11-13 | Walk | One fresh reader walked the draft as the person, the job list and the calling agent. Blockers: scenarios 01 and 02 disagreed on which element a role resolves to (fixed by one shared climb, 4.1, and a separate `accessible`); job 5 showed the person nothing (screenshots and a preview link added); job 8 ended at detection (`specimen-note-move`, bulk `ids` on resolve). Improvements: token-only correction stated; `specimen-note-add` takes a pointer; `specimen-note-check` reports `unchecked` and `weakened`; `specimen-note-reopen` and `withdrawn`; random note ids; candidate tokens from Violet's `specimen.get`; paging; the check rule in the result and description; the CLI named with its launch cost. Separately, partial list assertions rewritten as dotted paths. Checks rerun clean: ten commands, 37 steps |
 | 2026-11-13 | Review | An independent review of the three drafts. Fixed here: step references in `expect` (01, 07) replaced with literal values and patterns; a refusal in 04 given its suggestion; fixtures added for every scenario (stale point, orphaned notes, one note, toolbar, inbox); element refs numbered by tag (`example-button:1` and `:2`); `specimen-impact` takes `point` optionally and is a mutation (it writes screenshots); `pt-` ids defined; `SPECIMEN_NOT_FOUND` names the nearest ids. Shared conventions with the other two proposals recorded in proposal 4.0 for the owner to confirm: random ids, `specimens/` for committed records and `.specimen/` (to be gitignored) for local data, the MCP host from Design Decisions' phase 5. Checks rerun clean |
@@ -109,3 +109,4 @@ only; no text or code was taken from it.
 | 2026-11-22 | Slice 1.2 (#2042) | Added the shared two-step meaningful-element climb (`src/climb.ts`, `src/browser/climb-dom.ts`), `specimen:` pointer URI parser/formatter (`src/pointer.ts`, `POINTER_INVALID`), review page Pick mode (`src/browser/pick.ts`, `src/browser/page.ts`, `src/browser/page.css`), unit tests (`src/pointer.test.ts`), browser + native-host agreement tests (`src/pick.test.ts`), raised Specimen shell/total build ceilings (`68,000` / `1,330,000` bytes), and updated Specimen provenance |
 | 2026-11-23 | Slice 1.3 (#2043) | Implemented `specimen-point`, `specimen-point-move` (staleness-checked with `POINT_STALE` and `NO_SUCH_LEVEL`), and `specimen-point-check` (`current` / `stale` with changed file digests and identity layers): extended the native Rust host (`bundle.rs`, `serve.rs`, `page.rs`, `browser.rs`, `main.rs`) to track loaded project source files, resolve targets to element refs, and extract bounded element texts without enlarging the static browser shell; added `.specimen/points/pt-*.json` storage, nearest-id `SPECIMEN_NOT_FOUND` suggestions, capped neighbourhoods (`pageData: true`), and zero-build CEM component/source resolution in `foundations/specimen/src/point.ts`; wired all 3 commands through `integrations/specimen-afd`, `endpoints/specimen-cli` (one-shot), and `endpoints/specimen-server` (warm bench); verified unit, browser (`in-process` and `process`), and literal YAML scenarios `01`–`04`, and updated Specimen provenance |
 | 2026-11-24 | Slice 2 (#2044) | Implemented `specimen-note-add`, `specimen-note-list`, `specimen-note-check`, `specimen-note-move`, `specimen-note-resolve`, and `specimen-note-reopen` across `foundations/specimen` (`src/note-types.ts`, `src/note.ts`, `src/note-run.ts`, `src/note-schema.ts`, `src/note-validate.ts`, `bench.ts`, `bench-runtime.ts`, worker IPC), `integrations/specimen-afd` (32 commands), `endpoints/specimen-cli` (one-shot `note-*`), and `endpoints/specimen-server` (warm MCP bench): committed `specimens/notes/note-<12>.json` storage, zero-browser list/resolve/reopen, orphan/weakened/unchecked/restored detection, move & reopen history preservation, and typed errors (`NOTE_EMPTY`, `NOTE_NOT_FOUND`, `REASON_REQUIRED`, `NOTE_ALREADY_RESOLVED`, `NOTE_NOT_RESOLVED`, `POINT_STALE`); verified unit, browser (`in-process` and `process`), and literal YAML scenarios `07`–`09`, and updated Specimen provenance |
+| 2026-11-26 | Close | Epic [#1110](https://github.com/lushly-dev/afd/issues/1110) closed with Slices 1 and 2 merged; folder moved from `active/` to `complete/`. Slice 3 remains as standalone [#2045](https://github.com/lushly-dev/afd/issues/2045). |

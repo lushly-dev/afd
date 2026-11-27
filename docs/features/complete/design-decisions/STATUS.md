@@ -1,10 +1,10 @@
 # Design Decisions: status
 
-Epic: [#1108](https://github.com/lushly-dev/afd/issues/1108). File new work for this area as its sub-issue.
+Epic: [#1108](https://github.com/lushly-dev/afd/issues/1108), closed 2026-11-26 with Slice 1 (Phases 1 to 5) merged. Slice 2's variant lifecycle (Phase 6, `decision-discard` and `decision-restore`) is the standalone issue [#2214](https://github.com/lushly-dev/afd/issues/2214).
 
 Read this before the [proposal](design-decisions.proposal.md). It records exactly what is done and
 what is not, so that an agent never has to scan the code to learn what is current. It follows the
-shape of the [Patterns status](../patterns/STATUS.md).
+shape of the [Patterns status](../../active/patterns/STATUS.md).
 
 ## How to keep this file
 
@@ -19,7 +19,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
 
 ## Status block
 
-- **State:** active (approved 2026-11-22). Promoted from `proposed/` after a three-pass owner
+- **State:** complete (epic closed 2026-11-26). Earlier: active (approved 2026-11-22). Promoted from `proposed/` after a three-pass owner
   walkthrough (Q1–Q19) against `main` at `dbc84611`.
 - **Epic:** [#1108](https://github.com/lushly-dev/afd/issues/1108). Work happens in its phased
   sub-issues under [Phases](#phases); each phase owns its own blank-separated line so parallel
@@ -57,7 +57,7 @@ Each phase owns one blank-separated line so concurrent pull requests never edit 
 
 - **Phase 5 ([#2213](https://github.com/lushly-dev/afd/issues/2213)) — Human-elicited confirmations (`confirmations: 'require-human'` and actor propagation on `endpoints/specimen-server`, `#1320`):** Done 2026-11-24 ([#2540](https://github.com/lushly-dev/afd/pull/2540)). Added `ExecuteSpecimenCommandOptions` (`actor`, `humanConfirmed`, `confirmedBy`) with private symbol-bound confirmation provenance in `integrations/specimen-afd` so `decidedBy: { kind: 'person' }` derives exclusively from accepted human elicitation (never from `actor.kind`), wired `confirmations: 'require-human'` MCP form elicitation on `confirmPrompt` commands in `endpoints/specimen-server` (refusing unelicited clients with `CONFIRMATION_REQUIRED` and declined/cancelled/unchecked responses with `CONFIRMATION_DECLINED` before executing, while preserving CLI `decidedBy: { kind: 'script' }`); verified with end-to-end MCP elicitation tests, `verify-artifacts.mjs`, and `pnpm check`.
 
-- **Phase 6 ([#2214](https://github.com/lushly-dev/afd/issues/2214)) — Slice 2 variant lifecycle (`decision-discard`, `decision-restore`, `confirmPrompt`, CLI + `specimen-server`):** Deferred (blocked on [#2211](https://github.com/lushly-dev/afd/issues/2211), [#2213](https://github.com/lushly-dev/afd/issues/2213)).
+- **Phase 6 ([#2214](https://github.com/lushly-dev/afd/issues/2214)) — Slice 2 variant lifecycle (`decision-discard`, `decision-restore`, `confirmPrompt`, CLI + `specimen-server`):** Deferred, standalone since the epic closed on 2026-11-26. Its blockers [#2211](https://github.com/lushly-dev/afd/issues/2211) and [#2213](https://github.com/lushly-dev/afd/issues/2213) have landed.
 
 - **Amendment — Agent-First Design Phase A (approved 2026-11-24, Epic [#2544](https://github.com/lushly-dev/afd/issues/2544)):** Applied in [`design-decisions.proposal.md`](design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24): `decidedBy.kind: 'panel'` (in-process `DirectRegistry` Mode 3), Q7 resolution with static `confirmationMode: 'host-verified'` + `HumanRelay` over MCP, `decision-record` card mode + `design-card-list` + `design-release` + `decision-list` filters, and mechanism-distinct variants in §6.3. Implementation follows under [#2544](https://github.com/lushly-dev/afd/issues/2544).
 
@@ -199,7 +199,7 @@ A coordinator note added after the walk: lists in scenarios are compared whole. 
 
 | Date | Session | What changed |
 | --- | --- | --- |
-| 2026-11-13 | Scaffold | After the [Patterns](../patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
+| 2026-11-13 | Scaffold | After the [Patterns](../../active/patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
 | 2026-11-13 | Draft | The owner asked for the proposals to be filled in and kept as drafts. Jobs tightened, eight scenarios written, commands drafted, the three checks run clean. Writing the scenarios added saved captures, a typed refusal for incompatible captures, review answers kept as decisions and a decision named on review items, and cut `decision-open`. Section 2 re-read first-hand |
 | 2026-11-13 | Walk and revision | One fresh reader walked the draft from three seats, with the verdict revise. All four blockers and ten improvements were applied, as the proposal's section 4 records. The jobs grew from eight to ten, the commands from eight to ten and the errors from nine to twelve. Partial-list assertions became dotted paths. The three checks were rerun clean |
 | 2026-11-13 | Review and revision | One independent reader reviewed the three drafts together and ran scenarios. Applied: no step references in `expect`, answers as their own kind, superseding by acceptance writes a choice, default subjects stated, and the coordinator's shared conventions (random decision ids, `specimens/` paths, the hashed fields, `.specimen/` to be ignored, one review system, the job-specimen skip, one host). The three checks were rerun clean, with a scan for references in `expect` |
@@ -210,3 +210,4 @@ A coordinator note added after the walk: lists in scenarios are compared whole. 
 | 2026-11-24 | Phase 3 (#2211) | Implemented random lowercase Crockford base-32 `dec-<12>` decision records under `specimens/decisions/` (two-kind `choice` and subject-free `answer` model), committed screenshots + manifests under `specimens/evidence/<set>/`, `decision-record` (`confirmPrompt`, three input modes, one successor choice per superseded id on multi-choice `supersedes`, old→new `chosen` swap in `subjects.specimens`), `decision-get`, `decision-list` (ascending id order, stale subject globs, undecided comparisons), and `decision-check` across `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, and `endpoints/specimen-server`; verified Scenario 03, `decision-list`/`DECISION_NOT_FOUND`/old→new swap/two-choice supersession tests, CLI and MCP tests, and `pnpm verify` |
 | 2026-11-24 | Phase 5 (#2213) | Enforced `confirmations: 'require-human'` on `endpoints/specimen-server` over MCP form elicitation (with sanitized prompt details, cancellation signal forwarding, and fail-closed `CONFIRMATION_REQUIRED` / `CONFIRMATION_DECLINED` refusals that ignore agent-supplied `confirm: true` and `_meta['dev.afd/confirm']`) and gated `decidedBy: { kind: 'person' }` behind an unforgeable module-private confirmation symbol in `integrations/specimen-afd` (`executeSpecimenCommand` `ExecuteSpecimenCommandOptions`) while preserving CLI `decidedBy: { kind: 'script' }`; verified unit/integration tests, consumer artifacts, and `pnpm check` |
 | 2026-11-25 | Phase 4 (#2212) | Implemented `specimen-review` (`runReview`, `readReviewPageData`, `resolveReviewItemFromSets`, `renderReviewPageHtml`, `bench.review()`, `review.html?before=&after=` + `/api/review.json`, CLI `specimen review`, MCP `specimen-review`) with `kept`-before-`blocking` precedence, largest-first structured cause grouping, member-scoped item ids, job `<id>/<step>` prefix filtering, fingerprint matching (`accept` → `settled.answered`, `reject` → `blocking` `kind: 'rejected'`), and shared `decision-record` `items` resolution; verified Scenarios 04–08, filtered `ids` isolation, multi-choice supersession, Chromium `review-bench.test.ts` (light/dark axe-clean, `script` badges), Exit Criteria 2–4 measurements (132/134 Loam chrome quiet, 20-specimen cause → 1 item, 17,066 B evidence), consumer artifacts, and `pnpm check` |
+| 2026-11-26 | Close | Epic [#1108](https://github.com/lushly-dev/afd/issues/1108) closed with Phases 1 to 5 merged; folder moved from `active/` to `complete/`. Phase 6 (Slice 2) remains as standalone [#2214](https://github.com/lushly-dev/afd/issues/2214). |

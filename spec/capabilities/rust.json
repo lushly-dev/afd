@@ -257,7 +257,7 @@
 		"middleware.auth": {
 			"status": "na",
 			"note": "built by the host (D6)",
-			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+			"evidence": ["docs/features/complete/parity-closure/parity-closure.plan.md"]
 		},
 		"middleware.approval": {
 			"status": "yes",
@@ -386,7 +386,7 @@
 		"hts.handoff-client": {
 			"status": "na",
 			"note": "no remote client (D6)",
-			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+			"evidence": ["docs/features/complete/parity-closure/parity-closure.plan.md"]
 		},
 		"hts.telemetry-types": {
 			"status": "partial",
@@ -687,7 +687,7 @@
 		"tooling.mcp-client": {
 			"status": "na",
 			"note": "no remote client (D6)",
-			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+			"evidence": ["docs/features/complete/parity-closure/parity-closure.plan.md"]
 		},
 		"tooling.browser-transport": {
 			"status": "na",
@@ -706,17 +706,17 @@
 		"tooling.cli": {
 			"status": "na",
 			"note": "no Rust CLI (D6)",
-			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+			"evidence": ["docs/features/complete/parity-closure/parity-closure.plan.md"]
 		},
 		"tooling.auth-adapter": {
 			"status": "na",
 			"note": "built by the host (D6)",
-			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+			"evidence": ["docs/features/complete/parity-closure/parity-closure.plan.md"]
 		},
 		"tooling.testing": {
 			"status": "na",
 			"note": "exercised through the TypeScript CLI and scenario runner over MCP (D6)",
-			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+			"evidence": ["docs/features/complete/parity-closure/parity-closure.plan.md"]
 		},
 		"tooling.skill-limits": {
 			"status": "na",

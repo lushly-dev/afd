@@ -29,7 +29,7 @@ At proposal acceptance on 2026-09-27, the four implementations were TypeScript 2
 | Status | Complete (closed 2026-11-14; core 1.0, decided 2026-11-21 in #541, is #1926, site versions #551; see [STATUS.md](STATUS.md)). Accepted 2026-09-27, with every recommendation (V1–V6); first releases are published and the independent version policy remains ongoing |
 | Author | jasfalk |
 | Updated | 2026-11-13 (lifecycle reconciliation; release snapshots retained) |
-| Related | [Language parity](../../../language-parity.md), [Parity closure plan](../../active/parity-closure/parity-closure.plan.md), the `cut-release` skill, `.github/workflows/release.yml`, `.github/workflows/publish-python.yml` |
+| Related | [Language parity](../../../language-parity.md), [Parity closure plan](../../complete/parity-closure/parity-closure.plan.md), the `cut-release` skill, `.github/workflows/release.yml`, `.github/workflows/publish-python.yml` |
 
 ## Accepted plan snapshot (verified 2026-09-26)
 
@@ -71,7 +71,7 @@ All of the following was verified on 2026-09-26.
 
 - **Scope:**
   - `spec/wire`, `spec/pipeline-variables.md` and `spec/vectors`;
-  - the error-code and validation specs from [parity plan Wave 1](../../active/parity-closure/parity-closure.plan.md#wave-1-shared-contract);
+  - the error-code and validation specs from [parity plan Wave 1](../../complete/parity-closure/parity-closure.plan.md#wave-1-shared-contract);
   - the todo conformance suite, and later the protocol conformance tier.
 - **Format:** `MAJOR.MINOR`.
   - A **minor** version adds without breaking: a new optional field, a new error code, a new vector for existing behavior.

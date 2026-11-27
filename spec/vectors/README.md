@@ -54,7 +54,7 @@ Every vector file in `spec/vectors/` falls into one of three categories, enforce
   comparison rules. Validation sibling issues and field lists compare without order, preserving
   duplicates and omitted lists; suggestions follow actual details. Where a
   language does not load a file yet, the entry is tracked in the
-  [parity closure plan](../../docs/features/active/parity-closure/parity-closure.plan.md):
+  [parity closure plan](../../docs/features/complete/parity-closure/parity-closure.plan.md):
 
   | Language | `pipeline-variables.json` | `batch-controls.json` | `execution-controls.json` | `validation.json` | `error-codes.json` | `recovery.json` | `dispatch.json` | `approval-tokens.json` | `journal-context-cap.json` | `approver-client.json` | `tool-strategies.json` | `mcp-resources.json` | `output-budgets.json` | `app-calls.json` | `output-schema.json` | `journal-seams.json` |
   | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -97,7 +97,7 @@ confirmations enforced).
 `hooks` sequence (`mw1:before`, `mw2:before`, `handler`, `mw2:after`, `mw1:after`), the `stamped`
 metadata fields (`executionTimeMs`, `commandVersion`, `traceId`, `actorKind`), and whether
 `onCommand` (with raw input) and `onError` fired. Documented per-language gaps are listed in
-top-level `gaps` (`python.hooks` [#1551](https://github.com/lushly-dev/afd/issues/1551),
+top-level `gaps` (`python.hooks` [#2788](https://github.com/lushly-dev/afd/issues/2788),
 `rust.stamping` / `rust.hooks` [#546](https://github.com/lushly-dev/afd/issues/546)).
 
 ### `pipeline-variables.json`

@@ -98,7 +98,7 @@
 			"note": "matches through the stamp; no `onCommand` hook",
 			"views": {
 				"dispatch-suite": "`python/tests/test_dispatch_vectors.py`",
-				"dispatch-gaps": "`hooks` (`onCommand`/`onError`, [#1551](https://github.com/lushly-dev/afd/issues/1551))"
+				"dispatch-gaps": "`hooks` (`onCommand`/`onError`, [#2788](https://github.com/lushly-dev/afd/issues/2788))"
 			},
 			"evidence": ["python/src/afd/server/factory.py", "python/tests/test_dispatch_vectors.py"]
 		},
@@ -141,8 +141,8 @@
 		},
 		"single.observer-hooks": {
 			"status": "no",
-			"note": "([#1551](https://github.com/lushly-dev/afd/issues/1551))",
-			"issue": "#1551",
+			"note": "([#2788](https://github.com/lushly-dev/afd/issues/2788))",
+			"issue": "#2788",
 			"evidence": ["python/tests/test_dispatch_vectors.py"]
 		},
 		"single.exception-redaction": {

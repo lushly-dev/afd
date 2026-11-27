@@ -15,7 +15,7 @@ This file tracks the follow-up work from an architecture review of the whole rep
 
 These keep their own work; this review only cross-references them.
 
-- [#1551](https://github.com/lushly-dev/afd/issues/1551), parity closure
+- [#1551](https://github.com/lushly-dev/afd/issues/1551), parity closure (closed 2026-11-26; its remaining gaps are standalone issues)
 - [#1555](https://github.com/lushly-dev/afd/issues/1555), output budgets
 - [#1385](https://github.com/lushly-dev/afd/issues/1385), FAST-AF's place in AFD
 - [#1387](https://github.com/lushly-dev/afd/issues/1387), test integrity and trends

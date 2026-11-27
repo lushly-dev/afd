@@ -421,7 +421,7 @@
 		"hts.handoff-client": {
 			"status": "na",
 			"note": "no remote client (D6)",
-			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+			"evidence": ["docs/features/complete/parity-closure/parity-closure.plan.md"]
 		},
 		"hts.telemetry-types": {
 			"status": "yes",
@@ -737,7 +737,7 @@
 		"tooling.mcp-client": {
 			"status": "na",
 			"note": "no remote client (D6)",
-			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+			"evidence": ["docs/features/complete/parity-closure/parity-closure.plan.md"]
 		},
 		"tooling.browser-transport": {
 			"status": "na",
@@ -759,7 +759,7 @@
 		"tooling.cli": {
 			"status": "na",
 			"note": "no C++ CLI (D6)",
-			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+			"evidence": ["docs/features/complete/parity-closure/parity-closure.plan.md"]
 		},
 		"tooling.auth-adapter": {
 			"status": "na",
@@ -769,7 +769,7 @@
 		"tooling.testing": {
 			"status": "na",
 			"note": "exercised through the TypeScript CLI and scenario runner over MCP (D6)",
-			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+			"evidence": ["docs/features/complete/parity-closure/parity-closure.plan.md"]
 		},
 		"tooling.skill-limits": {
 			"status": "na",
@@ -787,7 +787,7 @@
 		"tooling.platform-connectors": {
 			"status": "na",
 			"note": "no connectors beyond existing implementations (D6)",
-			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+			"evidence": ["docs/features/complete/parity-closure/parity-closure.plan.md"]
 		},
 		"single.context-fields-meta-delivery": {
 			"status": "no",

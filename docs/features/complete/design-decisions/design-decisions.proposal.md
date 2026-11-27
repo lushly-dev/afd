@@ -24,7 +24,7 @@
 | --- | --- |
 | Epic | [#1108](https://github.com/lushly-dev/afd/issues/1108) |
 | Units touched | `foundations/specimen` (capture sets, comparison, review, the review pages), `integrations/specimen-afd` (the commands), `endpoints/specimen-cli`, `endpoints/specimen-server` (`#1320`); later `integrations/violet-afd`, `endpoints/umbel`, and `endpoints/loam` |
-| Related | [Patterns](../patterns/patterns.proposal.md) (epic [#1073](https://github.com/lushly-dev/afd/issues/1073)), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md) (epic [#1109](https://github.com/lushly-dev/afd/issues/1109)), [Pointing](../pointing/pointing.proposal.md) (epic [#1110](https://github.com/lushly-dev/afd/issues/1110)), [Scales](../scales/scales.proposal.md) (epic [#1111](https://github.com/lushly-dev/afd/issues/1111)), [Specimens status](../../complete/specimens/STATUS.md) |
+| Related | [Patterns](../../active/patterns/patterns.proposal.md) (epic [#1073](https://github.com/lushly-dev/afd/issues/1073)), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md) (epic [#1109](https://github.com/lushly-dev/afd/issues/1109)), [Pointing](../pointing/pointing.proposal.md) (epic [#1110](https://github.com/lushly-dev/afd/issues/1110)), [Scales](../scales/scales.proposal.md) (epic [#1111](https://github.com/lushly-dev/afd/issues/1111)), [Specimens status](../../complete/specimens/STATUS.md) |
 | Rank among the four | First. It is where a person's time goes |
 
 ## 1. Problem
@@ -295,7 +295,7 @@ Screens from Jobs ([#1109](https://github.com/lushly-dev/afd/issues/1109)), and 
   - Until the Screens from Jobs runner exists, `specimen-capture` with no ids skips job
     specimens and reports how many it skipped. Its result names `specimen-job-run`.
   - Once that runner lands, `specimen-capture` runs job specimens through it.
-- **Pattern gate cases (amended 2026-11-22 for [Patterns](../patterns/spec.md), #1073).**
+- **Pattern gate cases (amended 2026-11-22 for [Patterns](../../active/patterns/spec.md), #1073).**
   - `specimen-capture` with no explicit `ids` (and no `filter` explicitly selecting `kind: 'gate'`)
     skips synthesized Pattern gate cases (`<case>--gate--<gate>`, `kind: 'gate'`) and reports how
     many it skipped in `skipped.gates` (with `skipped.gatesNext: 'specimen-run'` when non-zero;
@@ -367,7 +367,7 @@ run writes the same kind of set, keyed `<id>/<step>`.
   `kind: 'gate'`) are given: `skipped.jobs` counts job specimens (`skipped.next: 'specimen-job-run'`,
   until Screens from Jobs' runner exists) and `skipped.gates` counts synthesized Pattern gate cases
   (`<case>--gate--<gate>`, `skipped.gatesNext: 'specimen-run'`; amended 2026-11-22 for
-  [Patterns](../patterns/spec.md)).
+  [Patterns](../../active/patterns/spec.md)).
 - **A label** (`main`, `branch`) is a local pointer to a set id. It is not a git ref. A set is
   captured from the working tree, so to capture `main`, run it in a checkout of `main`. The set
   records the revision and whether the tree was dirty, and the review shows both.
@@ -389,7 +389,7 @@ a set of kind `compare`, and diffs each against the first.
 - **`page`** links to `compare.html?set=`, which shows the screenshots side by side with the
   structured differences.
 - **Variants differ in mechanism** (amended 2026-11-24 for
-  [Agent-First Design](../../complete/agent-first-design/spec.md#42-amendment-to-design-decisions-docsfeaturesactivedesign-decisionsdesign-decisionsproposalmd)):
+  [Agent-First Design](../../complete/agent-first-design/spec.md#42-amendment-to-design-decisions-docsfeaturescompletedesign-decisionsdesign-decisionsproposalmd)):
   `specimen-compare` variants should differ in how they solve the problem, not only in styling
   density.
 
@@ -782,7 +782,7 @@ Confirmed by the owner in a three-pass walkthrough on 2026-11-22 (Q1–Q19):
 
 ### Amendment: Agent-First Design Phase A (approved 2026-11-24)
 
-Approved by the owner on 2026-11-24 at [Agent-First Design](../../complete/agent-first-design/spec.md#42-amendment-to-design-decisions-docsfeaturesactivedesign-decisionsdesign-decisionsproposalmd) Phase A exit (Epic [#2544](https://github.com/lushly-dev/afd/issues/2544)). Full wire contracts live in [`../../complete/agent-first-design/spec.md`](../../complete/agent-first-design/spec.md):
+Approved by the owner on 2026-11-24 at [Agent-First Design](../../complete/agent-first-design/spec.md#42-amendment-to-design-decisions-docsfeaturescompletedesign-decisionsdesign-decisionsproposalmd) Phase A exit (Epic [#2544](https://github.com/lushly-dev/afd/issues/2544)). Full wire contracts live in [`../../complete/agent-first-design/spec.md`](../../complete/agent-first-design/spec.md):
 
 1. **Provisional panel answers (`decidedBy.kind: 'panel'`):** `decidedBy` adds `{ kind: 'panel', reviewers: string[], split: string }`, valid only on Mode 3 (`items: string[]`) with `provisional: true` and `panel: { reviewers, split }` for non-release, non-guidance, non-escalated review items (refused with `AUTHOR_CANNOT_DECIDE`, verified against `ctx.actor.id`/change author, if authored by the caller, or `PERSON_REQUIRED` on card/release/guidance approval).
 2. **Q7 resolution & static `confirmationMode: 'host-verified'`:** Keeps CLI `decidedBy: { kind: 'script' }` answers for solo local review triage (Q7), while upgrading `decision-record` (alongside new `design-release` and `panel-calibrate`) to static `confirmationMode: 'host-verified'` with `HumanRelay` (`spec/command-metadata.md:40,145-158`) over MCP (`HumanRelay` returns `CONFIRMATION_REQUIRED` when unavailable and `CONFIRMATION_DECLINED` when declined, distinct from approval middleware's `APPROVAL_REQUIRED`/`APPROVAL_UNAVAILABLE` and handler-level `PERSON_REQUIRED`). Provisional panel Mode 3 settlements run in-process from `panel-review` via `DirectRegistry` (`spec/command-metadata.md:158`). Outside MCP, release cards, guidance approvals, `design-release` and `panel-calibrate` require interactive review-page or CLI confirmation (`decidedBy: { kind: 'person', channel: 'review-page' | 'cli' }`, refusing `script`/agent actors with `PERSON_REQUIRED`).

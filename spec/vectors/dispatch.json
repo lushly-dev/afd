@@ -2,7 +2,7 @@
 	"description": "Single-command dispatch order (spec/dispatch.md): lookup, exposure, active context, confirmation, input validation, declared context fields, middleware, approval admission, handler, metadata stamping and observer hooks. A refusing case's expect.recovery is the error's recovery (spec/recovery.md, Engine errors), null for none. setup.contextCommands \"plain\": the registry surface registers afd-context-list, afd-context-enter and afd-context-exit as plain commands, with no tool surface and no bootstrap or help commands, so afd-context-list is callable there and afd-discover and afd-help are not.",
 	"gaps": {
 		"python": {
-			"hooks": "https://github.com/lushly-dev/afd/issues/1551"
+			"hooks": "https://github.com/lushly-dev/afd/issues/2788"
 		},
 		"rust": {
 			"stamping": "https://github.com/lushly-dev/afd/issues/546",

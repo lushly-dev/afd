@@ -159,7 +159,7 @@ export const EXTRA_INPUTS = [
 	// specimen-afd-runner's slice3.browser.test.ts reads the canonical Job 11 scenario YAML by path.
 	{
 		prefix:
-			'docs/features/active/screens-from-jobs/scenarios/11-find-what-no-job-reaches.scenario.yaml',
+			'docs/features/complete/screens-from-jobs/scenarios/11-find-what-no-job-reaches.scenario.yaml',
 		packages: ['@lushly-dev/specimen-afd-runner'],
 		ownTests: true,
 	},

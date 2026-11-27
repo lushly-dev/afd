@@ -14,7 +14,7 @@
 | --- | --- |
 | Epic | [#1111](https://github.com/lushly-dev/afd/issues/1111) |
 | Units touched | `foundations/violet`, `integrations/violet-afd`, `endpoints/violet-server`, `foundations/fast-af/packages/violet-elements`, `endpoints/loam/packages/theme`, Loam chrome/consumers, `endpoints/health-dashboard`, `packages/examples/todo/frontends/shared`, `site/fast-af`, `.claude/skills/loam-design` |
-| Related | [Patterns](../patterns/patterns.proposal.md) ([#1073](https://github.com/lushly-dev/afd/issues/1073)), [Design Decisions](../design-decisions/design-decisions.proposal.md) ([#1108](https://github.com/lushly-dev/afd/issues/1108)), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md) ([#1109](https://github.com/lushly-dev/afd/issues/1109)), [Pointing](../pointing/pointing.proposal.md) ([#1110](https://github.com/lushly-dev/afd/issues/1110)) |
+| Related | [Patterns](../../active/patterns/patterns.proposal.md) ([#1073](https://github.com/lushly-dev/afd/issues/1073)), [Design Decisions](../design-decisions/design-decisions.proposal.md) ([#1108](https://github.com/lushly-dev/afd/issues/1108)), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md) ([#1109](https://github.com/lushly-dev/afd/issues/1109)), [Pointing](../pointing/pointing.proposal.md) ([#1110](https://github.com/lushly-dev/afd/issues/1110)) |
 | Rank among the four | Fourth. Small, separate, and only Violet, `violet-elements`, Loam and their theme consumers need it |
 
 ---

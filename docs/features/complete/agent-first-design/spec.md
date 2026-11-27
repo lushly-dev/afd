@@ -5,7 +5,7 @@
 | Epic | [#2544](https://github.com/lushly-dev/afd/issues/2544) (Q4 follow-up: [#2545](https://github.com/lushly-dev/afd/issues/2545)) |
 | Proposal & status | [`agent-first-design.proposal.md`](agent-first-design.proposal.md), [`STATUS.md`](STATUS.md) |
 | Phase 0 record | [`bench/record/README.md`](bench/record/README.md) (step 0.6 **go with changes**, 2026-11-24, [#2530](https://github.com/lushly-dev/afd/pull/2530)) |
-| Companion amendments applied to | [Patterns](../../active/patterns/spec.md#8-amendment-agent-first-design-phase-a-approved-2026-11-24), [Design Decisions](../../active/design-decisions/design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24), [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md#10-measurement-and-exit-criteria) |
+| Companion amendments applied to | [Patterns](../../active/patterns/spec.md#8-amendment-agent-first-design-phase-a-approved-2026-11-24), [Design Decisions](../../complete/design-decisions/design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24), [Screens from Jobs](../../complete/screens-from-jobs/screens-from-jobs.proposal.md#10-measurement-and-exit-criteria) |
 | Scenarios | [`scenarios/`](scenarios/) — 12 ranked jobs (5 in `slice-1`, 7 in `slice-2`; 58 steps) |
 
 ## Status
@@ -39,8 +39,8 @@
 - **Companion amendments applied (2026-11-24):** All four amendments in
   [section 4](#4-proposed-amendments-for-the-owner) were accepted by the owner and applied to
   [`../../active/patterns/spec.md`](../../active/patterns/spec.md#8-amendment-agent-first-design-phase-a-approved-2026-11-24),
-  [`../../active/design-decisions/design-decisions.proposal.md`](../../active/design-decisions/design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24),
-  [`../../active/screens-from-jobs/screens-from-jobs.proposal.md`](../../active/screens-from-jobs/screens-from-jobs.proposal.md#10-measurement-and-exit-criteria),
+  [`../../complete/design-decisions/design-decisions.proposal.md`](../../complete/design-decisions/design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24),
+  [`../../complete/screens-from-jobs/screens-from-jobs.proposal.md`](../../complete/screens-from-jobs/screens-from-jobs.proposal.md#10-measurement-and-exit-criteria),
   and [`agent-first-design.proposal.md` §10](agent-first-design.proposal.md#10-out-of-scope).
 
 ---
@@ -643,7 +643,7 @@ command-level error code on `specimen-pattern-fork`/`compare`/`merge`.)*
      decision card; until then, `components-brief` and `design-states` continue serving the
      approved upstream default unless `includeProposed: true`. Nothing is layered implicitly.
 
-### 4.2 Amendment to Design Decisions (`docs/features/active/design-decisions/design-decisions.proposal.md`)
+### 4.2 Amendment to Design Decisions (`docs/features/complete/design-decisions/design-decisions.proposal.md`)
 
 1. **Provisional panel answers (`decidedBy.kind: 'panel'`) & Mode 3 input:** Extend `decidedBy`
    from `person | script | test` to add `{ kind: 'panel', reviewers: string[], split: string }`,
@@ -697,7 +697,7 @@ command-level error code on `specimen-pattern-fork`/`compare`/`merge`.)*
 4. **Variants differ in mechanism:** Clarify in Design Decisions §6.3 that `specimen-compare`
    variants should differ in how they solve the problem, not only in styling density.
 
-### 4.3 Amendment to Screens from Jobs (`docs/features/active/screens-from-jobs/screens-from-jobs.proposal.md`)
+### 4.3 Amendment to Screens from Jobs (`docs/features/complete/screens-from-jobs/screens-from-jobs.proposal.md`)
 
 1. **Panel walks and report+journal measure:** Extend the "The limit" paragraph in Screens from
    Jobs §10 (`screens-from-jobs.proposal.md:670`) to note that `panel-walk` walks the running

@@ -56,7 +56,7 @@ None of the 9 names missing today are from this plan's list. Each one entered th
 
 ## Remaining Behavioral Work
 
-The name check cannot see these gaps. They are tracked in [`docs/language-parity.md`](../../../language-parity.md), not in this plan, and are Wave 2 of the [Language Parity Closure plan](../../active/parity-closure/parity-closure.plan.md).
+The name check cannot see these gaps. They are tracked in [`docs/language-parity.md`](../../../language-parity.md), not in this plan, and are Wave 2 of the [Language Parity Closure plan](../../complete/parity-closure/parity-closure.plan.md).
 
 - **Missing from the single-command engine:**
   - result metadata stamping (`executionTimeMs`, `commandVersion`, `traceId`);

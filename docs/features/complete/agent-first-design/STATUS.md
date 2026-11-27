@@ -98,8 +98,8 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
 - **Done:** phase A exit and promotion (merged 2026-11-24 in
   [#2550](https://github.com/lushly-dev/afd/pull/2550)): all four owner-approved companion
   amendments applied to Patterns (`../../active/patterns/spec.md` §8), Design Decisions
-  (`../../active/design-decisions/design-decisions.proposal.md` §6.3, §6.4, §6.6, §7, §8, §9, §11 & §12),
-  Screens from Jobs (`../../active/screens-from-jobs/screens-from-jobs.proposal.md` §10), and
+  (`../../complete/design-decisions/design-decisions.proposal.md` §6.3, §6.4, §6.6, §7, §8, §9, §11 & §12),
+  Screens from Jobs (`../../complete/screens-from-jobs/screens-from-jobs.proposal.md` §10), and
   `agent-first-design.proposal.md` §10; folder promoted to
   `docs/features/active/agent-first-design/` under Epic
   [#2544](https://github.com/lushly-dev/afd/issues/2544).
@@ -120,7 +120,7 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   the [table below](#follow-ups-not-yet-issues). See [What is not done](#what-is-not-done).
 - **Blocked on:** nothing; all planned scope under Epic [#2544](https://github.com/lushly-dev/afd/issues/2544) is shipped.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
-  drafted, as the [Scales scaffold](../../active/scales/STATUS.md) does. The
+  drafted, as the [Scales scaffold](../../complete/scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
 - **Last verified:** 2026-11-26 for Phases B1–D1 and Epic #2544 closeout (each PR two-model
@@ -177,7 +177,7 @@ blank-line-separated bullet so parallel pull requests never edit adjacent lines.
 | Amend with the screen an agent sees (5.10) | Done 2026-11-24, merged in #2466: a row in the layer map for an agent seeing and filling what is on the screen, the owner's answer under question 13, and UI SDK as a published design to compare. Open: where its code goes, in `afd-view-state` or in a layer of its own, and how much of the screen an agent sees. [#2275](https://github.com/lushly-dev/afd/issues/2275)'s scope covers neither until its approach or a new sub-issue under [epic #1385](https://github.com/lushly-dev/afd/issues/1385) says so. Superseded on what is open by the row below | Proposal, sections 5.10 and 9 |
 | Record the owner's clarification, and point 5.10 at the Controls proposal | Done 2026-11-24, merged in #2480: the owner's reply is quoted under question 13. The session reads it as a case for a designed path in place of a workaround, naming no layer, so the [Controls proposal](../../active/controls/controls.proposal.md) places the code and puts how much of the screen an agent sees to the owner as its question 4 | Proposal, sections 5.10 and 9 |
 | Point 5.10 at the approved Controls proposal | Done 2026-11-24, merged in #2493: the owner approved [Controls](../../active/controls/STATUS.md), which moved to `active/`; the 5.10 row names its phase issues, which replace #2275, and question 13 records the approval | Proposal, sections 5.10 and 9 |
-| Move each part into the proposal that owns it | Done 2026-11-24, merged in [#2550](https://github.com/lushly-dev/afd/pull/2550): applied all four amendments in [`spec.md` §4](spec.md#4-proposed-amendments-for-the-owner) to [Patterns](../../active/patterns/spec.md#8-amendment-agent-first-design-phase-a-approved-2026-11-24), [Design Decisions](../../active/design-decisions/design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24), [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md#10-measurement-and-exit-criteria), and `agent-first-design.proposal.md` §10 | [`spec.md`](spec.md#4-proposed-amendments-for-the-owner) |
+| Move each part into the proposal that owns it | Done 2026-11-24, merged in [#2550](https://github.com/lushly-dev/afd/pull/2550): applied all four amendments in [`spec.md` §4](spec.md#4-proposed-amendments-for-the-owner) to [Patterns](../../active/patterns/spec.md#8-amendment-agent-first-design-phase-a-approved-2026-11-24), [Design Decisions](../../complete/design-decisions/design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24), [Screens from Jobs](../../complete/screens-from-jobs/screens-from-jobs.proposal.md#10-measurement-and-exit-criteria), and `agent-first-design.proposal.md` §10 | [`spec.md`](spec.md#4-proposed-amendments-for-the-owner) |
 | Draft the commands against the ranked jobs | Done 2026-11-24, merged in [#2537](https://github.com/lushly-dev/afd/pull/2537): 15 commands (10 new, 5 existing/amended) and 27 command-level error codes in [`spec.md`](spec.md) | [`spec.md`](spec.md) |
 | Write each job as a scenario and run the checks | Done 2026-11-24, merged in [#2537](https://github.com/lushly-dev/afd/pull/2537): 12 scenario files (58 steps) passing `scenario validate`, `validateScenario` and `scenarioCoverage` (100% command coverage and 100% error-code coverage per defined code, 0 warnings) | [`scenarios/`](scenarios/) |
 | Walk the paths with readers who did not write them | Done 2026-11-24, merged in [#2537](https://github.com/lushly-dev/afd/pull/2537): three fresh independent readers (Person, Job List, Calling Agent) plus two-model review of the two added commands; findings applied or declined with reasons in [`spec.md` §6.2](spec.md#62-what-the-three-seat-walks-and-independent-reviews-found-taken-and-declined) | [`spec.md`](spec.md#62-what-the-three-seat-walks-and-independent-reviews-found-taken-and-declined) |

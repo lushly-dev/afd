@@ -25,7 +25,7 @@
 | --- | --- |
 | Epic | [#1109](https://github.com/lushly-dev/afd/issues/1109) |
 | Units likely touched | `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, `endpoints/specimen-server`, a new private integration `integrations/specimen-afd-runner` (T11, [#1212](https://github.com/lushly-dev/afd/issues/1212)), `packages/testing` (a browser-safe entry and two awaited hooks), `endpoints/loam` (the first consumer) |
-| Related | [Design Decisions](../design-decisions/design-decisions.proposal.md) (capture sets, review, answers and `confirmations: 'require-human'` on `specimen-server`), [Specimens status](../../complete/specimens/STATUS.md) (T11, [#1212](https://github.com/lushly-dev/afd/issues/1212)), [Patterns](../patterns/patterns.proposal.md), [Pointing](../pointing/pointing.proposal.md) |
+| Related | [Design Decisions](../design-decisions/design-decisions.proposal.md) (capture sets, review, answers and `confirmations: 'require-human'` on `specimen-server`), [Specimens status](../../complete/specimens/STATUS.md) (T11, [#1212](https://github.com/lushly-dev/afd/issues/1212)), [Patterns](../../active/patterns/patterns.proposal.md), [Pointing](../pointing/pointing.proposal.md) |
 | Rank among the four | Second. Reviewing at the level of a screen needs screens in real states |
 
 ## 1. Problem
@@ -670,7 +670,7 @@ Exit is gated per slice:
 **The limit:** no automated check here can judge layout or hierarchy. A review shows that a
 screen changed, not that it is wrong. Patterns' layout expectations and the Design Decisions
 review are where such judgements would gain a check. *(Amended 2026-11-24 for
-[Agent-First Design](../../complete/agent-first-design/spec.md#43-amendment-to-screens-from-jobs-docsfeaturesactivescreens-from-jobsscreens-from-jobsproposalmd),
+[Agent-First Design](../../complete/agent-first-design/spec.md#43-amendment-to-screens-from-jobs-docsfeaturescompletescreens-from-jobsscreens-from-jobsproposalmd),
 Epic [#2544](https://github.com/lushly-dev/afd/issues/2544): `panel-walk` walks the running
 application under enforced modalities, recording both the journal path against the scenario's
 steps and a blind pairwise report comparison against a baseline walk (proved in Phase 0 step

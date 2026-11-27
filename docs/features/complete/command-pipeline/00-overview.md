@@ -1,6 +1,6 @@
 # Command Pipeline Specification
 
-> **Status (2026-11-13):** Complete: pipeline execution and client composition are implemented in `packages/core/src/pipeline-executor.ts` and `packages/client`. Cross-language engine gaps remain in the [parity plan](../../active/parity-closure/STATUS.md).
+> **Status (2026-11-13):** Complete: pipeline execution and client composition are implemented in `packages/core/src/pipeline-executor.ts` and `packages/client`. Cross-language engine gaps remain in the [parity plan](../../complete/parity-closure/STATUS.md).
 
 > Chain commands where the output of one becomes the input of the next.
 
