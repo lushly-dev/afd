@@ -147,6 +147,8 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	// Phase 4's step 5: the inbox, the person's own, each decided at the call's scope (10.1).
 	'notification-push': { title: 'A notice' },
 	'notification-list': {},
+	// Phase 5's 9.2: the bus, in the call's scope; a restricted project's events are not the reader's.
+	'event-list': {},
 	'notification-read': { all: true },
 	'notification-archive': { all: true },
 	'notification-act': { notification: 'ntf_0000000000000000' },

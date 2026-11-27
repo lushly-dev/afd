@@ -26,11 +26,15 @@ import type {
 	AppDefinitionV1,
 	AppProjectV1,
 	AppStoreV1,
+	EventHintV1,
+	EventKindV1,
+	EventV1,
 	LoamClientV1,
 	OverlayAnchorV1,
 	OverlayResultV1,
 	ProjectSummaryV1,
 	ResourceLinkV1,
+	ResourceLinkV2,
 	ScopeV1,
 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
@@ -50,7 +54,16 @@ export type {
 	WorkspaceAppV1,
 	WorkspaceV1,
 } from './scope/records.js';
-export type { IdentityV1, ProjectSummaryV1, ResourceLinkV1, ScopeV1 };
+export type {
+	EventHintV1,
+	EventKindV1,
+	EventV1,
+	IdentityV1,
+	ProjectSummaryV1,
+	ResourceLinkV1,
+	ResourceLinkV2,
+	ScopeV1,
+};
 
 /** Current kernel interface version reported by `kernel.version` and `shell-info-get`. */
 export const KERNEL_INTERFACE_VERSION = 6;
@@ -138,6 +151,8 @@ export interface KernelEvent {
 	scope?: ScopeV1;
 	/** The active scope changed in this call, by `applyScopeChange`. */
 	scopeChanged?: ScopeChangeV2;
+	/** Kernel interface 6 (phase 5 specification, 9.4): reserved for the shell's chrome; an app hears events only through its port's `onBusEvent`. */
+	busEvent?: true;
 	/** What main shows changed, and how the URL should follow. */
 	mainChanged?: 'push' | 'replace';
 	/**
@@ -412,6 +427,13 @@ export interface AppPort {
 	readonly store?: AppStoreV1;
 	/** A view app's broker. Absent for any other kind. */
 	readonly view?: ViewBroker;
+	/**
+	 * Kernel interface 6 (phase 5 specification, 9.2): a wakeup when events this app may read are projected, filtered
+	 * by `canSeeEvent` in the kernel and coalesced within a microtask, carrying only its readable kinds, instances and
+	 * cursor; never called for an app without the `events` grant. `boundScope`, a surface's: another project's
+	 * events are not its. Returns the unsubscribe.
+	 */
+	onBusEvent(listener: (hint: EventHintV1) => void, boundScope?: ScopeV1): () => void;
 }
 
 /** Base shell commands every app may call, passed by the app port into `appCallable`. */
@@ -439,6 +461,12 @@ export const APP_CALLABLE_SHELL_COMMANDS = [
 	'confirmation-get',
 	'confirmation-withdraw',
 	'experiment-check',
+] as const;
+
+/** Kernel interface 6's (phase 5 specification, 9.4): interface 4's, and `event-list`, whatever the app's grants. */
+export const APP_CALLABLE_SHELL_COMMANDS_V3 = [
+	...APP_CALLABLE_SHELL_COMMANDS,
+	'event-list',
 ] as const;
 
 export type AppBaseState = 'ready' | 'loading' | 'failed' | 'refused' | 'gated';

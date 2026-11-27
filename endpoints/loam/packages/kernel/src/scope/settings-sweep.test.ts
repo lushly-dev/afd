@@ -71,6 +71,8 @@ const DATA_EXEMPT: ReadonlySet<string> = new Set([
 	'appearance-get',
 	'app-list',
 	'app-get',
+	// Phase 5's 9.2: the bus lists the writes that made the twins differ (each one's settings, autonomy and experiments).
+	'event-list',
 ]);
 
 /** An app that declares a section at workspace and project level, and one command that reads nothing of it. */

@@ -245,8 +245,8 @@ export const SHELL_DOMAINS_V1: readonly string[] = [
 /**
  * The grants this build serves: phase 1's, and `projects` from phase 2's step 4 (phase 2 specification,
  * 5), `documents` from step 9 (documents specification, 11), and `settings` from phase 4's step 1 (phase 4
- * specification, 3.8), and `calls` from phase 5's step 4, to mounted callees only (phase 5 specification, 7.5). A
- * step that serves a grant adds it here.
+ * specification, 3.8), `calls` from phase 5's step 4 (7.5), to native callees too from step 10 (9.1), and `events`
+ * from step 10, `event-list` and the push (9.2). A step that serves a grant adds it here.
  */
 export const SERVED_GRANTS_V2: readonly string[] = [
 	'store',
@@ -256,6 +256,7 @@ export const SERVED_GRANTS_V2: readonly string[] = [
 	'documents',
 	'settings',
 	'calls',
+	'events',
 ];
 
 /** The chords the shell keeps, as `SHELL_KEYBINDINGS_V0` does; the kernel's test holds them equal. */

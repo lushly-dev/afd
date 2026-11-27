@@ -45,6 +45,8 @@ export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze([
 	'editor-selection-set',
 	'persona-list',
 	'trust-record-snapshot',
+	// Phase 5's 9.2: a read of the bus, as `palette-search` is.
+	'event-list',
 ]);
 
 /** Context fields the per-caller journal filter reads (#2105). */

@@ -74,6 +74,8 @@ export const DESKTOP_MCP_COMMANDS = Object.freeze([
 	// Phase 5's step 3: the confirmations an inbound call raised.
 	'confirmation-get',
 	'confirmation-withdraw',
+	// Phase 5's step 10 (D170): what changed since a cursor, as `loam-inbound` may read it.
+	'event-list',
 ] as const);
 
 /**

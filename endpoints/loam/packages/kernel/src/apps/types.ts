@@ -54,6 +54,12 @@ export interface AppsHost {
 	 * is: AFD's `createAppCallRegistry`, which refuses it `CALL_NOT_GRANTED` before lookup unless the grant check admits
 	 * it, marking `fields[ADMISSION]` when it does.
 	 */
+	/** An app's push (phase 5 specification, 9.2): `late/`'s bus, filtered by `canSeeEvent`. Unloaded, none. */
+	onBusEvent(
+		instance: string,
+		listener: (hint: import('@lushly-dev/loam-sdk').EventHintV1) => void,
+		boundScope?: import('@lushly-dev/loam-sdk').ScopeV1
+	): () => void;
 	runApps<T>(
 		name: string,
 		input: unknown,

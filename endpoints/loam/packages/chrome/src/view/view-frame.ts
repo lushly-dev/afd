@@ -6,7 +6,7 @@
 
 import { attr, css, FASTElement, html, observable, when } from '@lushly-dev/fast-element';
 import type { AppPort, ViewBroker } from '@lushly-dev/loam-kernel';
-import type { DocumentChangeV1, DocumentRefV1 } from '@lushly-dev/loam-sdk';
+import type { DocumentChangeV1, DocumentRefV1, EventHintV1 } from '@lushly-dev/loam-sdk';
 import { ProxyChannel } from './channel.js';
 import { viewFonts } from './fonts.js';
 import { readTokens } from './tokens.js';
@@ -243,6 +243,11 @@ export class LoamViewFrame extends FASTElement {
 	}
 
 	#gone: (() => void) | undefined;
+
+	/** Events this app may read were projected: `host-context-changed` with `dev.loam/eventsChanged` (phase 5's 9.2). */
+	eventsChanged(hint: EventHintV1): void {
+		this.#host?.changeContext({ 'dev.loam/eventsChanged': hint });
+	}
 
 	/** The app's own sections changed: `host-context-changed` with `dev.loam/settingsChanged` (phase 4's 3.8). */
 	settingsChanged(sections: string[]): void {

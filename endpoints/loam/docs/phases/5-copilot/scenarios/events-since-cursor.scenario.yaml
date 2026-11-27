@@ -1,7 +1,6 @@
-# Draft JTBD scenario for Loam's phase 5 specification, milestone B. Needs Loam's runner (tag
+# JTBD scenario for Loam's phase 5 specification, milestone B (P5-B4). Needs Loam's runner (tag
 # loam-runner) on the seed p5-base; the step directives are phase 4's. An event's subject is a
-# ResourceLinkV2, whose exact form milestone B's amendment fixes, so only its kind is asserted.
-# The data is invented.
+# ResourceLinkV2 (9.3), so only its kind is asserted. The data is invented.
 name: Pick up what changed
 description: >-
   When I am an app or an agent catching up, I want the shell's events since my cursor, filtered

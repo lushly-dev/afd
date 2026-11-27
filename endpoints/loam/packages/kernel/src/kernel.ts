@@ -12,6 +12,7 @@ import {
 	type CommandMiddleware,
 	type CommandResult,
 	failure,
+	type JournalEntry,
 	type JournalRecord,
 	type JournalSink,
 	validateCommandName,
@@ -478,6 +479,8 @@ export async function createKernelParts(
 			(entry) => {
 				lateParts?.wrappers.appended(entry);
 				order.appended(entry.traceId);
+				// The bus catches up from the durable journal, which projects this entry in order (phase 5's 9.2).
+				lateParts?.bus.appended(entry as JournalEntry);
 			}
 		),
 		{
@@ -703,6 +706,8 @@ export async function createKernelParts(
 		// Validate name collisions before committing `lateParts` so a duplicate never leaves half-installed stage B state.
 		checkNames([...shell, ...parts.bootOnly, ...extra]);
 		lateParts = parts;
+		// Stage B's catch-up of the bus from the durable journal (phase 5's 9.2): what a crash or a sink error left.
+		void parts.bus.catchUp().catch(() => {});
 		internals.recordedRun = (confirmation, command, result) =>
 			parts.confirmations.recorded(confirmation, command, result);
 		contextFields = [
@@ -830,6 +835,9 @@ export async function createKernelParts(
 					unqueued
 						? execute('palette', name, input, callOptions ?? {}, fields)
 						: run('palette', name, input, callOptions, fields),
+				// An app's push (phase 5's 9.2): `late/`'s bus, once it has loaded.
+				onBusEvent: (instance, listener, boundScope) =>
+					lateParts?.bus.subscribe(instance, listener, boundScope) ?? (() => {}),
 				// An app's call to another app's command (phase 5's 9.1): queued as the person's, on the `apps` registry.
 				runApps: (name, input, callOptions, fields) =>
 					run('apps', name, input, callOptions, fields),

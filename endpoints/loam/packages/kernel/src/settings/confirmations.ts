@@ -35,6 +35,7 @@ import {
 	ID,
 	jsonOf,
 	markStored,
+	noteBus,
 	outcomeOf,
 	ownedBy,
 	PENDING_LIMIT,
@@ -705,6 +706,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				createdAt: now,
 				ckey: key,
 				...(call.actor !== undefined ? { cactor: jsonOf(call.actor) as Actor } : {}),
+				...(opener.kind === 'agent' && call.actor?.kind === 'agent'
+					? { raiserAgent: call.actor.id }
+					: {}),
 				ciface:
 					call.interface === 'agent' ? 'agent' : call.interface === 'apps' ? 'apps' : 'palette',
 				cbucket: caller,
@@ -728,11 +732,22 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			]);
 			if (summary.failed > 0)
 				throw new Error(`The store could not write the confirmation '${record.id}'`);
-			await deps.observe?.('asked', record);
+			await observed(call, 'asked', record);
 			// The id the copilot's port takes for this call alone (the re-checks' binding).
 			(call as Record<symbol, unknown>)[RAISED] = record.id;
 			return pending(record);
 		});
+	}
+
+	/** Told on the call's path when a confirmation is raised or ends (phase 5's 6.3, 3.5), and noted for the bus (9.2). */
+	async function observed(
+		context: CommandContext,
+		event: 'asked' | 'confirmed' | 'declined' | 'withdrawn',
+		row: StoredConfirmation,
+		replacedBy?: StoredConfirmation
+	): Promise<void> {
+		noteBus(context, event, row);
+		await deps.observe?.(event, row, replacedBy);
 	}
 
 	// ─── The gate ──────────────────────────────────────────────────────────────────
@@ -935,8 +950,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			]);
 			if (summary.failed > 0)
 				throw new Error(`The store could not write the confirmation '${freshRow.id}'`);
-			await deps.observe?.('withdrawn', stored, freshRow);
-			await deps.observe?.('asked', freshRow);
+			await observed(call, 'withdrawn', stored, freshRow);
+			await observed(call, 'asked', freshRow);
 		});
 		reshownAs.set(id, fresh);
 		return reshown(released[RESHOW], fresh);
@@ -944,6 +959,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 
 	const gate: CommandMiddleware = async (name, input, context, next) => {
 		const call = context as CommandContext & { confirmation?: string; origin?: string };
+		// The bus's notes are this gate's alone to write (phase 5's 9.2): never a caller's.
+		delete (call as { bus?: unknown }).bus;
 		let result: CommandResult;
 		if (call.confirmation?.startsWith('ntf_')) {
 			result = await confirmedRun(
@@ -1154,7 +1171,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				context
 			);
 			// Counted here, by the act's journaled end, so a replay that answers the run from its record counts it too (B14).
-			if (from === 'pending' || ended.state === 'confirmed') await deps.observe?.(ended.state, row);
+			if (from === 'pending' || ended.state === 'confirmed')
+				await observed(context, ended.state, row);
 			return undefined;
 		});
 	}
@@ -1263,7 +1281,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					},
 					context
 				);
-				await deps.observe?.('withdrawn', stored);
+				await observed(context, 'withdrawn', stored);
 				return kit.success({ state: 'withdrawn' as const });
 			});
 		},
@@ -1335,7 +1353,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				}
 				if (given === 'decline') {
 					await putBack(marked({ state: 'declined', reason: 'person', answeredAt: now }), context);
-					await deps.observe?.('declined', row);
+					await observed(context, 'declined', row);
 					return { done: kit.success({ state: 'declined' as const }) };
 				}
 				// The re-check (7.2): the same chain as steps 2 and 3, for the actor that asked, in the confirmation's scope.
@@ -1345,7 +1363,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					(caller !== undefined && deps.inputOver(row.confirmation.input ?? {}))
 				) {
 					await putBack(marked({ state: 'declined', reason: 'access', answeredAt: now }), context);
-					await deps.observe?.('declined', row);
+					await observed(context, 'declined', row);
 					return { done: kit.success({ state: 'declined' as const, reason: 'access' as const }) };
 				}
 				// Claimed before it runs, as a notice's action (step 5): in this page, and in the store, read back.
@@ -1421,6 +1439,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		contextFields: [
 			{ name: 'confirmation', meta: 'dev.loam/confirmation', schema: id(), journal: true },
 			{ name: 'origin', meta: 'dev.loam/origin', schema: id(), journal: true },
+			// What a call raised or answered of the inbox (phase 5's 9.2), set by the gate alone and journaled, so the bus
+			// projects `confirmation-raised` and `confirmation-answered` from the journal, live and in a replay.
+			{ name: 'bus', meta: 'dev.loam/bus', schema: z.unknown(), journal: true },
 		] as ContextField[],
 		settle: settle as unknown as ZodCommandDefinition,
 		commands: [paletteRun, get, withdrawOne] as unknown as ZodCommandDefinition[],
@@ -1457,7 +1478,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 						},
 						context
 					);
-					await deps.observe?.('withdrawn', row);
+					await observed(context, 'withdrawn', row);
 					count++;
 				}
 				return count;

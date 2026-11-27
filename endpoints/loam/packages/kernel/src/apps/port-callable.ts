@@ -32,6 +32,8 @@ export function appCallable(
 		'confirmation-withdraw',
 		// Step 9's experiments (5.4, 12): whether one of the app's own is on for the person, `EXPERIMENT_NOT_OWNED` past them.
 		'experiment-check',
+		// Phase 5's step 10 (9.2): whatever the grants, so an app without `events` hears `GRANT_REQUIRED` from its handler.
+		'event-list',
 		...(grants.has('projects') ? ['project-list', 'project-get'] : []),
 		// Kernel interface 4's (phase 4 specification, 3.8 and 12): the app's own sections, `SETTING_NOT_OWNED` past them.
 		...(grants.has('settings') ? ['setting-get', 'setting-list'] : []),

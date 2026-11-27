@@ -70,6 +70,9 @@ export type { SettingRows };
 const GROUPS = new WeakMap<object, number>();
 export const paletteGroupOf = (item: object): number => GROUPS.get(item) ?? 2;
 
+/** Runnable from the palette's interface, never offered in its picker (phase 5 specification, 9.2 and 9.3). */
+const PICKER_HIDDEN: ReadonlySet<string> = new Set(['event-list']);
+
 /** The kinds `palette-search { kind }` filters by (3.10). */
 const PALETTE_KINDS = ['command', 'document', 'setting'] as const;
 /** On a tie of score: a command, then a document, then a setting (documents specification, 8.2), then by name. */
@@ -381,7 +384,10 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		// availability hides or shows an app's commands (the trust review's blocker 10).
 		const shown = deps
 			.paletteRows()
-			.filter((command) => only === undefined || only.has(command.name));
+			.filter(
+				(command) =>
+					(only === undefined || only.has(command.name)) && !PICKER_HIDDEN.has(command.name)
+			);
 		const listed = shown.map((command) => command.name).join(' ');
 		if (index?.commandSet !== commandSet || index.only !== only || index.listed !== listed) {
 			index = {

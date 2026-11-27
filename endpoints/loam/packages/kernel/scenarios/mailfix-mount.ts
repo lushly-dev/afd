@@ -46,6 +46,8 @@ export const MAILFIX_MANIFEST = {
 export const MAILFIX_NAMED: Readonly<Record<string, { agent: boolean; apps?: true }>> =
 	Object.freeze({
 		'mailfix-thread-open': { agent: true, apps: true },
+		// Milestone B's (9.4's second amendment): `mailfixapp` lists threads through its grant.
+		'mailfix-thread-list': { agent: true, apps: true },
 		'mailfix-thread-archive': { agent: true },
 		'mailfix-thread-unarchive': { agent: true },
 		'mailfix-draft-create': { agent: true, apps: true },
@@ -229,11 +231,20 @@ export const MAILFIXAPP_MANIFEST = {
 	},
 	native: { entry: 'dist/native.js' },
 	app: { scope_levels: ['workspace', 'project'] },
-	grants: [{ name: 'calls', reason: "Drafts and sends the person's replies through mailfix." }],
+	grants: [
+		{ name: 'calls', reason: "Drafts and sends the person's replies through mailfix." },
+		// Milestone B's (9.4's second amendment): it catches up on what changed in its engine (9.2).
+		{ name: 'events', reason: 'Refreshes when mailfix changes through the shell.' },
+	],
 	calls: [
 		{
 			app: 'mailfix',
-			commands: ['mailfix-thread-open', 'mailfix-draft-create', 'mailfix-draft-send'],
+			commands: [
+				'mailfix-thread-open',
+				'mailfix-thread-list',
+				'mailfix-draft-create',
+				'mailfix-draft-send',
+			],
 		},
 		{ app: 'mailfix', commands: ['mailfixb-thread-open'] },
 	],

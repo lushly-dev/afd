@@ -1080,7 +1080,13 @@ describe("the second review's findings", () => {
 			key: 'trashDays',
 			level: 'workspace',
 		});
-		const last = batch.mock.calls.at(-1)?.[0] as Array<{ method: string; path: string }>;
+		// The setting's own batch; the bus's projection writes its own after it (phase 5's 9.2).
+		const last = batch.mock.calls
+			.map((call) => call[0] as Array<{ method: string; path: string }>)
+			.filter((operations) =>
+				operations.some((operation) => operation.path.startsWith('/setting/'))
+			)
+			.at(-1) as Array<{ method: string; path: string }>;
 		expect(last.map((operation) => [operation.method, operation.path])).toEqual([
 			['DELETE', `/setting/${encodeURIComponent('personal/loam.documents/workspace')}`],
 			['PUT', '/workspace/personal'],

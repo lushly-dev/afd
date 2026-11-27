@@ -7,7 +7,12 @@
  */
 
 import { css } from '@lushly-dev/fast-element';
-import type { AppContextV1, LoamSurfaceElementV1, ScopeV1 } from '@lushly-dev/loam-sdk';
+import type {
+	AppContextV1,
+	EventHintV1,
+	LoamSurfaceElementV1,
+	ScopeV1,
+} from '@lushly-dev/loam-sdk';
 
 const styles = css`
 	:host {
@@ -91,6 +96,11 @@ export class LoamMount extends HTMLElement {
 	set selectionLevel(level: 'workspace' | 'project') {
 		if (this.#options) this.#options.selectionLevel = level;
 		if (this.#surface) this.#surface.selectionLevel = level;
+	}
+
+	/** Events this app may read were projected (phase 5 specification, 9.2): its element hears it, if it listens. */
+	eventsChanged(hint: EventHintV1): void {
+		this.#surface?.eventsChanged?.(hint);
 	}
 
 	/** The app's own sections changed (phase 4 specification, 3.8): its element hears it, if it listens. */
