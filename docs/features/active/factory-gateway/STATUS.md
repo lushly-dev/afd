@@ -262,7 +262,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   on `random` already, calling `lane-heartbeat` (Lushly's side,
   [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), coordinated with its
   foreman, with a `/heartbeat` token issued only after it merged and the lane reloaded
-  cleanly), and botcore's lane once it runs for AFD; the factory plugin on the gateway (the
+  cleanly; it merged and reloaded on 2026-11-25, and the token and the `gateway.url` dial
+  remain), and botcore's lane once it runs for AFD; the factory plugin on the gateway (the
   lane loop landed in #1295; `feat/factory-lane-loop` is stale); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));
   the process files and the two process checks.
 - **Not done:** every milestone below.
@@ -556,6 +557,43 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   with a parent, and no route for a session) are fixed in the same pull request. Not built: the commands, their job and the App adapter are
   [#2729](https://github.com/lushly-dev/afd/issues/2729). Lushly's copy of the triage skill moves
   with G1's Lushly process work ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392)).
+
+- 2026-11-27: Lushly's half of the process check landed: lushly-dev/lushly#3096 merged as
+  `2163c895`, closing [lushly#2961](https://github.com/lushly-dev/lushly/issues/2961).
+  - **What runs.** `pnpm check:process` is in Lushly's `check-invariants` lefthook group, so
+    pre-push, the lane's preflight and its final all run it. It first checks that
+    `scripts/check-process.mjs` is the byte copy of AFD's file that
+    `scripts/check-process.source.json` records (`pnpm process:sync <afd commit>` updates both,
+    from a commit on AFD's `main` only). It then runs it against Lushly's half,
+    `Docs/operations/factory-gateway/process.json`. Checked by content on Lushly's `main`: the
+    record names AFD `4f36a6fe`, and the scripts, the hook and the manifest are present.
+  - **The ejection.** Lushly's lane ejected the branch on 2026-11-25:
+    `check-gate-justifications` (lushly#2734), which landed after the branch was cut, wants a
+    leading `Standard-tool-first:` note in every `check-*` script. The note went into AFD's
+    checker ([#2807](https://github.com/lushly-dev/afd/pull/2807), `4f36a6fe`) and was synced
+    from there.
+  - **New allow entries.** Lushly's `main` had meanwhile gained 13 door writes in seven files:
+    its merge-queue mode (lushly#3063) and a Dependabot freshness check. Each is allowed with
+    its milestone:
+    - the lane's queue writes until G1;
+    - `Docs/operations/merge-queue.md`'s owner steps until G5;
+    - the freshness check, which only a workflow runs with Actions' token, until G4.
+  - **Result.** On the branch: 606 files read, 20 allowed. Two reviewers (`lushly-reviewer` and
+    `lushly-security-auditor`, Opus 5.5 high) found no blockers on the repair.
+  - **One gap, filed as [#2809](https://github.com/lushly-dev/afd/issues/2809).** G1's
+    `pr-merge` `cancel` turns auto-merge off. It does not take a pull request out of a merge
+    queue that has already accepted it (`dequeuePullRequest`), which Lushly's queue mode does
+    when it ejects. The entry above (2026-11-24) said no manifest listed Lushly's files until
+    this merged; one does now.
+- 2026-11-27: Lushly's lane heartbeat ([lushly#2979](https://github.com/lushly-dev/lushly/pull/2979),
+  `scripts/merge-lane-heartbeat.mjs`) merged on 2026-11-25 at 10:04Z.
+  - **Reload.** The lane reloaded cleanly 12 seconds later: `definition-reload`, `run-stopped`
+    and `run-started` in its `events.jsonl`.
+  - **Still off.** It waits for the `gateway.url` dial and a `/heartbeat` token at
+    `~/.config/factory-gateway/heartbeat.token`. Neither exists yet, because issuing the token
+    needs the owner's sudo on `random`.
+  - **Coordination.** Lushly's foreman, which asked to be told before the dial is set, no longer
+    runs, so that step is the owner's.
 
 ## Follow-ups not yet issues
 
