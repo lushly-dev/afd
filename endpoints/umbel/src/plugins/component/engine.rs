@@ -77,7 +77,8 @@ fn build() -> Result<Shared, String> {
         // On macOS, catch wasm traps with signal handlers, as on Linux, not Wasmtime's Mach
         // exception thread: in Wasmtime 48 that thread aborts the process when any signal lands
         // on it, and the host takes `SIGCHLD` for every mounted child it starts (#2458). Fixed
-        // upstream in Wasmtime 50 (bytecodealliance/wasmtime#14414); drop this line on upgrading.
+        // upstream in Wasmtime 50 (bytecodealliance/wasmtime#14414), which Umbel skips (D39): drop
+        // this call on the move to the 60 long-term line, or a 48.x release with the fix.
         .macos_use_mach_ports(false);
     let engine =
         Engine::new(&config).map_err(|error| format!("cannot create the engine: {error:#}"))?;
