@@ -108,6 +108,10 @@ pre-push-checks:
     maturity:
       run: node scripts/maturity.mjs
 
+    # Facts on afd.dev that follow the repository: the conformance count, the sitemap (#2690).
+    site:
+      run: node scripts/check-site.mjs
+
     test-configs:
       run: node scripts/check-test-configs.mjs scripts/affected/
 
@@ -184,6 +188,10 @@ check:
     # One maturity ladder across the README, llms.txt, the site and the package metadata (#2473).
     maturity:
       run: node scripts/maturity.mjs
+
+    # Facts on afd.dev that follow the repository: the conformance count, the sitemap (#2690).
+    site:
+      run: node scripts/check-site.mjs
 
     test-configs:
       run: node scripts/check-test-configs.mjs scripts/affected/

@@ -25,6 +25,7 @@ export const testFiles = [
 	'scripts/check-vector-drift.test.mjs',
 	'scripts/check-capabilities.test.mjs',
 	'scripts/maturity.test.mjs',
+	'scripts/check-site.test.mjs',
 	'scripts/gate-discipline.test.mjs',
 	'scripts/measures-producers.test.mjs',
 	'scripts/check-versions.test.mjs',

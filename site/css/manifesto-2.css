@@ -1,6 +1,9 @@
 :root {
-	--ink: var(--color-text);
-	--paper: var(--color-page);
+	/* The fixed inverse pair: dark panels and the text on colour fields.
+	   What turns with the scheme (the page, rests, their text) reads the
+	   --color-* tokens instead. */
+	--ink: var(--afd-ink);
+	--paper: var(--afd-paper);
 	--red: var(--accent-human);
 	--mint: var(--accent-agent);
 	--muted: var(--color-text-muted);
@@ -9,8 +12,8 @@
 	--mono: var(--font-mono);
 	--display: var(--font-display);
 	font-family: var(--font-sans);
-	color: var(--ink);
-	background: var(--paper);
+	color: var(--color-text);
+	background: var(--color-page);
 	font-synthesis: none;
 }
 * {
@@ -123,7 +126,7 @@ code {
 	left: 16px;
 	z-index: var(--layer-dialog);
 	padding: 12px;
-	background: var(--paper);
+	background: var(--color-page);
 }
 .skip-link:focus {
 	top: 48px;
@@ -177,7 +180,7 @@ code {
 	justify-content: space-between;
 	min-height: var(--nav-h);
 	padding: 0 48px;
-	background: var(--paper);
+	background: var(--color-page);
 	border-bottom: 1px solid var(--line);
 }
 .wordmark {
@@ -216,7 +219,7 @@ code {
 }
 .manifesto-nav a:hover,
 .agent-toggle:hover {
-	color: var(--afd-red-ink);
+	color: var(--accent-human-text);
 }
 .agent-toggle {
 	border: 0;
@@ -230,6 +233,7 @@ code {
 	gap: 6px;
 }
 .opening {
+	--ink: var(--color-on-signal);
 	background: var(--field-signal);
 	color: var(--ink);
 }
@@ -641,13 +645,13 @@ code {
 	color: var(--ink);
 }
 .button--ink {
-	background: var(--ink);
-	color: var(--paper);
+	background: var(--color-text);
+	color: var(--color-page);
 }
 .button--outline {
 	background: transparent;
-	border-color: var(--ink);
-	color: var(--ink);
+	border-color: var(--color-text);
+	color: var(--color-text);
 }
 .command-rail {
 	display: grid;
@@ -899,7 +903,7 @@ code {
 .recovery {
 	padding: 90px 0;
 	background: var(--red);
-	color: var(--ink);
+	color: var(--color-text);
 }
 .recovery .story-copy h2 {
 	font-size: var(--t-statement);
@@ -1277,8 +1281,8 @@ code {
 	max-height: 85svh;
 	padding: 28px;
 	border: 0;
-	background: var(--paper);
-	color: var(--ink);
+	background: var(--color-page);
+	color: var(--color-text);
 }
 .confirm-dialog::backdrop {
 	background: #101712b8;
@@ -1447,7 +1451,7 @@ code {
 .install {
 	margin-top: 36px;
 	padding-top: 26px;
-	border-top: 2px solid var(--ink);
+	border-top: 2px solid var(--color-rule);
 }
 .install-top {
 	display: flex;
@@ -1584,7 +1588,7 @@ code {
 }
 .agent-view__bar button {
 	padding: 10px;
-	border: 1px solid var(--ink);
+	border: 1px solid var(--color-rule);
 	background: transparent;
 }
 .agent-view pre {
@@ -2207,8 +2211,8 @@ textarea[aria-invalid="true"] {
 	display: inline-block;
 	margin-right: 10px;
 	padding: 1px 7px;
-	background: var(--ink);
-	color: var(--paper);
+	background: var(--color-text);
+	color: var(--color-page);
 	font-weight: 600;
 }
 

@@ -148,7 +148,7 @@
 .vsafe-verdict {
 	padding: var(--space-1) var(--space-3);
 	background: var(--accent-agent);
-	color: var(--color-text);
+	color: var(--color-on-accent);
 	font: var(--weight-strong) var(--t-label) / 1.5 var(--mono);
 	letter-spacing: var(--tracking-label);
 	text-transform: uppercase;

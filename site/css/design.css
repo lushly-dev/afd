@@ -208,7 +208,7 @@
 
 .character-buttons button:hover {
 	background: var(--accent-agent);
-	color: var(--color-text);
+	color: var(--color-on-accent);
 }
 
 .character-rules {

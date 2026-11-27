@@ -176,7 +176,7 @@
 .d-section--ink .fig-chip,
 .d-section--deep .fig-chip {
 	background: var(--accent-agent);
-	color: var(--color-text);
+	color: var(--color-on-accent);
 }
 
 .d-section--ink .section-index,

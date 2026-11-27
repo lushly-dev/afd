@@ -105,6 +105,13 @@ Use the semantic field tokens, never raw colours. Full list in
 - Small red text on light backgrounds uses `--accent-human-text`, not `--accent-human`
   (contrast).
 
+**Dark scheme.** `prefers-color-scheme: dark` turns only the light surfaces: the page,
+rests and their `--color-*` text, lines and accents (`tokens-m2.css`, section 8). The
+colour fields keep their colour, and the fields and light demo windows listed there take
+the light set back. So: text on a rest reads `--color-text`, never `--ink`, which stays the
+fixed dark half of the ink/paper pair; text on a mint or red fill reads `--color-on-accent`.
+A new loud field or light window joins that list, or carries `data-scheme="light"`.
+
 ## Interface: Refined
 
 The site's controls follow AFD's component design, Refined (lushly-dev/afd#1430, decided by
