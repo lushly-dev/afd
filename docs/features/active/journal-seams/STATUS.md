@@ -21,7 +21,7 @@ the pull request's number.
 
 - **3. Rust** ([#2681](https://github.com/lushly-dev/afd/issues/2681)): merged in #2865. `CommandContext::dispatch_id`, `ApprovalMiddlewareOptions::with_on_approval_accepted` with `ApprovalSummary`, `ApprovalRequest::approval_id`, `DirectApprovalRequest::approval_id` and `afd::approval_id`; every case of `journal-seams.json` runs and Rust has left its `gaps`. Umbel's decision log meets the step's second exit: D221 (2026-11-27) keys D208's intents by the id, for Loam OS M1, its first consumer, to build.
 
-- **4. Python and C++** ([#2682](https://github.com/lushly-dev/afd/issues/2682)): not started. Needs step 2, and comes after step 3 (J6).
+- **4. Python and C++** ([#2682](https://github.com/lushly-dev/afd/issues/2682)): C++ merged in #2937 (`CommandContext::dispatch_id`, `ApprovalMiddlewareOptions::on_approval_accepted`, `ApprovalSummary`; the relay case skipped, as C++ has no `HumanRelay`). Python in progress.
 
 ## Held
 

@@ -23,6 +23,7 @@ add_executable(
     idempotency_keys_test.cpp
     idempotency_vectors_test.cpp
     journal_context_cap_vectors_test.cpp
+    journal_seams_test.cpp
     journal_seams_vectors_test.cpp
     journal_secret_test.cpp
     journal_test.cpp

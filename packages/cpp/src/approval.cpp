@@ -9,15 +9,21 @@
 #include <iterator>
 #include <map>
 #include <mutex>
-#include <random>
 #include <utility>
 
 #include "detail/approval_admission.hpp"
 #include "detail/approval_relay.hpp"
 #include "detail/canonical_json.hpp"
 #include "detail/direct_approval.hpp"
+#include "detail/dispatch_id.hpp"
+#include "detail/exceptions.hpp"
 #include "detail/hmac.hpp"
 #include "detail/json_io.hpp"
+#include "detail/sha256.hpp"
+
+#if AFD_HAS_EXCEPTIONS
+#include <stdexcept>
+#endif
 
 namespace afd {
 
@@ -34,11 +40,12 @@ constexpr std::size_t max_token_length = 1024;
 struct Verdict {
     std::optional<ApprovalRejection> rejection;
     std::string nonce;
+    std::int64_t issued_at_ms = 0;
     std::int64_t expires_at_ms = 0;
 };
 
 Verdict reject(ApprovalRejection reason) {
-    return {.rejection = reason, .nonce = {}, .expires_at_ms = 0};
+    return {.rejection = reason, .nonce = {}, .issued_at_ms = 0, .expires_at_ms = 0};
 }
 
 std::string digest(std::string_view key, std::string_view purpose, std::string_view value) {
@@ -83,17 +90,6 @@ private:
     std::mutex mutex_;
     std::map<std::string, std::int64_t, std::less<>> used_;
 };
-
-void system_random_bytes(std::uint8_t* out, std::size_t size) {
-    std::random_device device;
-    for (std::size_t i = 0; i < size;) {
-        auto word = device();
-        for (std::size_t b = 0; b < sizeof word && i < size; ++b, ++i) {
-            out[i] = static_cast<std::uint8_t>(word & 0xFFU);
-            word >>= 8;
-        }
-    }
-}
 
 /// What decides a call of one command: its own policy and confirmation prompt (the command the
 /// registry runs, or the server's definition of an up-front step), and the `commands` option's
@@ -222,34 +218,36 @@ struct ApprovalState {
                                          digest(*key, "actor", actor))) {
             return reject(ApprovalRejection::actor_mismatch);
         }
-        // `expires` is above `now` here; clamp a far-future expiry into range.
+        // `expires` is above `now` here; clamp a far-future expiry into range, and the issue time.
         const double capped = (std::min)(expires, 9.0e18);
+        const double issued = (std::max)(-9.0e18, (std::min)(payload["iat"].get<double>(), 9.0e18));
         return {.rejection = std::nullopt,
                 .nonce = payload["n"].get<std::string>(),
+                .issued_at_ms = static_cast<std::int64_t>(std::floor(issued)),
                 .expires_at_ms = static_cast<std::int64_t>(std::ceil(capped))};
     }
 
     /// A signed token, laid out as TypeScript's `JSON.stringify(payload)` writes it.
+    /// Also gives the token's expiry and its nonce.
     std::string issue(std::string_view command, std::string_view input, std::string_view actor,
-                      std::int64_t now, std::int64_t& expires_at_ms) const {
+                      std::int64_t now, std::int64_t& expires_at_ms, std::string& nonce_out) const {
         const std::string& key = keys.front();
         std::array<std::uint8_t, 16> nonce{};
         if (options.random_bytes) {
             options.random_bytes(nonce.data(), nonce.size());
         } else {
-            system_random_bytes(nonce.data(), nonce.size());
+            detail::system_random_bytes(nonce.data(), nonce.size());
         }
         expires_at_ms = now + ttl_ms;
+        nonce_out = detail::base64url_encode(
+            std::string_view(reinterpret_cast<const char*>(nonce.data()), nonce.size()));
         std::string payload = "{\"c\":";
         detail::append_json_string(payload, command);
         payload += ",\"i\":\"" + digest(key, "input", input) + "\"";
         payload += ",\"a\":\"" + digest(key, "actor", actor) + "\"";
         payload += ",\"iat\":" + std::to_string(now);
         payload += ",\"exp\":" + std::to_string(expires_at_ms);
-        payload += ",\"n\":\"" +
-                   detail::base64url_encode(std::string_view(
-                       reinterpret_cast<const char*>(nonce.data()), nonce.size())) +
-                   "\"}";
+        payload += ",\"n\":\"" + nonce_out + "\"}";
         std::string signing_input(token_prefix);
         signing_input += '.';
         signing_input += detail::base64url_encode(payload);
@@ -365,7 +363,7 @@ struct ApprovalState {
         if (options.random_bytes) {
             options.random_bytes(nonce.data(), nonce.size());
         } else {
-            system_random_bytes(nonce.data(), nonce.size());
+            detail::system_random_bytes(nonce.data(), nonce.size());
         }
         return detail::base64url_encode(
             std::string_view(reinterpret_cast<const char*>(nonce.data()), nonce.size()));
@@ -381,6 +379,67 @@ struct ApprovalState {
         return memory_store.consume(nonce, expires_at_ms, now);
     }
 };
+
+/// The evidence a held call is admitted on, for its approval summary.
+struct Evidence {
+    ApprovalVia via = ApprovalVia::token;
+    /// The single-use key the step spends (or, under `within_ttl`, would spend).
+    std::string_view key;
+    std::optional<std::int64_t> issued_at;
+    std::optional<std::int64_t> expires_at;
+};
+
+/// Admits a call a policy held on `evidence` (spec/command-metadata.md, "The approval summary"):
+/// tells `on_approval_accepted`, and waits for it, then runs the next link. A refusal is this
+/// middleware's error (rule 2): thrown where there are exceptions, so the links outside this one
+/// see what they see for any middleware's exception; otherwise a COMMAND_EXECUTION_ERROR that the
+/// registry reports as one. The evidence is already spent either way.
+CommandResult admit(const ApprovalState& state, const Evidence& evidence, std::string_view name,
+                    std::string_view canonical_input, CommandContext& context, const Next& next) {
+    const auto& hook = state.options.on_approval_accepted;
+    if (!hook) {
+        return next();
+    }
+    const ApprovalSummary summary{
+        .via = evidence.via,
+        .command = std::string(name),
+        .input_digest = detail::base64url_encode(detail::sha256(canonical_input)),
+        .approval_id = approval_id(evidence.key),
+        .issued_at = evidence.issued_at,
+        .expires_at = evidence.expires_at,
+    };
+    std::optional<std::string> refused;
+#if AFD_HAS_EXCEPTIONS
+    // A hook that throws refuses too: its refusal stands as a returned one does, so a link outside
+    // this one that catches the exception cannot make the call a success. The exception goes on.
+    try {
+        refused = hook(summary, context.dispatch_id.value());
+    } catch (const std::exception& error) {
+        detail::refuse_by_hook(context, error.what());
+        throw;
+    } catch (...) {
+        detail::refuse_by_hook(context, "unknown exception");
+        throw;
+    }
+#else
+    refused = hook(summary, context.dispatch_id.value());
+#endif
+    if (refused) {
+        std::string message = "The on_approval_accepted hook refused the call";
+        if (!refused->empty()) {
+            message += ": " + *refused;
+        }
+        // Recorded in both builds, so the refusal stands even when a link outside this one
+        // catches the exception (or, without exceptions, the failure) and returns another result.
+        detail::refuse_by_hook(context, message);
+#if AFD_HAS_EXCEPTIONS
+        throw std::runtime_error(message);
+#else
+        return execution_failure(message, false);
+#endif
+    }
+    return next();
+}
 
 CommandResult unbindable(std::string_view command, const std::string& reason) {
     return failure(CommandError{
@@ -672,7 +731,10 @@ detail::UpFrontApproval::Plan decide(ApprovalState& state, detail::UpFrontApprov
         if (fresh) {
             Plan plan;
             for (const auto& answer : matched) {
-                plan.approved.emplace_back(answer.binding, false);
+                plan.approved.push_back({.binding = answer.binding,
+                                         .nonce = answer.nonce,
+                                         .expires_at_ms = answer.expires_at_ms,
+                                         .used = false});
             }
             return plan;
         }
@@ -714,8 +776,16 @@ CommandResult run_up_front(ApprovalState& state, detail::UpFrontApproval& up, st
         return failure(input_not_canonical(name));
     }
     const auto actor = actor_binding(context.actor);
-    if (actor && up.take(state.up_front_bindings(up, name, *canonical, *actor))) {
-        return next();
+    if (actor) {
+        if (const auto approved = up.take(state.up_front_bindings(up, name, *canonical, *actor))) {
+            // Each gated step is admitted on its own answer, so each gets its own summary.
+            return admit(state,
+                         {.via = ApprovalVia::elicitation,
+                          .key = approved->nonce,
+                          .issued_at = std::nullopt,
+                          .expires_at = approved->expires_at_ms},
+                         name, *canonical, context, next);
+        }
     }
     // A gated step the human was not asked about up front (its policy changed its mind).
     return failure(up_front_error(
@@ -748,7 +818,63 @@ std::string_view approval_rejection_name(ApprovalRejection rejection) noexcept {
     return "malformed";
 }
 
+std::string_view approval_via_name(ApprovalVia via) noexcept {
+    switch (via) {
+    case ApprovalVia::token:
+        return "token";
+    case ApprovalVia::elicitation:
+        return "elicitation";
+    case ApprovalVia::direct:
+        return "direct";
+    }
+    return "token";
+}
+
+void to_json(Json& out, const ApprovalSummary& summary) {
+    out = Json::object();
+    out["via"] = std::string(approval_via_name(summary.via));
+    out["command"] = summary.command;
+    out["inputDigest"] = summary.input_digest;
+    out["approvalId"] = summary.approval_id;
+    if (summary.issued_at) {
+        out["issuedAt"] = *summary.issued_at;
+    }
+    if (summary.expires_at) {
+        out["expiresAt"] = *summary.expires_at;
+    }
+}
+
+std::string approval_id(std::string_view key) {
+    std::string message = "approval";
+    message.push_back('\0');
+    message.append(key);
+    return detail::base64url_encode(detail::sha256(message));
+}
+
 namespace detail {
+
+void refuse_by_hook(CommandContext& context, std::string message) {
+    ApprovalAdmission* record = context.approval_admission.get();
+    if (!record) {
+        return;
+    }
+    const std::lock_guard lock(record->mutex);
+    record->hook_refusal = std::move(message);
+}
+
+void clear_hook_refusal(CommandContext& context) {
+    ApprovalAdmission* record = context.approval_admission.get();
+    if (!record) {
+        return;
+    }
+    const std::lock_guard lock(record->mutex);
+    record->hook_refusal.reset();
+}
+
+std::optional<std::string> take_hook_refusal(ApprovalAdmission& record) {
+    const std::lock_guard lock(record.mutex);
+    return std::exchange(record.hook_refusal, std::nullopt);
+}
 
 bool gates(const std::optional<ApprovalPolicy>& policy) noexcept {
     return policy && (policy->function() || policy->decision() != ApprovalDecision::not_required);
@@ -881,6 +1007,9 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
     return CommandMiddleware([state](std::string_view name, const Json& input,
                                      CommandContext& context,
                                      const Next& outer_next) -> CommandResult {
+        // A refusal stands only for the pass that made it: a retry that reaches this step again
+        // is decided afresh (approval_admission.hpp, `hook_refusal`).
+        detail::clear_hook_refusal(context);
         // The policy of the command this call runs, and the one the `commands` option lists.
         const Decider decider = state->decider(name, context);
         // Every way this middleware lets a call it may gate through admits this command on this
@@ -942,14 +1071,19 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         }
 
         std::optional<ApprovalRejection> rejected;
-        const auto evidence =
-            context.direct_approval ? context.direct_approval->take() : context.approval;
+        const bool direct = context.direct_approval != nullptr;
+        const auto evidence = direct ? context.direct_approval->take() : context.approval;
         if (evidence) {
             const Verdict verdict =
                 state->verify_token(*evidence, name, *input_binding, *actor, now);
             if (!verdict.rejection) {
                 if (state->consume(verdict.nonce, verdict.expires_at_ms, now)) {
-                    return next();
+                    return admit(*state,
+                                 {.via = direct ? ApprovalVia::direct : ApprovalVia::token,
+                                  .key = verdict.nonce,
+                                  .issued_at = verdict.issued_at_ms,
+                                  .expires_at = verdict.expires_at_ms},
+                                 name, *input_binding, context, next);
                 }
                 rejected = ApprovalRejection::already_used;
             } else {
@@ -967,7 +1101,13 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
             }
             if (answer.kind == detail::RelayAnswer::Kind::accept &&
                 state->relayed_approval_holds(answer, bindings, now)) {
-                return next();
+                // The hold's nonce is the key, and its expiry the only time the answer carries.
+                return admit(*state,
+                             {.via = ApprovalVia::elicitation,
+                              .key = answer.nonce,
+                              .issued_at = std::nullopt,
+                              .expires_at = answer.expires_at_ms},
+                             name, *input_binding, context, next);
             }
             // An expired, spent or invalid approval is asked again, saying why.
             detail::RelayHold hold = state->question(bindings, now);
@@ -991,8 +1131,13 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         }
 
         std::int64_t expires_at_ms = 0;
-        std::string token = state->issue(name, *input_binding, *actor, now, expires_at_ms);
+        std::string nonce;
+        std::string token = state->issue(name, *input_binding, *actor, now, expires_at_ms, nonce);
         const std::string expires_at = wire::iso8601_utc(expires_at_ms);
+        // The approval id the summary of a call admitted on this token will carry (rule 5).
+        const std::string held_approval_id =
+            settings.on_approval_required || context.direct_approval ? approval_id(nonce)
+                                                                     : std::string();
 
         if (settings.on_approval_required) {
             settings.on_approval_required(ApprovalRequest{
@@ -1003,6 +1148,7 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
                 .expires_at = expires_at,
                 .summary = summary,
                 .rejected = rejected,
+                .approval_id = held_approval_id,
             });
         }
 
@@ -1010,7 +1156,8 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
             context.direct_approval->deposit(
                 {token, summary, expires_at,
                  rejected ? std::optional<std::string>(approval_rejection_name(*rejected))
-                          : std::nullopt});
+                          : std::nullopt,
+                 held_approval_id});
         }
         const bool on_mcp = context.surface == Interface::mcp;
         const bool include_token =

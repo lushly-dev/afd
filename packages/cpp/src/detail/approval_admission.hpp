@@ -72,7 +72,24 @@ struct ApprovalAdmission {
     /// registry takes and checks the admission as it does for the command's own policy. Never
     /// cleared: a later dispatch on the same record is checked too.
     bool listed_gate = false;
+    /// Why an approval step's `on_approval_accepted` hook refused the call on the last pass
+    /// through that step: set by the refusal (which also throws, in builds with exceptions) and
+    /// cleared each time the step runs again, so a retry the hook admits leaves none. The registry
+    /// takes it after the chain and fails the call as for a thrown middleware error, whatever a
+    /// link outside the step returned.
+    std::optional<std::string> hook_refusal;
 };
+
+/// Records, for the call of `context`, that an approval hook refused it (`message`). A no-op for a
+/// context the registry did not record.
+void refuse_by_hook(CommandContext& context, std::string message);
+
+/// Clears the refusal of an earlier pass, as the approval step starts another one. A no-op for a
+/// context the registry did not record.
+void clear_hook_refusal(CommandContext& context);
+
+/// Takes the refusal `refuse_by_hook` recorded on `record`, if any.
+std::optional<std::string> take_hook_refusal(ApprovalAdmission& record);
 
 /// Whether `next` is a continuation the registry built for the call of `context`'s record (see
 /// `ApprovalAdmission::chain_begin`). False for a context the registry did not record.

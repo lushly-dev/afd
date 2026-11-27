@@ -365,7 +365,11 @@ JournalContextDigest create_context_digest(const CommandContext& context,
     }
     if (context.extra.is_object()) {
         for (auto it = context.extra.begin(); it != context.extra.end(); ++it) {
-            if (it.key() != "actor" && it.key() != "interface" && it.key() != "traceId") {
+            // The engine's dispatch id never enters `keys`, in either spelling, even when a
+            // middleware put a value under its name after the registry removed the caller's
+            // (spec/journal.md, "Context digest"; spec/dispatch.md, I4).
+            if (it.key() != "actor" && it.key() != "interface" && it.key() != "traceId" &&
+                it.key() != "dispatchId" && it.key() != "dispatch_id") {
                 keys.push_back(it.key());
             }
         }

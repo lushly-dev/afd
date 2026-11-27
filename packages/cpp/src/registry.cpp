@@ -11,6 +11,7 @@
 #include "detail/approval_admission.hpp"
 #include "detail/caller_allow.hpp"
 #include "detail/context_fields.hpp"
+#include "detail/dispatch_id.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/json_io.hpp"
 #include "detail/meta_keys.hpp"
@@ -435,6 +436,22 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
     context = with_context_defaults(
         std::move(context),
         {.clock = options_.clock, .random = options_.random, .actor = options_.actor});
+    // This dispatch's own id, before any check (spec/dispatch.md, "The dispatch id"): never the
+    // caller's, and never drawn from `context.random`, so a journal's tape is unchanged. A value a
+    // caller put in `extra` under the reserved name is removed, so no reader takes it for the id.
+    // A source that fails gives no id, so the call does not run (as in Rust).
+    auto dispatch_id = detail::new_dispatch_id(options_.random_bytes);
+    if (!dispatch_id) {
+        return failure(create_error(
+            error_codes::COMMAND_EXECUTION_ERROR,
+            "Cannot draw a dispatch id: the secure random source failed",
+            {.suggestion = "The system random source failed; try again later", .retryable = true}));
+    }
+    detail::DispatchIdAccess::set(context.dispatch_id, std::move(*dispatch_id));
+    if (context.extra.is_object() && !context.extra.empty()) {
+        context.extra.erase("dispatch_id");
+        context.extra.erase("dispatchId");
+    }
     // A call with a context scope (contexts.hpp) runs in the scope's active context, so the two
     // never disagree.
     if (context.context_scope) {
@@ -640,6 +657,15 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
 #else
     result = run_chain(*command, *validated, context, *admission, check_output_budget);
 #endif
+    // An approval hook's refusal on the last pass through the approval step (approval.cpp) fails
+    // the call as a thrown middleware error does: to `on_error`, as COMMAND_EXECUTION_ERROR, and
+    // not to `on_command`, whatever a middleware outside it made of the failure, since the handler
+    // never ran on that pass. One that reached the catch above was reported there already.
+    if (auto refusal = detail::take_hook_refusal(*admission); refusal && !threw) {
+        threw = true;
+        report_error(*refusal);
+        result = execution_failure(*refusal, options_.dev_mode);
+    }
 
     // Only this call's own deadline is a TIMEOUT; a cancelled caller keeps the handler's result.
     if (deadline && deadline->token().deadline_passed()) {

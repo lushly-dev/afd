@@ -30,6 +30,7 @@ struct JournaledContextFields;
 struct ApprovalAdmission;
 struct RawOutputBudgetAsk;
 struct CallerAllow;
+struct DispatchIdAccess;
 } // namespace detail
 
 /// A surface a command can be exposed to. TypeScript calls this the command's `interface`; C++
@@ -59,6 +60,41 @@ enum class ExecutionTime { instant, fast, slow, long_running };
 struct CommandExample {
     std::string title;
     Json input;
+};
+
+/// The id of one dispatch (spec/dispatch.md, "The dispatch id"): 22 characters of unpadded
+/// base64url holding 128 bits from a cryptographic random source, never from
+/// `CommandContext::random`, so a journal's tape is unchanged.
+///
+/// `CommandRegistry::execute` sets a fresh one on its context before any check, for every call it
+/// runs: each call, batch item and pipeline step, and each command a handler runs through the
+/// registry (the outer call keeps its own). Every middleware and the handler read the same value,
+/// a retry included, because no code outside the engine can change it: there is no setter,
+/// assigning to an id (or to the context that holds it) leaves it as it was, and a copy of either
+/// has no id, since a copy is not the dispatch. So a handler that calls another command's handler
+/// directly with a copy of its context passes on no id, and empty means "not a dispatch".
+///
+/// A host that keeps its own record of a call (an intent written before the handler, the approval
+/// that admitted it, the outcome) keys it by this id. It is not stamped on the result, not
+/// written to a journal entry and not among the journal's context digest `keys`.
+class DispatchId {
+public:
+    DispatchId() noexcept = default;
+    /// A copy is not the dispatch, so it has no id.
+    DispatchId(const DispatchId& /*other*/) noexcept {}
+    DispatchId(DispatchId&& /*other*/) noexcept {}
+    /// Assigning never changes an id.
+    DispatchId& operator=(const DispatchId& /*other*/) noexcept { return *this; }
+    DispatchId& operator=(DispatchId&& /*other*/) noexcept { return *this; }
+    ~DispatchId() = default;
+
+    /// The id; empty outside a dispatch.
+    [[nodiscard]] const std::string& value() const noexcept { return value_; }
+    [[nodiscard]] bool empty() const noexcept { return value_.empty(); }
+
+private:
+    friend struct detail::DispatchIdAccess;
+    std::string value_;
 };
 
 /// What a handler and its middleware know about the call. Middleware and the handler share one
@@ -150,6 +186,10 @@ struct CommandContext {
     /// suggestions and recoveries name only commands it admits (`spec/recovery.md`, rule 2).
     /// `DirectClient` replaces whatever the caller passes. Leave unset.
     std::shared_ptr<const detail::CallerAllow> caller_allow;
+    /// This dispatch's own id, set by `CommandRegistry::execute` (see `DispatchId`). Read it with
+    /// `context.dispatch_id.value()`; nothing else can set it. Last, so positional initializers
+    /// written before it existed still compile.
+    DispatchId dispatch_id;
 };
 
 /// Defaults for `with_context_defaults`.

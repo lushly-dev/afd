@@ -63,6 +63,7 @@ add_library(
     src/contexts.cpp
     src/detail/json_io.cpp
     src/direct_client.cpp
+    src/dispatch_id.cpp
     src/errors.cpp
     src/handoff.cpp
     src/journal.cpp

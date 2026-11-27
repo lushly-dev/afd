@@ -25,6 +25,10 @@ struct DirectApprovalRequest {
     std::string expires_at;
     std::optional<std::string> reason;
     CancellationToken cancellation;
+    /// The `approval_id` the summary of this call carries once approved
+    /// (spec/command-metadata.md, "The approval summary", rule 5; `afd::approval_id` of the held
+    /// token's nonce). Not a credential.
+    std::string approval_id;
 };
 
 struct DirectClientOptions {

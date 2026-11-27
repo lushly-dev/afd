@@ -26,7 +26,8 @@ struct ContextField {
     /// The `CommandContext::extra` key the value lands under. Not empty, and not a key AFD uses
     /// itself: TypeScript's reserved names (`actor`, `approval`, `auth`, `clock`, `credentials`,
     /// `interface`, `random`, `session`, `signal`, `timeout`, `traceId`), `CommandContext`'s own
-    /// members (`trace_id`, `active_context`, ...), and `source` (`DirectClient` sets it).
+    /// members (`trace_id`, `active_context`, ...), `source` (`DirectClient` sets it), and the
+    /// engine's dispatch id (`dispatchId`, `dispatch_id`).
     std::string name;
     /// The MCP `_meta` key a caller sends the value in. It needs a reverse-DNS prefix of two or
     /// more labels, such as `dev.example/scope`. The `dev.afd/` prefix and any `mcp` or

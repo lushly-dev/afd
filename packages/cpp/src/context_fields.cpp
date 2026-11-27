@@ -17,8 +17,9 @@ namespace {
 
 /// Context keys a declared field cannot take: TypeScript's reserved names, the snake_case and
 /// camelCase names of `CommandContext`'s own members (the digest uses the camelCase ones), and
-/// `source`, which `DirectClient` sets in `extra`.
-constexpr std::array<std::string_view, 28> reserved_context_field_names = {
+/// `source`, which `DirectClient` sets in `extra`, and the engine's dispatch id (spec/dispatch.md,
+/// "The dispatch id") in both spellings.
+constexpr std::array<std::string_view, 30> reserved_context_field_names = {
     // TypeScript's.
     "actor", "approval", "auth", "clock", "credentials", "interface", "random", "session", "signal",
     "timeout", "traceId", "outputBudget",
@@ -27,7 +28,9 @@ constexpr std::array<std::string_view, 28> reserved_context_field_names = {
     "cancellation", "extra", "journal", "direct_approval", "mcp_approval_relay", "journaled_fields",
     "output_budget", "output_budget_ask", "output_budget_meta_ask",
     // DirectClient's `extra` key.
-    "source"};
+    "source",
+    // The engine's dispatch id.
+    "dispatchId", "dispatch_id"};
 
 bool is_meta_alpha(char c) noexcept {
     return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
