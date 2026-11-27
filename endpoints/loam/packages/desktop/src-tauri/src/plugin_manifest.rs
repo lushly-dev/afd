@@ -9,7 +9,7 @@ use crate::js_json::Json;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct PluginManifest {
     pub plugin_manifest_version: u32,
@@ -18,7 +18,7 @@ pub struct PluginManifest {
     pub engine: Option<Engine>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct PluginInfo {
     pub id: String,
@@ -29,14 +29,14 @@ pub struct PluginInfo {
     pub homepage: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct AppRef {
     pub id: String,
     pub path: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Engine {
     pub id: String,
@@ -48,19 +48,19 @@ pub struct Engine {
     pub mount: Option<Mount>,
 }
 
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum EngineKind {
     HttpService,
 }
 
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum ServiceMode {
     Login,
 }
 
-#[derive(Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Target {
     #[serde(rename = "darwin-arm64")]
     DarwinArm64,
@@ -76,14 +76,57 @@ pub enum Target {
     LinuxArm64,
 }
 
-#[derive(Deserialize, Debug)]
+impl Target {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::DarwinArm64 => "darwin-arm64",
+            Self::DarwinX64 => "darwin-x64",
+            Self::WindowsX64 => "windows-x64",
+            Self::WindowsArm64 => "windows-arm64",
+            Self::LinuxX64 => "linux-x64",
+            Self::LinuxArm64 => "linux-arm64",
+        }
+    }
+
+    pub fn from_str_exact(value: &str) -> Option<Self> {
+        match value {
+            "darwin-arm64" => Some(Self::DarwinArm64),
+            "darwin-x64" => Some(Self::DarwinX64),
+            "windows-x64" => Some(Self::WindowsX64),
+            "windows-arm64" => Some(Self::WindowsArm64),
+            "linux-x64" => Some(Self::LinuxX64),
+            "linux-arm64" => Some(Self::LinuxArm64),
+            _ => None,
+        }
+    }
+
+    pub fn is_windows(self) -> bool {
+        matches!(self, Self::WindowsX64 | Self::WindowsArm64)
+    }
+
+    /// The current OS/architecture target supported by `loam-plugin.v1.json`, or `None` on an
+    /// unsupported platform.
+    pub fn current() -> Option<Self> {
+        match (std::env::consts::OS, std::env::consts::ARCH) {
+            ("macos", "aarch64") => Some(Self::DarwinArm64),
+            ("macos", "x86_64") => Some(Self::DarwinX64),
+            ("windows", "x86_64") => Some(Self::WindowsX64),
+            ("windows", "aarch64") => Some(Self::WindowsArm64),
+            ("linux", "x86_64") => Some(Self::LinuxX64),
+            ("linux", "aarch64") => Some(Self::LinuxArm64),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Artifact {
     pub path: String,
     pub sha256: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Auth {
     pub mode: AuthMode,
@@ -97,7 +140,17 @@ pub enum AuthMode {
     None,
 }
 
-#[derive(Deserialize, Debug)]
+impl AuthMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Approver => "approver",
+            Self::Agent => "agent",
+            Self::None => "none",
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Mount {
     pub audience: Option<Audience>,
@@ -107,13 +160,13 @@ pub struct Mount {
     pub commands: Option<BTreeMap<String, CommandOverride>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum Audience {
     Person,
 }
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum Labels {
     Whole,
@@ -129,7 +182,7 @@ impl Labels {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum Approvals {
     None,
@@ -145,14 +198,14 @@ impl Approvals {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct MountExpose {
     pub agent: Option<bool>,
     pub palette: Option<bool>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct CommandOverride {
     pub expose: Option<CommandExpose>,
@@ -173,14 +226,14 @@ pub enum Effect {
 }
 
 /// The core schema's `effects` rules: at least one, none twice, and `inspect` alone.
-fn effects_valid(effects: &[Effect]) -> bool {
+pub(crate) fn effects_valid(effects: &[Effect]) -> bool {
     let unique: std::collections::HashSet<_> = effects.iter().collect();
     !effects.is_empty()
         && unique.len() == effects.len()
         && (!effects.contains(&Effect::Inspect) || effects.len() == 1)
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct CommandExpose {
     pub agent: Option<bool>,
@@ -188,7 +241,7 @@ pub struct CommandExpose {
     pub apps: Option<bool>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Preview {
     pub command: String,
@@ -224,7 +277,7 @@ pub fn bundle_path(value: &str) -> bool {
 }
 
 /// `^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$`: AFD's domain-action command name, at least two segments.
-fn command_name(value: &str) -> bool {
+pub(crate) fn command_name(value: &str) -> bool {
     let segments: Vec<&str> = value.split('-').collect();
     segments.len() >= 2
         && segments.iter().all(|segment| {
@@ -234,7 +287,7 @@ fn command_name(value: &str) -> bool {
         })
 }
 
-fn holds_null(value: &Json) -> bool {
+pub(crate) fn holds_null(value: &Json) -> bool {
     match value {
         Json::Null => true,
         Json::Arr(items) => items.iter().any(holds_null),
@@ -244,7 +297,7 @@ fn holds_null(value: &Json) -> bool {
 }
 
 /// `^[A-Za-z_][A-Za-z0-9_]{0,63}$`: a preview's input field.
-fn input_name(value: &str) -> bool {
+pub(crate) fn input_name(value: &str) -> bool {
     let mut bytes = value.bytes();
     matches!(bytes.next(), Some(byte) if byte.is_ascii_alphabetic() || byte == b'_')
         && value.len() <= 64

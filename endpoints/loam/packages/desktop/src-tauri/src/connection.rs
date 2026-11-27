@@ -240,6 +240,153 @@ pub(crate) fn ensure_dir(path: &Path) -> std::io::Result<()> {
     builder.create(path)
 }
 
+/// Ensures `path` exists as an owner-only directory (`0700` on Unix; protected DACL on Windows
+/// via `CreateDirectoryW`), never following a symlink at `path`. When `path` already exists,
+/// verifies owner-only permissions on both Unix and Windows.
+pub(crate) fn ensure_dir_owner_only(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        ensure_dir(path)?;
+        let meta = std::fs::symlink_metadata(path)?;
+        // SAFETY: `geteuid` has no preconditions and cannot fail.
+        let uid = unsafe { libc::geteuid() };
+        if !meta.is_dir() || meta.file_type().is_symlink() || meta.uid() != uid {
+            return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+        }
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))?;
+        let after = std::fs::symlink_metadata(path)?;
+        if !after.is_dir() || after.uid() != uid || (after.permissions().mode() & 0o077) != 0 {
+            return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+        }
+        Ok(())
+    }
+    #[cfg(windows)]
+    {
+        match std::fs::symlink_metadata(path) {
+            Ok(_) => return verify_existing_dir_owner_only_windows(path),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+            && std::fs::symlink_metadata(parent).is_err()
+        {
+            ensure_dir_owner_only(parent)?;
+        }
+        create_dir_owner_only_windows(path)
+    }
+}
+
+#[cfg(windows)]
+fn verify_existing_dir_owner_only_windows(path: &Path) -> std::io::Result<()> {
+    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+    use std::os::windows::io::AsRawHandle;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+    const READ_CONTROL: u32 = 0x0002_0000;
+    const FILE_SHARE_READ: u32 = 1;
+    const FILE_SHARE_WRITE: u32 = 2;
+    let meta = std::fs::symlink_metadata(path)?;
+    if !meta.is_dir() || (meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT) != 0 {
+        return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+    }
+    let file = std::fs::OpenOptions::new()
+        .access_mode(READ_CONTROL)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)?;
+    let opened = file.metadata()?;
+    if !opened.is_dir()
+        || (opened.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT) != 0
+        || !crate::mounts::handle_owner_only(file.as_raw_handle())
+    {
+        return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn create_dir_owner_only_windows(path: &Path) -> std::io::Result<()> {
+    use std::ffi::c_void;
+    use std::mem::size_of;
+    use std::os::windows::ffi::OsStrExt;
+    use std::ptr::null_mut;
+    use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, HANDLE};
+    use windows_sys::Win32::Security::{
+        ACCESS_ALLOWED_ACE, ACL, ACL_REVISION, AddAccessAllowedAce, GetLengthSid,
+        GetTokenInformation, InitializeAcl, InitializeSecurityDescriptor, IsValidSid, PSID,
+        SE_DACL_PROTECTED, SECURITY_ATTRIBUTES, SECURITY_DESCRIPTOR, SetSecurityDescriptorControl,
+        SetSecurityDescriptorDacl, SetSecurityDescriptorOwner, TOKEN_QUERY, TOKEN_USER, TokenUser,
+    };
+    use windows_sys::Win32::Storage::FileSystem::{CreateDirectoryW, FILE_ALL_ACCESS};
+    use windows_sys::Win32::System::SystemServices::SECURITY_DESCRIPTOR_REVISION;
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    let denied = || std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+    let mut token: HANDLE = null_mut();
+    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
+        return Err(denied());
+    }
+    let mut needed = 0u32;
+    unsafe { GetTokenInformation(token, TokenUser, null_mut(), 0, &mut needed) };
+    let mut user = vec![0u64; (needed as usize).div_ceil(size_of::<u64>()).max(1)];
+    let size = (user.len() * size_of::<u64>()) as u32;
+    let read = unsafe {
+        GetTokenInformation(
+            token,
+            TokenUser,
+            user.as_mut_ptr().cast::<c_void>(),
+            size,
+            &mut needed,
+        )
+    };
+    unsafe { CloseHandle(token) };
+    if read == 0 || (needed as usize) < size_of::<TOKEN_USER>() {
+        return Err(denied());
+    }
+    let sid: PSID = unsafe { (*(user.as_ptr().cast::<TOKEN_USER>())).User.Sid };
+    if sid.is_null() || unsafe { IsValidSid(sid) } == 0 {
+        return Err(denied());
+    }
+    let sid_length = unsafe { GetLengthSid(sid) } as usize;
+    let acl_size =
+        size_of::<ACL>() + size_of::<ACCESS_ALLOWED_ACE>() - size_of::<u32>() + sid_length;
+    let mut acl = vec![0u64; acl_size.div_ceil(size_of::<u64>())];
+    let acl_ptr = acl.as_mut_ptr().cast::<ACL>();
+    let mut descriptor: SECURITY_DESCRIPTOR = unsafe { std::mem::zeroed() };
+    let descriptor_ptr = (&mut descriptor as *mut SECURITY_DESCRIPTOR).cast::<c_void>();
+    let built = unsafe {
+        InitializeAcl(acl_ptr, acl_size as u32, ACL_REVISION) != 0
+            && AddAccessAllowedAce(acl_ptr, ACL_REVISION, FILE_ALL_ACCESS, sid) != 0
+            && InitializeSecurityDescriptor(descriptor_ptr, SECURITY_DESCRIPTOR_REVISION) != 0
+            && SetSecurityDescriptorOwner(descriptor_ptr, sid, 0) != 0
+            && SetSecurityDescriptorDacl(descriptor_ptr, 1, acl_ptr, 0) != 0
+            && SetSecurityDescriptorControl(descriptor_ptr, SE_DACL_PROTECTED, SE_DACL_PROTECTED)
+                != 0
+    };
+    if !built {
+        return Err(denied());
+    }
+    let attributes = SECURITY_ATTRIBUTES {
+        nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
+        lpSecurityDescriptor: descriptor_ptr,
+        bInheritHandle: 0,
+    };
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    // SAFETY: `wide` is NUL-terminated UTF-16; `attributes` and its buffers outlive the call.
+    if unsafe { CreateDirectoryW(wide.as_ptr(), &attributes) } != 0 {
+        return Ok(());
+    }
+    let err = std::io::Error::last_os_error();
+    if err.raw_os_error() == Some(ERROR_ALREADY_EXISTS as i32) {
+        verify_existing_dir_owner_only_windows(path)
+    } else {
+        Err(err)
+    }
+}
+
 /// Opens or creates an owner-only lock file at `path` without following symlinks, verifying
 /// [`check_lock_dir`] on the parent directory and [`file_owner_only`] on the opened handle. On
 /// Windows, opens with `FILE_SHARE_READ | FILE_SHARE_WRITE` (and no `FILE_SHARE_DELETE`) so

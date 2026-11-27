@@ -277,6 +277,7 @@ fn p5_s9_6_mounts_rs_parses_materializer_golden_fixture_mounts_json() {
                     port: u16::try_from(*port).unwrap(),
                     token_id: (auth != "none").then(|| "golden-token".into()),
                     proof_key: (auth != "none").then(|| proof_key.clone()),
+                    file_fallback: false,
                 });
             }
         }

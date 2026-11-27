@@ -137,29 +137,39 @@ pub(super) fn verify_proof_header(proof_key: &str, nonce: &str, header: &str) ->
     mac.verify_slice(&received).is_ok()
 }
 
+/// Why [`connect_and_verify_detailed`] failed to establish a verified loopback connection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ProofConnectError {
+    /// TCP connection could not be opened or timed out before a response arrived.
+    ConnectFailed,
+    /// A listener answered `/health` without HTTP 200 and a valid `X-Loam-Proof` header, or
+    /// exceeded the response discard cap / closed keep-alive: likely another program on the port.
+    ProofFailed,
+}
+
 /// Opens a direct loopback TCP connection (no proxy, no redirects) and verifies the peer via
 /// unauthenticated `GET /health?nonce=<64-random-hex>` + constant-time `X-Loam-Proof` before
 /// returning the live connection for subsequent authenticated MCP requests (amendment 5.2).
-pub(super) async fn connect_and_verify(
+pub(crate) async fn connect_and_verify_detailed(
     target: &LoopbackTarget,
     proof_key: &str,
     timeout: Duration,
-) -> Result<VerifiedConn, &'static str> {
+) -> Result<VerifiedConn, ProofConnectError> {
     if !hex64(proof_key) {
-        return Err(UNREACHABLE);
+        return Err(ProofConnectError::ProofFailed);
     }
     let mut nonce_bytes = [0u8; 32];
-    getrandom::fill(&mut nonce_bytes).map_err(|_| UNREACHABLE)?;
+    getrandom::fill(&mut nonce_bytes).map_err(|_| ProofConnectError::ConnectFailed)?;
     let nonce = encode_hex(&nonce_bytes);
 
     tokio::time::timeout(timeout, async {
         let stream = tokio::net::TcpStream::connect((target.ip, target.port))
             .await
-            .map_err(|_| UNREACHABLE)?;
+            .map_err(|_| ProofConnectError::ConnectFailed)?;
         let (mut sender, conn) =
             hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(stream))
                 .await
-                .map_err(|_| UNREACHABLE)?;
+                .map_err(|_| ProofConnectError::ConnectFailed)?;
         let driver = AbortOnDrop(
             tokio::spawn(async move {
                 let _ = conn.await;
@@ -172,12 +182,15 @@ pub(super) async fn connect_and_verify(
             .uri(format!("/health?nonce={nonce}"))
             .header(hyper::header::HOST, target.authority.as_str())
             .body(Full::new(Bytes::new()))
-            .map_err(|_| UNREACHABLE)?;
-        sender.ready().await.map_err(|_| UNREACHABLE)?;
+            .map_err(|_| ProofConnectError::ConnectFailed)?;
+        sender
+            .ready()
+            .await
+            .map_err(|_| ProofConnectError::ConnectFailed)?;
         let response = sender
             .send_request(request)
             .await
-            .map_err(|_| UNREACHABLE)?;
+            .map_err(|_| ProofConnectError::ConnectFailed)?;
         let status = response.status();
         let proof_ok = if status == hyper::StatusCode::OK {
             let mut headers = response.headers().get_all("X-Loam-Proof").iter();
@@ -192,7 +205,7 @@ pub(super) async fn connect_and_verify(
             false
         };
         if !proof_ok {
-            return Err(UNREACHABLE);
+            return Err(ProofConnectError::ProofFailed);
         }
         // Discard any `/health` response body unread (bounded to `HEALTH_BODY_DISCARD_MAX`) so the
         // HTTP/1.1 connection stays cleanly framed for subsequent authenticated requests on this
@@ -200,23 +213,36 @@ pub(super) async fn connect_and_verify(
         let mut body = response.into_body();
         let mut discarded = 0usize;
         while let Some(frame) = body.frame().await {
-            let frame = frame.map_err(|_| UNREACHABLE)?;
+            let frame = frame.map_err(|_| ProofConnectError::ProofFailed)?;
             if let Some(data) = frame.data_ref() {
                 discarded = discarded.saturating_add(data.len());
                 if discarded > HEALTH_BODY_DISCARD_MAX {
-                    return Err(UNREACHABLE);
+                    return Err(ProofConnectError::ProofFailed);
                 }
             }
         }
         // Confirm the verified connection remains open for keep-alive reuse (refuses `Connection: close`).
-        sender.ready().await.map_err(|_| UNREACHABLE)?;
+        sender
+            .ready()
+            .await
+            .map_err(|_| ProofConnectError::ProofFailed)?;
         Ok(VerifiedConn {
             sender,
             _driver: driver,
         })
     })
     .await
-    .map_err(|_| UNREACHABLE)?
+    .map_err(|_| ProofConnectError::ConnectFailed)?
+}
+
+pub(super) async fn connect_and_verify(
+    target: &LoopbackTarget,
+    proof_key: &str,
+    timeout: Duration,
+) -> Result<VerifiedConn, &'static str> {
+    connect_and_verify_detailed(target, proof_key, timeout)
+        .await
+        .map_err(|_| UNREACHABLE)
 }
 
 /// Pre-bearer server identity verification (phase 5 no-terminal amendment, 5.2): sends an
@@ -398,6 +424,248 @@ pub(super) async fn send_verified_http(
     } else {
         Err(RESULT_INVALID)
     }
+}
+
+/// Outcome of a single authenticated MCP probe over a `/health`-verified loopback connection
+/// (phase 5 no-terminal amendment, 5.2 & 7.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum VerifiedProbeError {
+    /// Listener has not accepted a TCP connection yet or timed out before responding.
+    NotReady,
+    /// Listener failed `/health` `X-Loam-Proof` (likely a port squatter): zero bearer was sent.
+    ProofFailed,
+    /// Authenticated `/mcp` returned HTTP 401 or 403.
+    Unauthorized,
+    /// Authenticated `/mcp` answered with a non-200 status, non-JSON/SSE body, or JSON-RPC error.
+    BadResponse,
+}
+
+/// Runs one pre-bearer `/health` proof check on a direct loopback TCP connection and, ONLY if
+/// `X-Loam-Proof` verifies in constant time, sends `POST /mcp` (`MCP-Protocol-Version: 2026-07-28`,
+/// `Authorization: Bearer <token>`) on that exact keep-alive socket and validates HTTP 200 with a
+/// JSON-RPC `"result"` object and no `"error"` (amendment 5.2, 7.3, 7.4).
+pub(crate) async fn probe_verified_mcp(
+    url: &str,
+    proof_key: &str,
+    bearer: &str,
+    timeout: Duration,
+) -> Result<(), VerifiedProbeError> {
+    let target = loopback_target(url).ok_or(VerifiedProbeError::ProofFailed)?;
+    let mut verified = match connect_and_verify_detailed(&target, proof_key, timeout).await {
+        Ok(conn) => conn,
+        Err(ProofConnectError::ConnectFailed) => return Err(VerifiedProbeError::NotReady),
+        Err(ProofConnectError::ProofFailed) => return Err(VerifiedProbeError::ProofFailed),
+    };
+    let payload = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2026-07-28",
+            "capabilities": {},
+            "clientInfo": {
+                "name": "loam-desktop",
+                "version": env!("CARGO_PKG_VERSION"),
+            }
+        }
+    });
+    let encoded = serde_json::to_vec(&payload).map_err(|_| VerifiedProbeError::BadResponse)?;
+    let request = hyper::Request::builder()
+        .method(hyper::Method::POST)
+        .uri(target.mcp_path.as_str())
+        .header(hyper::header::HOST, target.authority.as_str())
+        .header(hyper::header::ACCEPT, "application/json, text/event-stream")
+        .header(hyper::header::CONTENT_TYPE, "application/json")
+        .header("MCP-Protocol-Version", "2026-07-28")
+        .header("Mcp-Method", "initialize")
+        .header(hyper::header::AUTHORIZATION, format!("Bearer {bearer}"))
+        .body(Full::new(Bytes::from(encoded)))
+        .map_err(|_| VerifiedProbeError::BadResponse)?;
+
+    let deadline = tokio::time::Instant::now() + timeout;
+    let response =
+        match tokio::time::timeout_at(deadline, verified.sender.send_request(request)).await {
+            Ok(Ok(resp)) => resp,
+            _ => return Err(VerifiedProbeError::NotReady),
+        };
+    let status = response.status();
+    if status == hyper::StatusCode::UNAUTHORIZED || status == hyper::StatusCode::FORBIDDEN {
+        return Err(VerifiedProbeError::Unauthorized);
+    }
+    if status != hyper::StatusCode::OK {
+        return Err(VerifiedProbeError::BadResponse);
+    }
+    let content_type = response
+        .headers()
+        .get(hyper::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let is_sse = content_type.starts_with("text/event-stream");
+    if !is_sse && !content_type.is_empty() && !content_type.starts_with("application/json") {
+        return Err(VerifiedProbeError::BadResponse);
+    }
+    let mut body = response.into_body();
+    let mut buf = Vec::new();
+    let read_result = tokio::time::timeout_at(deadline, async {
+        while let Some(frame) = body.frame().await {
+            let frame = frame.map_err(|_| VerifiedProbeError::BadResponse)?;
+            if let Some(chunk) = frame.data_ref() {
+                if buf.len().saturating_add(chunk.len()) > RESPONSE_MAX {
+                    return Err(VerifiedProbeError::BadResponse);
+                }
+                buf.extend_from_slice(chunk);
+                if is_sse {
+                    while let Some(event) = next_event(&mut buf) {
+                        if let Ok(Some(value)) = event_data(&event)
+                            && value.get("id") == Some(&serde_json::json!(1))
+                        {
+                            return Ok(Some(value));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    })
+    .await;
+    let answer = match read_result {
+        Ok(Ok(Some(v))) => v,
+        Ok(Ok(None)) if !is_sse => {
+            serde_json::from_slice::<Value>(&buf).map_err(|_| VerifiedProbeError::BadResponse)?
+        }
+        _ => return Err(VerifiedProbeError::BadResponse),
+    };
+    validate_initialize_answer(&answer)
+}
+
+fn validate_initialize_answer(answer: &Value) -> Result<(), VerifiedProbeError> {
+    if answer.get("jsonrpc") == Some(&Value::String("2.0".to_owned()))
+        && answer.get("id") == Some(&serde_json::json!(1))
+        && answer.get("result").is_some_and(Value::is_object)
+        && answer.get("error").is_none()
+    {
+        Ok(())
+    } else {
+        Err(VerifiedProbeError::BadResponse)
+    }
+}
+
+/// Runs one unauthenticated MCP 2026-07-28 `initialize` probe (`auth.mode = "none"`) over a direct
+/// loopback HTTP/1.1 connection using the exact same `RESPONSE_MAX` cap and JSON/SSE response
+/// parser as [`probe_verified_mcp`].
+pub(crate) async fn probe_unauthenticated_mcp_bounded(
+    url: &str,
+    timeout: Duration,
+) -> Result<(), VerifiedProbeError> {
+    let target = loopback_target(url).ok_or(VerifiedProbeError::BadResponse)?;
+    let deadline = tokio::time::Instant::now() + timeout;
+    let stream = match tokio::time::timeout_at(
+        deadline,
+        tokio::net::TcpStream::connect((target.ip, target.port)),
+    )
+    .await
+    {
+        Ok(Ok(s)) => s,
+        _ => return Err(VerifiedProbeError::NotReady),
+    };
+    let (mut sender, conn) = match tokio::time::timeout_at(
+        deadline,
+        hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(stream)),
+    )
+    .await
+    {
+        Ok(Ok(pair)) => pair,
+        _ => return Err(VerifiedProbeError::NotReady),
+    };
+    let _driver = AbortOnDrop(
+        tokio::spawn(async move {
+            let _ = conn.await;
+        })
+        .abort_handle(),
+    );
+    let payload = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2026-07-28",
+            "capabilities": {},
+            "clientInfo": {
+                "name": "loam-desktop",
+                "version": env!("CARGO_PKG_VERSION"),
+            }
+        }
+    });
+    let encoded = serde_json::to_vec(&payload).map_err(|_| VerifiedProbeError::BadResponse)?;
+    let request = hyper::Request::builder()
+        .method(hyper::Method::POST)
+        .uri(target.mcp_path.as_str())
+        .header(hyper::header::HOST, target.authority.as_str())
+        .header(hyper::header::ACCEPT, "application/json, text/event-stream")
+        .header(hyper::header::CONTENT_TYPE, "application/json")
+        .header("MCP-Protocol-Version", "2026-07-28")
+        .header("Mcp-Method", "initialize")
+        .body(Full::new(Bytes::from(encoded)))
+        .map_err(|_| VerifiedProbeError::BadResponse)?;
+
+    if tokio::time::timeout_at(deadline, sender.ready())
+        .await
+        .ok()
+        .and_then(Result::ok)
+        .is_none()
+    {
+        return Err(VerifiedProbeError::NotReady);
+    }
+    let response = match tokio::time::timeout_at(deadline, sender.send_request(request)).await {
+        Ok(Ok(resp)) => resp,
+        _ => return Err(VerifiedProbeError::NotReady),
+    };
+    if response.status() != hyper::StatusCode::OK {
+        return Err(VerifiedProbeError::BadResponse);
+    }
+    let content_type = response
+        .headers()
+        .get(hyper::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let is_sse = content_type.starts_with("text/event-stream");
+    if !is_sse && !content_type.is_empty() && !content_type.starts_with("application/json") {
+        return Err(VerifiedProbeError::BadResponse);
+    }
+    let mut body = response.into_body();
+    let mut buf = Vec::new();
+    let read_result = tokio::time::timeout_at(deadline, async {
+        while let Some(frame) = body.frame().await {
+            let frame = frame.map_err(|_| VerifiedProbeError::BadResponse)?;
+            if let Some(chunk) = frame.data_ref() {
+                if buf.len().saturating_add(chunk.len()) > RESPONSE_MAX {
+                    return Err(VerifiedProbeError::BadResponse);
+                }
+                buf.extend_from_slice(chunk);
+                if is_sse {
+                    while let Some(event) = next_event(&mut buf) {
+                        if let Ok(Some(value)) = event_data(&event)
+                            && value.get("id") == Some(&serde_json::json!(1))
+                        {
+                            return Ok(Some(value));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    })
+    .await;
+    let answer = match read_result {
+        Ok(Ok(Some(v))) => v,
+        Ok(Ok(None)) if !is_sse => {
+            serde_json::from_slice::<Value>(&buf).map_err(|_| VerifiedProbeError::BadResponse)?
+        }
+        _ => return Err(VerifiedProbeError::BadResponse),
+    };
+    validate_initialize_answer(&answer)
 }
 
 /// Sends `DELETE` only if the already-verified TCP connection is still open; never opens a new

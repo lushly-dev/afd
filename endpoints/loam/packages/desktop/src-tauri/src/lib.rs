@@ -6,16 +6,26 @@
 pub mod bridge;
 pub mod connection;
 pub mod desktop_state;
+pub mod engine_run;
 pub mod era;
 pub mod inbound;
 pub mod js_json;
-pub(crate) mod keychain;
+pub mod keychain;
 pub mod logging;
 pub mod materialize;
 pub mod models;
 pub mod mounts;
 pub mod notify;
+pub mod plugin_archive;
 pub mod plugin_manifest;
+pub mod plugin_schema;
+pub mod plugin_validate;
+pub mod plugins;
+pub mod plugins_cli;
+pub mod plugins_engine;
+pub mod plugins_error;
+pub mod plugins_ops;
+pub mod service;
 pub mod site;
 pub mod updater;
 
@@ -172,10 +182,17 @@ pub fn startup_prepare(
                 reconciled: false,
             }
         }
-        Ok(desktop_state::Mode::Managed(Some(state))) => {
+        Ok(desktop_state::Mode::Managed(Some(mut state))) => {
             if let Err(code) = desktop_state::sweep_orphans(data) {
                 return fail_closed_startup(code, bundled);
             }
+            // Retry any pending token revocations automatically on startup (amendment 7.4)
+            // and rotate plugin stderr logs / refresh Windows HKCU Run paths (6.1 & 6.2).
+            let custom_dir = keychain::custom_data_dir();
+            if !state.pending_revocations.is_empty() {
+                plugins::retry_pending_revocations_under_lock(data, &mut state);
+            }
+            service::reconcile_startup_services(data, &state, custom_dir.as_deref());
             let (built, reconciled) =
                 match materialize::reconcile(data, &state, profile, shell_build) {
                     Ok(outcome) => outcome,
@@ -1181,6 +1198,7 @@ mod tests {
                 port: 17405,
                 token_id: Some("tok_p1".into()),
                 proof_key: Some("c".repeat(64)),
+                file_fallback: false,
             }),
         });
         connection::write_owner_only(

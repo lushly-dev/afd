@@ -12,7 +12,10 @@ use proof::{
     loopback_target, send_verified_http,
 };
 #[allow(unused_imports)]
-pub(crate) use proof::{compute_proof, verify_proof};
+pub(crate) use proof::{
+    VerifiedProbeError, compute_proof, probe_unauthenticated_mcp_bounded, probe_verified_mcp,
+    verify_proof,
+};
 
 use crate::desktop_state::hex64;
 use crate::models::{KeychainRef, key_shaped, keychain_name};
@@ -328,7 +331,7 @@ pub fn owner_only(path: &Path) -> bool {
 }
 
 #[cfg(windows)]
-fn handle_owner_only(handle: std::os::windows::io::RawHandle) -> bool {
+pub(crate) fn handle_owner_only(handle: std::os::windows::io::RawHandle) -> bool {
     use std::ffi::c_void;
     use std::mem::{offset_of, size_of};
     use std::ptr::{addr_of, addr_of_mut, null_mut};
@@ -599,11 +602,18 @@ pub struct Mounts {
 
 impl Mounts {
     pub fn new(entries: Result<Vec<Access>, &'static str>) -> Self {
+        Self::with_keychain_reader(entries, Arc::new(crate::keychain::read))
+    }
+
+    pub fn with_keychain_reader(
+        entries: Result<Vec<Access>, &'static str>,
+        keychain_reader: KeychainReader,
+    ) -> Self {
         Self {
             entries: StdRwLock::new(entries),
             next: AtomicU64::new(1),
             open: StdMutex::new(OpenState::default()),
-            keychain_reader: Arc::new(crate::keychain::read),
+            keychain_reader,
             proof_timeout: PROOF_TIMEOUT,
         }
     }
