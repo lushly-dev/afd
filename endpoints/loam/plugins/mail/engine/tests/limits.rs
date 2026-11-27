@@ -109,8 +109,8 @@ struct Shape {
 }
 
 impl Shape {
-    /// The iCloud census's shape (`prototype/icloud.counts.json`), used when
-    /// no census file is given.
+    /// The shape phase 0's iCloud census measured, used when no census file
+    /// is given.
     fn default() -> Self {
         Self {
             templated: 0.82,

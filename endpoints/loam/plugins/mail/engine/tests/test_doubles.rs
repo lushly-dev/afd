@@ -100,11 +100,8 @@ mod with_feature {
     };
     use loam_mail::doubles::imap::Server as ImapServer;
     #[cfg(unix)]
-    use loam_mail::doubles::world::WorldOutputs;
-    use loam_mail::doubles::world::{
-        SEED_LOAM_DESKTOP, SEED_MAIL_F_BASE, SEED_PASSWORD, SEED_USER, STRANGER_INSTRUCTION,
-        start_world,
-    };
+    use loam_mail::doubles::world::{SEED_LOAM_DESKTOP, STRANGER_INSTRUCTION, WorldOutputs};
+    use loam_mail::doubles::world::{SEED_MAIL_F_BASE, SEED_PASSWORD, SEED_USER, start_world};
     use loam_mail::engine::Engine;
     use loam_mail::home::Home;
     use loam_mail::provider::ProviderError;
