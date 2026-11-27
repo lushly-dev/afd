@@ -39,7 +39,11 @@ export interface DesktopMountOptions {
 /** Pages of `tools/list` read, so a server cannot keep a discovery in a loop. */
 const TOOL_PAGES_MAX = 20;
 
-type Failure = 'MOUNT_UNAUTHORIZED' | 'MOUNT_UNREACHABLE' | 'MOUNT_RESULT_INVALID';
+type Failure =
+	| 'MOUNT_UNAUTHORIZED'
+	| 'MOUNT_UNREACHABLE'
+	| 'MOUNT_RESULT_INVALID'
+	| 'MOUNT_KEYCHAIN_MISSING';
 
 /** A refusal that says only its code. */
 class MountRefusal extends Error {
@@ -53,7 +57,11 @@ class MountRefusal extends Error {
 function refusalOf(cause: unknown): MountRefusal {
 	if (cause instanceof MountRefusal) return cause;
 	return new MountRefusal(
-		cause === 'MOUNT_UNAUTHORIZED' || cause === 'MOUNT_RESULT_INVALID' ? cause : 'MOUNT_UNREACHABLE'
+		cause === 'MOUNT_UNAUTHORIZED' ||
+			cause === 'MOUNT_RESULT_INVALID' ||
+			cause === 'MOUNT_KEYCHAIN_MISSING'
+			? cause
+			: 'MOUNT_UNREACHABLE'
 	);
 }
 
@@ -119,8 +127,35 @@ export function createDesktopMountTransport(
 
 	return {
 		async connect(signal) {
+			if (signal?.aborted || !invoke) throw new MountRefusal('MOUNT_UNREACHABLE');
+			let aborted = false;
+			const opening = invoke('mount_open', { instance });
 			try {
-				const opened = await call(invoke, 'mount_open', { instance }, signal);
+				const opened = await new Promise<unknown>((resolve, reject) => {
+					const abort = () => {
+						aborted = true;
+						reject(new MountRefusal('MOUNT_UNREACHABLE'));
+					};
+					signal?.addEventListener('abort', abort, { once: true });
+					opening.then(
+						(value) => {
+							signal?.removeEventListener('abort', abort);
+							// If the caller aborted before `mount_open` settled (e.g. a keychain prompt),
+							// close the late handle so Rust's `HANDLES_PER_INSTANCE` slots are never leaked.
+							if (aborted) {
+								if (typeof value === 'number' && Number.isSafeInteger(value)) {
+									void invoke('mount_close', { handle: value }).catch(() => {});
+								}
+							} else {
+								resolve(value);
+							}
+						},
+						(error) => {
+							signal?.removeEventListener('abort', abort);
+							reject(error);
+						}
+					);
+				});
 				if (typeof opened !== 'number' || !Number.isSafeInteger(opened))
 					throw new MountRefusal('MOUNT_UNREACHABLE');
 				handle = opened;

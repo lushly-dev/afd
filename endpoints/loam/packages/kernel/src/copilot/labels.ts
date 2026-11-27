@@ -96,6 +96,7 @@ export const KERNEL_ANSWERS: ReadonlySet<KernelAnswerCode> = new Set<KernelAnswe
 	'MOUNT_UNREACHABLE',
 	// The kernel's own answer to an instance's 401 or 403, in its words alone (phase 6's step 6 follow-up, #2137).
 	'MOUNT_UNAUTHORIZED',
+	'MOUNT_KEYCHAIN_MISSING',
 	'MOUNT_TIMEOUT',
 	'MOUNT_RESULT_INVALID',
 	'MOUNT_NOT_AFD',

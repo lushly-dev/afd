@@ -1215,6 +1215,23 @@ describe('app-instance-refresh (7.3)', () => {
 		expect(JSON.stringify(row)).not.toContain('secret');
 	});
 
+	it('preserves MOUNT_KEYCHAIN_MISSING with the rotate-or-repair suggestion', async () => {
+		const { kernel } = await boot({
+			work: () => ({
+				...fakeTransport({}),
+				connect: () =>
+					Promise.reject(Object.assign(new Error('secret'), { code: 'MOUNT_KEYCHAIN_MISSING' })),
+			}),
+		});
+		await kernel.startInstances();
+		const row = await instance(kernel);
+		expect(row?.error?.code).toBe('MOUNT_KEYCHAIN_MISSING');
+		expect(row?.error?.suggestion).toBe(
+			"Open Loam → Plugins… and rotate or re-pair this plugin's token"
+		);
+		expect(JSON.stringify(row)).not.toContain('secret');
+	});
+
 	it('keeps the last good commands on a failure, whose calls say why, and recovers', async () => {
 		let up = true;
 		const make = () => {

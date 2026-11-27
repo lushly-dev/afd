@@ -69,6 +69,7 @@ export type MountFailureCode = Extract<
 	LoamKernelErrorCode,
 	| 'MOUNT_UNREACHABLE'
 	| 'MOUNT_UNAUTHORIZED'
+	| 'MOUNT_KEYCHAIN_MISSING'
 	| 'MOUNT_NOT_AFD'
 	| 'MOUNT_TIMEOUT'
 	| 'MOUNT_RESULT_INVALID'
@@ -104,6 +105,11 @@ const MOUNT_FAILURES: Readonly<
 	MOUNT_UNAUTHORIZED: {
 		message: 'The instance refused its credential',
 		suggestion: "Check the deployment's credential reference; the token itself is never shown.",
+		retryable: false,
+	},
+	MOUNT_KEYCHAIN_MISSING: {
+		message: "The instance's keychain token is missing",
+		suggestion: "Open Loam → Plugins… and rotate or re-pair this plugin's token",
 		retryable: false,
 	},
 	MOUNT_NOT_AFD: {

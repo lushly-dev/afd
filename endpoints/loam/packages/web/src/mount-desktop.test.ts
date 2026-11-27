@@ -88,6 +88,10 @@ describe('DesktopMountTransport (phase 6 specification, 10.4)', () => {
 		await expect(createDesktopMountTransport('x').connect()).rejects.toMatchObject({
 			code: 'MOUNT_UNAUTHORIZED',
 		});
+		held.__TAURI_INTERNALS__ = { invoke: () => Promise.reject('MOUNT_KEYCHAIN_MISSING') };
+		await expect(createDesktopMountTransport('x').connect()).rejects.toMatchObject({
+			code: 'MOUNT_KEYCHAIN_MISSING',
+		});
 		fakeHost((message) =>
 			message.method === 'initialize'
 				? respond(message, { protocolVersion: '2025-06-18' })
@@ -113,6 +117,44 @@ describe('DesktopMountTransport (phase 6 specification, 10.4)', () => {
 		fakeHost((message) => respond(message, {}));
 		await expect(createDesktopMountTransport('x').connect()).rejects.toMatchObject({
 			code: 'MOUNT_UNREACHABLE',
+		});
+	});
+
+	it('closes a late mount_open handle when connect aborts first, so subsequent opens do not leak handles', async () => {
+		let resolveOpen!: (handle: number) => void;
+		const closed: number[] = [];
+		let openCalls = 0;
+		held.__TAURI_INTERNALS__ = {
+			invoke(command, args) {
+				if (command === 'mount_open') {
+					openCalls++;
+					if (openCalls === 1) {
+						return new Promise<number>((resolve) => {
+							resolveOpen = resolve;
+						});
+					}
+					return Promise.resolve(9);
+				}
+				if (command === 'mount_close') {
+					closed.push(args.handle as number);
+					return Promise.resolve(null);
+				}
+				const message = args.message as { id?: number; method: string };
+				return Promise.resolve(respond(message, { protocolVersion: '2025-06-18' }));
+			},
+		};
+		const controller = new AbortController();
+		const transport = createDesktopMountTransport('mail');
+		const pending = transport.connect(controller.signal);
+		controller.abort();
+		await expect(pending).rejects.toMatchObject({ code: 'MOUNT_UNREACHABLE' });
+		resolveOpen(7);
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(closed).toEqual([7]);
+		// Subsequent open succeeds cleanly.
+		await expect(createDesktopMountTransport('mail').connect()).resolves.toEqual({
+			protocolVersion: '2025-06-18',
 		});
 	});
 
