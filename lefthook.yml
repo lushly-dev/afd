@@ -89,7 +89,7 @@ pre-push-checks:
       run: node scripts/release-track.mjs check
 
     # No line in a shared status document that every pull request adds to (the plan in
-    # docs/features/active/merge-conflicts/ says why).
+    # docs/features/complete/merge-conflicts/ says why).
     doc-lines:
       run: node scripts/check-doc-lines.mjs
 
@@ -166,7 +166,7 @@ check:
       run: node scripts/release-track.mjs check
 
     # No line in a shared status document that every pull request adds to (the plan in
-    # docs/features/active/merge-conflicts/ says why).
+    # docs/features/complete/merge-conflicts/ says why).
     doc-lines:
       run: node scripts/check-doc-lines.mjs
 
