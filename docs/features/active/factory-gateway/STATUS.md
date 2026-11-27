@@ -675,6 +675,22 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `node scripts/check-process.mjs --manifest Docs/operations/factory-gateway/process.json`,
   passed (615 files read, 20 allowed), the new names finding only
   `scripts/merge-lane-queue-github.mjs` and `Docs/operations/merge-lane.md`, both allowed until G1.
+- 2026-11-27: an unanswered write without a `dedupe_key` is no longer called retryable
+  ([#2850](https://github.com/lushly-dev/afd/issues/2850), in
+  [#2933](https://github.com/lushly-dev/afd/pull/2933)). When GitHub does not answer an
+  `issue-create` or `issue-comment` that has no `dedupe_key`, it may still have made the write,
+  and repeating the call would make it twice. That answer is now `GITHUB_UNAVAILABLE` with
+  `retryable: false` and a suggestion to look first (the issue list, or `comment-list`). With a
+  key, nothing changed: a repeat finds the first write. The proposal, the gateway's `docs`
+  topic and the runbook name the exception. `issue-comment` had the same hazard as the filing,
+  so both are covered. An outage GitHub cannot have acted on (a connection that never opened,
+  no installation token, a rate limit) stays retryable: `GitHubUnavailable` now carries `sent`.
+  The filing's suggestion names a read (`gh issue list --search`) and, with a `parent`, the
+  `issue-set` that attaches what it finds.
+  - **Checked** with `uv run --frozen pytest -q` in `botcore-factory`, against the fake GitHub
+    and a mocked App only. Watched failing: the new test's two cases without a key fail on
+    `main`'s code.
+  - **Open:** `random` serves it after the owner's update.
 
 ## Follow-ups not yet issues
 

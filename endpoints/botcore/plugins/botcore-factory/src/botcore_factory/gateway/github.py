@@ -23,7 +23,15 @@ from typing import Any, Protocol
 
 
 class GitHubUnavailable(Exception):
-    """GitHub did not answer, or answered 5xx; the same call may be retried."""
+    """GitHub did not answer, or answered 5xx; the same call may be retried.
+
+    ``sent`` is False when GitHub cannot have made the write: the request never reached it (a
+    connection that failed, no installation token) or GitHub refused it unread (a rate limit).
+    It is True, the safe side, whenever that is not known (#2850)."""
+
+    def __init__(self, message: str, *, sent: bool = True) -> None:
+        super().__init__(message)
+        self.sent = sent
 
 
 class GitHubRefused(Exception):
@@ -239,7 +247,8 @@ class FakeGitHub:
 
     def _check(self, repo: str) -> dict[str, Any]:
         if self._data.get("githubUnavailable"):
-            raise GitHubUnavailable("GitHub answered 503")
+            # Raised before any write: the fake writes nothing while GitHub is down.
+            raise GitHubUnavailable("GitHub answered 503", sent=False)
         if repo != self._data["repo"]:
             return {}
         data: dict[str, Any] = self._data

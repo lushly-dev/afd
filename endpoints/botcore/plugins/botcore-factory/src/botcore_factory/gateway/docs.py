@@ -5,8 +5,11 @@ DOCS = """# Factory gateway
 The factory's one door to GitHub. Every write is made by the GitHub App's bot and journaled
 with the caller your route's token names. Never fall back to `gh` for a write: an unreachable
 gateway is GATEWAY_UNAVAILABLE, GitHub's own outage GITHUB_UNAVAILABLE, and every write is
-safe to retry with the same input. GITHUB_REFUSED carries GitHub's own refusal: fix what it
-names rather than retrying.
+safe to retry with the same input when the answer says retryable. The exception is
+issue-create or issue-comment without a dedupe_key that GitHub did not answer: it may have been
+made, so the answer is not retryable and says where to look first; pass a dedupe_key and a
+repeat finds it instead. GITHUB_REFUSED carries GitHub's own refusal: fix what it names rather
+than retrying.
 
 ## Calling it
 

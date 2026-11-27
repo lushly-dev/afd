@@ -16,7 +16,7 @@ from typing import Any
 from afd import CommandResult, error, success
 
 from botcore_factory.gateway.github import GitHubRefused, GitHubUnavailable
-from botcore_factory.gateway.service import DEDUPE, Gateway, Refusal, refuse
+from botcore_factory.gateway.service import DEDUPE, Gateway, Refusal, refuse, unkeyed
 
 #: An ``issue-set`` input left out, which leaves that field as it is (``None`` clears it).
 KEEP: Any = object()
@@ -79,7 +79,21 @@ def issue_create(  # noqa: PLR0913 - the command's inputs
         body = f"{body}\n\n{tag}"
     # Every write the filing makes is counted before the first, so the budget refuses it whole.
     gateway.spend("issue-create", 2 if parent is not None else 1)
-    number = gateway.github.create_issue(repo, title, body, labels, kind)
+    if dedupe_key:
+        number = gateway.github.create_issue(repo, title, body, labels, kind)
+    else:
+        attach = (
+            f", and if it is there, call issue-set with its number and parent {parent}"
+            if parent is not None
+            else ""
+        )
+        number = unkeyed(
+            lambda: gateway.github.create_issue(repo, title, body, labels, kind),
+            "the filing",
+            f"look for an open issue titled as this one, with gh issue list --search "
+            f"'in:title {title}' (a read), before filing again{attach}",
+            title=title,
+        )
     if parent is not None:
         _attach(gateway, repo, number, parent, dedupe_key)
     return success(
@@ -92,7 +106,7 @@ def _attach(gateway: Gateway, repo: str, number: int, parent: int, dedupe_key: s
     """Make an issue already filed a sub-issue. A refusal or an outage names the issue left
     unattached. Repeating the call is safe only with a dedupe_key, which finds the issue and
     only attaches it; without one it would file a second issue, so the outage is then not
-    retryable, the one GITHUB_UNAVAILABLE that is not."""
+    retryable."""
     retry = (
         "repeat this issue-create with the same dedupe_key, which only attaches it, or "
         if dedupe_key

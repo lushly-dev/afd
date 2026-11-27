@@ -96,7 +96,7 @@ def test_an_issue_is_not_its_own_ancestor_and_a_refusal_changes_nothing(run):
 @pytest.mark.parametrize("dedupe_key", [None, "part-9"])
 def test_an_attach_github_does_not_answer_names_the_issue_it_filed(run, monkeypatch, dedupe_key):
     """Repeating the filing is safe only with a dedupe_key; without one it files a second
-    issue, so that answer alone is not retryable."""
+    issue, so that answer is not retryable."""
     from botcore_factory.gateway.github import GitHubUnavailable
 
     def silent(self, repo, parent, child):

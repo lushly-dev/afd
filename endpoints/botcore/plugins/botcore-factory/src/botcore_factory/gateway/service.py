@@ -11,7 +11,7 @@ from __future__ import annotations
 import difflib
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 
 from afd import CommandResult, error, success
 from botcore.context import current_call
@@ -45,6 +45,7 @@ REVIEW = "factory/review"
 QUEUE_PREFIX = "refs/factory/queue/"
 HEADS_PREFIX = "refs/heads/"
 RETRY_MS = 2000
+_T = TypeVar("_T")
 MERGEABLE = {"MERGEABLE": "clean", "CONFLICTING": "conflict", "BLOCKED": "blocked"}
 
 
@@ -84,9 +85,31 @@ def unavailable(exc: Exception) -> CommandResult[Any]:
     return error(
         "GITHUB_UNAVAILABLE",
         f"GitHub did not answer: {exc}",
-        suggestion="Retry the same call; every gateway write is safe to repeat",
+        suggestion="Retry the same call; it is safe to repeat",
         retryable=True,
     )
+
+
+def unkeyed(write: Callable[[], _T], what: str, look: str, **details: Any) -> _T:
+    """Make a write that has no dedupe_key to find it again (#2850). If GitHub did not answer
+    after the request reached it, it may still have made the write, so repeating the call could
+    make it twice: that outage is not retryable, and the suggestion says where to look
+    first. One GitHub cannot have acted on (``sent`` False) stays the plain retryable outage."""
+    try:
+        return write()
+    except GitHubUnavailable as exc:
+        if not exc.sent:
+            raise
+        raise Refusal(
+            error(
+                "GITHUB_UNAVAILABLE",
+                f"GitHub did not answer {what}, which it may still have made: {exc}",
+                suggestion=f"Do not repeat the call blindly: {look}. Pass a dedupe_key next "
+                "time, and a repeat finds the first instead of writing twice",
+                retryable=False,
+                details=details or None,
+            )
+        ) from None
 
 
 def _actor() -> dict[str, Any]:
@@ -660,7 +683,14 @@ class Gateway:
                     )
             body = f"{body}\n\n{tag}"
         self.spend("issue-comment")
-        comment = self.github.add_comment(repo, number, body)
+        if dedupe_key:
+            comment = self.github.add_comment(repo, number, body)
+        else:
+            comment = unkeyed(
+                lambda: self.github.add_comment(repo, number, body),
+                f"the comment on {number}",
+                f"read issue {number}'s comments with comment-list; post only if it is missing",
+            )
         return success(
             {"url": comment_url(repo, number, comment["id"]), "deduplicated": False},
             reasoning=f"Commented on {number}",

@@ -193,12 +193,23 @@ class GitHubApp:
     def _send(
         self, method: str, url: str, *, auth: str | None = None, **kwargs: Any
     ) -> httpx.Response:
-        headers = {"Authorization": auth or f"Bearer {self.token()}"}
+        try:
+            headers = {"Authorization": auth or f"Bearer {self.token()}"}
+        except GitHubUnavailable as exc:
+            raise GitHubUnavailable(str(exc), sent=False) from None  # Nothing was sent yet.
         try:
             response = self._http.request(method, url, headers=headers, **kwargs)
         except httpx.HTTPError as exc:
-            raise GitHubUnavailable(f"{method} {_path(url)}: {type(exc).__name__}") from None
-        if response.status_code >= 500 or _rate_limited(response):
+            # A connection that never opened sent nothing; any later failure may follow a write.
+            sent = not isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout))
+            raise GitHubUnavailable(
+                f"{method} {_path(url)}: {type(exc).__name__}", sent=sent
+            ) from None
+        if _rate_limited(response):
+            raise GitHubUnavailable(
+                f"{method} {_path(url)} answered {response.status_code}", sent=False
+            )
+        if response.status_code >= 500:
             raise GitHubUnavailable(f"{method} {_path(url)} answered {response.status_code}")
         return response
 
@@ -244,7 +255,7 @@ class GitHubApp:
         if errors:
             kinds = {e.get("type") for e in errors}
             if "RATE_LIMITED" in kinds:
-                raise GitHubUnavailable("GraphQL answered RATE_LIMITED")
+                raise GitHubUnavailable("GraphQL answered RATE_LIMITED", sent=False)
             if body.get("data") is None or kinds != {"NOT_FOUND"}:
                 raise GitHubRefused(200, "; ".join(e.get("message", "") for e in errors))
         return dict(body.get("data") or {})
