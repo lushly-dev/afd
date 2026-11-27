@@ -71,7 +71,8 @@ tempfile = "3"
 tauri = { version = "=2.12.7", features = ["test"] }
 
 [features]
-# `tauri build` turns this on, so the release binary serves its own protocols rather than a dev server.
+# `build:app` turns this on (and `tauri build` turns on `tauri/custom-protocol` itself), so the binary serves its own
+# protocols rather than a dev server.
 custom-protocol = ["tauri/custom-protocol"]
 
 # P6-D5 updater harness: runs standalone checks under `cargo test`, drives real `tauri-plugin-updater`
