@@ -226,6 +226,16 @@ assert_eq!(request.steps[1].alias, None);
   same sequence as TypeScript's `seededRandom`. `with_actor(Actor::new(ActorKind::Human).with_id(..))`
   says who is calling (`human`, `agent`, `service`, `script` or `test`); the registry reports its
   kind, never its id, as `metadata.actorKind` on the handler's result. The MCP server uses `agent`.
+- **Dispatch id.** `context.dispatch_id()` names this one call (`spec/dispatch.md`, "The dispatch
+  id"): 22 characters of base64url, 128 bits from the OS random source (never `context.random()`,
+  so a journal's tape is unchanged), set by `execute` before any check. Each call, batch item,
+  pipeline step and command a handler runs through the registry gets its own; a retry inside the
+  chain keeps it. No caller or middleware can set it: a context a middleware passes on gets the
+  call's id back, and `extra` values under `dispatch_id` or `dispatchId` are removed (a declared
+  context field of either name fails registration). A host that keeps its own record of a call
+  keys it by this id; it is not on the result, a journal entry or the context digest. It is `None`
+  outside the registry (`CommandDefinition::execute`), and on `wasm32-unknown-unknown` without the
+  `wasm` feature, which has no random source.
 - **Crashes.** A panic in a middleware layer or the handler returns `COMMAND_EXECUTION_ERROR` with
   the message `An internal error occurred`, as TypeScript does for a thrown exception outside
   `devMode`. The panic payload is never included, and the registry has no dev mode that would show
@@ -375,8 +385,8 @@ async fn main() {
 `DirectClient::new(Arc<CommandRegistry>)` provides agent-facing `call`. Configure
 `with_on_approval_needed(Arc::new(|request| Box::pin(async move { ... })))` in trusted host
 code: only `Ok(true)` permits one retry; errors or panics return the original hold.
-`DirectApprovalRequest` contains command, input, summary, expiry and rejection metadata,
-never a token. Credentials stay out of result observers and journals. Caller-supplied
+`DirectApprovalRequest` contains command, input, summary, expiry, rejection metadata and the
+`approval_id` the call's approval summary will carry, never a token. Credentials stay out of result observers and journals. Caller-supplied
 approval is ignored, and `CommandContext::with_timeout` covers both attempts and the decision.
 Dropping the call cancels the flow. Raw registry execution remains a trusted host token API.
 `with_interface(CommandInterface::Cli)` runs every call as another interface than the default
@@ -392,8 +402,11 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
   `#[tokio::main]`).
 - `wasm` - Browser WebAssembly (`wasm32-unknown-unknown`). Durations are measured with
   [`web-time`](https://crates.io/crates/web-time), because `std::time::Instant::now()` traps on that
-  target. Build with `--no-default-features --features wasm`; CI runs
-  `cargo check --target wasm32-unknown-unknown --no-default-features --features wasm`.
+  target (chosen by target, without this feature). The feature draws random bytes from
+  `crypto.getRandomValues` (`getrandom`'s `wasm_js` backend) for every call's dispatch id and for
+  `approval`; without it a call on that target has no dispatch id. Build with
+  `--no-default-features --features wasm`; CI runs
+  `cargo check --target wasm32-unknown-unknown --no-default-features --features wasm,approval`.
 - `frontmatter` - `afd::frontmatter::parse`, the YAML frontmatter reader (`saphyr-parser`) that
   `server` uses for a skill's `SKILL.md`: a first line `---`, one YAML 1.2 core-schema mapping (no
   tags, anchors or aliases; `2026-11-01` stays a string), a line `---`. It tells **no frontmatter**
@@ -434,6 +447,21 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
   `_meta["dev.afd/approval"]` on a one-command 2026-07-28 retry, bound to its principal binding
   ("Approval evidence from an approver client"); `afd::approval_display` (no feature) says whether
   a person can be shown a held call's input in full.
+
+  `with_on_approval_accepted(|summary, dispatch_id| ...)` is called, and awaited, each time the
+  middleware admits a held call, before the next link (`spec/command-metadata.md`, "The approval
+  summary"): an accepted token (`via: token`, an approver's carried token included), a
+  `DirectClient` approval (`direct`), an answer over the form relay (`elicitation`, once per gated
+  step of an up-front `afd-batch` or `afd-pipe`) or relay evidence (`relay`). It gets an
+  `ApprovalSummary` (`via`, `command`, `input_digest`, `approval_id`, and `issued_at` and
+  `expires_at` when the evidence carries them; it serializes as the spec's object and holds no
+  token, nonce or decision id) and the call's `context.dispatch_id()`, so a host can file the
+  approval beside its own record of the call. An `Err` fails the call with
+  `COMMAND_EXECUTION_ERROR` ("An internal error occurred") before the handler, and the evidence
+  stays spent. `afd::approval_id(key)` is the id of an approval whose single-use key is `key`: the
+  token's nonce, the hold's nonce, or `relay:<decisionId>`; `ApprovalRequest::approval_id` (the
+  `with_on_approval_required` request) and `DirectApprovalRequest::approval_id` carry the id a held
+  call's token will have, so the surface that asks the person can keep it beside them.
 - `server` - An MCP server for a `CommandRegistry` (`afd::server::McpServer`), built on the official
   MCP Rust SDK ([`rmcp`](https://crates.io/crates/rmcp)). One Streamable HTTP endpoint
   (`streamable_http_service`, a `tower` service to mount at `/mcp`) or one stdio connection

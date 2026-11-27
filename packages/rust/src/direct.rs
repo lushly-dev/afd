@@ -27,6 +27,11 @@ pub struct DirectApprovalRequest {
     pub expires_at: String,
     /// Optional reason why approval was requested.
     pub reason: Option<String>,
+    /// The `approvalId` the approval summary of this call will carry once the hook approves it
+    /// (`spec/command-metadata.md`, "The approval summary", rule 5): [`crate::approval_id`] of the
+    /// held token's nonce. It names the approval without granting it, so keep it beside the
+    /// person who decides.
+    pub approval_id: String,
 }
 
 /// Only `Ok(true)` permits one retry. Errors and panics leave the original hold in place.
@@ -39,6 +44,7 @@ pub(crate) struct Hold {
     pub summary: String,
     pub expires_at: String,
     pub reason: Option<String>,
+    pub approval_id: String,
 }
 
 #[derive(Default)]
@@ -217,6 +223,7 @@ impl DirectClient {
                     summary: pending.summary,
                     expires_at: pending.expires_at,
                     reason: pending.reason,
+                    approval_id: pending.approval_id,
                 };
                 let asked = AssertUnwindSafe(async { hook(request).await }).catch_unwind();
                 // A cancelled call stops waiting for the person, as TypeScript's does.

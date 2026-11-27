@@ -167,6 +167,10 @@ pub struct CommandContext {
     /// relay and evidence, an approver client, a task's progress): `None` for every call made
     /// in process. Shared, so copying a context does not copy it.
     pub(crate) server: Option<Arc<ServerCall>>,
+    /// The dispatch id (`spec/dispatch.md`, "The dispatch id"): set by
+    /// [`CommandRegistry::execute`](super::CommandRegistry::execute) for each call, read through
+    /// [`CommandContext::dispatch_id`].
+    pub(crate) dispatch_id: Option<Arc<str>>,
 }
 
 /// Execute-time guard set by `McpServer` when `ServerInstances::Multiple` is active, checked
@@ -287,6 +291,7 @@ impl fmt::Debug for CommandContext {
             .field("cancellation", &self.cancellation)
             .field("approval_admission", &self.approval_admission)
             .field("server", &self.server)
+            .field("dispatch_id", &self.dispatch_id)
             .finish()
     }
 }
@@ -332,6 +337,7 @@ pub(crate) struct CallState {
     default_timeout_override: Option<Option<u64>>,
     approval_admission: Option<Arc<crate::approval::admission::Admission>>,
     server: Option<Arc<ServerCall>>,
+    dispatch_id: Option<Arc<str>>,
 }
 
 impl CallState {
@@ -358,6 +364,7 @@ impl CallState {
             default_timeout_override,
             approval_admission,
             server,
+            dispatch_id,
         } = context;
         Self {
             interface: *interface,
@@ -373,6 +380,7 @@ impl CallState {
             default_timeout_override: *default_timeout_override,
             approval_admission: approval_admission.clone(),
             server: server.clone(),
+            dispatch_id: dispatch_id.clone(),
         }
     }
 
@@ -397,6 +405,13 @@ impl CallState {
             .approval_admission
             .clone_from(&self.approval_admission);
         context.server.clone_from(&self.server);
+        // A middleware cannot change the dispatch id the later links read (I3), nor put another
+        // value in `extra` under its reserved name.
+        context.dispatch_id.clone_from(&self.dispatch_id);
+        if !context.extra.is_empty() {
+            context.extra.remove("dispatch_id");
+            context.extra.remove("dispatchId");
+        }
     }
 }
 
@@ -411,6 +426,27 @@ impl CommandContext {
     #[cfg_attr(not(feature = "server"), allow(dead_code))]
     pub(crate) fn server_mut(&mut self) -> &mut ServerCall {
         Arc::make_mut(self.server.get_or_insert_with(Default::default))
+    }
+
+    /// The id of this dispatch (`spec/dispatch.md`, "The dispatch id"): 22 characters of
+    /// unpadded base64url holding 128 bits from the OS random source, never from
+    /// [`CommandContext::random`], so a journal's tape is unchanged.
+    ///
+    /// [`CommandRegistry::execute`](super::CommandRegistry::execute) sets a fresh one before any
+    /// check, for every call it runs: each call, batch item and pipeline step, and each command a
+    /// handler runs through the registry (the outer call keeps its own). Every middleware layer
+    /// and the handler read the same value, a retry included: no caller or middleware can set it,
+    /// and a context a middleware passes on gets the call's id back. `extra` values under
+    /// `dispatch_id` or `dispatchId` are removed before the call runs, and declaring a context
+    /// field of either name fails registration.
+    ///
+    /// A host that keeps its own record of a call (an intent written before the handler, the
+    /// approval that admitted it, the outcome) keys it by this id. It is not stamped on the
+    /// result, not written to a journal entry and not among the journal's context digest `keys`.
+    /// `None` outside the registry, such as in [`CommandDefinition::execute`](super::CommandDefinition::execute),
+    /// and on `wasm32-unknown-unknown` without the `wasm` feature, which has no random source.
+    pub fn dispatch_id(&self) -> Option<&str> {
+        self.dispatch_id.as_deref()
     }
 
     /// Create an empty context.

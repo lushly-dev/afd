@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use serde_json::{json, Value};
 
-use super::{input_not_canonical, shown_input, Accepted, Gate};
+use super::{input_not_canonical, shown_input, summary_of, Accepted, ApprovalVia, Gate};
 use crate::approval::relay::{
     AcceptedApproval, ApprovalHold, Approved, UpFrontApproval, UpFrontPlan,
 };
@@ -127,11 +127,22 @@ impl Gate {
             approved
                 .iter_mut()
                 .find(|item| !item.used && bindings.contains(&item.binding))
-                .map(|item| item.used = true)
-                .is_some()
+                .map(|item| {
+                    item.used = true;
+                    (item.nonce.clone(), item.expires_at)
+                })
         };
-        if taken {
-            return next(context).await;
+        if let Some((nonce, expires_at)) = taken {
+            // Each gated step gets its own summary as it is admitted (rule 4).
+            let summary = summary_of(
+                ApprovalVia::Elicitation,
+                &name,
+                &input,
+                &nonce,
+                None,
+                Some(expires_at),
+            );
+            return self.admit(summary, context, next).await;
         }
         failure(unplanned_error(up_front.tool, &name))
     }
@@ -212,6 +223,7 @@ impl Gate {
                 let spent = Accepted {
                     nonce: answer.nonce.clone(),
                     expires_at: answer.expires_at,
+                    issued_at: None,
                 };
                 if !self.consume(&spent, now).await {
                     fresh = false;
@@ -223,6 +235,8 @@ impl Gate {
                         .into_iter()
                         .map(|answer| Approved {
                             binding: answer.binding,
+                            nonce: answer.nonce,
+                            expires_at: answer.expires_at,
                             used: false,
                         })
                         .collect(),

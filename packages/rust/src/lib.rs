@@ -41,9 +41,10 @@
 //!   `tokio::time::sleep`, and with `journal-file` the `AsyncFileJournalSink` on
 //!   Tokio's blocking pool (Tokio's `time`, `rt` and `sync` features; the
 //!   application provides the runtime)
-//! - `wasm`: browser WebAssembly (`wasm32-unknown-unknown`) randomness for `approval`
-//!   (`getrandom`'s `wasm_js` backend); durations use `web-time` on `wasm32-unknown-unknown`
-//!   automatically without this feature
+//! - `wasm`: browser WebAssembly (`wasm32-unknown-unknown`) randomness (`getrandom`'s `wasm_js`
+//!   backend) for every call's dispatch id and for `approval`; without it calls on that target
+//!   carry no dispatch id. Durations use `web-time` on `wasm32-unknown-unknown` automatically
+//!   without this feature
 //! - `frontmatter`: [`frontmatter`], the YAML 1.2 core-schema frontmatter reader (`saphyr-parser`);
 //!   `server` enables it
 //! - `server`: [`server`], the MCP server (`rmcp`) over Streamable HTTP and stdio; needs Rust 1.88
@@ -57,8 +58,8 @@
 //!   one file under an OS file lock (`std::fs::File::lock`; needs Rust 1.89)
 //! - `approval` (default): the approval middleware ([`create_approval_middleware`]), with
 //!   HMAC-SHA256 tokens and an OS-random nonce (`getrandom`; with `wasm`, through the browser's
-//!   `crypto.getRandomValues`, on Rust 1.85 or later). Approval policies and their reporting need no
-//!   feature.
+//!   `crypto.getRandomValues`, on Rust 1.85 or later), and the approval summary its
+//!   `on_approval_accepted` hook is given. Approval policies and their reporting need no feature.
 
 // docs.rs builds with `--cfg docsrs` on nightly, where the `doc(cfg)` badges on
 // feature-gated items need the unstable `doc_cfg` feature.
@@ -194,7 +195,7 @@ pub use cancellation::{
     CancellationSignal, CancellationToken, Cancelled, MAX_PROGRESS_MESSAGE_BYTES,
 };
 
-pub use canonical::input_digest;
+pub use canonical::{approval_id, input_digest};
 pub use credentials::{
     credentials_binding, is_scope_token, principal_binding, Credentials, IncompleteCredentials,
 };
@@ -338,7 +339,8 @@ pub use approval::{
 #[cfg_attr(docsrs, doc(cfg(feature = "approval")))]
 pub use approval::{
     canonical_json, create_approval_middleware, ApprovalMiddlewareOptions, ApprovalNonceStore,
-    ApprovalRelay, ApprovalReplay, ApprovalRequest,
+    ApprovalRelay, ApprovalReplay, ApprovalRequest, ApprovalSummary, ApprovalVia,
+    OnApprovalAccepted,
 };
 pub use approval_display::{
     approval_display, hides_characters, is_hidden_code_point, ApprovalDisplay,

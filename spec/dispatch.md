@@ -62,7 +62,8 @@ sets it, and the calls of one request share it on purpose.
   declared field of that name fails at registration and a context value under it is replaced.
 
 [`vectors/journal-seams.json`](./vectors/journal-seams.json) pins I1 to I4 in its `dispatchId`
-section. TypeScript sets the id; the languages still listed in that file's `gaps` do not yet.
+section. TypeScript and Rust set the id; the languages still listed in that file's `gaps` do not
+yet.
 
 ## The idempotency step
 

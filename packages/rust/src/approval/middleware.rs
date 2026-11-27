@@ -130,10 +130,83 @@ pub struct ApprovalRequest {
     pub summary: String,
     /// Set when the call carried a token that was rejected.
     pub rejected: Option<ApprovalRejection>,
+    /// The `approvalId` the [`ApprovalSummary`] of a call `approval_token` admits will carry
+    /// (`spec/command-metadata.md`, "The approval summary", rule 5): [`crate::approval_id`] of
+    /// the token's nonce. Keep it beside the person who decides, to join their decision to the
+    /// call [`ApprovalMiddlewareOptions::with_on_approval_accepted`] is told about.
+    pub approval_id: String,
+}
+
+/// How the approval step admitted a held call (`spec/command-metadata.md`, "The approval
+/// summary").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum ApprovalVia {
+    /// An approval token the call carried: [`CommandContext::approval`], or the token an approver
+    /// client carried in `_meta["dev.afd/approval"]`.
+    Token,
+    /// An accepted answer over the MCP relay ([`ApprovalRelay::McpElicitation`]), for one command
+    /// or for a step of an `afd-batch` or `afd-pipe` approved up front.
+    Elicitation,
+    /// Relay evidence a host's `HumanRelay` set (the `server` feature).
+    Relay,
+    /// A [`DirectClient`](crate::DirectClient)'s private exchange: its `on_approval_needed` hook
+    /// answered `Ok(true)`.
+    Direct,
+}
+
+impl ApprovalVia {
+    /// The spec's spelling: `token`, `elicitation`, `relay` or `direct`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Token => "token",
+            Self::Elicitation => "elicitation",
+            Self::Relay => "relay",
+            Self::Direct => "direct",
+        }
+    }
+}
+
+/// What the approval step tells [`ApprovalMiddlewareOptions::with_on_approval_accepted`] when it
+/// admits a held call (`spec/command-metadata.md`, "The approval summary").
+///
+/// It holds no token, nonce, key, decision id or credential, and grants nothing: no engine code
+/// reads it back. Serialized, it is the spec's object (`via`, `command`, `inputDigest`,
+/// `approvalId`, and `issuedAt` and `expiresAt` only when set). `input_digest` is an unkeyed digest
+/// of the whole input, so a host that stores the summary leaves it out wherever it would leave out
+/// the input itself (a command that declares `secret`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ApprovalSummary {
+    /// How the call was admitted.
+    pub via: ApprovalVia,
+    /// The command's name.
+    pub command: String,
+    /// The unpadded base64url SHA-256 of the canonical JSON of the validated input
+    /// ([`crate::input_digest`]): the digest a host's `HumanRelay` is given.
+    pub input_digest: String,
+    /// [`crate::approval_id`] of the evidence's single-use key: the token's nonce for `token` and
+    /// `direct`, the hold's nonce for `elicitation`, `relay:<decisionId>` for `relay`. It names
+    /// the approval, not the admission: a token reused under [`ApprovalReplay::WithinTtl`] gives
+    /// every call it admits the same id, and their dispatch ids tell them apart.
+    pub approval_id: String,
+    /// The token's `iat`, epoch milliseconds: set for `token` and `direct` only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub issued_at: Option<i64>,
+    /// The evidence's expiry, epoch milliseconds: the token's `exp`, or the elicitation hold's
+    /// expiry. Relay evidence carries none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<i64>,
 }
 
 type Summarize = Arc<dyn Fn(&str, &Value, &CommandContext) -> Option<String> + Send + Sync>;
 type OnApprovalRequired = Arc<dyn Fn(ApprovalRequest) -> BoxFuture<'static, ()> + Send + Sync>;
+/// The hook [`ApprovalMiddlewareOptions::with_on_approval_accepted`] sets.
+pub type OnApprovalAccepted = Arc<
+    dyn Fn(ApprovalSummary, Option<String>) -> BoxFuture<'static, Result<(), String>> + Send + Sync,
+>;
 
 /// What the middleware reads from a command: its approval policy and confirmation prompt.
 struct GatedCommand {
@@ -182,6 +255,7 @@ pub struct ApprovalMiddlewareOptions {
     summarize: Option<Summarize>,
     include_token: Option<bool>,
     on_approval_required: Option<OnApprovalRequired>,
+    on_approval_accepted: Option<OnApprovalAccepted>,
     clock: Option<Arc<dyn Clock>>,
     relay: ApprovalRelay,
 }
@@ -219,6 +293,7 @@ impl ApprovalMiddlewareOptions {
             summarize: None,
             include_token: None,
             on_approval_required: None,
+            on_approval_accepted: None,
             clock: None,
             relay: ApprovalRelay::Off,
         }
@@ -290,6 +365,38 @@ impl ApprovalMiddlewareOptions {
         F: Fn(ApprovalRequest) -> BoxFuture<'static, ()> + Send + Sync + 'static,
     {
         self.on_approval_required = Some(Arc::new(callback));
+        self
+    }
+
+    /// Called, and awaited, each time this step admits a call a policy held, before the next
+    /// link runs (`spec/command-metadata.md`, "The approval summary"): with the
+    /// [`ApprovalSummary`] and the call's [`CommandContext::dispatch_id`] (`None` only when the
+    /// middleware is called outside [`CommandRegistry`](crate::CommandRegistry)). A host that
+    /// keeps its own record of a call files the approval there under the dispatch id.
+    ///
+    /// Each gated step of an `afd-batch` or `afd-pipe` approved up front gets its own call as the
+    /// step is admitted, and a call no policy held gets none. Under
+    /// [`ApprovalReplay::WithinTtl`], a retrying middleware placed before this one can have one
+    /// call admitted twice: the hook is then called twice with the same approval id and dispatch
+    /// id.
+    ///
+    /// The hook fails closed: an `Err` (or a panic) is this middleware's exception. It unwinds as a
+    /// panicking middleware does, so a link outside this one sees an error rather than a result,
+    /// and [`CommandRegistry`](crate::CommandRegistry) answers `COMMAND_EXECUTION_ERROR`, "An
+    /// internal error occurred"; the handler does not run. Called outside a registry, the
+    /// middleware's future then panics; where panics abort, it returns that error instead. The
+    /// `Err`'s text is not reported anywhere: log it in the hook. The evidence is already spent:
+    /// under [`ApprovalReplay::SingleUse`] a retry with the same token is `already-used`. So a host
+    /// that must record an approval before the action can rely on the handler not running without
+    /// it.
+    pub fn with_on_approval_accepted<F>(mut self, hook: F) -> Self
+    where
+        F: Fn(ApprovalSummary, Option<String>) -> BoxFuture<'static, Result<(), String>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.on_approval_accepted = Some(Arc::new(hook));
         self
     }
 
@@ -417,10 +524,11 @@ struct Gate {
     memory: Option<Mutex<HashMap<String, i64>>>,
 }
 
-/// A verified token: its nonce and expiry.
+/// Verified evidence: its nonce, expiry and, for a token, issue time.
 struct Accepted {
     nonce: String,
     expires_at: i64,
+    issued_at: Option<i64>,
 }
 
 impl Gate {
@@ -590,34 +698,58 @@ impl Gate {
         };
 
         let mut rejected = None;
+        // The summary of the evidence that admits the call, if any does.
+        let mut admitted = None;
         if let Some(evidence) = &context.server().relay_evidence {
             // Relay evidence is the only evidence considered when present (rule 2): no token, no
             // in-process exchange and no form answer.
             match self.check_relay_evidence(evidence, &name, &input, &actor_binding, &context) {
                 Ok(()) => {
                     if self.spend_relay_decision(&evidence.decision_id, now).await {
-                        return next(context).await;
+                        admitted = Some(summary_of(
+                            ApprovalVia::Relay,
+                            &name,
+                            &input_binding,
+                            &format!("relay:{}", evidence.decision_id),
+                            None,
+                            None,
+                        ));
+                    } else {
+                        rejected = Some(ApprovalRejection::AlreadyUsed);
                     }
-                    rejected = Some(ApprovalRejection::AlreadyUsed);
                 }
                 Err(reason) => rejected = Some(reason),
             }
         } else {
-            let evidence = match &context.direct_approval {
-                Some(state) => crate::direct::locked(state).take(),
-                None => carried.or_else(|| context.approval.clone()),
+            let (via, evidence) = match &context.direct_approval {
+                Some(state) => (ApprovalVia::Direct, crate::direct::locked(state).take()),
+                None => (
+                    ApprovalVia::Token,
+                    carried.or_else(|| context.approval.clone()),
+                ),
             };
             if let Some(evidence) = &evidence {
                 match self.verify(evidence, &name, &input_binding, &who, now) {
                     Ok(accepted) => {
                         if self.consume(&accepted, now).await {
-                            return next(context).await;
+                            admitted = Some(summary_of(
+                                via,
+                                &name,
+                                &input_binding,
+                                &accepted.nonce,
+                                accepted.issued_at,
+                                Some(accepted.expires_at),
+                            ));
+                        } else {
+                            rejected = Some(ApprovalRejection::AlreadyUsed);
                         }
-                        rejected = Some(ApprovalRejection::AlreadyUsed);
                     }
                     Err(reason) => rejected = Some(reason),
                 }
             }
+        }
+        if let Some(summary) = admitted {
+            return self.admit(summary, context, next).await;
         }
 
         let summary = self.summary(&name, &input, &context);
@@ -627,8 +759,18 @@ impl Gate {
                 .ask_over_mcp(relay, &name, &input_binding, &actor_binding, &summary, now)
                 .await
             {
-                None => next(context).await,
-                Some(held) => held,
+                Ok(accepted) => {
+                    let summary = summary_of(
+                        ApprovalVia::Elicitation,
+                        &name,
+                        &input_binding,
+                        &accepted.nonce,
+                        None,
+                        Some(accepted.expires_at),
+                    );
+                    self.admit(summary, context, next).await
+                }
+                Err(held) => *held,
             };
         }
 
@@ -645,6 +787,7 @@ impl Gate {
         let approval_token = self.sign(&name, &input_binding, &who, now, expires, &nonce);
         let expires_at = iso_time(expires);
 
+        let approval_id = crate::canonical::approval_id(&nonce);
         if let Some(callback) = &self.options.on_approval_required {
             callback(ApprovalRequest {
                 command: name.clone(),
@@ -654,6 +797,7 @@ impl Gate {
                 expires_at: expires_at.clone(),
                 summary: summary.clone(),
                 rejected,
+                approval_id: approval_id.clone(),
             })
             .await;
         }
@@ -665,6 +809,7 @@ impl Gate {
                 summary: summary.clone(),
                 expires_at: expires_at.clone(),
                 reason: rejected.map(|reason| reason.as_str().to_owned()),
+                approval_id,
             });
         }
         let on_mcp = context.interface == Some(crate::CommandInterface::Mcp);
@@ -732,6 +877,36 @@ impl Gate {
         } else {
             error.with_recovery(Recovery::external())
         })
+    }
+
+    /// Admit a held call on `summary`'s evidence: tell `on_approval_accepted`, and wait for it,
+    /// then run the next link. A refusal (an `Err`) is this middleware's exception
+    /// (`spec/command-metadata.md`, "The approval summary", rule 2): it unwinds as a panicking
+    /// middleware does, so the links outside it see an error rather than a result and the
+    /// registry answers `COMMAND_EXECUTION_ERROR` before the handler, with the evidence already
+    /// spent. Where panics abort (`panic = "abort"`), the call fails with that error instead.
+    async fn admit(
+        &self,
+        summary: ApprovalSummary,
+        context: CommandContext,
+        next: crate::commands::MiddlewareNext,
+    ) -> CommandResult<Value> {
+        if let Some(hook) = &self.options.on_approval_accepted {
+            let dispatch_id = context.dispatch_id().map(str::to_owned);
+            if hook(summary, dispatch_id).await.is_err() {
+                // `resume_unwind` skips the panic hook: a refusal is expected, not a bug report.
+                #[cfg(panic = "unwind")]
+                std::panic::resume_unwind(Box::new(
+                    "the on_approval_accepted hook refused the call",
+                ));
+                #[cfg(not(panic = "unwind"))]
+                return crate::result::execution_failure(
+                    "The on_approval_accepted hook refused the call",
+                    false,
+                );
+            }
+        }
+        next(context).await
     }
 
     /// The text shown to the human who approves: `summarize`'s, else the command's
@@ -834,9 +1009,9 @@ impl Gate {
         }
     }
 
-    /// The form-mode relay: `None` when the request carries the human's valid acceptance (the
-    /// handler then runs), else the failure to return: a decline, or a hold the server asks
-    /// about with a form elicitation instead of returning it.
+    /// The form-mode relay: the accepted hold's nonce and expiry when the request carries the
+    /// human's valid acceptance (the handler then runs), else the failure to return: a decline,
+    /// or a hold the server asks about with a form elicitation instead of returning it.
     async fn ask_over_mcp(
         &self,
         relay: &crate::approval::relay::ApprovalRelayChannel,
@@ -845,12 +1020,12 @@ impl Gate {
         actor_binding: &str,
         summary: &str,
         now: i64,
-    ) -> Option<CommandResult<Value>> {
+    ) -> Result<Accepted, Box<CommandResult<Value>>> {
         let bindings = self.relay_bindings(name, input_binding, actor_binding);
         let answer = relay.answer(&bindings);
         let accepted = match answer {
             RelayAnswer::Decline => {
-                return Some(failure(
+                return Err(Box::new(failure(
                     CommandError::new(
                         error_codes::APPROVAL_REQUIRED,
                         format!("The user did not approve {name}"),
@@ -867,7 +1042,7 @@ impl Gate {
                             json!(ApprovalRejection::Declined.as_str()),
                         ),
                     ])),
-                ));
+                )));
             }
             RelayAnswer::Accept {
                 binding,
@@ -879,7 +1054,11 @@ impl Gate {
                     .relayed_approval_holds(&bindings, &binding, &nonce, expires_at, &mac, now)
                     .await
                 {
-                    return None;
+                    return Ok(Accepted {
+                        nonce,
+                        expires_at,
+                        issued_at: None,
+                    });
                 }
                 true
             }
@@ -889,10 +1068,10 @@ impl Gate {
         let question = match self.question(bindings, now) {
             Ok(question) => question,
             Err(message) => {
-                return Some(failure(
+                return Err(Box::new(failure(
                     CommandError::new(error_codes::COMMAND_EXECUTION_ERROR, message)
                         .with_suggestion("The system random source failed; try again later"),
-                ))
+                )))
             }
         };
         let expires_at = question.expires_at;
@@ -909,7 +1088,7 @@ impl Gate {
         });
         // The server answers with the elicitation instead; this result is never sent unless the
         // elicitation cannot be.
-        Some(failure(
+        Err(Box::new(failure(
             CommandError::new(
                 error_codes::APPROVAL_REQUIRED,
                 format!("{name} needs approval before it runs"),
@@ -923,7 +1102,7 @@ impl Gate {
                 ("expiresAt".to_owned(), json!(iso_time(expires_at))),
                 ("summary".to_owned(), json!(summary)),
             ])),
-        ))
+        )))
     }
 
     /// The binding of a relayed approval, one per key: a keyed digest of the command, the canonical
@@ -959,6 +1138,7 @@ impl Gate {
             &Accepted {
                 nonce: nonce.to_owned(),
                 expires_at,
+                issued_at: None,
             },
             now,
         )
@@ -1048,6 +1228,7 @@ impl Gate {
         Ok(Accepted {
             nonce: payload.n,
             expires_at: payload.exp as i64,
+            issued_at: Some(payload.iat as i64),
         })
     }
 
@@ -1108,6 +1289,7 @@ struct Payload {
     c: String,
     i: String,
     a: String,
+    iat: f64,
     exp: f64,
     n: String,
 }
@@ -1117,15 +1299,37 @@ fn parse_payload(encoded: &str) -> Option<Payload> {
     let value: Value = serde_json::from_slice(&bytes).ok()?;
     let object = value.as_object()?;
     let text = |field: &str| object.get(field)?.as_str().map(str::to_owned);
-    // `iat` is checked for shape only, as TypeScript does.
-    object.get("iat")?.as_f64()?;
+    // `iat` is checked for shape only, as TypeScript does; the approval summary reports it.
+    let iat = object.get("iat")?.as_f64()?;
     Some(Payload {
         c: text("c")?,
         i: text("i")?,
         a: text("a")?,
+        iat,
         exp: object.get("exp")?.as_f64()?,
         n: text("n")?,
     })
+}
+
+/// The approval summary of evidence whose single-use key is `key`, for a call to `name` on the
+/// canonical validated input `input_binding`.
+pub(super) fn summary_of(
+    via: ApprovalVia,
+    name: &str,
+    input_binding: &str,
+    key: &str,
+    issued_at: Option<i64>,
+    expires_at: Option<i64>,
+) -> ApprovalSummary {
+    use sha2::{Digest, Sha256};
+    ApprovalSummary {
+        via,
+        command: name.to_owned(),
+        input_digest: base64url_encode(&Sha256::digest(input_binding.as_bytes())),
+        approval_id: crate::canonical::approval_id(key),
+        issued_at,
+        expires_at,
+    }
 }
 
 fn random_nonce() -> Result<String, String> {

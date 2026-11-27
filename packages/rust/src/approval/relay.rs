@@ -313,6 +313,9 @@ pub(crate) struct UpFrontStep {
 #[derive(Debug)]
 pub(crate) struct Approved {
     pub(crate) binding: String,
+    /// The accepted hold's nonce and expiry, for the step's approval summary.
+    pub(crate) nonce: String,
+    pub(crate) expires_at: i64,
     pub(crate) used: bool,
 }
 

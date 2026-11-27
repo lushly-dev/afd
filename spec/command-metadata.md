@@ -709,14 +709,14 @@ Rules:
 
 [`vectors/approval-tokens.json`](./vectors/approval-tokens.json) gives the `approvalId` of each of
 its bindings, and [`vectors/journal-seams.json`](./vectors/journal-seams.json) pins the rules
-above in its `approvalSummary` section. TypeScript builds the summary; the languages still listed in
-that file's `gaps` do not yet.
+above in its `approvalSummary` section. TypeScript and Rust build the summary; the languages
+still listed in that file's `gaps` do not yet.
 
 <!-- generated:capabilities:spec.command-metadata.approval-summary:start -->
 |  | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| The dispatch id on the command context | Yes (`context.dispatchId`) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) | Planned ([#2681](https://github.com/lushly-dev/afd/issues/2681)) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) |
-| The approval summary and `onApprovalAccepted` | Yes (`onApprovalAccepted(summary, dispatchId)`, `ApprovalSummary`) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) | Planned ([#2681](https://github.com/lushly-dev/afd/issues/2681)) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) |
+| The dispatch id on the command context | Yes (`context.dispatchId`) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) | Yes (`CommandContext::dispatch_id`) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) |
+| The approval summary and `onApprovalAccepted` | Yes (`onApprovalAccepted(summary, dispatchId)`, `ApprovalSummary`) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) | Yes (`ApprovalMiddlewareOptions::with_on_approval_accepted`, `ApprovalSummary`, `ApprovalRequest::approval_id`, `DirectApprovalRequest::approval_id`, `approval_id`) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) |
 <!-- generated:capabilities:spec.command-metadata.approval-summary:end -->
 
 ### Approval display

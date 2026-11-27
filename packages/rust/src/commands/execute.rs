@@ -99,7 +99,25 @@ impl CommandRegistry {
         context: Option<CommandContext>,
         check_output_budget: bool,
     ) -> CommandResult<serde_json::Value> {
-        let context = with_context_defaults(context.unwrap_or_default(), &ContextDefaults::new());
+        let mut context =
+            with_context_defaults(context.unwrap_or_default(), &ContextDefaults::new());
+        // This dispatch's own id, before any check (`spec/dispatch.md`, "The dispatch id"): never
+        // the caller's, and never drawn from `context.random`, so a journal's tape is unchanged.
+        // A value a caller put in `extra` under the reserved name is replaced by this one.
+        match crate::canonical::new_dispatch_id() {
+            Ok(id) => context.dispatch_id = id.map(Into::into),
+            Err(message) => {
+                return failure(
+                    CommandError::new(error_codes::COMMAND_EXECUTION_ERROR, message)
+                        .with_suggestion("The system random source failed; try again later"),
+                )
+            }
+        }
+        if !context.extra.is_empty() {
+            context.extra.remove("dispatch_id");
+            context.extra.remove("dispatchId");
+        }
+        let context = context;
         if context.interface == Some(CommandInterface::Apps)
             && !self.app_call_granted(name, &context)
         {
