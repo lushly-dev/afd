@@ -15,6 +15,7 @@
 		"endpoints/loam/docs/STATUS.archive-2026-11-sessions-2.md",
 		"endpoints/loam/docs/STATUS.archive-2026-11-sessions-3.md",
 		"endpoints/loam/docs/STATUS.archive-2026-11-sessions-4.md",
+		"endpoints/loam/docs/STATUS.archive-2026-11-sessions-5.md",
 		"endpoints/umbel/docs/STATUS.md",
 		"endpoints/umbel/docs/STATUS.archive-2026-11-documents.md",
 		"endpoints/umbel/docs/STATUS.archive-2026-11-follow-ups.md",
@@ -31,8 +32,10 @@
 		"endpoints/umbel/docs/STATUS.archive-2026-11-sessions-3.md",
 		"endpoints/umbel/docs/STATUS.archive-2026-11-sessions-4.md",
 		"endpoints/umbel/docs/STATUS.archive-2026-11-sessions-5.md",
-		"endpoints/umbel/docs/STATUS.archive-2026-11-sessions-6.md"
+		"endpoints/umbel/docs/STATUS.archive-2026-11-sessions-6.md",
+		"endpoints/umbel/docs/STATUS.archive-2026-11-sessions-7.md"
 	],
+	"directories": ["endpoints/loam/docs/sessions", "endpoints/umbel/docs/sessions"],
 	"capped": [
 		{
 			"file": "docs/language-parity.md",

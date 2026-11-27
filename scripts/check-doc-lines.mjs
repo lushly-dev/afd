@@ -11,6 +11,10 @@
  * Policy: scripts/policy/doc-line-limits.json
  *   limit          the longest line allowed, in characters
  *   files          the documents checked, relative to the repository root
+ *   directories    optional: folders whose every `.md` file, directly inside, is checked at the
+ *                  limit with no exemption. A log kept as one file per entry (Loam's and Umbel's
+ *                  session logs) is listed here, so that a new entry adds a file and not a line to
+ *                  this policy, which every such pull request would otherwise edit
  *   capped         summary lines held below the limit, since most of them were a problem well
  *                  before reaching it: `file`, `startsWith` (a prefix matching exactly that one
  *                  line), `max` and `reason`
@@ -22,10 +26,11 @@
  *
  * The policy only tightens. It is compared with the policy at the merge base with `origin/main`
  * (AFD_BASE overrides the ref, as in scripts/affected.mjs): the limit and a cap may not rise, a
- * document may not leave `files` nor a cap its line while they exist (a cap goes once the limit
- * is at or below it), a grandfathered line may change only by getting shorter, and one may be
- * added only for a document new to `files` or a line a lowered limit newly covers. An entry whose
- * `startsWith` changed is the same exemption only with the same `sha256`, or a shorter line.
+ * document may not leave `files`, a directory `directories`, nor a cap its line while they exist
+ * (a cap goes once the limit is at or below it), a grandfathered line may change only by getting
+ * shorter, and one may be added only for a document new to `files` or a line a lowered limit
+ * newly covers. An entry whose `startsWith` changed is the same exemption only with the same
+ * `sha256`, or a shorter line.
  * Without a base to read (no git, no such ref) the comparison is skipped with a note, except
  * under CI, where it fails. Not seen: a capped row given a new label, whose cap then reads as a
  * line that went away; carry the cap over to the new label.
@@ -35,7 +40,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { relative, resolve, sep } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -49,6 +54,8 @@ const fail = (message) => problems.push(message);
 const lengthOf = (line) => [...line].length;
 const digestOf = (line) => createHash('sha256').update(line, 'utf8').digest('hex');
 const isList = (value) => Array.isArray(value);
+/** A folder's path without trailing slashes; empty for no folder, or the root, which is refused. */
+const folderOf = (dir) => dir.replace(/\/+$/, '');
 
 function readPolicy() {
 	if (!policyPath || !existsSync(resolve(policyPath))) {
@@ -66,6 +73,22 @@ function readPolicy() {
 		fail(`${policyPath}: "limit" must be a positive whole number`);
 	if (!isList(policy.files) || policy.files.length === 0)
 		fail(`${policyPath}: "files" must list at least one document`);
+	if (
+		policy.directories !== undefined &&
+		(!isList(policy.directories) ||
+			!policy.directories.every((dir) => typeof dir === 'string' && folderOf(dir)))
+	)
+		fail(`${policyPath}: "directories" must be a list of folder paths when it is present`);
+	else if (isList(policy.files))
+		// A file of a listed folder named in `files` too could be capped or grandfathered there.
+		for (const file of policy.files)
+			if (
+				typeof file === 'string' &&
+				policy.directories?.map(folderOf).includes(file.split('/').slice(0, -1).join('/'))
+			)
+				fail(
+					`${policyPath}: ${file} is in a folder listed in "directories", whose files have no exemption; remove it from "files"`
+				);
 	if (!isList(policy.capped))
 		fail(`${policyPath}: "capped" must be a list (empty when no line has its own cap)`);
 	if (!isList(policy.grandfathered))
@@ -102,9 +125,33 @@ function readPolicy() {
 	return problems.length === 0 ? policy : null;
 }
 
-function check(policy) {
+/** The `.md` files directly inside each listed directory, sorted; a missing or empty one fails. */
+function directoryFiles(policy) {
+	const found = [];
+	for (const dir of policy.directories ?? []) {
+		const path = folderOf(dir);
+		if (!existsSync(resolve(path)) || !statSync(resolve(path)).isDirectory()) {
+			fail(
+				`${path}: listed in "directories" of ${policyPath} but missing; fix the path or remove it`
+			);
+			continue;
+		}
+		const names = readdirSync(resolve(path), { withFileTypes: true })
+			.filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
+			.map((entry) => entry.name)
+			.sort();
+		if (names.length === 0) fail(`${path}: holds no .md file, so nothing was checked`);
+		for (const name of names) {
+			const file = `${path}/${name}`;
+			if (!found.includes(file)) found.push(file);
+		}
+	}
+	return found;
+}
+
+function check(policy, documents) {
 	const { limit } = policy;
-	for (const file of policy.files) {
+	for (const file of documents) {
 		if (!existsSync(resolve(file))) {
 			fail(`${file}: listed in ${policyPath} but missing; fix the path or remove it`);
 			continue;
@@ -236,6 +283,10 @@ function checkTightens(policy) {
 	for (const file of before.files)
 		if (!policy.files.includes(file) && existsSync(resolve(file)))
 			fail(`${policyPath}: ${file} left "files" since ${at} but still exists; list it again`);
+	const listed = (policy.directories ?? []).map(folderOf);
+	for (const dir of isList(before.directories) ? before.directories : [])
+		if (typeof dir === 'string' && !listed.includes(folderOf(dir)) && existsSync(resolve(dir)))
+			fail(`${policyPath}: ${dir} left "directories" since ${at} but still exists; list it again`);
 
 	for (const old of isList(before.capped) ? before.capped : []) {
 		if (!policy.files.includes(old.file) || !existsSync(resolve(old.file))) continue;
@@ -294,7 +345,8 @@ function checkTightens(policy) {
 }
 
 const policy = readPolicy();
-if (policy) check(policy);
+const documents = policy ? [...policy.files, ...directoryFiles(policy)] : [];
+if (policy) check(policy, documents);
 if (policy && problems.length === 0) checkTightens(policy);
 
 if (problems.length > 0) {
@@ -302,5 +354,5 @@ if (problems.length > 0) {
 	process.exit(1);
 }
 console.log(
-	`check-doc-lines: ${policy.files.length} documents, no line over ${policy.limit} characters (${policy.capped.length} capped lower, ${policy.grandfathered.length} grandfathered)`
+	`check-doc-lines: ${documents.length} documents${policy.directories?.length ? ` (${documents.length - policy.files.length} in ${policy.directories.length} directories)` : ''}, no line over ${policy.limit} characters (${policy.capped.length} capped lower, ${policy.grandfathered.length} grandfathered)`
 );

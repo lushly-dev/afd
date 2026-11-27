@@ -31,7 +31,8 @@ in this repository), or since the work began if none is recorded.
 - **Start from the status document, then check it against the code.** It is often
   behind: merged steps still read "in review". Where it and `main` (merged PRs, the
   log) disagree, `main` wins. Say so in the brief and correct the document. A long
-  one needs only its tables and its latest session-log entries.
+  one needs only its tables and its latest session-log entries (in Loam and Umbel, the
+  newest files in its `sessions/` folder).
 - **Read the owner's decisions before judging.** A direction the owner chose
   (recorded in the status document, a spec or agent memory) is not drift or scope
   creep. If the evidence says it is costly, raise it as a decision with that
@@ -67,5 +68,5 @@ offers one, otherwise give the file's path.
 ## Afterwards
 
 Record the brief's date in the status document's session log, so the next brief
-knows where to start. When the owner answers a decision, record the answer where the
+knows where to start (in Loam and Umbel, as a file in its `sessions/` folder). When the owner answers a decision, record the answer where the
 area keeps its decisions, and update the spec questions or issues it settles.

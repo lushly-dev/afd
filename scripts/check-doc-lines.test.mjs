@@ -471,6 +471,8 @@ test("the repository's own policy covers the documents and summary rows it was w
 		assert.ok(real.files.includes(file), `${file} is checked`);
 	// A status's archive files are checked too, so a frozen line moved there stays frozen.
 	for (const dir of ['endpoints/loam/docs', 'endpoints/umbel/docs']) {
+		// Its session log is one file per session, each checked without a policy entry of its own.
+		assert.ok(real.directories?.includes(`${dir}/sessions`), `${dir}/sessions is checked`);
 		const archives = readdirSync(join(here, '..', dir)).filter((name) =>
 			/^STATUS\.archive-.*\.md$/.test(name)
 		);
@@ -631,4 +633,120 @@ test('a malformed capped entry fails', () => {
 		assert.equal(result.status, 1);
 		assert.match(result.stderr, message);
 	}
+});
+
+const LOG = 'docs/sessions';
+
+test('every .md file in a listed directory is held to the limit, with no exemption', () => {
+	const files = {
+		[DOC]: `${row('Step 1', 50)}\n`,
+		[`${LOG}/2026-11-27-a.md`]: `# A\n\n${row('Short', 50)}\n`,
+		[`${LOG}/2026-11-27-b.md`]: `# B\n\n${row('Long', 51)}\n`,
+		[`${LOG}/notes.txt`]: `${'x'.repeat(80)}\n`,
+		[`${LOG}/deeper/2026-11-27-c.md`]: `${'x'.repeat(80)}\n`,
+	};
+	const result = run(fixture({ ...policy(), directories: [LOG] }, files));
+	assert.equal(result.status, 1);
+	assert.match(
+		result.stderr,
+		/docs\/sessions\/2026-11-27-b\.md:3: 51 characters, over the limit of 50/
+	);
+	assert.doesNotMatch(result.stderr, /2026-11-27-a\.md|notes\.txt|deeper/);
+
+	const passing = { ...files, [`${LOG}/2026-11-27-b.md`]: `# B\n\n${row('Long', 50)}\n` };
+	const ok = run(fixture({ ...policy(), directories: [`${LOG}/`] }, passing));
+	assert.equal(ok.status, 0, ok.stderr);
+	assert.match(ok.stdout, /3 documents \(2 in 1 directories\), no line over 50 characters/);
+
+	const exemptInLog = { ...exempt('Long', 51), file: `${LOG}/2026-11-27-b.md` };
+	const refused = run(
+		fixture({ ...policy({ grandfathered: [exemptInLog] }), directories: [LOG] }, files)
+	);
+	assert.equal(refused.status, 1);
+	assert.match(
+		refused.stderr,
+		/docs\/sessions\/2026-11-27-b\.md is not one of "files"; delete the entry/
+	);
+});
+
+test('a listed directory that is missing, holds no .md file or is malformed fails', () => {
+	const doc = { [DOC]: `${row('Step 1', 50)}\n` };
+	const missing = run(fixture({ ...policy(), directories: [LOG] }, doc));
+	assert.equal(missing.status, 1);
+	assert.match(missing.stderr, /docs\/sessions: listed in "directories" .* but missing/);
+
+	const empty = run(
+		fixture({ ...policy(), directories: [LOG] }, { ...doc, [`${LOG}/x.txt`]: 'x\n' })
+	);
+	assert.equal(empty.status, 1);
+	assert.match(empty.stderr, /docs\/sessions: holds no \.md file, so nothing was checked/);
+
+	for (const directories of [LOG, [''], [3]]) {
+		const bad = run(fixture({ ...policy(), directories }, doc));
+		assert.equal(bad.status, 1);
+		assert.match(bad.stderr, /"directories" must be a list of folder paths/);
+	}
+});
+
+test('a directory may not leave the policy while it exists; a new one may join', () => {
+	const files = { [DOC]: `${row('Step 1', 50)}\n`, [`${LOG}/2026-11-27-a.md`]: '# A\n' };
+	const root = commit(fixture({ ...policy(), directories: [LOG] }, files));
+	assert.equal(run(root, { CI: 'true' }).status, 0, 'unchanged');
+
+	save(root, policy());
+	const dropped = run(root);
+	assert.equal(dropped.status, 1);
+	assert.match(
+		dropped.stderr,
+		/docs\/sessions left "directories" since the merge base .* but still exists/
+	);
+
+	write(root, `${LOG}/2026-11-28-b.md`, '# B\n');
+	mkdirSync(join(root, 'docs/other-log'), { recursive: true });
+	write(root, 'docs/other-log/2026-11-28-c.md', '# C\n');
+	save(root, { ...policy(), directories: [LOG, 'docs/other-log'] });
+	const added = run(root, { CI: 'true' });
+	assert.equal(added.status, 0, added.stderr);
+	assert.match(added.stdout, /4 documents \(3 in 2 directories\)/);
+});
+
+test('a file of a listed directory cannot also be listed in files, where it could be exempt', () => {
+	const file = `${LOG}/2026-11-27-a.md`;
+	const long = row('Long', 80);
+	const files = { [DOC]: `${row('Step 1', 50)}\n`, [file]: `${long}\n` };
+	const grandfathered = [{ ...exempt('Long', 80), file }];
+	for (const directories of [[LOG], [`${LOG}/`]]) {
+		const result = run(
+			fixture({ ...policy({ files: [DOC, file], grandfathered }), directories }, files)
+		);
+		assert.equal(result.status, 1);
+		assert.match(
+			result.stderr,
+			/docs\/sessions\/2026-11-27-a\.md is in a folder listed in "directories", whose files have no exemption/
+		);
+	}
+});
+
+test('a folder named like a .md file inside a listed directory is skipped, not read', () => {
+	const files = {
+		[DOC]: `${row('Step 1', 50)}\n`,
+		[`${LOG}/2026-11-27-a.md`]: '# A\n',
+		[`${LOG}/folder.md/inner.txt`]: 'x\n',
+	};
+	const result = run(fixture({ ...policy(), directories: [LOG] }, files));
+	assert.equal(result.status, 0, result.stderr);
+	assert.match(result.stdout, /2 documents \(1 in 1 directories\)/);
+
+	const root = run(fixture({ ...policy(), directories: ['/'] }, files));
+	assert.equal(root.status, 1);
+	assert.match(root.stderr, /"directories" must be a list of folder paths/);
+});
+
+test('a directory deleted from the repository may leave the policy', () => {
+	const files = { [DOC]: `${row('Step 1', 50)}\n`, [`${LOG}/2026-11-27-a.md`]: '# A\n' };
+	const root = commit(fixture({ ...policy(), directories: [LOG] }, files));
+	rmSync(join(root, LOG), { recursive: true });
+	save(root, policy());
+	const result = run(root);
+	assert.equal(result.status, 0, result.stderr);
 });
