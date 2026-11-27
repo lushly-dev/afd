@@ -498,7 +498,7 @@ For explicit per-worktree context, host-owned identity, effects policy and
 quality verdicts shared by CLI/MCP/DirectClient, see
 [host composition](docs/host-composition.md). `create_host_mcp_server(host)`
 serves managed hosts through `afd.server.create_server` (requires the `mcp`
-extra: `afd[server]>=0.13.0`, `mcp>=2.3,<3`), exposing dual-era MCP
+extra: `afd[server]>=0.14.0`, `mcp>=2.3,<3`), exposing dual-era MCP
 `2026-07-28` `server/discover` and `2025` `initialize`, AFD meta-tools
 (`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`), AFD tool
 strategies, Skills (`io.modelcontextprotocol/skills`: Botcore's bundled skills and the

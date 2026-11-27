@@ -218,37 +218,6 @@ async def test_a_redacted_secret_call_keeps_its_reads_on_its_own_mcp_entry(tmp_p
     assert entry.tape.truncated is not True
 
 
-def test_the_mcp_server_passes_no_secret_to_an_afd_that_predates_it(tmp_path, monkeypatch):
-    # afd before 0.14.0: define_command takes no `secret`, so it must not be passed.
-    pytest.importorskip("mcp")
-    import afd.server
-
-    import botcore.host_surfaces as surfaces
-
-    real = afd.server.define_command
-    seen: list[dict[str, Any]] = []
-
-    def old_define_command(**options: Any) -> Any:
-        if "secret" in options:
-            raise TypeError("define_command() got an unexpected keyword argument 'secret'")
-        seen.append(options)
-        return real(**options)
-
-    monkeypatch.setattr(surfaces, "SECRET_AWARE", False)
-    monkeypatch.setattr(afd.server, "define_command", old_define_command)
-    surfaces.create_host_mcp_server(make_host(tmp_path))
-    assert {options["name"] for options in seen} >= {"vault-unlock", "dice-roll"}
-
-
-def test_registering_a_secret_command_warns_on_an_afd_that_cannot_honour_it(tmp_path, monkeypatch):
-    import botcore.host as host_module
-
-    monkeypatch.setattr(host_module, "declared_secret", None)
-    host = CommandHost("vault", ExecutionContext(tmp_path, profile="trusted-local"))
-    with pytest.warns(RuntimeWarning, match="predates 0.14.0"):
-        host.register("vault-unlock", vault_unlock, CommandPolicy(secret=True))
-
-
 async def test_with_no_journal_on_the_mcp_server_the_host_isolates_a_secret_call(tmp_path):
     # A recorder outside the MCP server records a call that runs a secret command through it.
     pytest.importorskip("mcp")
