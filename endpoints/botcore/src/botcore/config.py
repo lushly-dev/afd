@@ -8,7 +8,7 @@ import warnings
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from botcore.utils.workspace import detect_language, detect_package, find_workspace
 
@@ -39,13 +39,67 @@ class RequiredSkill(BaseModel):
     @field_validator("paths")
     @classmethod
     def _as_git_writes_them(cls, paths: list[str]) -> list[str]:
-        for path in paths:
-            if not path or "\\" in path or path.startswith(("/", "./", "../")):
-                raise ValueError(
-                    f"{path!r} is not a repository-relative path: write it as git does, "
-                    "with forward slashes and no leading ./ or /, for example scripts/check-*.mjs"
-                )
-        return paths
+        return _repository_paths(paths)
+
+
+def _repository_paths(paths: list[str]) -> list[str]:
+    """Globs over repository-relative paths, as git writes them."""
+    for path in paths:
+        if not path or "\\" in path or path.startswith(("/", "./", "../")):
+            raise ValueError(
+                f"{path!r} is not a repository-relative path: write it as git does, "
+                "with forward slashes and no leading ./ or /, for example scripts/check-*.mjs"
+            )
+    return paths
+
+
+class SkillTrap(BaseModel):
+    """A checkable mistake a skill is there to prevent (`[[skills.traps]]`):
+    `skill-usage-effect` compares how often merged changes make it when their session had
+    loaded the skill and when it had not. Read-only checks over the default branch's commits:
+    nothing in the repository is run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # A short name of its own, unique among the repository's traps
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")
+    # The skill that names the mistake, as `[[skills.required]]` names one
+    skill: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*(:[A-Za-z0-9][A-Za-z0-9._-]*)?$")
+    # The changes it applies to: those touching these globs (as `[[skills.required]]` paths)
+    paths: list[str] = Field(min_length=1)
+    # Python regular expressions: over the lines a change adds to files matching `paths`, and
+    # over its commit message. A change makes the mistake when either given one matches.
+    added_pattern: str | None = None
+    commit_pattern: str | None = None
+    # A change that also touches one of these globs is exempt: it did the thing the right way
+    unless_paths: list[str] = []
+
+    @field_validator("paths", "unless_paths")
+    @classmethod
+    def _as_git_writes_them(cls, paths: list[str]) -> list[str]:
+        return _repository_paths(paths)
+
+    @field_validator("added_pattern", "commit_pattern")
+    @classmethod
+    def _compiles(cls, pattern: str | None) -> str | None:
+        if pattern is None:
+            return None
+        if not pattern:
+            raise ValueError("a trap's pattern is empty: leave it out instead")
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"{pattern!r} is not a regular expression: {exc}") from exc
+        return pattern
+
+    @model_validator(mode="after")
+    def _checks_something(self) -> SkillTrap:
+        if self.added_pattern is None and self.commit_pattern is None:
+            raise ValueError(
+                f"[[skills.traps]] {self.id!r} checks nothing: give it added_pattern, "
+                "commit_pattern or both"
+            )
+        return self
 
 
 _SKILL_ALIAS_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
@@ -85,6 +139,8 @@ class SkillsConfig(BaseModel):
     listing_budget: int = Field(default=8000, gt=0, strict=True)
     # [[skills.required]]: the skills that kinds of change require
     required: list[RequiredSkill] = []
+    # [[skills.traps]]: the checkable mistakes skills are there to prevent
+    traps: list[SkillTrap] = []
     # Additional repository-relative skill folders (e.g. a source folder for generated skills)
     extra_dirs: list[str] = []
     # Canonical/alternate skill name -> name the project reports it under
@@ -94,6 +150,16 @@ class SkillsConfig(BaseModel):
     @classmethod
     def _clean_extra_dirs(cls, dirs: list[str]) -> list[str]:
         return list(dict.fromkeys(_check_skill_dir(entry) for entry in dirs))
+
+    @field_validator("traps")
+    @classmethod
+    def _unique_traps(cls, traps: list[SkillTrap]) -> list[SkillTrap]:
+        seen: set[str] = set()
+        for trap in traps:
+            if trap.id in seen:
+                raise ValueError(f"[[skills.traps]] id {trap.id!r} is given twice")
+            seen.add(trap.id)
+        return traps
 
     @field_validator("aliases")
     @classmethod
