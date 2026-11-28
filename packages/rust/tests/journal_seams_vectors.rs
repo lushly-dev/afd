@@ -1234,4 +1234,78 @@ mod refusal {
             "{lines:?}"
         );
     }
+
+    /// A hook that panics fails closed as one that returns `Err` does: the registry answers
+    /// `COMMAND_EXECUTION_ERROR` without the panic's text, the handler does not run, and the
+    /// token is spent, so a retry with it is `already-used` (and asks the hook nothing).
+    #[cfg(panic = "unwind")]
+    #[tokio::test]
+    async fn a_panicking_hook_fails_the_call_before_the_handler_with_the_evidence_spent() {
+        use afd::ApprovalMiddlewareOptions;
+
+        /// The host's record of the approval, which panics.
+        fn record_the_approval() -> Result<(), String> {
+            panic!("the journal is unreachable")
+        }
+
+        let tokens = load_vectors("approval-tokens.json");
+        let binding = &tokens["bindings"][0];
+        let seen = Arc::new(Seen::default());
+        let registry = CommandRegistry::new();
+        registry
+            .register(
+                CommandDefinition::new(
+                    "todo-delete",
+                    "todo-delete",
+                    vec![CommandParameter::required_number("id", "ID")],
+                    Run(Arc::clone(&seen)),
+                )
+                .with_approval(ApprovalPolicy::Required),
+            )
+            .unwrap();
+        let hook_seen = Arc::clone(&seen);
+        let options =
+            ApprovalMiddlewareOptions::from_secret(tokens["secrets"]["current"].as_str().unwrap())
+                .with_include_token(true)
+                .with_replay(ApprovalReplay::SingleUse)
+                .with_clock(fixed_clock(tokens["now"].as_i64().unwrap()))
+                .with_on_approval_accepted(move |_summary, _dispatch_id| {
+                    let seen = Arc::clone(&hook_seen);
+                    Box::pin(async move {
+                        seen.order.lock().unwrap().push("hook");
+                        record_the_approval()
+                    })
+                });
+        registry.add_middleware(create_approval_middleware(options).unwrap());
+        let actor: Actor = serde_json::from_value(tokens["actors"]["agent"].clone()).unwrap();
+        let token = binding["token"].as_str().unwrap().to_owned();
+        let call = || {
+            let context = CommandContext::new()
+                .with_actor(actor.clone())
+                .with_approval(token.clone());
+            registry.execute("todo-delete", binding["input"].clone(), Some(context))
+        };
+
+        let result = call().await;
+        let error = result.error.as_ref().expect("the call fails");
+        assert_eq!(error.code, "COMMAND_EXECUTION_ERROR");
+        let text = serde_json::to_string(&result).unwrap();
+        assert!(!text.contains("journal is unreachable"), "{text}");
+        assert_eq!(*seen.order.lock().unwrap(), vec!["hook"]);
+        assert_eq!(seen.handler_runs(), 0);
+
+        let retry = call().await;
+        let error = retry.error.as_ref().expect("the retry fails");
+        assert_eq!(error.code, "APPROVAL_REQUIRED");
+        assert_eq!(
+            error
+                .details
+                .as_ref()
+                .and_then(|details| details.get("reason")),
+            Some(&json!("already-used")),
+            "{error:?}"
+        );
+        assert_eq!(*seen.order.lock().unwrap(), vec!["hook"]);
+        assert_eq!(seen.handler_runs(), 0);
+    }
 }

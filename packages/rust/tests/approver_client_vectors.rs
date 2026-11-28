@@ -54,13 +54,13 @@ mod common;
 #[cfg(all(feature = "server-auth", feature = "approval"))]
 mod carrier {
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use afd::server::{McpServer, ToolStrategy, AFD_APPROVAL_META_KEY};
     use afd::{
-        create_approval_middleware, fixed_clock, success, ApprovalMiddlewareOptions,
-        ApprovalPolicy, ApprovalRelay, CommandContext, CommandDefinition, CommandHandler,
-        CommandParameter, CommandRegistry, CommandResult,
+        approval_id, create_approval_middleware, fixed_clock, success, ApprovalMiddlewareOptions,
+        ApprovalPolicy, ApprovalRelay, ApprovalSummary, ApprovalVia, CommandContext,
+        CommandDefinition, CommandHandler, CommandParameter, CommandRegistry, CommandResult,
     };
     use async_trait::async_trait;
     use base64::Engine;
@@ -82,8 +82,16 @@ mod carrier {
         }
     }
 
+    /// What `on_approval_accepted` was told: each summary and dispatch id, in order.
+    type Accepted = Arc<Mutex<Vec<(ApprovalSummary, Option<String>)>>>;
+
     /// One server with the vectors' commands, approvers and approval middleware.
     fn server(carrier: &Value) -> (McpServer, Arc<AtomicUsize>) {
+        server_noting(carrier, None)
+    }
+
+    /// [`server`], with an `on_approval_accepted` hook that notes each admission in `accepted`.
+    fn server_noting(carrier: &Value, accepted: Option<Accepted>) -> (McpServer, Arc<AtomicUsize>) {
         let runs = Arc::new(AtomicUsize::new(0));
         let registry = CommandRegistry::new();
         let mut delete = CommandDefinition::new(
@@ -104,12 +112,18 @@ mod carrier {
         );
         list.expose.mcp = true;
         registry.register(list).unwrap();
-        let options =
+        let mut options =
             ApprovalMiddlewareOptions::new(carrier["secret"].as_str().unwrap(), registry.list())
                 .with_ttl_ms(carrier["ttlMs"].as_u64().unwrap())
                 .with_clock(fixed_clock(carrier["now"].as_i64().unwrap()))
                 .with_relay(ApprovalRelay::McpElicitation)
                 .with_include_token(false);
+        if let Some(accepted) = accepted {
+            options = options.with_on_approval_accepted(move |summary, dispatch_id| {
+                accepted.lock().unwrap().push((summary, dispatch_id));
+                Box::pin(async { Ok(()) })
+            });
+        }
         registry.add_middleware(create_approval_middleware(options).unwrap());
         let approvers: Vec<String> = carrier["callers"]
             .as_object()
@@ -246,5 +260,61 @@ mod carrier {
                 tokens.push(token);
             }
         }
+    }
+
+    /// The dispatch id format (`spec/dispatch.md`, "The dispatch id"): 21 base64url characters,
+    /// then one of `AQgw`.
+    fn well_formed(id: &str) -> bool {
+        let base64url = |c: char| c.is_ascii_alphanumeric() || c == '-' || c == '_';
+        id.len() == 22 && id.chars().take(21).all(base64url) && id.ends_with(['A', 'Q', 'g', 'w'])
+    }
+
+    /// An approver's carried token (`_meta["dev.afd/approval"]`) is reported to
+    /// `on_approval_accepted` as `via: token`, with the approval id of the token's nonce, the
+    /// call's dispatch id and no nonce (TypeScript: "reports an approver's carried token to
+    /// onApprovalAccepted as via token").
+    #[tokio::test]
+    async fn reports_an_approvers_carried_token_to_the_accepted_hook_as_via_token() {
+        let vectors = load_vectors();
+        let carrier = &vectors["carrier"];
+        let accepted: Accepted = Arc::default();
+        let (server, runs) = server_noting(carrier, Some(Arc::clone(&accepted)));
+        let shell = bearer(&carrier["callers"]["shell"]);
+        let step = json!({ "tool": "todo-delete", "arguments": { "id": 7 } });
+        let answer = send(&server, request(&step, &shell, None)).await;
+        assert_eq!(answer.status, 200, "{}", answer.text);
+        let held = command_result(&answer.body);
+        assert_eq!(held["error"]["code"], "APPROVAL_REQUIRED", "{held}");
+        let token = held["error"]["details"]["approvalToken"]
+            .as_str()
+            .unwrap_or_else(|| panic!("an approver gets its token: {held}"))
+            .to_owned();
+        assert!(accepted.lock().unwrap().is_empty(), "a hold admits nothing");
+        let answer = send(&server, request(&step, &shell, Some(&token))).await;
+        assert_eq!(answer.status, 200, "{}", answer.text);
+        let ran = command_result(&answer.body);
+        assert_eq!(ran["success"], true, "{ran}");
+        assert_eq!(runs.load(Ordering::SeqCst), 1);
+
+        let nonce = payload_of(&token)["n"].as_str().unwrap().to_owned();
+        let accepted = accepted.lock().unwrap();
+        assert_eq!(accepted.len(), 1, "one admission, one call");
+        let (summary, dispatch_id) = &accepted[0];
+        assert_eq!(summary.via, ApprovalVia::Token);
+        assert_eq!(summary.command, "todo-delete");
+        assert_eq!(summary.approval_id, approval_id(&nonce));
+        assert!(
+            dispatch_id.as_deref().is_some_and(well_formed),
+            "{dispatch_id:?}"
+        );
+        let text = serde_json::to_string(summary).unwrap();
+        assert!(
+            !text.contains(&nonce),
+            "the summary holds the nonce: {text}"
+        );
+        assert!(
+            !text.contains(&token),
+            "the summary holds the token: {text}"
+        );
     }
 }
