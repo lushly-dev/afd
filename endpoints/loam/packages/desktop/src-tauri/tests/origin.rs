@@ -7,8 +7,9 @@
 //! proxy frame or a view is refused").
 use loam_desktop::models::{Models, PROVIDER_UNKNOWN};
 use loam_desktop::mounts::{INSTANCE_UNKNOWN, Mounts};
-use loam_desktop::site::{sandbox_origin, shell_origin};
-use loam_desktop::{InboundState, MAIN, ORIGIN_REFUSED, handler};
+use loam_desktop::setup_window::{SetupState, host_setup_origin};
+use loam_desktop::site::{self, sandbox_origin, shell_origin};
+use loam_desktop::{DataDirectory, InboundState, MAIN, ORIGIN_REFUSED, SiteState, handler};
 use serde_json::{Value, json};
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -22,14 +23,21 @@ fn empty() -> tauri::http::Response<Cow<'static, [u8]>> {
 
 #[test]
 fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
+    let data = tempfile::tempdir().expect("temp data dir");
+    let bundled_factory: Arc<dyn Fn() -> site::Lookup + Send + Sync> =
+        Arc::new(|| Box::new(|_| None));
     let app = mock_builder()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .register_uri_scheme_protocol("loam", |_, _| empty())
         .register_uri_scheme_protocol("loam-sandbox", |_, _| empty())
+        .register_uri_scheme_protocol("loam-host", |_, _| empty())
         .invoke_handler(handler())
+        .manage(SiteState::new(site::Site::Bundled(Box::new(|_| None))))
         .manage(Arc::new(Mounts::new(Ok(Vec::new()))))
         .manage(Arc::new(Models::new(Ok(Vec::new()))))
         .manage(InboundState::default())
+        .manage(DataDirectory(data.path().to_path_buf()))
+        .manage(Arc::new(SetupState::new(bundled_factory, None)))
         .build(tauri::generate_context!("tauri.conf.json", test = true))
         .expect("a mock app");
     let webview = WebviewWindowBuilder::new(&app, MAIN, Default::default())
@@ -68,6 +76,7 @@ fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
             json!({ "id": 1, "message": { "jsonrpc": "2.0", "id": 1, "result": {} } }),
         ),
         ("inbound_reply", json!({ "ready": true })),
+        ("setup_open", json!({ "section": "models" })),
     ];
 
     // The shell passes the ACL and the check, and the command answers.
@@ -152,4 +161,26 @@ fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
             "expected ACL refusal for {command}, got: {text}"
         );
     }
+
+    // `setup_open` rejects `host_setup_origin()`, unknown fields, and invalid sections from `main`.
+    assert_eq!(
+        call(
+            "setup_open",
+            host_setup_origin(),
+            Some(host_setup_origin()),
+            json!({ "section": "models" })
+        )
+        .unwrap_err(),
+        json!(ORIGIN_REFUSED)
+    );
+    assert_eq!(
+        call(
+            "setup_open",
+            shell_origin(),
+            Some(shell_origin()),
+            json!({ "section": "models", "path": "/etc/passwd" })
+        )
+        .unwrap_err(),
+        json!("DESKTOP_SETUP_INPUT_INVALID")
+    );
 }

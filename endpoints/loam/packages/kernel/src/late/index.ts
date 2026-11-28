@@ -371,6 +371,11 @@ export async function createLateParts(
 		digest: (value) => sha256(canonical(value)),
 		humanOnly: (name) => HUMAN_COMMANDS.includes(name) || OWNER_COMMANDS.includes(name),
 		personSession: (name) => PERSON_SESSION.includes(name),
+		isDesktop: () =>
+			desktop ||
+			deps.host === 'desktop' ||
+			typeof (globalThis as { __TAURI_INTERNALS__?: { invoke?: unknown } }).__TAURI_INTERNALS__
+				?.invoke === 'function',
 	});
 	/** A command's definition, an app's or the shell's, for 6.1's destructive and approval-held bound. */
 	const definitionOf = (

@@ -30,6 +30,14 @@ export interface CopilotPanelHostV1 {
 export const NO_MODEL_NOTICE =
 	'No model is set up for the copilot. Add a provider under [copilot] in loam.deployment.toml, then run deployment write.';
 
+/** Desktop notice when no model is configured (phase 5 no-terminal amendment, 8.3). */
+export const DESKTOP_NO_MODEL_NOTICE =
+	'Open Loam → Copilot Models… (or click Configure model…) to add a model provider.';
+
+/** Desktop notice when a configured provider's API key is missing (amendment, 8.3). */
+export const DESKTOP_KEY_MISSING_NOTICE =
+	'Open Loam → Copilot Models… to set the API key for this provider.';
+
 /** What the conversation tells its view. */
 export interface ConversationViewV1 {
 	messages(messages: readonly UIMessage[]): void;
@@ -51,21 +59,25 @@ export class CopilotConversation {
 	/** Which client is current: a callback of an earlier one is dropped. */
 	#generation = 0;
 	#detach: (() => void) | null = null;
+	readonly #desktop: boolean;
 
 	constructor(
 		private readonly kernel: CopilotPanelKernelV1,
 		private readonly host: CopilotPanelHostV1 | null,
-		private readonly view: ConversationViewV1
-	) {}
+		private readonly view: ConversationViewV1,
+		options?: { desktop?: boolean }
+	) {
+		this.#desktop = options?.desktop === true;
+	}
 
-	/** Says so when no model is configured (4.1, job 8). */
+	/** Says so when no model is configured (4.1, job 8; desktop amendment 8.3). */
 	async checkProviders(): Promise<void> {
 		const listed = await this.kernel.call<{ providers: CopilotProviderV1[] }>(
 			'copilot-provider-list',
 			{}
 		);
 		if (listed.success && (listed.data?.providers.length ?? 0) === 0)
-			this.view.notice(NO_MODEL_NOTICE, true);
+			this.view.notice(this.#desktop ? DESKTOP_NO_MODEL_NOTICE : NO_MODEL_NOTICE, true);
 	}
 
 	async submit(text: string): Promise<void> {
@@ -117,7 +129,8 @@ export class CopilotConversation {
 	}
 
 	#clientFor(session: string): ChatClient {
-		const { kernel, host } = this;
+		const { kernel, host, view } = this;
+		const desktop = this.#desktop;
 		const generation = ++this.#generation;
 		const current = () => generation === this.#generation;
 		const subscriptions = new Set<() => void>();
@@ -135,6 +148,20 @@ export class CopilotConversation {
 				let detached = false;
 				const unsubscribe = host?.subscribe(session, ({ event }) => {
 					if (!current()) return;
+					if (
+						desktop &&
+						event &&
+						typeof event === 'object' &&
+						(event as { type?: unknown }).type === 'RUN_ERROR'
+					) {
+						const ev = event as { code?: unknown; message?: unknown };
+						if (
+							ev.code === 'COPILOT_KEY_MISSING' ||
+							(typeof ev.message === 'string' && ev.message.includes('COPILOT_KEY_MISSING'))
+						) {
+							view.notice(DESKTOP_KEY_MISSING_NOTICE);
+						}
+					}
 					queue.push(event);
 					wake?.();
 				});

@@ -426,6 +426,8 @@ export interface CopilotWiringRefs {
 	humanOnly(name: string): boolean;
 	/** `PERSON_SESSION`, `late/`'s own. */
 	personSession(name: string): boolean;
+	/** True once the applied projection or kernel host is `'desktop'` (amendment 8.3). */
+	isDesktop?(): boolean;
 }
 
 /**
@@ -547,6 +549,9 @@ async function readAttachment(
 	};
 }
 
+const DESKTOP_PROVIDER_MISSING =
+	'Open Loam → Copilot Models… (or click Configure model…) to add a model provider.';
+
 /**
  * The copilot's records, commands and phase 5's enforcement (its 6.1), wired to `late/`'s parts: the `late-copilot`
  * chunk's factory is given, so this module imports nothing of that chunk.
@@ -558,6 +563,8 @@ export function copilotPartsOf(
 	refs: CopilotWiringRefs
 ): CopilotParts {
 	return create({
+		providerMissing: () =>
+			refs.isDesktop?.() || deps.host === 'desktop' ? DESKTOP_PROVIDER_MISSING : undefined,
 		store: deps.store,
 		workspace: deps.scope.workspace.id,
 		options: deps.copilot,

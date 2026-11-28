@@ -106,7 +106,7 @@ pub(crate) fn identifier(value: &str) -> bool {
         && bytes.all(|byte| matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'-'))
 }
 
-fn model_id(value: &str) -> bool {
+pub(crate) fn model_id(value: &str) -> bool {
     let mut bytes = value.bytes();
     matches!(bytes.next(), Some(byte) if byte.is_ascii_alphanumeric())
         && value.len() <= 128

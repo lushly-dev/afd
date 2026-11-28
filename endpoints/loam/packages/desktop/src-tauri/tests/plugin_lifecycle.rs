@@ -735,6 +735,9 @@ fn run_all_tests() {
 
     test_packed_app_refusals_sse_probe_and_logon_profile();
     println!("test p5_s9_packed_app_refusals_sse_probe_and_logon_profile ... ok");
+
+    test_p5_s9_7_multi_engine_coexistence_and_d166_proposal_retry();
+    println!("test p5_s9_7_multi_engine_coexistence_and_d166_proposal_retry ... ok");
 }
 
 fn test_pure_app_install_upgrade_uninstall() {
@@ -1536,4 +1539,239 @@ fn test_packed_app_refusals_sse_probe_and_logon_profile() {
         .expect("signal_stop must match custom profile derived from --data-dir");
     let status = child.wait().expect("engine-run exited");
     assert!(status.success());
+}
+
+fn custom_engine_archive(
+    plugin_id: &str,
+    app_id: &str,
+    version: &str,
+    auth_mode: &str,
+    labels: &str,
+    approvals: &str,
+    extra_text: &str,
+) -> Vec<u8> {
+    let target = Target::current().expect("supported target");
+    let exe_bytes = std::fs::read(std::env::current_exe().expect("self exe")).expect("read exe");
+    let exe_sha = sha256_hex(&exe_bytes);
+    let bin_name = if target.is_windows() {
+        format!("loam-fixture-{plugin_id}.exe")
+    } else {
+        format!("loam-fixture-{plugin_id}")
+    };
+    let artifact_path = format!("engines/{}/{bin_name}", target.as_str());
+    let commands = if auth_mode == "approver" {
+        json!({
+            format!("{app_id}-send"): {
+                "preview": {
+                    "command": format!("{app_id}-preview"),
+                    "input": ["id"]
+                }
+            }
+        })
+    } else {
+        json!({})
+    };
+    let plugin_manifest = json!({
+        "plugin_manifest_version": 1,
+        "plugin": {
+            "id": plugin_id,
+            "title": format!("{plugin_id} {version}"),
+            "version": version,
+            "description": format!("{plugin_id} engine plugin.")
+        },
+        "apps": [{ "id": app_id, "path": format!("apps/{app_id}") }],
+        "engine": {
+            "id": plugin_id,
+            "kind": "http-service",
+            "mount_app": app_id,
+            "service_mode": "login",
+            "artifacts": {
+                target.as_str(): {
+                    "path": artifact_path,
+                    "sha256": exe_sha
+                }
+            },
+            "auth": { "mode": auth_mode },
+            "mount": {
+                "audience": "person",
+                "labels": labels,
+                "approvals": approvals,
+                "commands": commands
+            }
+        }
+    });
+    let app_manifest = json!({
+        "manifest_version": 1,
+        "protocol": 1,
+        "plugin": {
+            "id": app_id,
+            "title": format!("{app_id} mounted"),
+            "version": version,
+            "description": "Mounted app.",
+            "kind": "mounted",
+            "domains": [app_id]
+        },
+        "mount": {
+            "prefix": app_id,
+            "transport": "http"
+        }
+    });
+    let mut entries = vec![
+        (
+            "plugin-manifest.json".to_owned(),
+            serde_json::to_vec(&plugin_manifest).unwrap(),
+            false,
+        ),
+        (
+            format!("apps/{app_id}/app-manifest.json"),
+            serde_json::to_vec(&app_manifest).unwrap(),
+            false,
+        ),
+        (
+            format!("apps/{app_id}/note.txt"),
+            extra_text.as_bytes().to_vec(),
+            false,
+        ),
+        (artifact_path, exe_bytes, true),
+    ];
+    build_canonical_archive(&mut entries)
+}
+
+fn test_p5_s9_7_multi_engine_coexistence_and_d166_proposal_retry() {
+    let tmp = TempDir::new().unwrap();
+    let data = tmp.path().join("data");
+    std::fs::create_dir_all(&data).unwrap();
+    let kc_state = Arc::new(Mutex::new(MockKeychainState::default()));
+    let store = PendingInstallStore::new();
+
+    // 1. D166 Linux keyring-less recovery: `PLUGIN_KEYCHAIN_UNAVAILABLE` preserves the proposal and
+    //    staging directory so retrying `confirm` with the SAME `proposal_id` + `allow_file_fallback: true` succeeds.
+    kc_state.lock().unwrap().force_write_error = Some(KeychainError::Unavailable);
+    let mut fallback_host = PluginHost::new(&data, Some(&data), "s9-7-build");
+    fallback_host.keychain = mock_keychain(kc_state.clone(), true);
+    fallback_host.supervisor_exe = Some(supervisor_bin());
+
+    let mail_v1_path = tmp.path().join("MAIL-V1.LOAM-PLUGIN");
+    std::fs::write(
+        &mail_v1_path,
+        custom_engine_archive(
+            "mail", "mail", "0.1.0", "approver", "per-part", "shell", "m1",
+        ),
+    )
+    .unwrap();
+    // Mixed-case `.LOAM-PLUGIN` archive inspects cleanly.
+    let prop_mail = inspect(&fallback_host, &mail_v1_path, &store).expect("inspect mail");
+    assert_eq!(prop_mail.kind, "install");
+    let kc_err = confirm(
+        &fallback_host,
+        &prop_mail.proposal_id,
+        &prop_mail.bundle_sha256,
+        false,
+        &store,
+    )
+    .unwrap_err();
+    assert_eq!(kc_err.code, PLUGIN_KEYCHAIN_UNAVAILABLE);
+    // Proposal MUST still be present in `PendingInstallStore` and retry succeeds with SAME ID.
+    let mail_installed = confirm(
+        &fallback_host,
+        &prop_mail.proposal_id,
+        &prop_mail.bundle_sha256,
+        true,
+        &store,
+    )
+    .expect("retry confirm with same proposalId and allow_file_fallback=true");
+    assert_eq!(mail_installed.id, "mail");
+    let mail_port = mail_installed.engine_port.expect("mail port");
+
+    // 2. P5-S9-7: Install a second engine-backed plugin (`trillium`, agent/whole/engine) AND a
+    //    pure-app plugin (`notes`) side-by-side with `mail`.
+    kc_state.lock().unwrap().force_write_error = None;
+    let mut host = PluginHost::new(&data, Some(&data), "s9-7-build");
+    host.keychain = mock_keychain(kc_state.clone(), false);
+    host.supervisor_exe = Some(supervisor_bin());
+
+    let trillium_v1_path = tmp.path().join("trillium-v1.loam-plugin");
+    std::fs::write(
+        &trillium_v1_path,
+        custom_engine_archive(
+            "trillium", "trillium", "0.1.0", "agent", "whole", "none", "t1",
+        ),
+    )
+    .unwrap();
+    let prop_tril = inspect(&host, &trillium_v1_path, &store).expect("inspect trillium");
+    let tril_installed = confirm(
+        &host,
+        &prop_tril.proposal_id,
+        &prop_tril.bundle_sha256,
+        false,
+        &store,
+    )
+    .expect("confirm trillium");
+    let tril_port = tril_installed.engine_port.expect("trillium port");
+    assert_ne!(
+        mail_port, tril_port,
+        "coexisting engines must hold distinct ports"
+    );
+
+    let notes_v1_path = tmp.path().join("notes-v1.loam-plugin");
+    std::fs::write(
+        &notes_v1_path,
+        pure_app_archive("notes", "notesapp", "1.0.0", "n1"),
+    )
+    .unwrap();
+    let prop_notes = inspect(&host, &notes_v1_path, &store).expect("inspect notes");
+    confirm(
+        &host,
+        &prop_notes.proposal_id,
+        &prop_notes.bundle_sha256,
+        false,
+        &store,
+    )
+    .expect("confirm notes");
+
+    let (installed_all, revs) = list_installed(&host).unwrap();
+    assert_eq!(installed_all.len(), 3);
+    assert!(revs.is_empty());
+    let mounts_json = std::fs::read_to_string(data.join("mounts.json")).unwrap();
+    assert!(mounts_json.contains(&format!("127.0.0.1:{mail_port}")));
+    assert!(mounts_json.contains(&format!("127.0.0.1:{tril_port}")));
+
+    // 3. Upgrade `mail` independently; `trillium` and `notes` remain untouched.
+    let mail_v2_path = tmp.path().join("mail-v2.loam-plugin");
+    std::fs::write(
+        &mail_v2_path,
+        custom_engine_archive(
+            "mail", "mail", "0.2.0", "approver", "per-part", "shell", "m2",
+        ),
+    )
+    .unwrap();
+    let prop_mail2 = inspect(&host, &mail_v2_path, &store).expect("inspect mail v2");
+    assert_eq!(prop_mail2.kind, "upgrade");
+    confirm(
+        &host,
+        &prop_mail2.proposal_id,
+        &prop_mail2.bundle_sha256,
+        false,
+        &store,
+    )
+    .expect("upgrade mail");
+
+    // 4. Uninstall `trillium` independently; `mail` v0.2.0 and `notes` remain installed.
+    let removed = uninstall(&host, "trillium").expect("uninstall trillium");
+    assert!(removed.uninstalled && removed.data_preserved && removed.reload_required);
+    let (remaining, _) = list_installed(&host).unwrap();
+    assert_eq!(remaining.len(), 2);
+    assert!(
+        remaining
+            .iter()
+            .any(|p| p.id == "mail" && p.version == "0.2.0")
+    );
+    assert!(
+        remaining
+            .iter()
+            .any(|p| p.id == "notes" && p.version == "1.0.0")
+    );
+
+    // Clean up remaining engine service cleanly.
+    let _ = uninstall(&host, "mail");
 }

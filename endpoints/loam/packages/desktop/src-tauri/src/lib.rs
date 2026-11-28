@@ -26,6 +26,10 @@ pub mod plugins_engine;
 pub mod plugins_error;
 pub mod plugins_ops;
 pub mod service;
+pub mod setup_error;
+pub mod setup_ipc;
+pub mod setup_models;
+pub mod setup_window;
 pub mod site;
 pub mod updater;
 
@@ -248,7 +252,7 @@ pub const ORIGIN_REFUSED: &str = "DESKTOP_ORIGIN_REFUSED";
 /// on WebView2 a frame can read the key from its own IPC fetch's headers. A missing `Origin` is refused; the shell's fetch is allowed by its policy, so it does not fall back, but after a
 /// failed fetch Tauri keeps using the fallback for the page's life, and the shell's calls are refused until a
 /// reload.
-fn from_shell<R: Runtime>(
+pub(crate) fn from_shell<R: Runtime>(
     webview: &tauri::Webview<R>,
     request: &tauri::ipc::Request<'_>,
 ) -> Result<(), String> {
@@ -292,8 +296,8 @@ fn emitter<R: Runtime>(app: AppHandle<R>) -> Emit {
     })
 }
 
-/// The six commands, and no other (10.4, phase 5's 4.2 and 10.8): what the app registers, and what P6-D4's IPC test
-/// drives.
+/// The 7 `main` commands (`mount_*`, `model_*`, `inbound_reply`, `setup_open`) and the 13
+/// `host-setup` commands (`setup_*`, granted exclusively in `capabilities/host-setup.json`).
 pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
         mount_open,
@@ -301,7 +305,21 @@ pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + 
         mount_close,
         model_send,
         model_cancel,
-        inbound_reply
+        inbound_reply,
+        setup_ipc::setup_open,
+        setup_ipc::setup_state_get,
+        setup_ipc::setup_plugin_pick,
+        setup_ipc::setup_plugin_inspect_bundled,
+        setup_ipc::setup_plugin_cancel,
+        setup_ipc::setup_plugin_confirm,
+        setup_ipc::setup_plugin_uninstall,
+        setup_ipc::setup_plugin_retry_revocation,
+        setup_ipc::setup_plugin_rotate_token,
+        setup_ipc::setup_plugin_service_action,
+        setup_ipc::setup_model_save,
+        setup_ipc::setup_model_remove,
+        setup_ipc::setup_model_set_default,
+        setup_ipc::setup_apply_reload
     ]
 }
 
@@ -337,12 +355,12 @@ impl InboundState {
     }
 }
 
-/// The data directory, for the exit's clean-up.
-struct DataDirectory(PathBuf);
+/// The data directory, for exit clean-up and setup commands.
+pub struct DataDirectory(pub PathBuf);
 
 /// Binds `127.0.0.1` on a free port, writes `inbound.json` owner-only with a new token, and serves until stopped. Any
 /// failure serves nothing and says why without the token.
-fn start_inbound<R: Runtime>(
+pub(crate) fn start_inbound<R: Runtime>(
     app: &AppHandle<R>,
     data: &std::path::Path,
 ) -> Option<(Arc<inbound::Inbound>, tokio::sync::watch::Sender<bool>)> {
@@ -512,9 +530,17 @@ fn reload_script() -> &'static str {
 fn menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let palette = MenuItem::with_id(app, "palette", "Command palette", true, Some("CmdOrCtrl+K"))?;
     let reload = MenuItem::with_id(app, "reload", "Reload", true, Some("CmdOrCtrl+R"))?;
+    let plugins = MenuItem::with_id(app, "setup-plugins", "Plugins…", true, None::<&str>)?;
+    let models = MenuItem::with_id(app, "setup-models", "Copilot Models…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, Some("CmdOrCtrl+Q"))?;
-    let separator = PredefinedMenuItem::separator(app)?;
-    let loam = Submenu::with_items(app, "Loam", true, &[&palette, &reload, &separator, &quit])?;
+    let sep1 = PredefinedMenuItem::separator(app)?;
+    let sep2 = PredefinedMenuItem::separator(app)?;
+    let loam = Submenu::with_items(
+        app,
+        "Loam",
+        true,
+        &[&palette, &reload, &sep1, &plugins, &models, &sep2, &quit],
+    )?;
     #[cfg(target_os = "macos")]
     {
         let edit = Submenu::with_items(
@@ -644,15 +670,20 @@ pub fn run() {
     let embedded_assets = share_context_assets(&mut context);
     let app = tauri::Builder::default()
         // First, so a second launch exits before it opens anything, and the first window comes forward.
-        .plugin(tauri_plugin_single_instance::init(
-            |app, _arguments, _cwd| {
-                if let Some(window) = app.get_webview_window(MAIN) {
-                    let _ = window.unminimize();
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-            },
-        ))
+        .plugin(tauri_plugin_single_instance::init(|app, arguments, cwd| {
+            let cwd_path = PathBuf::from(cwd);
+            if let Some(plugin_path) =
+                setup_window::first_plugin_arg(&arguments, Some(cwd_path.as_path()))
+            {
+                setup_ipc::handle_os_plugin_open(app, plugin_path);
+                return;
+            }
+            if let Some(window) = app.get_webview_window(MAIN) {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         // Rust-only signed updates (10.6): no `updater:*` permission is granted to the webview, and
         // `updater::start` stays off unless both `LOAM_UPDATER_PUBKEY` and `LOAM_UPDATER_ENDPOINT`
         // were set at build time.
@@ -671,11 +702,19 @@ pub fn run() {
                 responder.respond(site::serve(&site, true, &request));
             });
         })
+        .register_asynchronous_uri_scheme_protocol("loam-host", |_context, request, responder| {
+            responder.respond(setup_window::serve_host_setup(&request));
+        })
         .invoke_handler(handler())
         .setup(move |app| {
             let handle = app.handle().clone();
             let data = data_directory(&handle);
-            let bundled = bundled_lookup(embedded_assets);
+            // Sweep any stale ephemeral `host-setup` webview directories from prior runs (§3.1).
+            setup_window::sweep_setup_webview_dirs(&data);
+            let assets_for_factory = embedded_assets.clone();
+            let bundled_factory: Arc<dyn Fn() -> site::Lookup + Send + Sync> =
+                Arc::new(move || bundled_lookup(assets_for_factory.clone()));
+            let bundled = bundled_factory();
             let custom_dir = keychain::custom_data_dir();
             let mount_keychain = keychain::mount_service(custom_dir.as_deref());
             let profile = materialize::Profile {
@@ -683,27 +722,54 @@ pub fn run() {
                 mount_keychain: &mount_keychain,
             };
             let startup = startup_prepare(&data, &profile, materialize::SHELL_BUILD_ID, bundled);
+            let failed_closed = match startup.mode {
+                StartupMode::FailedClosed(code) => Some(code),
+                _ => None,
+            };
             app.manage(SiteState::new(startup.site));
             let inbound_on = startup.inbound;
             app.manage(Arc::new(Mounts::new(startup.mounts)));
             app.manage(InboundState::default());
             app.manage(DataDirectory(data.clone()));
             app.manage(Arc::new(Models::new(startup.models)));
+            app.manage(Arc::new(setup_window::SetupState::new(
+                bundled_factory,
+                failed_closed,
+            )));
             app.set_menu(menu(&handle)?)?;
-            app.on_menu_event(|app, event| {
-                let Some(window) = app.get_webview_window(MAIN) else {
-                    return;
-                };
-                match event.id().as_ref() {
-                    "palette" => {
+            app.on_menu_event(|app, event| match event.id().as_ref() {
+                "palette" => {
+                    if let Some(window) = app.get_webview_window(MAIN) {
                         let _ = window.eval(palette_script());
                     }
-                    "reload" => {
+                }
+                "reload" => {
+                    if let Some(window) = app.get_webview_window(MAIN) {
                         let _ = window.eval(reload_script());
                     }
-                    "quit" => app.exit(0),
-                    _ => {}
                 }
+                "setup-plugins" => {
+                    // Spawn off the menu event handler to avoid WebView2 synchronous-creation
+                    // deadlocks on Windows (Tauri 2.12 WebviewWindowBuilder::new documented rule).
+                    let handle = app.clone();
+                    std::thread::spawn(move || {
+                        let _ = setup_window::open_or_focus_host_setup(
+                            &handle,
+                            setup_window::SetupSection::Plugins,
+                        );
+                    });
+                }
+                "setup-models" => {
+                    let handle = app.clone();
+                    std::thread::spawn(move || {
+                        let _ = setup_window::open_or_focus_host_setup(
+                            &handle,
+                            setup_window::SetupSection::Models,
+                        );
+                    });
+                }
+                "quit" => app.exit(0),
+                _ => {}
             });
             // `SIGTERM` (a logout, a shutdown, a test) exits as "Quit" does, so `inbound.json` is deleted and every child
             // stopped (10.8, 10.4), rather than the process ending with them behind it.
@@ -739,7 +805,9 @@ pub fn run() {
                 // A reload or a navigation leaves the page that asked for each model stream: none outlives it (phase 5's
                 // 4.2), so no late event of one reaches the next page.
                 .on_page_load(|window, payload| {
+                    let setup_state = window.state::<Arc<setup_window::SetupState>>();
                     if payload.event() == tauri::webview::PageLoadEvent::Started {
+                        setup_state.note_main_load_started();
                         let models = window.state::<Arc<Models>>().inner().clone();
                         models.leave_page();
                         tauri::async_runtime::spawn(async move { models.cancel_all().await });
@@ -747,33 +815,66 @@ pub fn run() {
                         if let Some(endpoint) = window.state::<InboundState>().get() {
                             endpoint.page_started();
                         }
-                    } else if let Some(endpoint) = window.state::<InboundState>().get() {
-                        endpoint.page_finished();
+                    } else {
+                        setup_state.note_main_load_finished();
+                        if let Some(endpoint) = window.state::<InboundState>().get() {
+                            endpoint.page_finished();
+                        }
                     }
                 })
                 .build()?;
+            // If launched with a `.loam-plugin` file argument, open `host-setup` and inspect it (§3.2).
+            let launch_args: Vec<String> = std::env::args().collect();
+            let launch_cwd = std::env::current_dir().ok();
+            if let Some(plugin_path) =
+                setup_window::first_plugin_arg(&launch_args, launch_cwd.as_deref())
+            {
+                setup_ipc::handle_os_plugin_open(&handle, plugin_path);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
-            if window.label() == MAIN && matches!(event, WindowEvent::Destroyed) {
+            if matches!(event, WindowEvent::Destroyed) {
                 let app = window.app_handle();
-                if let (Some(inbound), Some(data)) = (
-                    app.try_state::<InboundState>(),
-                    app.try_state::<DataDirectory>(),
-                ) {
-                    inbound.stop(&data.0);
+                if window.label() == setup_window::HOST_SETUP {
+                    if let Some(setup_state) = app.try_state::<Arc<setup_window::SetupState>>() {
+                        setup_state.on_host_setup_closed();
+                    }
+                } else if window.label() == MAIN {
+                    if let Some(setup_window) = app.get_webview_window(setup_window::HOST_SETUP) {
+                        let _ = setup_window.close();
+                    }
+                    if let (Some(inbound), Some(data)) = (
+                        app.try_state::<InboundState>(),
+                        app.try_state::<DataDirectory>(),
+                    ) {
+                        inbound.stop(&data.0);
+                    }
                 }
             }
         })
         .build(context)
         .expect("Loam's desktop host");
     app.run(|app, event| {
+        #[cfg(target_os = "macos")]
+        if let RunEvent::Opened { urls } = &event {
+            for url in urls {
+                if let Some(path) = setup_window::sanitize_macos_opened_url(url) {
+                    setup_ipc::handle_os_plugin_open(app, path);
+                    break;
+                }
+            }
+        }
         if let RunEvent::Exit = event {
+            if let Some(setup_state) = app.try_state::<Arc<setup_window::SetupState>>() {
+                setup_state.on_host_setup_closed();
+            }
             if let (Some(inbound), Some(data)) = (
                 app.try_state::<InboundState>(),
                 app.try_state::<DataDirectory>(),
             ) {
                 inbound.stop(&data.0);
+                setup_window::sweep_setup_webview_dirs(&data.0);
             }
             let mounts = app.state::<Arc<Mounts>>().inner().clone();
             let models = app.state::<Arc<Models>>().inner().clone();
@@ -834,24 +935,57 @@ mod tests {
     }
 
     #[test]
-    fn the_capability_file_grants_the_six_commands_to_the_main_webview_only() {
-        let file: Value = serde_json::from_str(include_str!("../capabilities/main.json")).unwrap();
-        assert_eq!(file["local"], true);
-        assert_eq!(file["webviews"], serde_json::json!([MAIN]));
+    fn the_capability_files_pin_the_main_and_host_setup_command_surfaces() {
+        let main_file: Value =
+            serde_json::from_str(include_str!("../capabilities/main.json")).unwrap();
+        assert_eq!(main_file["local"], true);
+        assert_eq!(main_file["webviews"], serde_json::json!([MAIN]));
         assert!(
-            file.get("windows").is_none()
-                && file.get("remote").is_none()
-                && file.get("platforms").is_none()
+            main_file.get("windows").is_none()
+                && main_file.get("remote").is_none()
+                && main_file.get("platforms").is_none()
         );
         assert_eq!(
-            file["permissions"],
+            main_file["permissions"],
             serde_json::json!([
                 "allow-mount-open",
                 "allow-mount-send",
                 "allow-mount-close",
                 "allow-model-send",
                 "allow-model-cancel",
-                "allow-inbound-reply"
+                "allow-inbound-reply",
+                "allow-setup-open"
+            ])
+        );
+
+        let setup_file: Value =
+            serde_json::from_str(include_str!("../capabilities/host-setup.json")).unwrap();
+        assert_eq!(setup_file["local"], true);
+        assert_eq!(
+            setup_file["webviews"],
+            serde_json::json!([setup_window::HOST_SETUP])
+        );
+        assert!(
+            setup_file.get("windows").is_none()
+                && setup_file.get("remote").is_none()
+                && setup_file.get("platforms").is_none()
+        );
+        assert_eq!(
+            setup_file["permissions"],
+            serde_json::json!([
+                "allow-setup-state-get",
+                "allow-setup-plugin-pick",
+                "allow-setup-plugin-inspect-bundled",
+                "allow-setup-plugin-cancel",
+                "allow-setup-plugin-confirm",
+                "allow-setup-plugin-uninstall",
+                "allow-setup-plugin-retry-revocation",
+                "allow-setup-plugin-rotate-token",
+                "allow-setup-plugin-service-action",
+                "allow-setup-model-save",
+                "allow-setup-model-remove",
+                "allow-setup-model-set-default",
+                "allow-setup-apply-reload"
             ])
         );
     }

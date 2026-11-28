@@ -1027,7 +1027,9 @@ gives it a path with no terminal first. For mail it must provide:
   `loam-mail unpair --token-id <tokenId>`, persistent `proofKey` (store migration 25), and
   unauthenticated `GET /health?nonce=<64-hex>` returning `X-Loam-Proof`. Interactive
   `mail-token-create` keeps its terminal approval guard.
-- **The service at sign-in** (phase 5's Q2), per operating system.
+- **The service at sign-in** (phase 5's Q2), per operating system: implemented in `loam-desktop`
+  step 9c/9d (`launchd` LaunchAgent, Windows `HKCU\...\Run` + `engine-run`, Linux `systemd --user`
+  / XDG Autostart) and driven from `host-setup`'s Plugins screen.
 - **Windows and Linux.** The engine keeps credentials in the macOS keychain only (its section 2;
   section 12.4's test source is for tests and is never installed),
   and its private files, `--out` included, are private only on Unix. The desktop lane runs on

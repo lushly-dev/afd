@@ -305,6 +305,13 @@ Decides L1.
   "Loam app manifest, version 1 (conforms to plugin manifest core version 1)".
 - **A builder's artifact** (phase 7) writes JSON directly. `app-manifest.json`
   is the only shape it needs.
+- **Plugin manifests (phase 5 step 9, D166).** Beside `app-manifest.v1.json` / `v2.json` / `v3.json`,
+  multi-app and engine-backed desktop plugins author `loam-plugin.toml` and pack `plugin-manifest.json`
+  against `endpoints/loam/packages/manifest/schemas/loam-plugin.v1.json` (`$id`
+  `https://afd.dev/loam/schemas/loam-plugin.v1.json`, see
+  [no-terminal-install.amendment.md](../5-copilot/no-terminal-install.amendment.md#4-the-plugin-bundle-and-loam-plugintoml-profile-version-1)).
+  It declares packed apps, target-keyed binary artifacts with SHA-256 hashes, `auth.mode`, and
+  declarative mount policies — never command lines, URLs, ports, or secrets.
 
 ### 2.2 The profile
 

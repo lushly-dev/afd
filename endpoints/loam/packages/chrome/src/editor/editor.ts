@@ -195,6 +195,7 @@ export class EditorController implements FrameListener {
 			this.#asking,
 			this.#owed,
 			this.#stalled,
+			this.#kept,
 		] as const;
 	}
 

@@ -6,7 +6,12 @@
 
 import type { PanelEventV1 } from '@lushly-dev/loam-kernel/copilot';
 import { describe, expect, it, vi } from 'vitest';
-import { CopilotConversation, NO_MODEL_NOTICE } from './conversation.js';
+import {
+	CopilotConversation,
+	DESKTOP_KEY_MISSING_NOTICE,
+	DESKTOP_NO_MODEL_NOTICE,
+	NO_MODEL_NOTICE,
+} from './conversation.js';
 
 function fakes(providers = 1) {
 	const calls: Array<{ name: string; input: unknown }> = [];
@@ -104,5 +109,29 @@ describe('the copilot panel’s conversation', () => {
 		await conversation.checkProviders();
 		expect(made.notices).toEqual([NO_MODEL_NOTICE]);
 		expect(NO_MODEL_NOTICE).toContain('loam.deployment.toml');
+	});
+
+	it('uses desktop setup suggestions on desktop for missing provider and missing API key (amendment 8.3)', async () => {
+		const empty = fakes(0);
+		const desktopConv = new CopilotConversation(empty.kernel, empty.host, empty.view, {
+			desktop: true,
+		});
+		await desktopConv.checkProviders();
+		expect(empty.notices).toEqual([DESKTOP_NO_MODEL_NOTICE]);
+		expect(DESKTOP_NO_MODEL_NOTICE).toContain('Copilot Models…');
+
+		const live = fakes(1);
+		const liveDesktop = new CopilotConversation(live.kernel, live.host, live.view, {
+			desktop: true,
+		});
+		void liveDesktop.submit('Hello');
+		await vi.waitFor(() => expect(live.runs).toHaveLength(1));
+		live.emit({
+			type: 'RUN_ERROR',
+			runId: live.runs[0],
+			threadId: 'cps_0000000000000001',
+			message: 'The turn failed: COPILOT_KEY_MISSING',
+		});
+		await vi.waitFor(() => expect(live.notices).toContain(DESKTOP_KEY_MISSING_NOTICE));
 	});
 });

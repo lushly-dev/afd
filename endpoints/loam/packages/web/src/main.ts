@@ -242,8 +242,9 @@ async function boot(): Promise<void> {
 		listsApps: read.apps.length > 0,
 		base,
 		...(shown ? { identity: shown } : {}),
-		// With no provider named, the shell's panel part keeps its empty state.
-		...(copilot ? { copilot: { host: copilot.panel } } : {}),
+		...(copilot || desktopInvoke
+			? { copilot: { host: copilot?.panel, desktop: desktopInvoke } }
+			: {}),
 	});
 	// The desktop's inbound endpoint (phase 6 specification, 10.8): its dispatcher in a chunk of its own, once stage B
 	// has loaded, and only where Tauri's IPC is in the page; a browser never loads it.

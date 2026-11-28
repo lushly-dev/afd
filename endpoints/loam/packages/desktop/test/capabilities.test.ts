@@ -70,7 +70,7 @@ function invoke(
 }
 
 describe('P6-D4: the capabilities', () => {
-	it("P6-D4: grants no core or plugin permission, and Loam's six commands to the main webview alone", () => {
+	it('P6-D4 & P5-S9-1: grants no core or plugin permission, 7 commands to main and 13 setup commands to host-setup', () => {
 		const file = JSON.parse(readFileSync(join(SRC_TAURI, 'capabilities/main.json'), 'utf8'));
 		expect(file).toEqual({
 			identifier: 'main',
@@ -84,10 +84,35 @@ describe('P6-D4: the capabilities', () => {
 				'allow-model-send',
 				'allow-model-cancel',
 				'allow-inbound-reply',
+				'allow-setup-open',
+			],
+		});
+		const setupFile = JSON.parse(
+			readFileSync(join(SRC_TAURI, 'capabilities/host-setup.json'), 'utf8')
+		);
+		expect(setupFile).toEqual({
+			identifier: 'host-setup',
+			description: expect.any(String),
+			local: true,
+			webviews: ['host-setup'],
+			permissions: [
+				'allow-setup-state-get',
+				'allow-setup-plugin-pick',
+				'allow-setup-plugin-inspect-bundled',
+				'allow-setup-plugin-cancel',
+				'allow-setup-plugin-confirm',
+				'allow-setup-plugin-uninstall',
+				'allow-setup-plugin-retry-revocation',
+				'allow-setup-plugin-rotate-token',
+				'allow-setup-plugin-service-action',
+				'allow-setup-model-save',
+				'allow-setup-model-remove',
+				'allow-setup-model-set-default',
+				'allow-setup-apply-reload',
 			],
 		});
 		const config = JSON.parse(readFileSync(join(SRC_TAURI, 'tauri.conf.json'), 'utf8'));
-		expect(config.app.security.capabilities).toEqual(['main']);
+		expect(config.app.security.capabilities).toEqual(['main', 'host-setup']);
 		expect(config.app.withGlobalTauri).toBe(false);
 		const cargo = readFileSync(join(SRC_TAURI, 'Cargo.toml'), 'utf8');
 		// Single instance and the Rust-only updater (10.6); neither has any JavaScript permission in `main.json`.
@@ -121,6 +146,19 @@ describe('P6-D4: the capabilities', () => {
 			'plugin:updater|download',
 			'plugin:updater|install',
 			'plugin:updater|download_and_install',
+			'setup_state_get',
+			'setup_plugin_pick',
+			'setup_plugin_inspect_bundled',
+			'setup_plugin_cancel',
+			'setup_plugin_confirm',
+			'setup_plugin_uninstall',
+			'setup_plugin_retry_revocation',
+			'setup_plugin_rotate_token',
+			'setup_plugin_service_action',
+			'setup_model_save',
+			'setup_model_remove',
+			'setup_model_set_default',
+			'setup_apply_reload',
 			'not_a_command',
 		]) {
 			const answer = await invoke(command, {});

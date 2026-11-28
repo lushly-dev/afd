@@ -352,6 +352,24 @@ describe('the copilot commands (3.5)', () => {
 			expect(sent.error?.code).toBe('COPILOT_PROVIDER_MISSING');
 			expect(sent.error?.suggestion).toContain('loam.deployment.toml');
 		}
+		// Desktop host suggests Loam -> Copilot Models... while non-desktop stays unchanged (amendment 8.3).
+		const desktopKernel = await createKernel({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'desktop',
+			copilot: { providers: [] },
+		});
+		await desktopKernel.startApps();
+		const session = await startSession(desktopKernel);
+		const sent = await desktopKernel.call('copilot-message-send', { session, text: 'Hello' });
+		expect(sent.error?.code).toBe('COPILOT_PROVIDER_MISSING');
+		expect(sent.error?.suggestion).toBe(
+			'Open Loam → Copilot Models… (or click Configure model…) to add a model provider.'
+		);
+		await desktopKernel.dispose();
 	});
 
 	it('a turn failed by the trusted transport reports the transport’s code, not the runtime’s reading of it (step 2)', async () => {
