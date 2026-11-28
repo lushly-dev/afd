@@ -727,6 +727,35 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
     `node --test scripts/check-process.test.mjs` passes 22 of 22; Lushly's half at `cbb6dfdbc`
     still passes (615 files read, 20 allowed), so no Lushly file makes these writes.
   - **Open:** Lushly's copy follows with `pnpm process:sync` once this merges.
+- 2026-11-27: the door check reads a call's method as gh sends it, and every `gh repo sync`
+  destination ([#2985](https://github.com/lushly-dev/afd/issues/2985), raised by Lushly's
+  reviewers of the `ce206da` sync). A `GET` anywhere in a `gh api` call made it a read, so
+  `-X GET --method PATCH -f state=closed`, which gh sends as a `PATCH`, passed; now only the
+  last method flag counts, and a `GET` that ends a field's quoted value is not a flag. `-X=POST`,
+  a method in escaped quotes (`-X \"POST\"` in a JSON string) and a method after two spaces or a
+  continuation are writes without fields too, and a flag on the next line without a
+  continuation is not the call's. `gh repo sync` is a write when any argument is not a flag's
+  value: a URL (`git@github.com:o/r` too), a quoted repository or a variable (`$DEST`,
+  `%DEST%`) as well as `o/r`,
+  with a short flag's value joined to it or not (`-s"o/up"`, `-b$BR`). `gh repo sync --source
+  o/r` and `gh repo sync -so/r`, local syncs, are no longer refused.
+  - **Checked:** a plant of `gh repo sync "$DEST"`, `-X GET --method PATCH` and `-X=POST` in
+    `docs/operations/factory-gateway.md` passed `main`'s script and was named by the new one,
+    then removed; 18 of the 25 new write lines fail on `main`'s patterns (the other 7 guard
+    forms it already refused, two of which a first draft lost), and seven reads `main`
+    refused pass;
+    `node --test scripts/check-process.test.mjs` passes 22 of 22; AFD's half (404 files read,
+    9 allowed) and Lushly's half at `69435e064` (615 files read, 20 allowed) pass. Both
+    reviewers checked the method and `repo sync` claims against gh with `GH_DEBUG=api`.
+  - **Still not seen:** a `GET` inside a field's value with more of the value after it
+    (`-X PATCH ... -f q="a -X GET x"`), and a later method flag after a `;`, `&`, `|` or
+    backtick inside a quoted value (`-X GET ... -f body="| a |" -X PATCH`), since the patterns
+    do not read quotes.
+  - **Refused, though a read:** a whole call quoted in JSON or JavaScript that ends in its
+    `GET` (`"gh api ... -X GET"`), read as a field's value; and a `GET` call whose quoted field
+    value after it names a method flag (`-X GET ... -f q="say -X POST"`), read as a later
+    flag. Both are loud, and no file in either half does them.
+  - **Open:** Lushly's copy follows with `pnpm process:sync` once this merges.
 
 ## Follow-ups not yet issues
 
