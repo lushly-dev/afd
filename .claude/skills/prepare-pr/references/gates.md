@@ -23,7 +23,7 @@ The sources of truth are `lefthook.yml` (the hooks and `pnpm check`), `.github/w
 
 ## Daily-only legs
 
-The slowest legs run only on the daily schedule and on manual runs: C++ under TSan, on macOS and Windows, with packaging, benchmarks, fuzzing and Emscripten; Umbel on macOS and on its MSRV; fast-element on Firefox and WebKit; `ci.yml` over the whole workspace on the older supported Node versions.
+The slowest legs run only on the daily schedule and on manual runs: C++ under TSan, on macOS and Windows, with packaging, benchmarks, fuzzing and Emscripten; Umbel on macOS, on its MSRV and in its Windows store and clippy job; fast-element on Firefox and WebKit; `ci.yml` over the whole workspace on the older supported Node versions.
 
 A pull request cannot show a break in them, so read the daily results (`gh run list --event schedule`). GitHub can start a scheduled run hours late, so a run missing that morning has not necessarily been skipped.
 

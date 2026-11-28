@@ -59,7 +59,7 @@ on:
       - '.github/workflows/umbel.yml'
       - '.github/workflows/queue.yml'
       - '.github/actions/setup-node-pnpm/**'
-  # The macOS leg and the MSRV check run daily and on demand.
+  # The macOS leg, the MSRV check and the Windows job run daily and on demand.
   schedule:
     - cron: '53 7 * * *'
   workflow_dispatch:
@@ -224,6 +224,46 @@ jobs:
           key: msrv
       - name: Check
         run: cargo +1.97.0 check --locked --workspace --exclude umbel-store-embedded --all-targets
+
+  # Windows, daily and on demand: the workspace's clippy steps and the tests of the stores and the
+  # person store's migration, where Windows gaps reached main unseen (#2847: an unused `mut` off
+  # Unix, and a flush Windows refuses on a handle opened only to read). The rest of the suite is
+  # not yet run on Windows (the 2026-10-31 follow-up "Windows in the `umbel.yml` matrix").
+  windows:
+    name: Umbel (Windows stores and clippy)
+    needs: queue
+    if: needs.queue.outputs.run == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: windows-latest
+    # A cold cache took 24 minutes on 2026-11-28 (run 46100451303); 60 is two and a half times that.
+    timeout-minutes: 60
+    defaults:
+      run:
+        # bash, as on the other legs, so a step of several lines also stops at its first failure.
+        shell: bash
+        working-directory: endpoints/umbel
+    env:
+      # aws-lc-sys's prebuilt NASM objects, so the runner needs no NASM.
+      AWS_LC_SYS_PREBUILT_NASM: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: endpoints/umbel
+          key: windows
+      - name: Clippy
+        run: cargo clippy --locked --workspace --exclude umbel-store-embedded --all-targets -- -D warnings
+      - name: Clippy (stores)
+        run: cargo clippy --locked -p umbel-store -p umbel-store-embedded --all-targets -- -D warnings
+      - name: Test (stores)
+        run: cargo test --locked --no-fail-fast -p umbel-store -p umbel-store-embedded
+      - name: Test (the person store)
+        run: cargo test --locked --no-fail-fast -p umbel --lib shared::person
 
   # The knowledge stack's crates (phase 2 specification, section 12): the store traits and the
   # conformance suite, and the embedded backend with its bundled SQLite and tantivy builds. Each
