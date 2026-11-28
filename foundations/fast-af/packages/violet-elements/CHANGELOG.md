@@ -102,6 +102,12 @@
 - Type-check component specs in CI and local verify; type segment queries correctly. Stories are excluded from this check and type-checked separately by Specimen.
 - Run four stories at once in `test:stories` (Specimen's `test.workers`, default 2), for both the story contract and the pack check. No published file changes.
 
+## 0.2.0-preview.8
+
+### Patch Changes
+
+- [#3016](https://github.com/lushly-dev/afd/pull/3016) [`67ec5f8`](https://github.com/lushly-dev/afd/commit/67ec5f8ebf2535386099f7ace5e8a9fddfdebba5) Thanks [@Falkicon](https://github.com/Falkicon)! - Keep pending row-mode focus in `violet-data-grid` when virtual scrolling temporarily parks focus on `.table-scroll` before the target row mounts ([#2960](https://github.com/lushly-dev/afd/issues/2960)).
+
 ## 0.2.0-preview.7
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # @lushly-dev/violet-core
 
+## 0.3.0-preview.8
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @lushly-dev/violet-runtime@0.3.0-preview.8
+
 ## 0.3.0-preview.7
 
 ### Minor Changes
