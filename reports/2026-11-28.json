@@ -4,7 +4,7 @@
     "name": "lushly-health",
     "version": "0.1.0"
   },
-  "generated_at": "2026-11-28T16:28:46Z",
+  "generated_at": "2026-11-28T17:23:55Z",
   "targets": [
     {
       "id": "afd",
@@ -411,7 +411,7 @@
     {
       "key": "test_change_findings",
       "label": "Test-change findings",
-      "value": 59,
+      "value": 56,
       "unit": "findings",
       "direction": "lower_is_better",
       "source": "test-change-report"
@@ -435,7 +435,7 @@
     {
       "key": "test_skips_added",
       "label": "Skip-added findings",
-      "value": 2,
+      "value": 1,
       "unit": "findings",
       "direction": "lower_is_better",
       "source": "test-change-report"
@@ -443,7 +443,7 @@
     {
       "key": "test_assertions_weakened",
       "label": "Weakened or rewritten assertion findings",
-      "value": 38,
+      "value": 36,
       "unit": "findings",
       "direction": "lower_is_better",
       "source": "test-change-report"
@@ -459,7 +459,7 @@
     {
       "key": "test_files_changed",
       "label": "Changed test files compared",
-      "value": 263,
+      "value": 245,
       "unit": "files",
       "direction": "neutral",
       "source": "test-change-report"
@@ -467,7 +467,7 @@
     {
       "key": "tests_net_delta",
       "label": "Net test count change on branch",
-      "value": 610,
+      "value": 552,
       "unit": "tests",
       "direction": "higher_is_better",
       "source": "test-change-report"
