@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "types": ["vite/client", "@vitest/browser-playwright"] },
-  "include": ["src/**/*.spec.ts"],
+  "include": ["src/**/*.spec.ts", "test/**/*.ts"],
   "exclude": ["node_modules", "dist", "src/**/*.stories.ts"]
 }

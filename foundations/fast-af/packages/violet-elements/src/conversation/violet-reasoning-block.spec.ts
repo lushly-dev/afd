@@ -91,7 +91,6 @@ describe("violet-reasoning-block", () => {
     const block = await renderBlock();
     const toggle = toggleOf(block);
 
-    window.focus();
     toggle.focus();
     if (block.shadowRoot?.activeElement !== toggle) {
       await nextFrame();

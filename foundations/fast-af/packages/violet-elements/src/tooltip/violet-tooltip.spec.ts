@@ -161,9 +161,6 @@ describe("violet-tooltip", () => {
     const trigger = tooltip.querySelector("button") as HTMLButtonElement;
     const popup = tooltip.shadowRoot?.querySelector(".tooltip") as HTMLElement;
 
-    // Firefox can leave the iframe unfocused after earlier specs that never took focus,
-    // which prevents Playwright's Escape key from reaching the focused trigger.
-    window.focus();
     trigger.focus();
     await vi.waitFor(() => {
       expect(tooltip.open).toBe(true);

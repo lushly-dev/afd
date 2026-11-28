@@ -129,9 +129,6 @@ describe("violet-accordion-item", () => {
     const item = await renderItem();
     const details = trackToggles(item);
 
-    // Firefox spends the first focus() on a document that lacks focus (as it does after a spec
-    // that never took it) on the window alone, so take it first.
-    window.focus();
     item.focus();
     expect(item.shadowRoot?.activeElement).toBe(trigger(item));
     await userEvent.keyboard(keys);
