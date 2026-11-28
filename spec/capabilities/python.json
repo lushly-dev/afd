@@ -336,13 +336,16 @@
 			"evidence": ["python/tests/test_approver_client_vectors.py"]
 		},
 		"middleware.approval-summary": {
-			"status": "planned",
-			"note": "([#2682](https://github.com/lushly-dev/afd/issues/2682))",
+			"status": "yes",
+			"note": "(`create_approval_middleware(on_approval_accepted=...)`, `ApprovalSummary`, `ApprovalRequest.approval_id`, `DirectApprovalRequest.approval_id`, `approval_id`)",
 			"views": {
-				"summary": "([#2682](https://github.com/lushly-dev/afd/issues/2682))"
+				"summary": "(`create_approval_middleware(on_approval_accepted=...)`, `ApprovalSummary`, `ApprovalRequest.approval_id`, `DirectApprovalRequest.approval_id`, `approval_id`)"
 			},
-			"issue": "#2682",
-			"evidence": ["python/tests/test_journal_seams_vectors.py"]
+			"evidence": [
+				"python/src/afd/server/approval.py",
+				"python/tests/test_journal_seams_vectors.py",
+				"python/tests/test_approval_vectors.py"
+			]
 		},
 		"middleware.idempotency-step": {
 			"status": "planned",
@@ -827,13 +830,16 @@
 			]
 		},
 		"single.dispatch-id": {
-			"status": "planned",
-			"note": "([#2682](https://github.com/lushly-dev/afd/issues/2682))",
+			"status": "yes",
+			"note": "(`context.dispatch_id`)",
 			"views": {
-				"summary": "([#2682](https://github.com/lushly-dev/afd/issues/2682))"
+				"summary": "(`context.dispatch_id`)"
 			},
-			"issue": "#2682",
-			"evidence": ["python/tests/test_journal_seams_vectors.py"]
+			"evidence": [
+				"python/src/afd/core/dispatch_id.py",
+				"python/src/afd/core/single_executor.py",
+				"python/tests/test_journal_seams_vectors.py"
+			]
 		},
 		"single.idempotency-key": {
 			"status": "planned",

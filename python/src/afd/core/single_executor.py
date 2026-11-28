@@ -23,6 +23,7 @@ execute single commands through this module so dispatch semantics never drift.
 from __future__ import annotations
 
 import asyncio
+import copy
 import inspect
 import logging
 import math
@@ -34,6 +35,16 @@ from typing import TYPE_CHECKING, Any
 from afd.core.actor import ContextDefaults, actor_kind_of, with_context_defaults
 from afd.core.clock import system_clock
 from afd.core.direct_allow import _is_allowed, _not_allowed
+from afd.core.dispatch_id import (
+    ENGINE_ENTRY,
+    VALIDATED_ENTRY,
+    DispatchIdCarrier,
+    as_dispatch_context,
+    begin_dispatch,
+    call_public_handler,
+    end_dispatch,
+    owned_entry,
+)
 from afd.core.errors import CommandError, Recovery
 from afd.core.output_budget import (
     apply_output_budget,
@@ -417,24 +428,51 @@ async def execute_command(
     skip_output_budget: bool = False,
 ) -> Any:
     """Execute one command through the shared AFD dispatch pipeline."""
-    exec_context = with_context_defaults(context, config.context_defaults)
-    scope = (
-        config.context_scope(context, exec_context)
-        if config.context_scope is not None
-        else nullcontext()
+    exec_context = _dispatch_context(
+        context, with_context_defaults(context, config.context_defaults)
     )
-    with scope:
-        result = await _execute_command_inner(
-            name,
-            input,
-            context,
-            exec_context,
-            config=config,
-            output_budget=output_budget,
-            skip_output_budget=skip_output_budget,
+    # This dispatch's id (spec/dispatch.md, "The dispatch id"), for the engine's own context object
+    # before anything reads it (the app-call grant included): made here, never taken from the
+    # caller, and kept by the engine, so every link reads the same value (I3).
+    begin_dispatch(exec_context)
+    try:
+        scope = (
+            config.context_scope(context, exec_context)
+            if config.context_scope is not None
+            else nullcontext()
         )
+        with scope:
+            result = await _execute_command_inner(
+                name,
+                input,
+                context,
+                exec_context,
+                config=config,
+                output_budget=output_budget,
+                skip_output_budget=skip_output_budget,
+            )
+    finally:
+        end_dispatch(exec_context)
     # A middleware that returns a plain value gets the same answer as a handler that does.
     return _as_command_result(result, name, config.logger)
+
+
+def _dispatch_context(context: Any, filled: Any) -> Any:
+    """The object a dispatch runs on: the engine's copy of the caller's context, which reads
+    ``dispatch_id``. When ``with_context_defaults`` could not copy the context, the engine copies
+    it here, so the caller's object is never the one a dispatch runs on."""
+    if filled is context and isinstance(context, DispatchIdCarrier):
+        try:
+            # A carrier the engine made copies as its host class: give the copy the property again.
+            return as_dispatch_context(copy.copy(context))
+        except Exception as exc:
+            raise TypeError(f"{type(context).__name__} cannot be copied for a dispatch") from exc
+    try:
+        return as_dispatch_context(filled)
+    except Exception as exc:
+        raise TypeError(
+            f"{type(filled).__name__} cannot carry a dispatch id: pass an afd CommandContext"
+        ) from exc
 
 
 async def _execute_command_inner(
@@ -651,13 +689,18 @@ async def _execute_command_inner(
             elif (
                 config.validate_input is None
                 and getattr(command.handler, "__afd_validate_input__", None) is not None
+                and (validated_handler := owned_entry(command.handler, VALIDATED_ENTRY)) is not None
             ):
-                validated_handler = getattr(
-                    command.handler, "__afd_validated_handler__", command.handler
-                )
                 result = await validated_handler(data, exec_context)
             else:
-                result = await command.handler(data, exec_context)
+                # An AFD wrapper's own engine entry; its public entry is for plain calls, which
+                # are not a dispatch. Any other handler, a host's decorator around an AFD
+                # wrapper included, is called as it is, as the engine's call.
+                engine_entry = owned_entry(command.handler, ENGINE_ENTRY)
+                if engine_entry is not None:
+                    result = await engine_entry(data, exec_context)
+                else:
+                    result = await call_public_handler(command.handler, data, exec_context)
             # Coerced before the budget check, the metadata stamp and any middleware.
             result = _as_command_result(result, name, config.logger)
             if effective_budget is not None:

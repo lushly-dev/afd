@@ -68,6 +68,7 @@ from afd.core.commands import (
     validate_task_declaration,
 )
 from afd.core.direct_allow import _is_allowed, _not_allowed
+from afd.core.dispatch_id import VALIDATED_ENTRY, call_public_handler, owned_entry
 from afd.core.errors import CommandError, ErrorCodes, Recovery
 from afd.core.meta_keys import assert_advertised_input_schema, assert_tool_meta
 from afd.core.output_budget import (
@@ -1203,8 +1204,11 @@ class MCPServer:
         self, command: CommandDefinition, data: Any, context: CommandContext
     ) -> Any:
         clear_relay_evidence(context)
-        handler = getattr(command.handler, "__afd_validated_handler__", command.handler)
-        # The shared executor coerces what this returns (#1760).
+        handler = owned_entry(command.handler, VALIDATED_ENTRY)
+        # The shared executor coerces what this returns (#1760). A host's decorator around an AFD
+        # wrapper is called as it is, so it runs.
+        if handler is None:
+            return await call_public_handler(command.handler, data, context)
         return await handler(data, context)
 
     def _internal_error(self, command_name: str, exc: BaseException) -> CommandResult[Any]:

@@ -1,8 +1,6 @@
 {
 	"description": "The dispatch id (spec/dispatch.md, \"The dispatch id\", I1 to I4) and the approval summary (spec/command-metadata.md, \"The approval summary\", rules 1 to 5). Specification-authored. A language still listed in `gaps` loads this file, checks that it is still listed, and skips every case with its issue as the reason; one that is not runs every case.",
-	"gaps": {
-		"python": "https://github.com/lushly-dev/afd/issues/2682"
-	},
+	"gaps": {},
 	"dispatchId": {
 		"format": {
 			"length": 22,

@@ -43,6 +43,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from afd.core.actor import Actor, is_actor_kind
+from afd.core.dispatch_id import DISPATCH_ID_NAMES
 
 __all__ = [
     "FileJournalSink",
@@ -385,6 +386,9 @@ def _context_values(context: Any) -> dict[str, Any]:
     if isinstance(extra, dict):
         for name, value in extra.items():
             values.setdefault(str(name), value)
+    # The dispatch id is never part of the digest, by value or by name (spec/dispatch.md, I4).
+    for name in DISPATCH_ID_NAMES:
+        values.pop(name, None)
     return values
 
 

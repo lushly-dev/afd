@@ -17,7 +17,7 @@ import pytest
 from afd import Actor, fixed_clock, success
 from afd.core.commands import CommandContext, CommandDefinition
 from afd.server import create_approval_middleware
-from afd.server.approval import _canonical_json
+from afd.server.approval import _canonical_json, approval_id
 
 VECTORS = json.loads(
     (Path(__file__).resolve().parents[2] / "spec" / "vectors" / "approval-tokens.json").read_text(
@@ -48,9 +48,12 @@ def _gate(
     replay: str | None = None,
     include_token: bool | None = None,
     relay: str | None = None,
+    on_approval_accepted: Any = None,
 ):
     """One middleware, as a case configures it, in front of a handler that reports it ran."""
     kwargs: dict[str, Any] = {}
+    if on_approval_accepted is not None:
+        kwargs["on_approval_accepted"] = on_approval_accepted
     if replay:
         kwargs["replay"] = replay
     if include_token is not None:
@@ -106,10 +109,21 @@ async def test_binding(binding):
     assert len(base64.urlsafe_b64decode(nonce + "==")) == 16
     assert payload == binding["payload"].replace(binding["nonce"], nonce)
 
-    accepted = await _gate()(
+    summaries = []
+    accepted = await _gate(on_approval_accepted=lambda summary, _id: summaries.append(summary))(
         binding["command"], binding["input"], binding["actor"], binding["token"]
     )
     assert _outcome(accepted) == "accepted"
+    # The approval summary of the call the binding's token admits (spec/command-metadata.md,
+    # "The approval summary"): its input digest, and the approval id of the token's nonce.
+    assert [summary.input_digest for summary in summaries] == [binding["inputDigest"]]
+    assert [summary.approval_id for summary in summaries] == [binding["approvalId"]]
+    assert approval_id(binding["nonce"]) == binding["approvalId"]
+
+
+@pytest.mark.parametrize("entry", VECTORS["approvalIds"], ids=lambda case: case["description"])
+def test_approval_id(entry):
+    assert approval_id(entry["singleUseKey"]) == entry["approvalId"]
 
 
 @pytest.mark.parametrize("vector", VECTORS["verify"], ids=lambda case: case["description"])

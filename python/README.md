@@ -597,6 +597,50 @@ URL, share both and pass `instances="multiple"` to `create_server(...)`:
   `sse_app`, or `run` / `run_async` over HTTP) logs one warning per process to stderr;
   `instances="single"` silences it, and stdio logs nothing.
 
+## The dispatch id and the approval summary
+
+A host that keeps its own record of a call (an intent written before the handler, an approval)
+keys it by `context.dispatch_id` (`spec/dispatch.md`, "The dispatch id"). The engine sets it
+before anything else runs: 128 bits from `secrets`, as 22 characters of unpadded base64url, never
+drawn from `context.random`. Each batch item, pipeline step and command a handler runs through
+the registry gets its own; the outer call keeps its own. The engine keeps the id itself, keyed
+by the context object the call runs on, and `dispatch_id` is a read-only property that looks it
+up (assigning it raises `AttributeError`), so every middleware and the handler read the same
+value. Nothing on the object holds it: copies, pickles, `vars()`, `repr`, results, journal entries
+and the journal's context digest never carry it, and a copy reads `None`. A context of the host's
+own class that is not an AFD context (a slotted dataclass, say) runs on a copy of it whose class
+adds the property, with every field kept. A value under `dispatch_id` or `dispatchId` in
+`context.extra` is removed when the call starts, and a declared context field of either name
+fails registration.
+
+A `define_command` function called as a plain function, `await create_doc(input, context)`, is
+not a dispatch. While it runs, `context.dispatch_id` reads `None`, so it never reads the id of
+the call whose context it was handed; once it returns, the caller reads its own id again.
+Nothing is copied or changed. The engine's own call reads the id, also through a decorator
+around the function that uses `functools.wraps`, which the engine runs. The `None` is a context
+variable: a task the plain call starts and `asyncio.to_thread` see it, but a raw
+`threading.Thread` or `loop.run_in_executor` started inside it does not copy context variables
+and reads the outer call's id.
+
+`create_approval_middleware(..., on_approval_accepted=hook)` calls and awaits
+`hook(summary, dispatch_id)` when the middleware admits a held call (an accepted token, a
+DirectClient approval, relay evidence, an answer over the MCP relay, each gated step of an
+`afd-batch` or `afd-pipe` approved up front), before the handler runs
+(`spec/command-metadata.md`, "The approval summary"). `ApprovalSummary` has `via` (`token`,
+`elicitation`, `relay` or `direct`), `command`, `input_digest`, `approval_id`, and `issued_at` and
+`expires_at` when the evidence carries them; `to_dict()` gives the camelCase JSON. It holds no
+token, nonce or decision id. An exception from the hook fails the call with
+`COMMAND_EXECUTION_ERROR` before the handler, as a raising middleware does, and the evidence
+stays spent. `ApprovalRequest.approval_id` and `DirectApprovalRequest.approval_id` give the asking
+side the id the summary will carry, and `approval_id(key)` from `afd.server.approval` computes it.
+
+```python
+async def record(summary: ApprovalSummary, dispatch_id: str | None) -> None:
+    await approvals.insert(dispatch_id, summary.to_dict())  # raise to refuse the call
+
+middleware = [create_approval_middleware(secret=secret, on_approval_accepted=record)]
+```
+
 ## Application authentication (`afd.auth`)
 
 `afd.auth` provides the provider-agnostic `AuthAdapter` protocol, discriminated `AuthSessionState` models (`UNAUTHENTICATED`, `LOADING`, `AuthenticatedSessionState`), `AuthAdapterError`, `ListenerSet`, `create_auth_middleware`, `create_auth_commands` (`auth-sign-in`, `auth-sign-out`, `auth-session-get`), and `MockAuthAdapter`.

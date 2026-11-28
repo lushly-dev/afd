@@ -107,6 +107,19 @@ class StepsHold:
 
 
 @dataclass(frozen=True)
+class ApprovalAdmission:
+    """The evidence an approval step admitted a held call on, from which it builds the call's
+    approval summary (``spec/command-metadata.md``, "The approval summary"): how it was admitted,
+    the evidence's single-use key, and the times the evidence carries."""
+
+    via: Literal["token", "elicitation", "relay", "direct"]
+    key: str
+    """The key the step spends in its nonce store, or would spend when reuse is allowed."""
+    issued_at: int | None = None
+    expires_at: int | None = None
+
+
+@dataclass(frozen=True)
 class AcceptedApproval:
     """An accepted approval as the request carries it: its binding, nonce, expiry and MAC."""
 
@@ -299,6 +312,9 @@ class UpFrontDeps(Protocol):
 @dataclass
 class _Approved:
     binding: str
+    nonce: str
+    """The approval's nonce and expiry, for the step's approval summary."""
+    expires_at: int
     used: bool = False
 
 
@@ -458,8 +474,11 @@ class UpFrontApproval:
         )
         if approval is not None:
             approval.used = True
+            admission = ApprovalAdmission(
+                via="elicitation", key=approval.nonce, expires_at=approval.expires_at
+            )
             # The step runs on the input its approval binds.
-            return await _released(lambda: next_fn(verified))
+            return await _released(lambda: next_fn(verified, admission))
         return failure(_unplanned_error(self.tool, command))
 
     async def _decide(self, deps: UpFrontDeps, context: CommandContext) -> _Plan:
@@ -541,7 +560,13 @@ class UpFrontApproval:
                 if not await deps.spend(answer.nonce, answer.expires_at, now):
                     fresh = False
             if fresh:
-                return _Plan("run", approved=[_Approved(answer.binding) for answer in matched])
+                return _Plan(
+                    "run",
+                    approved=[
+                        _Approved(answer.binding, answer.nonce, answer.expires_at)
+                        for answer in matched
+                    ],
+                )
 
         # Ask once for every gated step, saying why when earlier approvals did not hold.
         # Each question keeps its step's input, so the attempt that brings the answer runs it.
