@@ -4,7 +4,8 @@ use super::{
 use crate::store::{NewTodo, TodoStore};
 use crate::types::{Priority, Todo};
 use afd::{
-    CommandContext, CommandError, CommandExample, CommandResult, TaskSupport, WarningSeverity,
+    CommandContext, CommandError, CommandExample, CommandResult, IdempotencySupport, TaskSupport,
+    WarningSeverity,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -39,6 +40,10 @@ impl Command for CreateBatch {
     const DESCRIPTION: &'static str = "Create multiple todos at once with partial failure support";
     const TAGS: &'static [&'static str] = &["todo", "create", "write", "batch"];
     const MUTATION: bool = true;
+    const IDEMPOTENCY: Option<IdempotencySupport> = Some(IdempotencySupport::Keyed);
+    // Keyed in its handler, not by the registry's idempotency step: it may run as an MCP task,
+    // on which the step does not act (`spec/idempotency.md`, D5 and S11).
+    const KEYED_IN_HANDLER: bool = true;
     const UNDOABLE: bool = true;
     const TASK: TaskSupport = TaskSupport::Optional;
 

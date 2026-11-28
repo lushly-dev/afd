@@ -237,6 +237,9 @@ pub struct McpServer {
     inner: Arc<Inner>,
     /// The context stack of a 2025 connection (stdio); `None` on stateless HTTP.
     session: Option<ContextStack>,
+    /// This connection's id: the idempotency step keeps an anonymous connection's keys apart
+    /// from every other's (`spec/idempotency.md`, S3). Shared by clones, as the session is.
+    connection: Arc<str>,
 }
 
 impl McpServer {
@@ -278,6 +281,7 @@ impl McpServer {
                 default_timeout_ms: Some(crate::DEFAULT_COMMAND_TIMEOUT_MS),
             }),
             session: Some(ContextStack::new()),
+            connection: new_connection_id(),
         }
     }
 
@@ -313,6 +317,7 @@ impl McpServer {
         Self {
             inner: Arc::new(inner),
             session: self.session,
+            connection: self.connection,
         }
     }
 
@@ -387,11 +392,27 @@ impl McpServer {
     /// tool, repeats, or is beyond [`MAX_FIRST_CLASS_TOOLS`] (the first one beyond it). For
     /// [`ServerInstances::Multiple`]: an active confirmation mode or `ApprovalRelay::McpElicitation`
     /// without a shared confirmation key, or an approval middleware keeping single-use tokens or
-    /// `HumanRelay` decisions in process memory without a shared `nonce_store`.
+    /// `HumanRelay` decisions in process memory without a shared `nonce_store`. For the
+    /// registry's idempotency step ([`CommandRegistry::set_idempotency`]): a `ttl_ms` no greater
+    /// than this server's default deadline plus `lease_ms` (`spec/idempotency.md`, S8).
     pub fn validate(&self) -> Result<(), String> {
         self.validate_strategy()?;
         self.validate_resources()?;
+        self.validate_idempotency()?;
         self.validate_instances().map(|_| ())
+    }
+
+    /// S8 of `spec/idempotency.md` against this server's default deadline: the registry's
+    /// idempotency step's `ttl_ms` must be greater than it plus `lease_ms`.
+    fn validate_idempotency(&self) -> Result<(), String> {
+        match self.inner.registry.idempotency_step() {
+            Some(step) => crate::check_idempotency_options(
+                step.ttl_ms(),
+                step.lease_ms(),
+                self.inner.default_timeout_ms,
+            ),
+            None => Ok(()),
+        }
     }
 
     /// Check `with_instances` against active per-process defaults and return any HTTP warning.
@@ -970,6 +991,7 @@ impl McpServer {
     ) -> Result<StreamableHttpService<McpServer, LocalSessionManager>, String> {
         self.validate_strategy()?;
         self.validate_resources()?;
+        self.validate_idempotency()?;
         let warning = self.validate_instances()?;
         instance_state::warn_instances_once(warning.as_deref());
         let mut config = StreamableHttpServerConfig::default()
@@ -1004,6 +1026,7 @@ impl McpServer {
         // an authorized server serves it without credentials (`spec/authorization.md`, M1).
         let server = Self {
             session: Some(ContextStack::new()),
+            connection: new_connection_id(),
             ..self.with(|inner| inner.trusted_transport = true)
         };
         let service = server
@@ -1031,6 +1054,16 @@ impl OriginValidation for StreamableHttpServerConfig {
         } else {
             self
         }
+    }
+}
+
+/// A new connection id: random where the OS source answers, else a process-wide count.
+fn new_connection_id() -> Arc<str> {
+    static CONNECTIONS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let count = CONNECTIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+    match crate::canonical::new_dispatch_id() {
+        Ok(Some(random)) => format!("{count}-{random}").into(),
+        _ => count.to_string().into(),
     }
 }
 

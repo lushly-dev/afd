@@ -4,7 +4,10 @@ use super::{
 };
 use crate::store::TodoStore;
 use crate::types::Todo;
-use afd::{CommandContext, CommandError, CommandExample, CommandResult, WarningSeverity};
+use afd::{
+    CommandContext, CommandError, CommandExample, CommandResult, IdempotencySupport,
+    WarningSeverity,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -35,6 +38,7 @@ impl Command for Restore {
          its ids as its undo";
     const TAGS: &'static [&'static str] = &["todo", "restore", "write", "batch", "undo"];
     const MUTATION: bool = true;
+    const IDEMPOTENCY: Option<IdempotencySupport> = Some(IdempotencySupport::Natural);
     const UNDOABLE: bool = true;
 
     fn schema() -> Value {

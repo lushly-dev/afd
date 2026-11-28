@@ -3,8 +3,7 @@
 use std::sync::Arc;
 
 use super::{
-    command_cancelled_error, BoxFuture, CallState, CommandContext, CommandDefinition,
-    CommandMiddleware, MiddlewareNext,
+    BoxFuture, CallState, CommandContext, CommandDefinition, CommandMiddleware, MiddlewareNext,
 };
 use crate::errors::{error_codes, CommandError};
 use crate::journal::secret_scope::{scoped_step, Scope};
@@ -64,8 +63,8 @@ pub(super) fn middleware_chain(
     })
 }
 
-/// The handler step at the end of the chain: the approval admission check, the handler, the
-/// output budget check (unless `check_output_budget` is unset, for a stream) and the actor kind.
+/// The handler step at the end of the chain: the approval admission check, the idempotency step
+/// around the handler, the output budget check (unless `check_output_budget` is unset, for a stream) and the actor kind.
 pub(super) fn run_handler(
     command: Arc<CommandDefinition>,
     input: serde_json::Value,
@@ -113,16 +112,22 @@ pub(super) fn run_handler(
         }
     }
     Box::pin(async move {
-        // Re-check immediately before handler start (including after an approval wait).
-        if context.is_cancelled() {
-            return failure(command_cancelled_error(&command.name));
-        }
         // Only the kind is reported, never the actor's id or label.
         let actor_kind = context.actor.as_ref().map(|actor| actor.kind);
         let output_budget = context.output_budget;
+        // The idempotency step (`spec/idempotency.md`, S1): after the approval admission check,
+        // it answers a repeat from its store or reserves the key, then makes the cancellation
+        // check immediately before the handler (including after an approval wait), as the
+        // registry does without it. The handler never sees the step's state.
+        let step = context.idempotency.take();
         // The registry has already put a secret command in its scope and off every parent's
         // tape, so its own recording keeps its reads.
-        let mut result = command.call_handler(input, context).await;
+        let handler = Arc::clone(&command);
+        let mut result =
+            crate::idempotency::step::run(step, &command.name, context, |context| async move {
+                handler.call_handler(input, context).await
+            })
+            .await;
         // The output budget check (`spec/output-budgets.md`, B5): right after the
         // handler, before `metadata` is stamped and before any middleware sees it.
         if let Some(limit) = output_budget.filter(|_| check_output_budget) {

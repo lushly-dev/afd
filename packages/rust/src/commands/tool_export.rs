@@ -37,14 +37,22 @@ pub struct McpInputSchema {
 ///
 /// Only what the command declares is reported. `mutation` has no unset state here, so a
 /// mutation gives `readOnlyHint: false` and `destructiveHint` from `destructive` (`false` when
-/// unset), and anything else gives `None`.
+/// unset), and anything else gives neither. `idempotency: natural` adds `idempotentHint: true`
+/// (`spec/idempotency.md`, D2); no other value, and no default, reports it. A command with none
+/// of them gives `None`.
 pub fn command_tool_annotations(command: &CommandDefinition) -> Option<serde_json::Value> {
-    command.mutation.then(|| {
-        serde_json::json!({
-            "readOnlyHint": false,
-            "destructiveHint": command.destructive.unwrap_or(false),
-        })
-    })
+    let mut annotations = serde_json::Map::new();
+    if command.mutation {
+        annotations.insert("readOnlyHint".into(), serde_json::json!(false));
+        annotations.insert(
+            "destructiveHint".into(),
+            serde_json::json!(command.destructive.unwrap_or(false)),
+        );
+    }
+    if command.idempotency == Some(crate::IdempotencySupport::Natural) {
+        annotations.insert("idempotentHint".into(), serde_json::json!(true));
+    }
+    (!annotations.is_empty()).then_some(serde_json::Value::Object(annotations))
 }
 
 /// Keywords of the schema subset (`spec/validation.md`) whose value is a schema.

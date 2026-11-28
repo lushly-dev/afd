@@ -114,7 +114,8 @@ impl ContextField {
 
 /// Context names a declared field cannot take: the names TypeScript's command context uses
 /// (`spec/context-fields.md`), [`CommandContext`]'s own fields and accessors, `timeoutMs`,
-/// the name the journal's context digest gives `timeout_ms`, and the dispatch id's two names.
+/// the name the journal's context digest gives `timeout_ms`, and the two names of the dispatch id
+/// and of the idempotency key.
 const RESERVED_NAMES: &[&str] = &[
     "actor",
     "approval",
@@ -145,6 +146,9 @@ const RESERVED_NAMES: &[&str] = &[
     // The engine's dispatch id (`spec/dispatch.md`, "The dispatch id"), in both spellings.
     "dispatchId",
     "dispatch_id",
+    // The call's idempotency key (`spec/idempotency.md`, K1), in both spellings.
+    "idempotencyKey",
+    "idempotency_key",
 ];
 
 /// The prefix of AFD's own command names, which do not enforce required fields.

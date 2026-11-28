@@ -552,6 +552,16 @@ pub struct CommandDefinition {
     /// Whether this command performs side effects.
     pub mutation: bool,
 
+    /// What the command promises about repeating a call (`spec/idempotency.md`, D1 to D5):
+    /// `None` promises nothing, and nothing is read from it. [`IdempotencySupport::Natural`]
+    /// reports the MCP annotation `idempotentHint: true` (D2). Reported as `idempotency` in the
+    /// tool's `_meta`, grouped `_meta.actions`, `afd-detail` and `afd-help`'s `full` format (D3).
+    /// The retry middleware repeats a `natural` command, and a `keyed` one only when the call
+    /// carries an idempotency key (R1). Set it with [`Self::with_idempotency`].
+    ///
+    /// [`IdempotencySupport::Natural`]: crate::IdempotencySupport::Natural
+    pub idempotency: Option<crate::IdempotencySupport>,
+
     /// Estimated execution time.
     pub execution_time: Option<ExecutionTime>,
 
@@ -640,6 +650,7 @@ impl CommandDefinition {
             requires: None,
             contexts: None,
             mutation: false,
+            idempotency: None,
             execution_time: None,
             expose: default_expose(),
             examples: None,
@@ -752,6 +763,16 @@ impl CommandDefinition {
     /// Mark as mutation.
     pub fn as_mutation(mut self) -> Self {
         self.mutation = true;
+        self
+    }
+
+    /// Declare what the command promises about repeating a call (see
+    /// [`CommandDefinition::idempotency`]). Declare [`Keyed`](crate::IdempotencySupport::Keyed)
+    /// only where the handler answers repeats itself or the registry has the idempotency step
+    /// ([`CommandRegistry::set_idempotency`]), and a handler that decides whether the caller may
+    /// make the call keeps that check in its handler or a middleware (D5).
+    pub fn with_idempotency(mut self, idempotency: crate::IdempotencySupport) -> Self {
+        self.idempotency = Some(idempotency);
         self
     }
 

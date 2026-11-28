@@ -78,9 +78,10 @@ Every vector file in `spec/vectors/` falls into one of three categories, enforce
   ([#2680](https://github.com/lushly-dev/afd/issues/2680)), Rust
   ([#2681](https://github.com/lushly-dev/afd/issues/2681)), Python and C++
   ([#2682](https://github.com/lushly-dev/afd/issues/2682)) have left it, so it lists none. `idempotency.json` listed all
-  four for the same reason; TypeScript ([#2675](https://github.com/lushly-dev/afd/issues/2675)) and
-  C++ ([#2957](https://github.com/lushly-dev/afd/issues/2957)) left it with their implementations, and Python ([#2955](https://github.com/lushly-dev/afd/issues/2955)) and Rust
-  ([#2956](https://github.com/lushly-dev/afd/issues/2956)) stay listed.
+  four for the same reason; TypeScript ([#2675](https://github.com/lushly-dev/afd/issues/2675)),
+  Rust ([#2956](https://github.com/lushly-dev/afd/issues/2956)) and C++
+  ([#2957](https://github.com/lushly-dev/afd/issues/2957)) left it with their implementations, and
+  Python stays listed ([#2955](https://github.com/lushly-dev/afd/issues/2955)).
 - A vector file joins this directory once all four languages load it, because `alfred parity`
   fails on any file here that a language does not load. Until then it sits in `spec/` next to the
   page it pins: [`authorization.json`](../authorization.json), for MCP authorization, the principal

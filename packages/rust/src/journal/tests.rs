@@ -175,6 +175,7 @@ fn entry(seq: u64) -> JournalEntry {
         seq,
         timestamp: "2026-01-01T00:00:00.000Z".to_string(),
         trace_id: None,
+        idempotency_key: None,
         command: "secret-ping".to_string(),
         input: json!({}),
         actor: None,
@@ -274,6 +275,7 @@ fn record() -> JournalRecord {
     JournalRecord {
         timestamp: entry.timestamp,
         trace_id: None,
+        idempotency_key: None,
         command: entry.command,
         input: entry.input,
         actor: None,

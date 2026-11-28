@@ -97,13 +97,16 @@
 			"evidence": ["packages/rust/src/commands.rs"]
 		},
 		"command.idempotency": {
-			"status": "planned",
-			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"status": "yes",
+			"note": ": `with_idempotency`; `_meta.idempotency`, `afd-detail`, `afd-help` (`full`)",
 			"views": {
-				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+				"status": ""
 			},
-			"issue": "#2676",
-			"evidence": ["packages/rust/tests/idempotency_vectors.rs"]
+			"evidence": [
+				"packages/rust/src/commands/definition.rs",
+				"packages/rust/src/commands/tool_export.rs",
+				"packages/rust/tests/idempotency_vectors.rs"
+			]
 		},
 		"single.dispatch-order": {
 			"status": "partial",
@@ -344,13 +347,17 @@
 			]
 		},
 		"middleware.idempotency-step": {
-			"status": "planned",
-			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"status": "yes",
+			"note": ": `CommandRegistry::set_idempotency` with `IdempotencyOptions` and an `IdempotencyStore`, without any feature; the engine drops the call at its deadline (S7, `drops`)",
 			"views": {
-				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+				"status": ""
 			},
-			"issue": "#2676",
-			"evidence": ["packages/rust/tests/idempotency_vectors.rs"]
+			"evidence": [
+				"packages/rust/src/idempotency/step.rs",
+				"packages/rust/src/idempotency/store.rs",
+				"packages/rust/src/middleware.rs",
+				"packages/rust/tests/idempotency_vectors.rs"
+			]
 		},
 		"middleware.up-front-approval": {
 			"status": "yes",
@@ -795,13 +802,18 @@
 			]
 		},
 		"single.idempotency-key": {
-			"status": "planned",
-			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"status": "yes",
+			"note": ": `CommandContext::with_idempotency_key`, `DirectClient::call_with_idempotency_key`, `_meta` and the meta-tools' `meta` argument",
 			"views": {
-				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+				"status": ""
 			},
-			"issue": "#2676",
-			"evidence": ["packages/rust/tests/idempotency_vectors.rs"]
+			"evidence": [
+				"packages/rust/src/idempotency/key.rs",
+				"packages/rust/src/commands/execute.rs",
+				"packages/rust/src/server/router.rs",
+				"packages/rust/src/journal.rs",
+				"packages/rust/tests/idempotency_vectors.rs"
+			]
 		}
 	}
 }

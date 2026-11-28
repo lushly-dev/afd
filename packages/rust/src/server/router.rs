@@ -381,6 +381,31 @@ impl Call<'_> {
             .then(|| human_relay::unrelayable(&names, self.server.inner.human_relay.is_some()))
     }
 
+    /// S3's refusal of a call to `command` that the idempotency step would act on, from an HTTP
+    /// caller the server cannot tell apart. Only a call that runs inline is one: a task run is not
+    /// (S11), so an `optional` command is refused here only when it cannot become a task (tasks
+    /// cannot tell the caller apart either, or the request does not declare the extension), and a
+    /// `required` one is left to the tasks refusal in `dispatch`.
+    fn unidentified_keyed_call(&self, command: &CommandDefinition) -> Option<CommandError> {
+        let unidentified = self.base.server().idempotency_caller
+            == Some(crate::idempotency::step::IdempotencyCaller::Http { identified: false });
+        let inline = match command.task_support() {
+            TaskSupport::Optional => {
+                !tasks::declares_tasks(self.context)
+                    || !self
+                        .server
+                        .identifies_caller(self.context, self.base.credentials.as_deref())
+            }
+            TaskSupport::Required => false,
+            _ => true,
+        };
+        (unidentified
+            && inline
+            && self.base.idempotency_key.is_some()
+            && command.idempotency == Some(crate::IdempotencySupport::Keyed))
+        .then(crate::idempotency::unidentified_callers_error)
+    }
+
     /// Whether this request can carry a form elicitation: a modern request that declares it, or
     /// a 2025 connection with a back channel whose client declared it.
     /// An approver's call never can: its token takes precedence over the relay ("Approval
@@ -401,6 +426,11 @@ impl Call<'_> {
         how_to_acknowledge: &str,
     ) -> Result<CallToolResponse, ErrorData> {
         let name = command.name.as_str();
+        // A keyed call the step would act on, from a caller the server cannot tell apart, is
+        // refused before any confirmation or relay (`spec/idempotency.md`, S3).
+        if let Some(error) = self.unidentified_keyed_call(command) {
+            return refused(error);
+        }
         if command.is_host_verified() {
             let execution = self.execution_context();
             let gate = RelayGate {
@@ -834,7 +864,9 @@ impl Call<'_> {
             Decision::Ask(response) => return Ok(response),
             Decision::Internal => return Err(confirmation_internal()),
         }
-        let run = |mut base: CommandContext| {
+        let run = |base: CommandContext| {
+            // The request's key is the base of each step's (K4); one it inherited is none (K6).
+            let mut base = crate::idempotency::key::request_context(base);
             // The pipeline's deadline fires a child of the call's own signal, so a step still
             // running at the deadline (and work it spawned) can stop; the call's signal is not
             // fired by it.
@@ -859,6 +891,18 @@ impl Call<'_> {
                 let mut context = base.clone();
                 if let Some(trace) = step.get("traceId").and_then(Value::as_str) {
                     context.trace_id = Some(trace.to_owned());
+                }
+                // Step `i` runs under `<key>:step:<i>` (`spec/idempotency.md`, K4).
+                if let Some(index) = step
+                    .get("stepIndex")
+                    .and_then(Value::as_u64)
+                    .and_then(|index| usize::try_from(index).ok())
+                {
+                    context = crate::idempotency::key::derived_context(
+                        context,
+                        crate::IdempotencyRequestKind::Pipeline,
+                        index,
+                    );
                 }
                 Box::pin(async move { registry.execute(&command, input, Some(context)).await })
             });
@@ -1133,6 +1177,48 @@ pub(crate) async fn route(
         &context.meta,
         &mut base,
     );
+    // The idempotency key (`spec/idempotency.md`, K1, K2): from `_meta`, where the `meta` argument
+    // has been lifted, unless the hook set one, which wins. A key not of K2's form, from either,
+    // fails the call before any confirmation runs; `null` is no key.
+    let invalid_key = match context.meta.get(crate::AFD_IDEMPOTENCY_KEY_META_KEY) {
+        _ if base.idempotency_key.is_some() => false,
+        None | Some(Value::Null) => false,
+        Some(Value::String(key)) => {
+            base.idempotency_key = Some(key.clone());
+            false
+        }
+        Some(_) => true,
+    } || base
+        .idempotency_key
+        .as_deref()
+        .is_some_and(|key| !crate::is_idempotency_key(key));
+    if invalid_key {
+        let error = crate::invalid_idempotency_key_error();
+        return match name {
+            "afd-batch" => batch_failure(error),
+            "afd-pipe" => tool_result(&pipeline_failure(&error), true),
+            _ => refused(error),
+        };
+    }
+    // Who the transport says the caller is, for the idempotency step (S3): an HTTP caller,
+    // identified or not, or a connection transport, whose caller with no identity of its own (no
+    // credentials, and no actor, a bare agent or the server's default actor) the step tells apart
+    // by the connection alone. The step decides that from the context as middleware left it.
+    if let Some(step) = server.inner.registry.idempotency_step() {
+        let http = context.extensions.get::<http::request::Parts>().is_some();
+        let caller = if http {
+            Some(crate::idempotency::step::IdempotencyCaller::Http {
+                identified: base.credentials.is_some()
+                    || (step.callers_identified_by_hook() && server.inner.context_hook.is_some()),
+            })
+        } else {
+            Some(crate::idempotency::step::IdempotencyCaller::Connection {
+                connection: Arc::clone(&server.connection),
+                default_actor: defaults.actor.clone(),
+            })
+        };
+        base.server_mut().idempotency_caller = caller;
+    }
     // An approver's call carries its token in `_meta`, and is never asked with a form. Decided
     // on the request's own `_meta`: the `meta` argument cannot carry the key (refused above).
     let approver = match approver::decide(

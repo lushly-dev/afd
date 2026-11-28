@@ -136,6 +136,11 @@ pub struct JournalEntry {
     /// `context.trace_id`, when the call had one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trace_id: Option<String>,
+    /// The call's idempotency key (`spec/idempotency.md`, "The journal"), when it had one: a
+    /// key a batch item or pipeline step derived (K4) is recorded as derived. Replay restores it
+    /// as the engine's, so K2 does not refuse a derived one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idempotency_key: Option<String>,
     /// The command name.
     pub command: String,
     /// The validated input the handler received.
@@ -175,6 +180,8 @@ pub struct JournalRecord {
     pub timestamp: String,
     /// Optional caller-provided trace identifier.
     pub trace_id: Option<String>,
+    /// The call's idempotency key, when it had one.
+    pub idempotency_key: Option<String>,
     /// Executed command name.
     pub command: String,
     /// Validated command input payload.
@@ -204,6 +211,7 @@ impl JournalRecord {
             seq,
             timestamp: self.timestamp,
             trace_id: self.trace_id,
+            idempotency_key: self.idempotency_key,
             command: self.command,
             input: self.input,
             actor: self.actor,
@@ -460,7 +468,8 @@ pub fn create_context_digest(context: &CommandContext) -> JournalContextDigest {
 /// The hashed object gains `journaled`'s `context` and `contextOmitted` members, when set, and
 /// the names they hold leave the key list (`spec/journal.md`, "Context digest"). It also gains
 /// `outputBudget` when the context has an effective output budget
-/// ([`CommandContext::output_budget`]). With none of them set it is [`create_context_digest`].
+/// ([`CommandContext::output_budget`]), and `idempotencyKey` when it carries an idempotency key
+/// ([`CommandContext::idempotency_key`]). With none of them set it is [`create_context_digest`].
 pub fn create_context_digest_with_fields(
     context: &CommandContext,
     journaled: &JournalContextFields,
@@ -495,6 +504,11 @@ pub fn create_context_digest_with_fields(
     // not a key in `extra`, so it is never among `keys`; a call without one hashes as before.
     if let Some(budget) = context.output_budget {
         canonical["outputBudget"] = serde_json::json!(budget);
+    }
+    // The idempotency key is hashed as a member (`spec/journal.md`, "Context digest"). It is a
+    // field of the context too, never among `keys`.
+    if let Some(key) = &context.idempotency_key {
+        canonical["idempotencyKey"] = serde_json::json!(key);
     }
     let text = serde_json::to_string(&sort_keys(canonical)).expect("JSON values serialize");
     let digest = Sha256::digest(text.as_bytes());

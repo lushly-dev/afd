@@ -120,7 +120,7 @@ async fn run_step(
 /// Execute a pipeline of chained commands with variable resolution.
 ///
 /// `context` is passed to every command invocation (with a per-step
-/// `traceId`); it is never visible to `$input` references, which read
+/// `traceId` and `stepIndex`, the step's 0-based index); it is never visible to `$input` references, which read
 /// [`PipelineRequest::input`] only.
 pub async fn execute_pipeline(
     request: &PipelineRequest,
@@ -269,6 +269,9 @@ pub async fn execute_pipeline_with_cancellation(
                 "traceId".to_string(),
                 serde_json::json!(format!("{pipeline_id}-step-{i}")),
             );
+            // The step's 0-based index, which an executor that runs it through the registry needs
+            // for the step's derived idempotency key (`spec/idempotency.md`, K4).
+            step_context.insert("stepIndex".to_string(), serde_json::json!(i));
 
             let execution = run_step(execute, step.command.clone(), resolved_input, step_context);
             match remaining {

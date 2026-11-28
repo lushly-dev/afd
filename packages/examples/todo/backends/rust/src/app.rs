@@ -65,7 +65,7 @@ pub fn contexts() -> Vec<ContextConfig> {
     ]
 }
 
-/// The todo commands over `store` and, with [`Approvals::Agents`], the
+/// The todo commands over `store`, the idempotency step and, with [`Approvals::Agents`], the
 /// approval middleware signing with `secret` (unused with [`Approvals::Off`]).
 ///
 /// With [`Approvals::Off`] there is no approval middleware, and the registry refuses a command
@@ -97,6 +97,9 @@ pub fn registry(
             }
         }
     }
+    // The idempotency step answers a repeat of a `keyed` command's call that carries a key, from
+    // an in-memory store (`spec/idempotency.md`, S1 to S13).
+    registry.set_idempotency(afd::IdempotencyOptions::new())?;
     if approvals == Approvals::Agents {
         // Built after the commands are registered: `registry.list()` is a snapshot.
         let options = ApprovalMiddlewareOptions::new(secret, registry.list())

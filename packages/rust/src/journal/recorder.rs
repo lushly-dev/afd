@@ -306,6 +306,7 @@ impl JournalRecorder {
             secret,
             input: input.clone(),
             trace_id: context.trace_id.clone(),
+            idempotency_key: context.idempotency_key.clone(),
             actor: context.actor.clone(),
             digest,
             journaled,
@@ -349,6 +350,7 @@ impl JournalRecorder {
         let record = JournalRecord {
             timestamp,
             trace_id: recording.trace_id,
+            idempotency_key: recording.idempotency_key,
             command: recording.command,
             input: recording.input,
             actor: recording.actor,
@@ -394,6 +396,7 @@ pub(crate) struct Recording {
     secret: bool,
     input: Value,
     trace_id: Option<String>,
+    idempotency_key: Option<String>,
     actor: Option<Actor>,
     digest: JournalContextDigest,
     journaled: JournalContextFields,

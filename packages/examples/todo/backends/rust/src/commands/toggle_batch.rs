@@ -4,7 +4,7 @@ use super::{
 };
 use crate::store::{Changes, TodoStore};
 use crate::types::Todo;
-use afd::{CommandContext, CommandExample, CommandResult, WarningSeverity};
+use afd::{CommandContext, CommandExample, CommandResult, IdempotencySupport, WarningSeverity};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -42,6 +42,7 @@ impl Command for ToggleBatch {
          them all to completed: true or false";
     const TAGS: &'static [&'static str] = &["todo", "toggle", "write", "batch"];
     const MUTATION: bool = true;
+    const IDEMPOTENCY: Option<IdempotencySupport> = Some(IdempotencySupport::Keyed);
     const UNDOABLE: bool = true;
     const REQUIRES: &'static [&'static str] = &["todo-list"];
 

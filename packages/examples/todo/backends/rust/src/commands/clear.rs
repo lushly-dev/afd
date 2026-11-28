@@ -6,7 +6,7 @@ use super::{ids_in, ok, plural, schema, warning, Command, Reply};
 use crate::store::TodoStore;
 use afd::{
     ActorKind, ApprovalDecision, ApprovalPolicy, CommandContext, CommandExample, CommandResult,
-    WarningSeverity,
+    IdempotencySupport, WarningSeverity,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -78,6 +78,7 @@ impl Command for Clear {
          enforces confirmations";
     const TAGS: &'static [&'static str] = &["todo", "clear", "write", "batch", "destructive"];
     const MUTATION: bool = true;
+    const IDEMPOTENCY: Option<IdempotencySupport> = Some(IdempotencySupport::Natural);
     const DESTRUCTIVE: bool = true;
     // Enforced when the server runs with CONFIRMATIONS=enforce (spec/confirmation-cases.json).
     const CONFIRM_PROMPT: Option<&'static str> = Some("Delete these todos? This cannot be undone.");

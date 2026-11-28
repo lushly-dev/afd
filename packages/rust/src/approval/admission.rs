@@ -111,6 +111,17 @@ pub(crate) struct Admission {
     /// Set when the registry's call of this record returns, so a context kept past it (a clone a
     /// middleware held on to) no longer speaks for the command.
     ended: AtomicBool,
+    /// Set by the registry when the call carries an idempotency key and is not a task run, for
+    /// the retry rule (`spec/idempotency.md`, R1).
+    carries_idempotency_key: AtomicBool,
+}
+
+/// What the retry middleware reads of the command a call runs (`spec/idempotency.md`, R1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RetryDeclaration {
+    pub(crate) mutation: bool,
+    pub(crate) idempotency: Option<crate::IdempotencySupport>,
+    pub(crate) carries_key: bool,
 }
 
 impl Admission {
@@ -121,6 +132,7 @@ impl Admission {
             state: Mutex::new(State::default()),
             required: AtomicBool::new(false),
             ended: AtomicBool::new(false),
+            carries_idempotency_key: AtomicBool::new(false),
         })
     }
 
@@ -129,11 +141,23 @@ impl Admission {
         self.ended.store(true, Ordering::SeqCst);
     }
 
-    /// The command's `mutation` declaration, for the retry middleware: `None` once the call that
-    /// made this record returned, or when it names another command.
-    pub(crate) fn live_mutation(&self, name: &str) -> Option<bool> {
-        (!self.ended.load(Ordering::SeqCst) && self.command.name == name)
-            .then_some(self.command.mutation)
+    /// Record whether the call carries an idempotency key and is not a task run.
+    pub(crate) fn set_carries_idempotency_key(&self, carries: bool) {
+        self.carries_idempotency_key
+            .store(carries, Ordering::SeqCst);
+    }
+
+    /// The command's `mutation` and `idempotency` declarations and whether the call carries a
+    /// key, for the retry middleware: `None` once the call that made this record returned, or
+    /// when it names another command.
+    pub(crate) fn live_declaration(&self, name: &str) -> Option<RetryDeclaration> {
+        (!self.ended.load(Ordering::SeqCst) && self.command.name == name).then(|| {
+            RetryDeclaration {
+                mutation: self.command.mutation,
+                idempotency: self.command.idempotency,
+                carries_key: self.carries_idempotency_key.load(Ordering::SeqCst),
+            }
+        })
     }
 
     /// The command this call runs, as registered.

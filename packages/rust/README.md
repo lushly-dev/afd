@@ -269,6 +269,23 @@ assert_eq!(request.steps[1].alias, None);
   `VALIDATION_ERROR`, the declaration reaches the tool's `_meta`, grouped `_meta.actions`,
   `afd-detail` and `afd-help` (`full`), and the journal records the effective budget as
   `outputBudget` (replay restores it as the ask).
+- **Idempotency keys** (`afd::idempotency`, `spec/idempotency.md`). A command declares what it
+  promises about repeats with `with_idempotency(IdempotencySupport::Natural | Keyed)` (`natural`
+  adds `idempotentHint: true`). A caller sends a key with `CommandContext::with_idempotency_key`
+  or `DirectClient::call_with_idempotency_key`, or over MCP in `_meta["dev.afd/idempotencyKey"]`
+  or a meta-tool's `meta` argument. The registry checks its form before middleware
+  (`VALIDATION_ERROR` otherwise), the handler reads it as `context.idempotency_key`, batch items
+  and pipeline steps run under `<key>:<i>` and `<key>:step:<i>`, a nested call starts without
+  it, and the journal records it. `registry.set_idempotency(IdempotencyOptions::new())` adds the
+  engine's step, which needs no feature. Between the approval admission check and the handler,
+  it answers a repeat of a `keyed` call with the same key, input and declared context fields from
+  its store (`metadata.idempotentReplay: true`), or refuses it with `IDEMPOTENCY_KEY_REUSED`,
+  `IDEMPOTENCY_IN_PROGRESS` or `OUTCOME_UNKNOWN`. The engine drops a call at its deadline, so a
+  reservation whose handler outlived it is live until `lease_ms` past the deadline, then unknown.
+  The default `InMemoryIdempotencyStore` is for this process only: several processes behind one
+  address share an `IdempotencyStore` of the host's, or leave the step off. The retry middleware
+  repeats a `natural` command, a `keyed` one only with a key, and any other unless it is a
+  mutation.
 - **Journal and replay.** `registry.set_journal(JournalRecorder::new(sink))` appends a
   `JournalEntry` for each accepted call (`spec/journal.md`): the validated input, the actor, trace ID
   and interface, the values of the declared context fields marked `journal: true`, a context hash

@@ -609,6 +609,7 @@ fn detail_entry(
             .map(|value| json!(value)),
     );
     optional("mutation", Some(json!(command.mutation)));
+    optional("idempotency", command.idempotency.map(|value| json!(value)));
     optional(
         "executionTime",
         command.execution_time.as_ref().map(|value| json!(value)),

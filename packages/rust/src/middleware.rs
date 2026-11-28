@@ -289,10 +289,13 @@ pub struct RetryOptions {
     pub random: Option<Arc<dyn RandomSource>>,
     /// Waits between attempts. Defaults to `tokio::time::sleep` (the `native` feature).
     pub sleep: Option<SleepFn>,
-    /// Retry a command declaring [`mutation`](crate::CommandDefinition::as_mutation) too (default
-    /// `false`). A failed mutation, such as one whose handler returned `TIMEOUT` after a
-    /// downstream write, may already have applied its change, so retrying it can apply it twice.
-    /// Set this only when every mutation the middleware wraps is safe to repeat.
+    /// Retry every command, whatever it declares (default `false`; `spec/idempotency.md`, R2).
+    /// Without it, a command is retried only when it declares `idempotency` `natural`, declares
+    /// `keyed` and the call carries an idempotency key, or does not declare
+    /// [`mutation`](crate::CommandDefinition::as_mutation). A failed mutation, such as one whose
+    /// handler returned `TIMEOUT` after a downstream write, may already have applied its change,
+    /// so retrying it can apply it twice. Set this only when every mutation the middleware wraps
+    /// is safe to repeat.
     pub retry_mutations: bool,
 }
 
@@ -324,8 +327,11 @@ fn backoff(retry: u32, base_ms: u64, max_ms: u64) -> u64 {
 /// cancellation signal fires stops waiting and returns the last failure. Each attempt runs the
 /// rest of the chain with a copy of the context.
 ///
-/// A command declaring `mutation` is never retried unless [`RetryOptions::retry_mutations`] is
-/// set. The middleware reads the declaration from the command the registry runs for the call,
+/// Which commands it repeats follows the command's declaration (`spec/idempotency.md`, R1): one
+/// that declares [`Natural`](crate::IdempotencySupport::Natural) is repeated; one that declares
+/// [`Keyed`](crate::IdempotencySupport::Keyed) only when the call carries an idempotency key and
+/// is not a task run; any other unless it declares `mutation`. [`RetryOptions::retry_mutations`]
+/// restores retrying every command (R2). The middleware reads the declaration from the command the registry runs for the call,
 /// never from its name; a call whose declaration it cannot read (outside
 /// [`CommandRegistry::execute`](crate::CommandRegistry::execute), or with a context kept past
 /// the call that made it) counts as a mutation. Unlike TypeScript, Python and C++, it does not
@@ -360,8 +366,8 @@ pub fn create_retry_middleware(options: RetryOptions) -> Result<CommandMiddlewar
             || context
                 .approval_admission
                 .as_deref()
-                .and_then(|admission| admission.live_mutation(&name))
-                == Some(false);
+                .and_then(|admission| admission.live_declaration(&name))
+                .is_some_and(repeatable);
         let (sleep, should_retry, random) = (
             Arc::clone(&sleep),
             Arc::clone(&should_retry),
@@ -398,6 +404,17 @@ pub fn create_retry_middleware(options: RetryOptions) -> Result<CommandMiddlewar
             result
         })
     }))
+}
+
+/// Whether a call may be repeated, from its command's declaration (`spec/idempotency.md`, R1), in
+/// order: a `natural` command is; a `keyed` one only when the call carries a key (and is not a
+/// task run); any other unless it declares `mutation`.
+fn repeatable(declaration: crate::approval::admission::RetryDeclaration) -> bool {
+    match declaration.idempotency {
+        Some(crate::IdempotencySupport::Natural) => true,
+        Some(crate::IdempotencySupport::Keyed) => declaration.carries_key,
+        None => !declaration.mutation,
+    }
 }
 
 #[cfg(feature = "native")]
