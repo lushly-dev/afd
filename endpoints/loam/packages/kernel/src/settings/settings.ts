@@ -404,7 +404,7 @@ export function createSettings(deps: SettingsDeps): Settings {
 				'Set it in a local deployment, or wait for the release that serves it'
 			);
 		}
-		if (rule.rule === 'owner' && !deps.isOwner(personKeyOf(context))) {
+		if (rule.rule === 'owner' && !deps.isOwner(personKeyOf(context), context)) {
 			return fail(
 				'OWNER_REQUIRED',
 				'Only an owner of the workspace can set a workspace value',

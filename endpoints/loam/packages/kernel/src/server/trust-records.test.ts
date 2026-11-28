@@ -223,3 +223,17 @@ describe("the provider's removal hook (A4, A8)", () => {
 		);
 	});
 });
+
+describe("the owner checks read the call's principal (phase 3, 9.5; #2785)", () => {
+	it("decides limit-usage-get's owner check on the principal's role, never the kernel-wide empty membership", async () => {
+		// A principal-gated kernel holds no members kernel-wide, so a check that read it refused every owner.
+		const owner = await call(OWNER, 'owner', 'limit-usage-get', {});
+		expect(owner.success).toBe(true);
+		expect((await call(MEMBER, 'member', 'limit-usage-get', {})).error?.code).toBe(
+			'OWNER_REQUIRED'
+		);
+		// The settings', experiments' and autonomy's workspace writes refuse first on a hosted deployment
+		// (`SHARED_RECORD_UNAVAILABLE`), so this read is the owner check a server call reaches today; whichever of them
+		// a server list serves first brings its own server test.
+	});
+});

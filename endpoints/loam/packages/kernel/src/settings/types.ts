@@ -66,8 +66,8 @@ export interface SettingsDeps {
 	hosted(): boolean;
 	/** Whether a replay runs, whose entries are what ran (phase 2 specification, 10). */
 	replaying(): boolean;
-	/** Whether `person` is an owner, on the membership the kernel holds (phase 3 specification, 7.1). */
-	isOwner(person: string | undefined): boolean;
+	/** Whether `person` is an owner, on the membership `call` reads: on the server its principal's (phase 3 specification, 7.1 and 9.5). */
+	isOwner(person: string | undefined, call: { actor?: unknown }): boolean;
 	/** Why `instance` cannot open in `project`: a project write of an app's key needs the app enabled there (3.2). */
 	canOpen(instance: string, project: string | undefined): CommandResult<never> | undefined;
 	/**

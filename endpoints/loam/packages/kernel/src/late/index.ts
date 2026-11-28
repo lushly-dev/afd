@@ -606,7 +606,7 @@ export async function createLateParts(
 		recordId: (person) => (provider ? `loam.settings~${person ?? 'signed-out'}` : 'loam.settings'),
 		hosted,
 		replaying: () => deps.internals?.replaying === true,
-		isOwner: (person) => isOwner(deps.scope.membership, person),
+		isOwner: (person, call) => isOwner(deps.scope.membershipOf(call), person),
 		canOpen: (instance, project) => canOpen(deps.apps(), deps.scope, instance, project),
 		// `loam.documents.trashDays` written through to the workspace row the trash's expiry reads (A-P2-2), in one batch.
 		async trashDays(days, context, also) {
@@ -651,7 +651,7 @@ export async function createLateParts(
 		scope: deps.scope,
 		apps: deps.apps,
 		...(deps.limits ? { limits: deps.limits } : {}),
-		isOwner: (person) => isOwner(deps.scope.membership, person),
+		isOwner: (person, call) => isOwner(deps.scope.membershipOf(call), person),
 		provider,
 		// The owners' notice (section 11), through step 5's inbox, as the orphan notice is: in `local` mode to the one
 		// person the shell is for, every person an owner; in `provider` mode none, until the owner roster is a server record.
@@ -687,7 +687,7 @@ export async function createLateParts(
 		internal: (name) => INTERNAL_COMMANDS.includes(name),
 		isMutation: deps.isMutation,
 		hosted,
-		isOwner: (person) => isOwner(deps.scope.membership, person),
+		isOwner: (person, call) => isOwner(deps.scope.membershipOf(call), person),
 		// The rule `project-update { access }` decides by (D87, D110): a `team` instance still listed names it.
 		teamListed: (project) => teamListed(deps.scope.workspaceApps.all(), project.slug),
 		ownValue: (section, key, context) => (settings as Settings).ownValue(section, key, context),
@@ -929,7 +929,7 @@ export async function createLateParts(
 		apps: deps.apps,
 		provider,
 		hosted,
-		isOwner: (person) => isOwner(deps.scope.membership, person),
+		isOwner: (person, call) => isOwner(deps.scope.membershipOf(call), person),
 		person: () => shellPerson() ?? (provider ? undefined : 'local'),
 		ownSection: (person, section) => (settings as Settings).ownSection(person, section),
 		writeOwn: (section, key, entry, context) =>
