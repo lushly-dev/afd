@@ -26,6 +26,7 @@ import {
 } from '@lushly-dev/afd-core';
 import { liveSecret } from './approval-admission.js';
 import { JOURNALED_CONTEXT_FIELDS } from './context-fields.js';
+import { dispatchSource, hasDispatchViews, runWithSources } from './journal-view.js';
 import { EFFECTIVE_OUTPUT_BUDGET } from './output-budget.js';
 
 /** Most bytes of UTF-8 canonical JSON a journaled context field value may take (`spec/journal.md`). */
@@ -129,7 +130,9 @@ export interface JournalRedactInfo {
  * context rather than wrapping them.
  */
 async function offTape(context: CommandContext, next: () => Promise<CommandResult>) {
-	const { clock, random } = context;
+	// The sources this dispatch reads, never another call's on the same context (#2890).
+	const clock = dispatchSource(context, 'clock');
+	const random = dispatchSource(context, 'random');
 	// Every recording layer's tape, not only the nearest: an outer journal around the parent loses
 	// these reads too, so its replay must also say it cannot restore every value.
 	const tapes: JournalTape[] = [];
@@ -143,16 +146,20 @@ async function offTape(context: CommandContext, next: () => Promise<CommandResul
 		if (layer[TAPE] && !tapes.includes(layer[TAPE])) tapes.push(layer[TAPE]);
 		source = layer[UNTAPED];
 	}
-	if (tapes.length === 0) return next();
 	for (const tape of tapes) tape.truncated = true;
-	if (clock) context.clock = untaped(clock);
-	if (random) context.random = untapedRandom(random);
-	try {
-		return await next();
-	} finally {
-		context.clock = clock;
-		context.random = random;
-	}
+	// Even with no tape around it: the call then keeps its own scope for its whole length, so a
+	// read it makes is never taken for its parent's once a sibling off-tape call ends (#2890).
+	if (tapes.length === 0 && !hasDispatchViews) return next();
+	return runWithSources(
+		context,
+		{
+			...(clock ? { clock: untaped(clock) } : {}),
+			...(random ? { random: untapedRandom(random) } : {}),
+		},
+		next,
+		// With no tape around it, the scope only guards siblings: never swap a source for it.
+		{ offTape: true, optional: tapes.length === 0 }
+	);
 }
 
 /** The value under {@link JOURNAL_REPLAY}. */
@@ -352,8 +359,6 @@ export function createJournalMiddleware(
 	/** Settles when the last call to finish has appended, or given up: the next one appends after it. */
 	let turn: Promise<void> = Promise.resolve();
 
-	/** Contexts already moved off their parent's tape: a secret call's second pass records as usual. */
-	const offParentTape = new WeakSet<CommandContext>();
 	const middleware: CommandMiddleware = async (commandName, input, context, next) => {
 		const replay = (context as Record<symbol, unknown>)[JOURNAL_REPLAY] as
 			| JournalReplayMarker
@@ -375,14 +380,26 @@ export function createJournalMiddleware(
 		// A secret call, or one whose declaration cannot be read, recorded or skipped by `filter`,
 		// reads off its parent's tape too: its own recording, if any, keeps its reads on its own
 		// entry, for `redact` to drop.
-		if (secret !== false && !offParentTape.has(context)) {
-			offParentTape.add(context);
-			return offTape(context, () => middleware(commandName, input, context, next));
+		// Decided for this call, not for its context, which a concurrent call may share (#2890).
+		if (secret !== false) {
+			return offTape(context, () => record(commandName, input, context, next, secret));
 		}
+		return record(commandName, input, context, next, secret);
+	};
+
+	/** Record the call, when `filter` admits it, on a tape of its own. */
+	async function record(
+		commandName: string,
+		input: unknown,
+		context: CommandContext,
+		next: () => Promise<CommandResult>,
+		secret: boolean | undefined
+	): Promise<CommandResult> {
 		if (!filter(commandName)) return next();
 
-		const clock = context.clock ?? systemClock;
-		const random = context.random ?? systemRandom;
+		// The sources this dispatch reads, never another call's on the same context (#2890).
+		const clock = dispatchSource(context, 'clock') ?? systemClock;
+		const random = dispatchSource(context, 'random') ?? systemRandom;
 		// Read the immutable effective output budget captured by the execution engine before
 		// middleware ran, so neither earlier middleware nor the handler mutating
 		// `context.outputBudget` can alter the journaled value or context digest (B8).
@@ -396,10 +413,9 @@ export function createJournalMiddleware(
 				? rawEffectiveBudget
 				: undefined;
 		const tape: JournalTape = { clock: [], random: [] };
-		// The same context object reaches the handler, so swapping its sources records what it reads.
+		// The same context object reaches the handler, so giving this dispatch recording sources on
+		// it records what the handler reads, and only this dispatch's reads.
 		const recording = recordingSources(clock, random, tape, maxTapeReads);
-		context.clock = recording.clock;
-		context.random = recording.random;
 
 		// This journal's own timing reads the clock under any outer journal's recorder.
 		const timing = untaped(clock);
@@ -407,12 +423,13 @@ export function createJournalMiddleware(
 		let result: CommandResult | undefined;
 		let thrown: { error: unknown } | undefined;
 		try {
-			result = await next();
+			result = await runWithSources(context, recording, next, {
+				missed: () => {
+					tape.truncated = true;
+				},
+			});
 		} catch (error) {
 			thrown = { error };
-		} finally {
-			context.clock = clock;
-			context.random = random;
 		}
 		const durationMs = Math.max(0, timing.now() - start);
 
@@ -444,10 +461,19 @@ export function createJournalMiddleware(
 					? { ok: false, result: unserializableResult(), error: successThrown.error }
 					: copyResult(recorded);
 				if (!copied.ok) reportError(onError, copied.error);
-				const digestContext =
-					context.outputBudget === effectiveOutputBudget
-						? context
-						: { ...context, outputBudget: effectiveOutputBudget };
+				// The recorder used to leave the sources it read on the context, so the digest's keys
+				// have always named them: kept, without writing to a context others may share.
+				// Its own fields defined first (a spread sets no property through a setter), then the
+				// context as its prototype, so what the context inherits (an `interface`) is still read.
+				const digestContext: CommandContext = Object.setPrototypeOf(
+					{
+						...context,
+						clock: context.clock ?? clock,
+						random: context.random ?? random,
+						outputBudget: effectiveOutputBudget,
+					},
+					context
+				);
 				const draft: JournalRecord = {
 					timestamp: new Date(start).toISOString(),
 					...(typeof context.traceId === 'string' ? { traceId: context.traceId } : {}),
@@ -479,6 +505,6 @@ export function createJournalMiddleware(
 
 		if (thrown) throw thrown.error;
 		return recorded;
-	};
+	}
 	return middleware;
 }
