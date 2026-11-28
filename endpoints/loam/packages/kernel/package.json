@@ -61,12 +61,12 @@
 	},
 	"devDependencies": {
 		"@lushly-dev/afd-client": "workspace:*",
-		"@types/node": "^26.6.6",
-		"@vitest/coverage-v8": "^5.1.1",
+		"@types/node": "^26.6.10",
+		"@vitest/coverage-v8": "^5.1.2",
 		"fake-indexeddb": "^6.2.8",
 		"rimraf": "^6.1.4",
 		"typescript": "^7.0.2",
-		"vitest": "^5.1.1",
+		"vitest": "^5.1.2",
 		"@lushly-dev/loam-copilot": "workspace:*",
 		"@lushly-dev/afd-testing": "workspace:*"
 	},
