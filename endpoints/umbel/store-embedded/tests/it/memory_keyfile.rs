@@ -271,9 +271,14 @@ fn files_in(dir: &Path) -> Vec<String> {
 /// and whether it exited successfully.
 fn child(dir: &Path, op: &str, env: &[(&str, &str)]) -> (bool, String) {
     let exe = std::env::current_exe().expect("the test binary");
+    // The child runs in a directory of its own, not the crate's, so a core dump lands outside the
+    // checkout and outside `dir`; the crash point turns dumps off, which the check below holds
+    // it to where the host allows them (#2898).
+    let cwd = tempfile::tempdir().expect("a working directory for the child");
     let mut command = Command::new(exe);
     command
         .args(["--exact", "memory_keyfile::keyfile_child", "--nocapture"])
+        .current_dir(cwd.path())
         .env(CHILD_DIR, dir)
         .env(CHILD_OP, op)
         .stdout(Stdio::piped())
@@ -282,6 +287,13 @@ fn child(dir: &Path, op: &str, env: &[(&str, &str)]) -> (bool, String) {
         command.env(k, v);
     }
     let output = command.output().expect("running the child");
+    assert!(
+        std::fs::read_dir(cwd.path())
+            .expect("the child's working directory")
+            .next()
+            .is_none(),
+        "the child left a file where it ran: a core dump the crash point should have turned off"
+    );
     (
         output.status.success(),
         String::from_utf8_lossy(&output.stdout).into_owned(),

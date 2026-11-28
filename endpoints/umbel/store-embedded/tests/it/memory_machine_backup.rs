@@ -140,12 +140,17 @@ mod macos {
         // carried is what the key file has.
         let dir = tempfile::tempdir().expect("a temporary directory");
         let exe = std::env::current_exe().expect("the test binary");
+        // The child runs in a directory of its own, not the crate's, so a core dump lands outside
+        // the checkout and outside `dir`; the crash point turns dumps off, which the check below
+        // holds it to where the host allows them (#2898).
+        let cwd = tempfile::tempdir().expect("a working directory for the child");
         let status = Command::new(exe)
             .args([
                 "--exact",
                 "memory_machine_backup::macos::machine_backup_child",
                 "--nocapture",
             ])
+            .current_dir(cwd.path())
             .env("UMBEL_MB_CHILD", dir.path())
             .env("UMBEL_TEST_CRASH_AT", "provision-keys")
             .stdout(Stdio::null())
@@ -153,6 +158,13 @@ mod macos {
             .status()
             .expect("the child");
         assert!(!status.success(), "the child aborts after the rename");
+        assert!(
+            std::fs::read_dir(cwd.path())
+                .expect("the child's working directory")
+                .next()
+                .is_none(),
+            "the child left a file where it ran: a core dump the crash point should have turned off"
+        );
         let store_dir = dir.path().join("store");
         assert!(excluded(&store_dir.join("memory.keys")), "the key file");
         assert!(

@@ -126,7 +126,8 @@ Run it from a clean clone inside the container, never with the host's checkout o
 
 ```sh
 sha=$(git rev-parse origin/main)
-docker run --name loam-os-check --init --shm-size=2g loam-os-session@sha256:<hex> bash -c "
+docker run --name loam-os-check --init --shm-size=2g --ulimit core=0 \
+  loam-os-session@sha256:<hex> bash -c "
   git clone https://github.com/lushly-dev/afd.git ~/afd && cd ~/afd &&
   git checkout --detach $sha &&
   pnpm install --frozen-lockfile &&
@@ -134,6 +135,14 @@ docker run --name loam-os-check --init --shm-size=2g loam-os-session@sha256:<hex
 ```
 
 - `--shm-size=2g`: Chromium needs more shared memory than Docker's 64 MB default.
+- `--ulimit core=0`: no process in the container writes a core dump. Under Colima on `random` a
+  container's core limit is unlimited and the kernel's `core_pattern` is `core`, so a crash
+  writes a `core` file into its working directory (Docker Desktop on Hero sets the limit to 0 and
+  pipes dumps away). A file left in the clone keeps `pnpm verify` from writing its record. The
+  image cannot set this: the limit is the runtime's, and an entrypoint's `ulimit` would not reach
+  `docker exec`. Umbel's crash-point tests turn off their own dumps since
+  [#2898](https://github.com/lushly-dev/afd/issues/2898); the flag covers a crash nobody planned.
+  M1's host is to start its machines with the same limit (a follow-up in the Loam OS STATUS).
 - `--keep-going` runs every suite and prints a summary with each step's time, so one failure
   does not hide the rest.
 - The container needs the network for the clone and the install, and for the first build of
@@ -143,10 +152,13 @@ docker run --name loam-os-check --init --shm-size=2g loam-os-session@sha256:<hex
   mount: Colima shares only the home folder with its virtual machine, so a path on another
   volume, such as `/Volumes/Dev`, mounts as an empty folder.
 
-The check passes when the summary has no `FAIL`. Record its duration and per-suite result. A
-suite that fails only in this image and not on CI's Linux runners is the image's to fix; a suite
-that fails because of a real bug on Linux is filed as an issue under the Loam OS epic
-([#2595](https://github.com/lushly-dev/afd/issues/2595)), and the image waits for its fix.
+The check passes when the summary has no `FAIL` and verify ends with
+`[verify] recorded the pass for <sha>`; `no record for pre-push: the checkout changed while
+verify ran` means a step left a file in the clone (`git status --porcelain` names it). Record
+its duration and per-suite result. A suite that fails only in this image and not on CI's Linux
+runners is the image's to fix; a suite that fails because of a real bug on Linux is filed as an
+issue under the Loam OS epic ([#2595](https://github.com/lushly-dev/afd/issues/2595)), and the
+image waits for its fix.
 
 Remove the container afterwards: `docker rm loam-os-check`.
 

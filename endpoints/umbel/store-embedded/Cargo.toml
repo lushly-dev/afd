@@ -29,6 +29,9 @@ serde_json = "1"
 # Per-record keys for memory (phase 3 section 5.4, D82): XChaCha20-Poly1305, with keys, nonces and
 # the store id from the operating system through `getrandom`; the cipher zeroizes its key copy.
 chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc", "getrandom", "zeroize"] }
+# The `testkit` crash points turn off core dumps before they abort, so a crash test leaves no
+# `core` file where the child ran (#2898). Only that feature pulls it in.
+umbel-process = { path = "../process", optional = true }
 
 # The Time Machine exclusion of memory's files (section 5.4, D87): `setxattr` and its kin, in one
 # macOS-only module.
@@ -41,7 +44,7 @@ libc = "0.2.191"
 # rebuild. It also adds `SqliteStore::hold_reader`, a reader holding the write-ahead log, for tests
 # in crates that do not link SQLite (phase 4 section 9.1). `cargo test` enables it through the
 # dev-dependency on this crate; a build without it has no such points.
-testkit = []
+testkit = ["dep:umbel-process"]
 
 [dev-dependencies]
 # The conformance suite, and a directory per test.

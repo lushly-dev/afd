@@ -3,6 +3,7 @@
 //! The `umbel` host crate forbids `unsafe` code (`#![forbid(unsafe_code)]`). Mirroring
 //! `umbel-windows`, the small platform FFI needed to keep inherited descriptors out of a mounted
 //! stdio child (and to check Unix execute permissions accurately) lives here behind safe functions.
+//! So does turning off core dumps in a process about to abort on purpose (the store's crash points).
 
 use std::path::Path;
 use std::process::Command;
@@ -50,6 +51,27 @@ pub fn is_executable_by_current_user(path: &Path) -> bool {
     }
 }
 
+/// Turn off core dumps for the current process, for a process about to abort on purpose.
+///
+/// On Unix, lowers the soft `RLIMIT_CORE` to `0` and keeps the hard limit, so a later
+/// `std::process::abort()` writes no `core` file into the working directory, whatever the
+/// machine's `ulimit -c` (a container's may be unlimited, as Colima's are). The process's
+/// children inherit the limit. On other systems, does nothing and answers `Ok`.
+///
+/// # Errors
+///
+/// The operating system's error, if `getrlimit` or `setrlimit` fails.
+pub fn disable_core_dumps() -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        unix::disable_core_dumps()
+    }
+    #[cfg(not(unix))]
+    {
+        Ok(())
+    }
+}
+
 #[cfg(unix)]
 #[allow(unsafe_code)]
 mod unix {
@@ -70,6 +92,24 @@ mod unix {
         };
         // SAFETY: `c_path` is a valid NUL-terminated string.
         unsafe { libc::access(c_path.as_ptr(), libc::X_OK) == 0 }
+    }
+
+    pub(super) fn disable_core_dumps() -> io::Result<()> {
+        let mut rlim = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
+        // SAFETY: `rlim` is a valid mutable `libc::rlimit` pointer.
+        if unsafe { libc::getrlimit(libc::RLIMIT_CORE, &mut rlim) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        rlim.rlim_cur = 0;
+        // SAFETY: `rlim` is a valid `libc::rlimit`; a soft limit at or below the hard limit needs
+        // no privilege to set.
+        if unsafe { libc::setrlimit(libc::RLIMIT_CORE, &rlim) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
     }
 
     pub(super) fn close_extra_fds(command: &mut Command) {
@@ -441,6 +481,42 @@ mod tests {
             status.success(),
             "child saw inherited high-numbered fd {high_fd}"
         );
+    }
+
+    /// The soft core limit a child shell reads back with `ulimit -c`.
+    fn child_core_limit() -> String {
+        let output = Command::new("/bin/sh")
+            .args(["-c", "ulimit -c"])
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        String::from_utf8_lossy(&output.stdout).trim().to_owned()
+    }
+
+    #[test]
+    fn disable_core_dumps_sets_the_soft_limit_to_zero() {
+        // Raise the soft limit to the hard one first, so the test sees a change where the host
+        // allows cores at all (on macOS and GitHub's runners the soft limit is already 0). The
+        // test process's own limits are harmless to change; a child inherits them.
+        let mut rlim = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
+        // SAFETY: `rlim` is a valid mutable `libc::rlimit` pointer.
+        assert_eq!(unsafe { libc::getrlimit(libc::RLIMIT_CORE, &mut rlim) }, 0);
+        if rlim.rlim_max != 0 {
+            rlim.rlim_cur = rlim.rlim_max;
+            // SAFETY: `rlim` is a valid `libc::rlimit` whose soft limit equals its hard limit.
+            assert_eq!(unsafe { libc::setrlimit(libc::RLIMIT_CORE, &rlim) }, 0);
+            assert_ne!(child_core_limit(), "0", "the soft limit was raised");
+        }
+        let hard = rlim.rlim_max;
+        super::disable_core_dumps().unwrap();
+        assert_eq!(child_core_limit(), "0");
+        // SAFETY: `rlim` is a valid mutable `libc::rlimit` pointer.
+        assert_eq!(unsafe { libc::getrlimit(libc::RLIMIT_CORE, &mut rlim) }, 0);
+        assert_eq!(rlim.rlim_max, hard, "the hard limit is kept");
     }
 
     #[test]

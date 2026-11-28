@@ -17,11 +17,14 @@ pub(crate) const CRASH_AT: &str = "UMBEL_TEST_CRASH_AT";
 #[cfg(feature = "testkit")]
 pub(crate) const FAIL_AT: &str = "UMBEL_TEST_FAIL_AT";
 
-/// Abort here when `UMBEL_TEST_CRASH_AT` names `point`.
+/// Abort here when `UMBEL_TEST_CRASH_AT` names `point`. Core dumps are turned off first, so the
+/// abort leaves no `core` file in the working directory where `ulimit -c` allows one, as in a
+/// container (#2898); a failure to turn them off does not stop the abort.
 #[inline]
 pub(crate) fn crash(point: &str) {
     #[cfg(feature = "testkit")]
     if std::env::var(CRASH_AT).as_deref() == Ok(point) {
+        let _ = umbel_process::disable_core_dumps();
         std::process::abort();
     }
     let _ = point;

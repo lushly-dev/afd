@@ -4842,6 +4842,7 @@ dependencies = [
  "tantivy-query-grammar",
  "tempfile",
  "time",
+ "umbel-process",
  "umbel-store",
  "umbel-store-embedded",
 ]
