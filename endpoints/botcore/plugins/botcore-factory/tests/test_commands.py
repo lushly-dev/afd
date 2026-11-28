@@ -722,6 +722,45 @@ async def test_cells_start_only_on_a_claude_plan(make_run):
     assert result.data["cell"]["plan"] == "claudeAgent:seven_day"
 
 
+async def test_a_stale_plan_is_shown_and_never_assigned(make_run):
+    """lushly-dev/afd#2691: a roomier Claude plan whose cache is out of date is passed over for
+    the fresh one, and lane-status says it is stale rather than dropping it silently."""
+    stale = {**GPT_ROOMIER[1], "id": "claudeAgent_2:seven_day", "used": 0,
+             "stale": "the window reset at 2030-01-01T00:00:00Z"}  # fmt: skip
+    run = make_run("backlog", plans=[*GPT_ROOMIER, stale])
+    status = (await run.call("lane_status")).data
+    assert status["plan"]["id"] == "claudeAgent:seven_day"
+    assert status["stalePlans"] == [
+        {"id": "claudeAgent_2:seven_day", "reason": "the window reset at 2030-01-01T00:00:00Z"}
+    ]
+    listed = (await run.call("plan_list")).data
+    assert listed["next"] == "claudeAgent:seven_day"
+    assert {p["id"]: p.get("stale") for p in listed["plans"]}["claudeAgent_2:seven_day"]
+
+
+async def test_when_every_claude_plan_is_stale_the_refusal_says_so(make_run):
+    stale = {**GPT_ROOMIER[1], "stale": "its cache was last checked at 2029-12-20T00:00:00Z"}
+    run = make_run("backlog", plans=[GPT_ROOMIER[0], stale])
+    status = (await run.call("lane_status")).data
+    assert status["canStartCell"] is False and "out of date" in status["reason"]
+    refused = await run.call(
+        "cell_register", branch="fix/server-timeout", issues=[206], route="opus/medium"
+    )
+    assert refused.error.code == "PLANS_STALE"
+    assert "claudeAgent:seven_day" in refused.error.message
+
+
+async def test_a_ceiling_refusal_counts_the_stale_plans_beside_it(make_run):
+    stale = {**GPT_ROOMIER[1], "id": "claudeAgent_2:seven_day", "stale": "its window reset"}
+    full = {**GPT_ROOMIER[1], "used": 90}
+    run = make_run("backlog", plans=[GPT_ROOMIER[0], full, stale])
+    refused = await run.call(
+        "cell_register", branch="fix/server-timeout", issues=[206], route="opus/medium"
+    )
+    assert refused.error.code == "PLAN_ABOVE_CEILING"
+    assert "or stale (1: see stalePlans)" in refused.error.message
+
+
 async def test_the_dial_lets_cells_take_any_plan(make_run):
     run = make_run("backlog", plans=GPT_ROOMIER, dials={"cells.claudeOnly": False})
     assert (await run.call("plan_list")).data["next"] == "codex:primary"

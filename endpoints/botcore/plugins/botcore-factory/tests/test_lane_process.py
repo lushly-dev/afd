@@ -9,7 +9,13 @@ import sys
 import pytest
 
 from botcore_factory.fixture_world import FIXTURE_LANE_PID
-from botcore_factory.lane_process import host_lock, pins, run_loop, toolchain_mismatches
+from botcore_factory.lane_process import (
+    LANE_LOG_ENV,
+    host_lock,
+    pins,
+    run_loop,
+    toolchain_mismatches,
+)
 from botcore_factory.lock import LaneLocked
 from botcore_factory.runtime import Refusal
 
@@ -190,6 +196,9 @@ async def test_lane_start_starts_the_lane_detached_and_hands_it_the_lock(make_ru
     detached = run.world_data()["processes"]["detached"][str(data["pid"])]
     assert detached[:3] == [sys.executable, "-m", "botcore_factory.lane_main"]
     assert detached[3] == "--target"
+    log = str(run.store.root / "lane.log")
+    assert detached[5:] == ["--log", log], "the lane writes and records its own log"
+    assert run.state()["lane"]["log"] == log
     assert lock_of(run).live_holder()["pid"] == data["pid"]
     lane = run.state()["lane"]
     assert (lane["running"], lane["pid"], lane["runId"]) == (True, data["pid"], "run-1")
@@ -244,6 +253,40 @@ async def test_a_dead_lane_is_noticed_by_status_and_wait(make_run):
     assert [e["type"] for e in waited["events"]].count("lane-stopped") == 1
     await run.call("lane_status")  # Noticed once.
     assert len([e for e in run.state()["events"] if e["type"] == "lane-stopped"]) == 1
+
+
+async def test_a_dead_lane_names_the_log_it_recorded(make_run):
+    """lushly-dev/afd#2836: lane-stopped named lane.log even when the lane's output went to a
+    scheduled task's log; it names the file the lane recorded, or none."""
+    for log in ("C:/state/lane-task.log", None):
+        run = make_run("running", lane={"log": log})
+        data = run.world_data()
+        data["processes"]["alive"].remove(FIXTURE_LANE_PID)
+        run.world_path.write_text(json.dumps(data))
+        status = (await run.call("lane_status")).data
+        [stopped] = [e for e in status["openEvents"] if e["type"] == "lane-stopped"]
+        assert stopped.get("logPath") == log
+        assert ("read its log" in stopped["detail"]) is (log is not None)
+    # Started by a lane-start from before the lane recorded its log: lane.log is where it wrote.
+    run = make_run("running")
+    data = run.world_data()
+    data["processes"]["alive"].remove(FIXTURE_LANE_PID)
+    run.world_path.write_text(json.dumps(data))
+    status = (await run.call("lane_status")).data
+    [stopped] = [e for e in status["openEvents"] if e["type"] == "lane-stopped"]
+    assert stopped["logPath"] == str(run.store.root / "lane.log")
+
+
+def test_run_loop_records_the_log_its_launcher_named(make_run, monkeypatch):
+    monkeypatch.setenv(LANE_LOG_ENV, "C:/state/lane-task.log")
+    run = make_run("running", lane={"running": False})
+    lock_of(run).release(FIXTURE_LANE_PID)
+    seen = []
+    run_loop(
+        run.factory(), steps=2, sleep=lambda _: seen.append(run.state()["lane"].get("log")),
+        poll=0,
+    )  # fmt: skip
+    assert seen == ["C:/state/lane-task.log"]
 
 
 def test_run_loop_takes_the_lock_steps_and_ends_the_run(make_run):

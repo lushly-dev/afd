@@ -61,7 +61,7 @@ until it is resolved.
 | `main-broken` | The lane has paused. With `reason` `unchecked-merge`, a check failed on `main` after a merge the lane advanced past a moved `main` without validating it again (an unrelated move, or one past `lane.maxBaseReruns`); `suspects` are those PRs, the first places to look. `lane-drop` or leave queued what a broken `main` would eject. File a `priority:1` issue naming the merge at fault, labelled `status:planned` and one `execution:*` so it is dispatchable, and start a cell on it; reverting is that cell's work (`lane-revert` is not built yet). Then `lane-resume` and `event-resolve` it, so the next foreman does not file it again |
 | `merged-without-check` | Check that PR's required check; if it failed, treat it as `main-broken`; otherwise `event-resolve {"id": "<event id>", "note": "Required check passed"}` |
 | `lane-error` | Fix what the detail names (network, `gh` sign-in, the lane's checkout), then `lane-resume`. One that says a pull request has waited in the merge queue past `lane.checkTimeoutMinutes` left it queued: read the queue on GitHub (a stuck or long queue is the owner's to clear), then `lane-resume`, which starts the wait again. Only a sign-in goes to the owner |
-| `lane-stopped` | Read the end of `lane.log` in the lane's state directory, then `lane-start` and `event-resolve` it |
+| `lane-stopped` | Read the end of the event's `logPath` (`lane.log` in the lane's state directory when `lane-start` started it), then `lane-start` and `event-resolve` it. No `logPath`: the launcher did not pass `--log`, so read wherever it sent the output |
 | `queue-empty` | Run `triage-issues`; if a cell can start, start it and then `event-resolve` this; otherwise leave it open (resolving it with nothing to start makes the lane say it again) and finish or wait for a reset |
 
 ## Plans
@@ -79,6 +79,15 @@ that hits a usage limit stalls while holding its claim. Dials (`dial-get`, `dial
 `lane-pause` and choosing the lane host are the owner's.
 
 ## Host notes
+
+- **A lane kept running by the host** (a Windows scheduled task, a launchd or systemd unit)
+  runs the line `lane-start` does, from the botcore-factory environment:
+  `python -m botcore_factory.lane_main --target <checkout> --log <state>/lane.log`, where
+  `<state>` is the lane's state directory (`%LOCALAPPDATA%\botcore-factory\<owner>--<name>` on
+  Windows). Without `--log` the lane records no log and `lane-stopped` names none. On Windows
+  the lane ignores console Ctrl+C and Ctrl+Break itself and writes `ignored console control
+  event 1` to its log for each Ctrl+Break (lushly-dev/afd#2836); a console that closes still
+  ends it.
 
 - **`random`** also runs Lushly's script lane. Both lanes take one host validation lock
   (`~/.cache/lushly-factory/validation-lock.json`), so each waits for the other's validation;

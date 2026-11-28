@@ -127,6 +127,9 @@ class Plan:
     used: float
     elapsed: float
     resets_at: str | None = None
+    #: Why the window's figures are out of date (its cache was not refreshed in time), or None.
+    #: A stale plan is listed but never assigned.
+    stale: str | None = None
 
     @property
     def room(self) -> float:

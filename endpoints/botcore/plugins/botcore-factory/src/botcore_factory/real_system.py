@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from botcore_factory.claims import parse_time
+from botcore_factory.claims import format_time, parse_time
 from botcore_factory.real_run import Run, make_runner, path_env, resolve_program, run_process
 from botcore_factory.world import TAIL_LINES, Clock, Completed, Plan, WorldError, nvmrc_version
 
@@ -235,8 +235,13 @@ def _darwin_available(vm_stat: str) -> int:
 class T3Plans:
     """Plans from T3 Code's provider caches: each weekly usage window is one plan.
 
-    A cache (``~/.t3/caches/<provider>.json``) lists ``usageLimits.windows`` with the share used
+    A cache (``~/.t3/caches/<instance>.json``) lists ``usageLimits.windows`` with the share used
     and when the window resets; the share elapsed follows from the window's length and the clock.
+    The provider is the cache's ``driver`` (an instance's file is named after the instance, as
+    ``claudeAgent_2``), else the file's name. A window that has reset since the cache was checked,
+    or whose cache was checked longer ago than the window lasts, is stale: T3 Code no longer
+    refreshes it (a removed instance leaves its file behind), so its figures say nothing about
+    the plan now (lushly-dev/afd#2691).
     """
 
     def __init__(self, clock: Clock, caches: Path | None = None) -> None:
@@ -252,7 +257,10 @@ class T3Plans:
         now = self.clock.now()
         for path in files:
             try:
-                usage = json.loads(path.read_text(encoding="utf-8")).get("usageLimits") or {}
+                cache = json.loads(path.read_text(encoding="utf-8"))
+                usage = cache.get("usageLimits") or {}
+                provider = str(cache.get("driver") or path.stem)
+                checked = _checked_at(usage.get("checkedAt")) or _checked_at(cache.get("checkedAt"))
             except (OSError, ValueError, AttributeError):
                 continue  # One unreadable provider cache does not hide the others.
             for window in usage.get("windows") or []:
@@ -268,15 +276,37 @@ class T3Plans:
                 plans.append(
                     Plan(
                         f"{path.stem}:{window['id']}",
-                        path.stem,
+                        provider,
                         float(window.get("usedPercent", 0)),
                         round(elapsed, 1),
                         window["resetsAt"],
+                        _stale(window["resetsAt"], left, checked, length, now),
                     )
                 )
         if not plans:
             raise WorldError(f"No weekly plan windows in T3 Code's caches ({self.caches})")
         return plans
+
+
+def _checked_at(value: object) -> datetime | None:
+    """When T3 Code last checked a cache's usage, or None when the cache does not say."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return parse_time(value)
+    except ValueError:
+        return None
+
+
+def _stale(
+    resets_at: str, left: float, checked: datetime | None, length: float, now: datetime
+) -> str | None:
+    """Why a window's figures are out of date, or None while they still describe it."""
+    if left <= 0:
+        return f"the window reset at {resets_at} and its cache still holds the old figures"
+    if checked is not None and (now - checked).total_seconds() > length:
+        return f"its cache was last checked at {format_time(checked)}, longer ago than the window"
+    return None
 
 
 class OsProcesses:

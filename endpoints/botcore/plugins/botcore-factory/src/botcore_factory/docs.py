@@ -83,7 +83,8 @@ and counts no ejection, once per attempt, and coverage stays owed; it paused and
 since the last green run; or, with `reason` `unchecked-merge`, a check on main's merge commit
 failed after a merge that advanced past a moved base without a new validation, `suspects` the
 PRs merged so; the lane paused), `queue-empty` (a drained move happens here) and
-`lane-stopped` (the lane process is gone; `lane_start`) and `gate-change-held` (an
+`lane-stopped` (the lane process is gone; `logPath` is the log the lane recorded, none when
+its launcher named none; `lane_start`) and `gate-change-held` (an
 `area:factory` or improvement branch stopped checking something, or a repair after a failing
 check edits `gate_paths` by the lane's own check, held for the owner with `holdReason`
 `gate-change`; answered by `measure_approve`, `lane_enqueue` once clean,
@@ -93,7 +94,11 @@ check edits `gate_paths` by the lane's own check, held for the owner with `holdR
 ## The lane
 
 `lane_host_probe()` on each machine publishes its readiness; `lane_host_list()` reads them;
-`lane_host_set(id)` chooses the host. On the host, `lane_start()` starts the lane detached. It
+`lane_host_set(id)` chooses the host. On the host, `lane_start()` starts the lane detached
+(`python -m botcore_factory.lane_main --target <checkout> --log <state>/lane.log`; a launcher
+such as a scheduled task runs the same line, and `--log` makes the lane write and record its own
+log; on Windows the lane ignores console Ctrl+C and Ctrl+Break, which a step may send to its
+whole console, and logs each Ctrl+Break). It
 queues held branches when there is room, validates in `lane.slots` slots (reserved until pushed;
 `slots.busy` includes those waiting to push, except that a validated branch behind the front
 gives its slot to a front branch that needs one and keeps its validation, its checkout moved
@@ -181,7 +186,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   reach `cells.maxEjections` and it waits on the owner: an excuse that brings it under the
   limit seats it again, even past `cells.max`, which then refuses until enough seats free),
   `PLAN_ABOVE_CEILING` (every plan a cell may take at or above
-  `plans.ceiling`; names the next reset), `NO_CLAUDE_PLAN` (no Claude plan while
+  `plans.ceiling`; names the next reset), `PLANS_STALE` (every plan a cell may take comes from
+  a usage cache T3 Code no longer refreshes), `NO_CLAUDE_PLAN` (no Claude plan while
   `cells.claudeOnly` is on),
   `PLANS_UNREADABLE`, `HOST_LOADED` (free memory below `host.minFreeGb`), `DISK_LOW` (free
   disk where the lane's slots or, with `host.buildDir`, their build output are below
@@ -206,7 +212,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   last removal before the request) and `leftAt` (when it was first read out of the queue)),
   `waitingOnOwner` (owner-decision issues, parked cells and ejected cells at the limit, and
   events that need the owner), `dials`, `diskWarnings[]` (botcore `disk-status` warnings on
-  this machine; empty without disk hygiene), `canStartCell` with `plan` (with its `pace`) and
+  this machine; empty without disk hygiene), `stalePlans[] {id, reason}` (plans whose usage
+  cache is out of date: never assigned), `canStartCell` with `plan` (with its `pace`) and
   `nextIssue`, or `reason`. `slots.busy` leaves out a validated branch that gave its slot up.
 - `lane_enqueue(worktree, title?, body_file?)` -> `state` (`queued` or `held`), `position`,
   `head`, `attempt`, `prequeue {stages[]}`, `answered[]`, `holdReason` when held (`queue-full`,
@@ -269,9 +276,12 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   disable auto-merge on GitHub, `lane_resume` a paused lane and wait for its `ejected` event
   first).
 - `plan_list()` -> `plans[] {id, provider, used, elapsed, room, left, pace, daysToReset,
-  aboveCeiling, resetsAt}`, every weekly window but Claude's Fable window, which only Fable
-  draws on; `ceiling`; `next` (the plan `cell_register` assigns: among Claude's plans while
-  `cells.claudeOnly` is on, since cells implement on Opus, the highest `pace`, `left`, the room
+  aboveCeiling, resetsAt, stale?}`, every weekly window but Claude's Fable window, which only
+  Fable draws on (a cache's provider is its `driver`, so every Claude instance counts as Claude;
+  `stale` says why a window whose cache has not been refreshed since it reset, or for longer
+  than the window lasts, is never assigned); `ceiling`; `next` (the plan `cell_register`
+  assigns: among Claude's plans while `cells.claudeOnly` is on, since cells implement on Opus,
+  the highest `pace`, `left`, the room
   below `plans.ceiling`, over the days to its reset, so each plan is spent by its own reset;
   null when no plan can take a cell). Refuses `PLANS_UNREADABLE`.
 - `ejection_excuse(branch, reason, session)` -> `branch`, `attempt`, `cause`, `ejections`,

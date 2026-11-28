@@ -40,6 +40,8 @@ from botcore_factory.world import LANE_HOST_VARIABLE, WorldError, nvmrc_version
 
 POLL_SECONDS = 5.0
 LANE_MODULE = "botcore_factory.lane_main"
+#: The file a lane process writes its output to (``lane_main --log``), for ``run_loop`` to record.
+LANE_LOG_ENV = "BOTCORE_FACTORY_LANE_LOG"
 _VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)")
 
 
@@ -223,11 +225,12 @@ def lane_start(factory: Factory) -> dict[str, Any]:
                 "Stop it with lane-stop first",
                 recovery=call("lane-stop", then_retry=True),
             ) from locked
+        log = str(factory.store.root / "lane.log")
         try:
             pid = factory.world.processes.start_detached(
-                [sys.executable, "-m", LANE_MODULE, "--target", target],
+                [sys.executable, "-m", LANE_MODULE, "--target", target, "--log", log],
                 cwd=target,
-                log=str(factory.store.root / "lane.log"),
+                log=log,
             )
         except WorldError as exc:
             lock.release(os.getpid())
@@ -248,6 +251,7 @@ def lane_start(factory: Factory) -> dict[str, Any]:
             stopRequested=None,
             paused=False,
             pauseReason=None,
+            log=log,
         )
         factory.store.append_record(make("run-started", at, run_id, host=me))
     return {"running": True, "runId": run_id, "pid": pid}
@@ -342,12 +346,16 @@ def check_lane(factory: Factory) -> None:
         lane = state["lane"]
         if not lane.get("running"):
             return
-        pid = lane.get("pid")
+        # A lane an older lane-start started recorded no log key: its output is in lane.log.
+        pid, log = lane.get("pid"), lane.get("log", str(factory.store.root / "lane.log"))
         _end_run(factory, state, "died", kill=False, pid=pid if holder is None else None)
+        gone = f"The lane process{f' (pid {pid})' if pid else ''} is gone"
         Step(factory, state).event(
             "lane-stopped",
-            detail=f"The lane process{f' (pid {pid})' if pid else ''} is gone; read its log",
-            logPath="lane.log",
+            # The log the lane recorded: lane-start's lane.log, or the file a launcher named
+            # with lane_main --log. A lane whose output went elsewhere names none.
+            detail=f"{gone}; read its log" if log else f"{gone}; it recorded no log file",
+            logPath=log,
         )
 
 
@@ -408,17 +416,20 @@ def run_loop(
         # Under the state lock, so a lane-start still handing the lock over has finished.
         holder, pid = lock.live_holder(), os.getpid()
         try:
+            log = os.environ.get(LANE_LOG_ENV) or None
             if holder is None:
                 lock.acquire(pid, repository=factory.world.github.repository())
                 at = _now(factory)
                 run_id = new_run(state, at)
-                state["lane"].update(running=True, pid=pid, runId=run_id, startedAt=at)
+                state["lane"].update(running=True, pid=pid, runId=run_id, startedAt=at, log=log)
                 factory.store.append_record(make("run-started", at, run_id, host=me))
             elif started_by_parent(factory, state, holder):
                 # A Windows venv's python.exe is a launcher that runs the interpreter as its
                 # child: lane-start handed the lock to the launcher, so the interpreter takes it.
                 lock.hand_over(pid, from_pid=holder["pid"])
                 state["lane"]["pid"] = pid
+                if log:
+                    state["lane"]["log"] = log
             elif holder.get("pid") != pid:
                 raise LaneLocked(holder)
         except LaneLocked as locked:

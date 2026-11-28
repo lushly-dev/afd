@@ -619,6 +619,7 @@ class FixturePlans:
                 float(raw["used"]),
                 float(raw["elapsed"]),
                 raw.get("resetsAt"),
+                raw.get("stale"),
             )
             for raw in self.store.data.get("plans", [])
         ]
