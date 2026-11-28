@@ -238,15 +238,25 @@ export function defaultInstructions(options: {
  * The SDK's validation rebuilds `arguments` and drops a member named `__proto__`, so a key
  * beneath one would never reach the router's own check: it would vanish instead of being refused.
  */
-function refuseApprovalKeyBeforeParsing(
+export function refuseApprovalKeyBeforeParsing(
 	server: Server,
 	modern: boolean,
 	report: (error: unknown) => void
 ): void {
+	if (typeof server.connect !== 'function') {
+		throw new Error(
+			'@modelcontextprotocol/server Server.connect is missing; refuseApprovalKeyBeforeParsing requires it (#1744)'
+		);
+	}
 	const connect = server.connect.bind(server);
 	server.connect = async (transport: Transport) => {
 		await connect(transport);
 		const deliver = transport.onmessage;
+		if (typeof deliver !== 'function') {
+			throw new Error(
+				'@modelcontextprotocol/server Server.connect did not install transport.onmessage; refuseApprovalKeyBeforeParsing cannot intercept pre-parse arguments (#1744)'
+			);
+		}
 		transport.onmessage = (message, extra) => {
 			const request = message as {
 				id?: unknown;
@@ -257,7 +267,7 @@ function refuseApprovalKeyBeforeParsing(
 				request.method === 'tools/call' && request.id !== undefined
 					? approvalKeyInInput(request.params?.arguments)
 					: undefined;
-			if (!refusal) return deliver?.(message, extra as never);
+			if (!refusal) return deliver(message, extra as never);
 			transport
 				.send({
 					jsonrpc: '2.0',
@@ -269,6 +279,28 @@ function refuseApprovalKeyBeforeParsing(
 				})
 				.catch(report);
 		};
+	};
+}
+
+/**
+ * Wrap the SDK's private `server._ondiscover()` so `server/discover` advertises AFD's declared
+ * context fields in `_meta["dev.afd/contextFields"]`.
+ */
+export function wrapServerDiscover(server: Server, fields: DescribedContextField[]): void {
+	// The SDK's serving layer installs its own `server/discover` handler, which calls
+	// `_ondiscover()` per request; wrapping it adds the declared fields to that answer.
+	// `mcp-sdk-guards.test.ts` and `context-fields-mcp.test.ts` fail if an SDK upgrade changes this.
+	const sdk = server as unknown as { _ondiscover?: () => Record<string, unknown> };
+	if (typeof sdk._ondiscover !== 'function') {
+		throw new Error(
+			'@modelcontextprotocol/server Server._ondiscover is missing; contextFields discovery requires it (#1744)'
+		);
+	}
+	const discover = sdk._ondiscover.bind(server);
+	sdk._ondiscover = () => {
+		const result = discover();
+		const meta = result._meta && typeof result._meta === 'object' ? result._meta : {};
+		return { ...result, _meta: { ...meta, [AFD_CONTEXT_FIELDS_META_KEY]: fields } };
 	};
 }
 
@@ -641,17 +673,7 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 
 		if (deps.contextFields?.length) {
 			described ??= describeContextFields(deps.contextFields);
-			const fields = described;
-			// The SDK's serving layer installs its own `server/discover` handler, which calls
-			// `_ondiscover()` per request; wrapping it adds the declared fields to that answer.
-			// `context-fields-mcp.test.ts` fails if an SDK upgrade changes this.
-			const sdk = server as unknown as { _ondiscover(): Record<string, unknown> };
-			const discover = sdk._ondiscover.bind(server);
-			sdk._ondiscover = () => {
-				const result = discover();
-				const meta = result._meta && typeof result._meta === 'object' ? result._meta : {};
-				return { ...result, _meta: { ...meta, [AFD_CONTEXT_FIELDS_META_KEY]: fields } };
-			};
+			wrapServerDiscover(server, described);
 		}
 
 		// The SDK lifts `_meta` (minus the reserved envelope keys) into `ctx.mcpReq._meta`.
@@ -772,7 +794,7 @@ export interface ModernHttpLane {
  * `req`, or, when its body was read before routing (the authorization layer's decision before
  * dispatch, M6), a request that yields those same bytes, so the SDK reads exactly what was sent.
  */
-function replayed(req: IncomingMessage) {
+export function replayed(req: IncomingMessage) {
 	const body = prereadBody(req);
 	if (!body) return req;
 	return {

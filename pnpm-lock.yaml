@@ -2309,10 +2309,10 @@ importers:
         specifier: workspace:*
         version: link:../core
       '@modelcontextprotocol/node':
-        specifier: ^2.1.2
+        specifier: ~2.1.2
         version: 2.1.2(@modelcontextprotocol/server@2.4.0)
       '@modelcontextprotocol/server':
-        specifier: ^2.4.0
+        specifier: ~2.4.0
         version: 2.4.0
       jose:
         specifier: ^6.2.14
@@ -2325,7 +2325,7 @@ importers:
         specifier: workspace:*
         version: link:../client
       '@modelcontextprotocol/client':
-        specifier: ^2.4.0
+        specifier: ~2.4.0
         version: 2.4.0
       '@vitest/coverage-v8':
         specifier: ^5.1.1
