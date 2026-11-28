@@ -363,6 +363,11 @@ const HOST_IMPORTS =
  *   measure 52,907 / 69,556 / 93,037 / 122,744 bytes with #2846 (journal seams) on `main` at
  *   `7f994c7e4` and 56,137 / 72,918 / 97,121 / 135,110 after, with esbuild 0.28.2; raised to
  *   56,500, 73,300, 97,500 and 135,500.
+ *   Each dispatch's own journal sources (#2890, under D115): `journal-view.ts` gives each call its
+ *   own view of the context's clock and random source through `AsyncLocalStorage`, looked up at
+ *   run time, so concurrent calls on one context keep their own tapes. Measured on `main` at
+ *   `93602fc5f` 56,137 / 72,918 / 97,121 / 135,110 bytes and 58,249 / 75,032 / 99,227 / 137,224
+ *   after, with esbuild 0.28.2; raised to 58,500, 75,300, 99,500 and 137,500.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -375,19 +380,19 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 56_500,
+		bytes: 58_500,
 	},
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 73_300,
+		bytes: 75_300,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 97_500,
+		bytes: 99_500,
 	},
-	{ what: 'every export', imports: undefined, bytes: 135_500 },
+	{ what: 'every export', imports: undefined, bytes: 137_500 },
 ];
 
 /** The modules only the tool surface needs. */

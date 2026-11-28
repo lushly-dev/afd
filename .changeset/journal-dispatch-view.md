@@ -1,0 +1,7 @@
+---
+"@lushly-dev/afd-server": patch
+---
+
+`createJournalMiddleware` gives each call its own view of the context's clock and random source where the runtime has `AsyncLocalStorage` (Node 22.3 and later), instead of swapping them on the context for the length of the call (#2890). While a call runs, `context.clock` and `context.random` are accessors: the call, the calls nested in it and the work they start read its sources, and any other reader gets the context's own, unchanged (`undefined` included). So a chain composed by hand and run concurrently on one context object no longer puts an off-tape call's values on a sibling's tape, marks a sibling's tape `truncated`, or leaves a finished call's recorder on the context, and a second secret call inside a recorded parent now stays off the parent's tape like the first.
+
+Also changed: a context with no sources of its own no longer has the system clock and random source written onto it after a recorded call; a source a handler assigns during a call stays on the context, and marks that call's tape `truncated`; and a read made by work a recorded call started, while an off-tape call inside it runs, reaches no tape and marks the recorded call's tape `truncated`. Reads made by work started outside any call read the context's own source. `AsyncLocalStorage` is looked up at run time, so `/direct` imports nothing from Node; without it (a browser) the journal swaps the sources as before, and every engine there gives each dispatch its own context.

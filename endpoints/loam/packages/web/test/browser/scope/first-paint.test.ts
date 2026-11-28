@@ -214,7 +214,8 @@ describe('P2-E1: one first paint', () => {
 		// shape detection by `_zod.def.type` in `afd-server`; 348,354 with `main` at `871c1a98a`), by phase 5's step
 		// 10 (9.1's `apps` interface, measured in its specification's record), by #2846 (journal seams in TypeScript:
 		// the dispatch id and the approval summary; 348,711 to 349,276 with `main` at `55548acc8`), by #2444
-		// (stage-B ordering and disconnect guards in `loam-shell`), and by #2675 (idempotency keys in `afd-core` and
+		// (stage-B ordering and disconnect guards in `loam-shell`), by #2675 (idempotency keys in `afd-core` and
+		// `afd-server`, recorded in `budget.mjs`), and by #2890 (each dispatch's own journal clock and random in
 		// `afd-server`, recorded in `budget.mjs`).
 		expect(javascript).toBeLessThanOrEqual(budgetJsMinifiedCeiling());
 		expect(javascript).toBe(budgetRow());
