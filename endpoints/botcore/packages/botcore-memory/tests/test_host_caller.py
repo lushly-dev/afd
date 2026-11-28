@@ -79,7 +79,7 @@ async def test_the_mcp_call_tool_without_a_host_actor_is_refused(memory_host, tm
     server = create_host_mcp_server(memory_host())
 
     reply = await server.call_tool(
-        "mem-call", {"command": "memory_set", "arguments": {"key": "k", "value": "v"}}
+        "afd-call", {"command": "memory_set", "input": {"key": "k", "value": "v"}}
     )
     blocks = getattr(reply, "content", None) or (reply[0] if isinstance(reply, tuple) else reply)
     assert json.loads(blocks[0].text)["error"]["code"] == "MEMORY_PRINCIPAL_UNKNOWN"

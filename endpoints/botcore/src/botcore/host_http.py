@@ -5,7 +5,7 @@
 - ``POST /<route>/call``  ``{"command", "arguments"?, "onBehalfOf"?}``: the command's
   CommandResult. The token decides the route and the actor; ``onBehalfOf`` is what the caller
   says, and is kept as such.
-- ``GET /<route>/catalog``: the host's catalog, as its MCP ``start`` tool returns it.
+- ``GET /<route>/catalog``: the host's catalog rows, as its ``info_catalog`` command lists them.
 - ``GET /<route>/docs/<topic>``: a documentation topic.
 - ``POST /<route>/uploads``: raw bytes, with the query string's parameters, for the
   ``uploads`` handler (a git bundle, for the factory gateway), which returns a CommandResult.

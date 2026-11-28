@@ -506,8 +506,14 @@ plugins' skill folders by default, see [Bundled Skills](#bundled-skills-12)), re
 auth, `context_hook` and `context_fields`. Host policy and execution profiles
 run as AFD middleware (`create_host_policy_middleware`), `default_timeout_ms`
 defaults to `None` (no cutoff unless configured), `command_tools=True` maps to
-AFD's `"individual"` tool strategy (`"lazy"` by default), and `{name}-start`,
-`{name}-call` and `{name}-docs` remain available as deprecated compatibility
-aliases. Legacy trusted-local `create_mcp_server` and `botcore.host_http` keep
+AFD's `"individual"` tool strategy (`"lazy"` by default), each command's
+declared effects are its `effect:*` tags in `afd-detail`, and the host's
+documentation topics are its `info_docs` command, and its whole catalog (every
+row the caller may see, with its policy, plus the host's profile) its
+`info_catalog` command; `build_host` serves both on every host. The `{name}-start`,
+`{name}-call` and `{name}-docs` aliases were retired (#2505): call `afd-discover`,
+`afd-call` (`{"command", "input"}`, where the alias took `arguments`) and
+`info_catalog` or `info_docs` instead; a call to one of the retired names is
+refused as `TOOL_RETIRED`, naming its replacement. Legacy trusted-local `create_mcp_server` and `botcore.host_http` keep
 their existing behavior. This opt-in API does not transfer package publication
 authority.

@@ -40,6 +40,8 @@ EVERY = sorted(
         "plan_list",
     ]
 )
+#: What the factory host serves: every command, and the two every built host has.
+HOST_COMMANDS = sorted([*EVERY, "info_catalog", "info_docs"])
 
 
 def test_the_plugin_is_installed_under_factory_and_admitted_to_hosts():
@@ -58,7 +60,7 @@ def test_the_plugin_registers_commands_policies_and_a_docs_topic():
 
 def test_the_factory_host_serves_every_command_and_the_cell_host_a_cell_s(make_run):
     run = make_run()
-    assert run.host("factory").list_command_names() == EVERY
+    assert run.host("factory").list_command_names() == HOST_COMMANDS
     cell = run.host("factory-cell")
     assert cell.list_command_names() == sorted(CELL_COMMANDS)
     assert "factory" in cell.docs
@@ -116,7 +118,7 @@ def test_a_plain_build_host_admits_the_plugin_with_its_own_policies():
         plugins=("factory",),
         core_commands=(),
     )
-    assert host.list_command_names() == EVERY
+    assert host.list_command_names() == HOST_COMMANDS
 
 
 def test_the_cell_host_keeps_the_skill_sources(make_run) -> None:

@@ -7,7 +7,7 @@ The `llm` documentation topic (`LLM_DOCS` in `botcore_llm/__init__.py`) lists th
 
 `llm_session_create(tools=[...])` serves the named commands to the model through a managed
 Botcore host (`botcore.host.CommandHost`). Every tool call enters `host.execute`, the path a
-host's CLI and MCP `call` take, as an agent: argument checks, command policies, the execution
+host's CLI and MCP `afd-call` take, as an agent: argument checks, command policies, the execution
 profile and path confinement apply. A call the host refuses reaches the model as the host's
 error and suggestion, for example `EFFECT_DENIED`. A name the host does not serve is refused
 with `UNKNOWN_COMMAND` when the session is created.

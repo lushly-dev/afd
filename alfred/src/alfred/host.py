@@ -413,6 +413,8 @@ class AlfredHost(CommandHost):
             child._commands = self._commands
             child._policies = self._policies
             child.middleware = self.middleware
+            # info_catalog and info_docs then describe Alfred, not the child (Botcore 0.11+).
+            child.serves_as = self
             token = _explicit_selection.set(explicit)
             try:
                 with use_context(invocation):

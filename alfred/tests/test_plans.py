@@ -122,9 +122,7 @@ async def test_new_canonical_names_and_legacy_aliases_share_routes(tmp_path):
     direct = await host.direct_client().call("info-targets")
     legacy = await host.direct_client().call("info_targets")
     assert direct.data == legacy.data
-    remote = await create_host_mcp_server(host).call_tool(
-        "alfred-call", {"command": "info-targets"}
-    )
+    remote = await create_host_mcp_server(host).call_tool("afd-call", {"command": "info-targets"})
     blocks = (
         remote.content
         if hasattr(remote, "content")

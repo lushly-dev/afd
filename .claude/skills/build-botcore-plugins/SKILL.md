@@ -7,7 +7,7 @@ description: >
   MCP or a CLI.
 metadata:
   source: botcore
-  version: 2.3.0
+  version: 2.4.0
   portable: true
 ---
 
@@ -69,7 +69,7 @@ from notes_plugin import host_policies
 
 host = build_host("notes", ExecutionContext(Path.cwd()), plugins=("notes",),
                   policies=host_policies(), core_commands=())  # () leaves out core commands
-create_host_mcp_server(host).run()  # afd-* meta-tools + notes-start, notes-call, notes-docs aliases
+create_host_mcp_server(host).run()  # afd-* meta-tools; docs topics via the info_docs command
 ```
 
 - **Selection fails closed.** A missing, duplicated or failing plugin in `plugins=` stops construction. Legacy discovery also raises on duplicate entry-point names.

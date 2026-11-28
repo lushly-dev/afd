@@ -37,7 +37,7 @@ async def test_discovery_all_surfaces_and_no_heavy_tool_dependency(tmp_path):
     host = build_alfred_host(tmp_path)
     with patch("shutil.which", return_value=None):
         rows = host.catalog()
-        assert len(rows) == 23
+        assert len(rows) == 25  # 23 commands, and info_catalog and info_docs
         assert (
             next(row for row in rows if row["name"] == "alfred_lint")["applicability"]
             == "not-applicable"
@@ -46,8 +46,11 @@ async def test_discovery_all_surfaces_and_no_heavy_tool_dependency(tmp_path):
             next(row for row in rows if row["name"] == "dev_test")["tool_availability"]["node"]
             is False
         )
-        remote = content(await create_host_mcp_server(host).call_tool("alfred-start", {}))
-        assert remote["commands"] == rows
+        # Alfred's own rows (applicability, tool availability), not its child host's.
+        remote = content(
+            await create_host_mcp_server(host).call_tool("afd-call", {"command": "info_catalog"})
+        )
+        assert remote["data"]["commands"] == rows
         cli = CliRunner().invoke(main, ["--workspace", str(tmp_path), "catalog"])
         assert cli.exit_code == 0, cli.output
         assert json.loads(cli.output) == rows
@@ -65,9 +68,7 @@ async def test_same_nonpass_verdict_all_routes(tmp_path, status):
 
     host.register("probe", probe, CommandPolicy(quality="verdict"))
     direct = await host.direct_client().call("probe")
-    remote = content(
-        await create_host_mcp_server(host).call_tool("alfred-call", {"command": "probe"})
-    )
+    remote = content(await create_host_mcp_server(host).call_tool("afd-call", {"command": "probe"}))
     cli = await asyncio.to_thread(CliRunner().invoke, create_host_cli(host), ["call", "probe"])
     assert direct.success is remote["success"] is True
     assert direct.metadata.quality["status"] == remote["metadata"]["quality"]["status"] == status
@@ -84,7 +85,7 @@ async def test_inspection_writers_rejected_without_effects(tmp_path):
     direct = await host.direct_client().call("spec_create", args)
     remote = content(
         await create_host_mcp_server(host).call_tool(
-            "alfred-call", {"command": "spec_create", "arguments": args}
+            "afd-call", {"command": "spec_create", "input": args}
         )
     )
     cli = await asyncio.to_thread(
@@ -296,7 +297,7 @@ async def test_actual_quality_failure_and_legacy_alias(native):
     host = build_alfred_host(native)
     direct = await host.direct_client().call("alfred_quality")
     remote = content(
-        await create_host_mcp_server(host).call_tool("alfred-call", {"command": "alfred_quality"})
+        await create_host_mcp_server(host).call_tool("afd-call", {"command": "alfred_quality"})
     )
     cli = await asyncio.to_thread(CliRunner().invoke, main, ["--workspace", str(native), "quality"])
     assert direct.metadata.quality["status"] == remote["metadata"]["quality"]["status"] == "failed"
@@ -402,3 +403,19 @@ def test_alfred_keeps_the_skill_sources_build_host_reads(tmp_path):
     host = build_alfred_host(tmp_path)
     assert host.skills is not None
     assert host.skills.include == ("plugin-builder",)
+
+
+async def test_info_docs_needs_no_target_in_a_monorepo(tmp_path):
+    # Alfred asks for a target before docs_* commands that read files; info_docs reads none,
+    # and describes Alfred (its docs), not the child host Alfred runs each call on.
+    (tmp_path / "pnpm-workspace.yaml").write_text("packages: []\n")
+    host = build_alfred_host(tmp_path)
+    lint = await host.execute("docs_lint", {})
+    assert lint.error.code == "TARGET_REQUIRED"
+    reply = content(
+        await create_host_mcp_server(host).call_tool(
+            "afd-call", {"command": "info_docs", "input": {"topic": "overview"}}
+        )
+    )
+    assert reply["success"] is True, reply
+    assert reply["data"]["text"].startswith("# alfred")

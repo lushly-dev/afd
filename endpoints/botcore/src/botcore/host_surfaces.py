@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import difflib
 import inspect
 import json
 import warnings
@@ -32,10 +31,6 @@ if TYPE_CHECKING:
 def _dump(result: Any) -> dict[str, Any]:
     dumped: dict[str, Any] = result.model_dump(mode="json", exclude_none=True)
     return dumped
-
-
-def _name_key(name: str) -> str:
-    return "".join(character for character in name.lower() if character.isalnum())
 
 
 def _is_error_result(result: Any) -> bool:
@@ -104,9 +99,26 @@ def command_annotations(host: CommandHost, name: str) -> dict[str, bool]:
 
 
 def _meta_tool_names(host: CommandHost) -> set[str]:
-    """The compatibility meta-tools' names, reserved whether or not ``-run`` is on, so a name
-    never changes meaning with the ``raw_python`` option."""
+    """Names no host command may take: ``{name}-run`` whether or not ``raw_python`` is on, so a
+    name never changes meaning with the option, and the retired ``-start``, ``-call`` and
+    ``-docs`` (#2505), so an old client's call never reaches a different command."""
     return {f"{host.name}-{tool}" for tool in ("start", "call", "docs", "run")}
+
+
+def _retired_tools(host: CommandHost) -> dict[str, str]:
+    """The retired compatibility tools (#2505) and what a client calls instead."""
+
+    def served(name: str) -> str:
+        return host.resolve(name) or name
+
+    return {
+        f"{host.name}-start": (
+            f"afd-discover to list the commands, or {served('info_catalog')} through "
+            "afd-call for the catalog with each command's effects and policy"
+        ),
+        f"{host.name}-call": 'afd-call with {"command": ..., "input": {...}}',
+        f"{host.name}-docs": f'afd-call with {{"command": "{served("info_docs")}"}}',
+    }
 
 
 def _afd_reserved_names(afd_server: AfdMCPServer) -> set[str]:
@@ -150,24 +162,6 @@ def _build_raw_names(host: CommandHost) -> dict[str, str]:
     return raw_names
 
 
-def _not_found_visible(
-    host: CommandHost, name: str, visible_names: list[str]
-) -> CommandResult[Any]:
-    by_key = {_name_key(served): served for served in visible_names}
-    key = _name_key(name)
-    meant = by_key.get(key)
-    if meant is None and by_key:
-        match = difflib.get_close_matches(key, list(by_key), n=1, cutoff=0.6)
-        meant = by_key[match[0]] if match else None
-    return error(
-        "COMMAND_NOT_FOUND",
-        f"{host.name} has no command {name}" + (f"; did you mean {meant}?" if meant else ""),
-        suggestion=(f"Call {meant}, or i" if meant else "I")
-        + f"nspect the host catalog ({host.name} catalog) for the commands it serves",
-        details={"suggestedCommand": meant} if meant else None,
-    )
-
-
 def _register_host_command(afd_server: AfdMCPServer, host: CommandHost, served_name: str) -> None:
     """Register one host command on ``afd_server``, preserving host validation and execution."""
     from afd import ExposeOptions
@@ -202,6 +196,9 @@ def _register_host_command(afd_server: AfdMCPServer, host: CommandHost, served_n
             advertised_input_schema=input_schema,
             mutation=not read_only,
             destructive=not read_only,
+            # Every effect the command may have, so afd-detail shows them and afd-discover
+            # filters on them (they were the catalog rows the retired `-start` returned).
+            tags=[f"effect:{effect}" for effect in policy.declared()],
             # An afd before 0.14.0 has no `secret` here.
             **cast(dict[str, Any], {"secret": policy.secret} if SECRET_AWARE else {}),
             expose=ExposeOptions(mcp=True),
@@ -209,77 +206,29 @@ def _register_host_command(afd_server: AfdMCPServer, host: CommandHost, served_n
         afd_server.register(decorated)
 
 
-def _alias_schemas(
+def _run_tool_schemas(
     host: CommandHost,
     *,
     raw_python: bool,
     afd_reserved: set[str],
 ) -> list[dict[str, Any]]:
-    """MCP Tool definitions for the deprecated ``{name}-start|call|docs`` aliases and ``-run``.
+    """The MCP Tool definition of ``{name}-run``, when ``raw_python`` is on.
 
-    Any alias whose name collides with an active AFD built-in (for example ``host.name == 'afd'``
-    producing ``afd-call``) is omitted so AFD's own meta-tools are never duplicated or shadowed.
+    It is left out when its name collides with an active AFD built-in, so AFD's own tools are
+    never duplicated or shadowed.
     """
-    candidates: list[dict[str, Any]] = [
-        {
-            "name": f"{host.name}-start",
-            "description": (
-                "Discover host commands and their effects "
-                "(compatibility alias; prefer afd-discover and afd-detail)"
-            ),
-            "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    if not raw_python:
+        return []
+    tool = {
+        "name": f"{host.name}-run",
+        "description": "Trusted local Python; no sandbox",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"code": {"type": "string", "description": "Python snippet to execute"}},
+            "required": ["code"],
         },
-        {
-            "name": f"{host.name}-call",
-            "description": (
-                "Call a registered command under host policy (compatibility alias; prefer afd-call)"
-            ),
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "command": {"type": "string", "description": "Registered command name"},
-                    "arguments": {
-                        "anyOf": [{"type": "object"}, {"type": "null"}],
-                        "default": None,
-                        "description": "Command arguments object",
-                    },
-                },
-                "required": ["command"],
-            },
-        },
-        {
-            "name": f"{host.name}-docs",
-            "description": (
-                "Read a host documentation topic "
-                "(compatibility alias; prefer afd-detail or afd-docs)"
-            ),
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "topic": {
-                        "type": "string",
-                        "default": "overview",
-                        "description": "Documentation topic name",
-                    }
-                },
-            },
-        },
-    ]
-    if raw_python:
-        candidates.append(
-            {
-                "name": f"{host.name}-run",
-                "description": "Trusted local Python; no sandbox",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "code": {"type": "string", "description": "Python snippet to execute"}
-                    },
-                    "required": ["code"],
-                },
-            }
-        )
-    return [tool for tool in candidates if tool["name"] not in afd_reserved]
+    }
+    return [tool] if tool["name"] not in afd_reserved else []
 
 
 async def _run_raw_python(
@@ -331,100 +280,23 @@ def _alias_call_context(afd_server: AfdMCPServer, outcome: Any) -> CommandContex
     return CommandContext(actor=actor, credentials=admitted)
 
 
-def _build_alias_handlers(
+def _build_run_handlers(
     host: CommandHost,
     afd_server: AfdMCPServer,
-    base_call_tool: Callable[[Any, Any, Any], Awaitable[Any]],
     *,
-    version: str,
-    description: str | None,
     raw_python: bool,
-    reserved: set[str],
     afd_reserved: set[str],
 ) -> dict[str, Callable[[dict[str, Any], Any, Any], Awaitable[Any]]]:
-    from mcp.types import CallToolResult, TextContent
+    """The handler of ``{name}-run``, when ``raw_python`` is on and the name is free."""
+    if not raw_python or f"{host.name}-run" in afd_reserved:
+        return {}
 
-    async def handle_start(_arguments: dict[str, Any], _context: Any, _outcome: Any) -> Any:
-        view = afd_server._current_scope_view()
-        visible = [
-            row
-            for row in host.catalog()
-            if row["name"] not in reserved and (view is None or view.shown(row["name"]))
-        ]
-        payload = {
-            "name": host.name,
-            "version": version,
-            "description": description,
-            "profile": host.context.profile,
-            "workspace": str(host.context.workspace),
-            "target": str(host.context.target),
-            "commands": visible,
-            "available_functions": [row["name"] for row in visible],
-            "topics": sorted(host.docs),
-        }
-        return CallToolResult(
-            content=[TextContent(type="text", text=json.dumps(payload))],
-            structured_content=payload,
-            is_error=False,
-        )
+    async def handle_run(arguments: dict[str, Any], _context: Any, outcome: Any) -> Any:
+        code = arguments.get("code") if isinstance(arguments, dict) else None
+        run_ctx = _alias_call_context(afd_server, outcome)
+        return _tool_call_result(await _run_raw_python(host, code, run_ctx))
 
-    async def handle_call(arguments: dict[str, Any], context: Any, _outcome: Any) -> Any:
-        command = arguments.get("command") if isinstance(arguments, dict) else None
-        raw_args = arguments.get("arguments") if isinstance(arguments, dict) else None
-        if not isinstance(command, str) or not command:
-            return _tool_call_result(
-                error(
-                    "VALIDATION_ERROR",
-                    "Missing required field: command",
-                    suggestion=(
-                        f"Pass {{'command': '<name>', 'arguments': {{...}}}} to {host.name}-call"
-                    ),
-                )
-            )
-        registered = host.resolve(command)
-        afd_input = {} if raw_args is None else raw_args
-        view = afd_server._current_scope_view()
-        if (
-            registered is not None
-            and registered not in reserved
-            and (view is None or view.known(registered))
-        ):
-            return await base_call_tool(
-                "afd-call", {"command": registered, "input": afd_input}, context
-            )
-        if view is not None:
-            # Under auth/ScopeView (M6), let AFD produce a scope-filtered COMMAND_NOT_FOUND
-            # using the caller's raw name so hidden commands are not canonicalized.
-            return await base_call_tool(
-                "afd-call", {"command": command, "input": afd_input}, context
-            )
-        # Never execute a reserved/late-colliding command; return COMMAND_NOT_FOUND only.
-        visible_names = [n for n in host.list_command_names() if n not in reserved]
-        return _tool_call_result(_not_found_visible(host, command, visible_names))
-
-    async def handle_docs(arguments: dict[str, Any], _context: Any, _outcome: Any) -> Any:
-        raw_topic = arguments.get("topic") if isinstance(arguments, dict) else None
-        topic = raw_topic if isinstance(raw_topic, str) else "overview"
-        if topic == "overview":
-            text = f"# {host.name} — Topics\n" + "\n".join(sorted(host.docs))
-        else:
-            text = host.docs.get(topic, f"Unknown topic. Available: {', '.join(sorted(host.docs))}")
-        return CallToolResult(content=[TextContent(type="text", text=text)], is_error=False)
-
-    candidates: dict[str, Callable[[dict[str, Any], Any, Any], Awaitable[Any]]] = {
-        f"{host.name}-start": handle_start,
-        f"{host.name}-call": handle_call,
-        f"{host.name}-docs": handle_docs,
-    }
-    if raw_python:
-
-        async def handle_run(arguments: dict[str, Any], _context: Any, outcome: Any) -> Any:
-            code = arguments.get("code") if isinstance(arguments, dict) else None
-            run_ctx = _alias_call_context(afd_server, outcome)
-            return _tool_call_result(await _run_raw_python(host, code, run_ctx))
-
-        candidates[f"{host.name}-run"] = handle_run
-    return {name: handler for name, handler in candidates.items() if name not in afd_reserved}
+    return {f"{host.name}-run": handle_run}
 
 
 def _install_alias_tools(
@@ -432,7 +304,7 @@ def _install_alias_tools(
     afd_server: AfdMCPServer,
     alias_defs: list[dict[str, Any]],
 ) -> None:
-    """Give the SDK the compatibility aliases' input schemas, for Mcp-Param header checks.
+    """Give the SDK the extra tools' input schemas (``{name}-run``), for Mcp-Param header checks.
 
     afd 0.14 answers the SDK's ``_tool_input_schema`` from its own table
     (``_add_tool_input_schemas``, lushly-dev/afd#1756); afd 0.13 read the SDK's tool manager.
@@ -455,7 +327,7 @@ def _decide_alias_scope(
     alias_name: str,
     arguments: dict[str, Any],
 ) -> Any:
-    """Enforce ``required_scopes`` and any ``ScopeResolver`` on compatibility alias tools."""
+    """Enforce ``required_scopes`` and any ``ScopeResolver`` on the host's ``-run`` tool."""
     from afd.server.auth_scopes import ScopeMissing, checked_decision, request_decision
 
     req_dec = view.decide_request()
@@ -538,18 +410,21 @@ def _attach_host_bridge(
     afd_server: AfdMCPServer,
     host: CommandHost,
     *,
-    version: str,
-    description: str | None,
     raw_python: bool,
 ) -> Any:
-    """Wire dynamic host command sync, read-only annotations and compatibility aliases."""
+    """Wire dynamic host command sync, read-only annotations and ``{name}-run``."""
     from afd.server.context_hook import bind_hook_outcome, current_hook_outcome
     from afd.server.factory import _CURRENT_REQUEST
     from mcp.types import Tool as MCPTool
 
     afd_reserved = _afd_reserved_names(afd_server)
     reserved = _meta_tool_names(host) | afd_reserved
-    alias_defs = _alias_schemas(host, raw_python=raw_python, afd_reserved=afd_reserved)
+    retired = {
+        name: replacement
+        for name, replacement in _retired_tools(host).items()
+        if name not in afd_reserved
+    }
+    alias_defs = _run_tool_schemas(host, raw_python=raw_python, afd_reserved=afd_reserved)
     alias_tools = [MCPTool.model_validate(definition) for definition in alias_defs]
     registered_names: set[str] = {cmd.name for cmd in afd_server.registry.list()}
 
@@ -568,15 +443,8 @@ def _attach_host_bridge(
 
     base_list_tools = sdk_server.list_tools
     base_call_tool = sdk_server.call_tool
-    alias_handlers = _build_alias_handlers(
-        host,
-        afd_server,
-        base_call_tool,
-        version=version,
-        description=description,
-        raw_python=raw_python,
-        reserved=reserved,
-        afd_reserved=afd_reserved,
+    alias_handlers = _build_run_handlers(
+        host, afd_server, raw_python=raw_python, afd_reserved=afd_reserved
     )
 
     async def dispatch_alias(
@@ -614,6 +482,16 @@ def _attach_host_bridge(
 
     async def call_tool(name: Any, arguments: Any = None, context: Any = None) -> Any:
         sync_host_commands()
+        if isinstance(name, str) and name in retired:
+            if not afd_server._is_auth_admitted():
+                return _tool_call_result(failure(afd_server._unauthorized_error()))
+            return _tool_call_result(
+                error(
+                    "TOOL_RETIRED",
+                    f"{name} was retired; {host.name} serves AFD's tools instead",
+                    suggestion=f"Call {retired[name]}",
+                )
+            )
         if isinstance(name, str) and name in alias_handlers:
             if not afd_server._is_auth_admitted():
                 return _tool_call_result(failure(afd_server._unauthorized_error()))
@@ -653,8 +531,12 @@ def create_host_mcp_server(
     (``create_host_policy_middleware``), while routing every admitted command through
     ``host.execute``. Requires the ``mcp`` extra (``afd[server]>=0.13.0``, ``mcp>=2.3,<3``).
 
-    - ``command_tools=False`` (default) uses AFD's ``"lazy"`` strategy (AFD's five meta-tools
-      plus the compatibility aliases ``{name}-start``, ``{name}-call`` and ``{name}-docs``).
+    - ``command_tools=False`` (default) uses AFD's ``"lazy"`` strategy: AFD's five meta-tools,
+      ``afd-discover``, ``afd-detail``, ``afd-call``, ``afd-batch`` and ``afd-pipe``. The
+      ``{name}-start``, ``{name}-call`` and ``{name}-docs`` aliases were retired (#2505); their
+      names stay reserved (a call is refused as ``TOOL_RETIRED``, naming the
+      replacement), and ``build_host``'s ``info_catalog`` and ``info_docs`` commands carry
+      what ``-start`` and ``-docs`` returned.
     - ``command_tools=True`` uses AFD's ``"individual"`` strategy, also serving each host
       command as its own tool with the catalog's input schema and ``readOnlyHint`` /
       ``destructiveHint`` annotations derived from its declared effects.
@@ -718,7 +600,5 @@ def create_host_mcp_server(
         sdk_server,
         afd_server,
         host,
-        version=version,
-        description=description,
         raw_python=raw_python,
     )

@@ -1,6 +1,7 @@
 """Core command documentation for botcore.
 
-Each key is a topic name shown by the {name}-docs MCP tool.
+Each key is a topic name: a host's info_docs command and the legacy server's
+{name}-docs MCP tool show it.
 Plugin-specific docs are registered via ``PluginRegistry.add_docs()``.
 """
 

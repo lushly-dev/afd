@@ -133,10 +133,9 @@ Uses Botcore's `create_host_mcp_server()` factory (backed by `afd.server.create_
 
 | Tool | Description |
 |------|-------------|
-| `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe` | Standard AFD meta-tools for discovery, schemas, execution, batches and pipelines |
-| `alfred-start` | Compatibility alias — discovery, available commands and capabilities |
-| `alfred-docs` | Compatibility alias — reference documentation by topic |
-| `alfred-call` | Compatibility alias — execute one admitted command with structured JSON arguments |
+| `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe` | Standard AFD meta-tools for discovery, schemas (with each command's `effect:*` tags), execution, batches and pipelines |
+
+Reference documentation by topic is the `info_docs` command (`afd-call` with `{"command": "info_docs", "input": {"topic": "..."}}`), and Alfred's whole catalog, with each command's applicability, tool availability and policy, is `info_catalog`. The `alfred-start`, `alfred-docs` and `alfred-call` aliases were retired with Botcore's (#2505).
 
 ---
 

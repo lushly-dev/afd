@@ -19,7 +19,7 @@ A call for another caller's agent memory is refused with `MEMORY_ACCESS_DENIED`.
 
 The caller is decided by how the call arrives, never by an argument.
 
-- **Through a Botcore host** (`CommandHost.execute`: a host's CLI, MCP `call` tool, HTTP
+- **Through a Botcore host** (`CommandHost.execute`: a host's CLI, MCP `afd-call` tool, HTTP
   surface, or an LLM session's bridged tools). The caller is the actor the host's surface
   verified, from `botcore.context.current_call()`. Its principal is `<kind>_<id>`
   (`agent_researcher`, `human_alex`) when the id is lowercase letters, digits, `_` and `-`,
@@ -29,7 +29,7 @@ The caller is decided by how the call arrives, never by an argument.
   `botcore_memory.access.principal_id(actor)` gives it. On the HTTP surface the actor is the
   one the bearer token names; `onBehalfOf` is what the caller claims and is not used.
 - **A host call whose actor has no id is refused** with `MEMORY_PRINCIPAL_UNKNOWN`, never
-  mapped to a shared identity, since a host may serve several callers. The MCP `call` tool
+  mapped to a shared identity, since a host may serve several callers. The MCP `afd-call` tool
   calls as an agent with no id, so a host serving memory over MCP names its caller:
   `CommandHost(..., actor=Actor(kind="human", id="<you>"))`. An LLM session's tools call as
   the session's `agent_name` (a `botcore-agents` agent's configured key) when a local, trusted
