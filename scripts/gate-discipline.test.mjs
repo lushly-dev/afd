@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { findings } from './check-test-configs.mjs';
+import { findings, relativeImports } from './check-test-configs.mjs';
 import { globToRegExp, parseVitestConfig } from './check-test-discovery.mjs';
 import { findSuppressions, maskSource } from './check-test-quarantine.mjs';
 import { compareTestFile, LANGUAGES } from './report-test-changes.mjs';
@@ -150,6 +150,96 @@ test('test configs: reads the option in every config form, and allows only a lit
 	assert.equal(findings('vitest.config.ts', 'passWithNoTests: false,').length, 0);
 	assert.equal(findings('vitest.config.ts', 'vitest run --pass-with-no-tests').length, 1);
 	assert.equal(findings('src/notes.ts', 'passWithNoTests: true').length, 0);
+	// lushly-dev/afd#2942: an expression that starts with `false`, and a computed key.
+	assert.equal(findings('vitest.config.ts', 'passWithNoTests: false === Boolean(ci),').length, 1);
+	assert.equal(findings('vitest.config.ts', 'passWithNoTests: false || allowEmpty,').length, 1);
+	assert.equal(findings('vitest.config.ts', "['passWithNoTests']: true,").length, 1);
+	assert.equal(findings('vitest.config.ts', '[`passWithNoTests`]: true,').length, 1);
+	assert.equal(findings('vitest.config.ts', "['passWithNoTests']: false,").length, 0);
+	assert.equal(findings('vitest.config.ts', 'test: { passWithNoTests: false }').length, 0);
+	assert.equal(findings('vitest.config.ts', 'passWithNoTests: false // never').length, 0);
+	assert.equal(findings('vitest.config.ts', 'passWithNoTests: false').length, 0);
+	assert.equal(findings('vitest.config.ts', 'passWithNoTests: false /* c */,').length, 0);
+	assert.equal(findings('vitest.config.ts', 'passWithNoTests: false /* c */ || true,').length, 1);
+	assert.equal(findings('vitest.config.ts', 'config.test.passWithNoTests = true;').length, 1);
+	assert.equal(findings('vitest.config.ts', 'config.test.passWithNoTests = false;').length, 0);
+	assert.equal(findings('vitest.config.ts', 'if (o.passWithNoTests === true) {}').length, 0);
+	assert.equal(findings('vitest.config.ts', 'o.passWithNoTests ||= true;').length, 1);
+	assert.equal(findings('vitest.config.ts', 'o.passWithNoTests ??= true;').length, 1);
+	assert.equal(findings('vitest.config.ts', 'opts.map(passWithNoTests => 1);').length, 0);
+	// A root Vitest module that is not a config by name, such as a shared factory.
+	assert.equal(findings('vitest.package-config.ts', 'passWithNoTests: true').length, 1);
+	assert.equal(findings('packages/a/vitest.shared.ts', 'passWithNoTests: true').length, 0);
+});
+
+// lushly-dev/afd#2942: a shared factory every package config calls sets the option for all.
+const factory = (value) =>
+	`export function createPackageVitestConfig() {\n\treturn defineConfig({\n\t\ttest: { passWithNoTests: ${value} },\n\t});\n}\n`;
+const packageConfig = (specifier) =>
+	`import { createPackageVitestConfig } from '${specifier}';\nexport default createPackageVitestConfig();\n`;
+
+test('test configs: reads the option in a shared module a config imports, naming its line', () => {
+	const root = (value) =>
+		fixture({
+			'vitest.package-config.ts': factory(value),
+			'packages/a/vitest.config.ts': packageConfig('../../vitest.package-config'),
+		});
+	const result = run('check-test-configs.mjs', root('true'));
+	assert.equal(result.status, 1, result.stdout);
+	assert.match(result.stderr, /vitest\.package-config\.ts:3: passWithNoTests/);
+	assert.equal(run('check-test-configs.mjs', root('false')).status, 0);
+
+	// Not a root Vitest module by name: found only by following the configs' imports, through
+	// a `.js` specifier for a TypeScript file, an index module and a helper the factory imports.
+	const nested = (value) =>
+		fixture({
+			'tools/test/shared.ts': `import { base } from './base/index.js';\nexport { base };\n`,
+			'tools/test/base/index.ts': "export * from '../options';\n",
+			'tools/test/options.ts': `export const options = { passWithNoTests: ${value} };\n`,
+			'packages/a/vitest.config.ts': packageConfig('../../tools/test/shared.js'),
+			'src/unrelated.ts': 'export const options = { passWithNoTests: true };\n',
+		});
+	const deep = run('check-test-configs.mjs', nested('true'));
+	assert.equal(deep.status, 1, deep.stdout);
+	assert.match(deep.stderr, /tools\/test\/options\.ts:1: passWithNoTests/);
+	assert.doesNotMatch(deep.stderr, /src\/unrelated\.ts/);
+	assert.equal(run('check-test-configs.mjs', nested('false')).status, 0);
+	// An added path that a config imports is still followed, not only read.
+	const viaAdded = run('check-test-configs.mjs', nested('true'), 'tools/test/shared.ts');
+	assert.equal(viaAdded.status, 1, viaAdded.stdout);
+	assert.match(viaAdded.stderr, /tools\/test\/options\.ts:1: passWithNoTests/);
+});
+
+test('test configs: resolves a directory import, survives a cycle and stays inside the root', () => {
+	const listed = new Set(['tools/base/index.ts', 'tools/x.mts', 'tools/x.ts', 'a.ts']);
+	assert.deepEqual(relativeImports('tools/s.ts', "import './base/';", listed), [
+		'tools/base/index.ts',
+	]);
+	assert.deepEqual(relativeImports('tools/s.ts', "import './base';", listed), [
+		'tools/base/index.ts',
+	]);
+	assert.deepEqual(relativeImports('tools/s.ts', "import './x.mjs';", listed), ['tools/x.mts']);
+	assert.deepEqual(relativeImports('vitest.config.ts', "import './';", new Set(['index.ts'])), [
+		'index.ts',
+	]);
+	assert.deepEqual(relativeImports('vitest.config.ts', "import '../a';", listed), []);
+	assert.deepEqual(relativeImports('vitest.config.ts', "import '../foo/..';", listed), []);
+	const cycle = fixture({
+		'vitest.config.ts': "import './tools/a';\nexport default {};\n",
+		'tools/a.ts': "import './b';\n",
+		'tools/b.ts': "import './a';\nexport const o = { passWithNoTests: true };\n",
+	});
+	const result = run('check-test-configs.mjs', cycle);
+	assert.equal(result.status, 1, result.stdout);
+	assert.match(result.stderr, /tools\/b\.ts:2: passWithNoTests/);
+});
+
+test('test configs: reads the option, as well as the flag, in a path the caller adds', () => {
+	const files = { 'config/test-options.ts': factory('true') };
+	assert.equal(run('check-test-configs.mjs', fixture(files)).status, 0);
+	const result = run('check-test-configs.mjs', fixture(files), 'config/');
+	assert.equal(result.status, 1, result.stdout);
+	assert.match(result.stderr, /config\/test-options\.ts:3: passWithNoTests/);
 });
 
 // check-test-quarantine.mjs
@@ -198,6 +288,56 @@ test('quarantine: finds .only and unconditional skips, and allows conditional on
 	assert.deepEqual(kinds('const d = url ? describe : describe.skip;'), []);
 	assert.deepEqual(kinds('suite.skipped = true; await test.step("a", fn);'), []);
 	assert.deepEqual(kinds('foo.it.only(); myit.only();'), []);
+});
+
+// The chain cases below are adapted from Lushly's scripts/check-test-quarantine-chains.test.mjs
+// (MIT, lushly-dev/lushly#3105), as lushly-dev/afd#1387's decisions allow (lushly-dev/afd#2927).
+test('quarantine: reads a chain on past a condition, so a later .only or .skip still counts', () => {
+	assert.deepEqual(kinds("it.runIf(key).only('focused', () => {});"), ['1:only']);
+	assert.deepEqual(kinds("test.runIf(key).only.each([1])('focused conditional run', () => {});"), [
+		'1:only',
+	]);
+	assert.deepEqual(
+		kinds("it.skipIf(!key).concurrent.skip('unconditional skip after condition', () => {});"),
+		['1:skip']
+	);
+	assert.deepEqual(kinds("describe.skipIf(f(a, [b]))\n\t.todo('later');"), ['2:todo']);
+	assert.deepEqual(kinds("it.skipIf(a).runIf(b).only('x', () => {});"), ['1:only']);
+	assert.deepEqual(kinds("it.runIf(key)?.only('a', () => {});"), ['1:only']);
+	assert.deepEqual(kinds("test.skipIf(!key).each([1])('conditional skip', () => {});"), []);
+	assert.deepEqual(kinds("test.runIf(key).each([1])('conditional run', () => {});"), []);
+	assert.deepEqual(kinds("it.skipIf(!key).concurrent('conditional', () => {});"), []);
+	// Not a chain: a parameterizer's call ends it, and `.only` after it is not Vitest's.
+	assert.deepEqual(kinds("it.each([1]).only('unsupported terminal order', () => {});"), []);
+});
+
+test('quarantine: finds suppressions anywhere in concurrent and parameterized chains', () => {
+	const text = [
+		"it.only.each([1, 2])('focused %s', () => {});",
+		"describe.only.each([1, 2])('focused suite %s', () => {});",
+		"test.skip.each([1, 2])('skipped %s', () => {});",
+		"it.concurrent.skip('skipped concurrent test', () => {});",
+		"test.skip.concurrent('skipped concurrent test', () => {});",
+		"describe.concurrent.todo('todo concurrent suite', () => {});",
+		"test.fails.skip.each([1])('skipped expected failure', () => {});",
+		"it.only.each`value`('focused tagged case', () => {});",
+		"test.skip.for([1])('skipped %s', () => {});",
+		"describe.shuffle.skip.each([1])('skipped shuffled suite %s', () => {});",
+		'const fixture = <div data-test="test.skip" />;',
+		"helpers.test.skip('not a Vitest root', () => {});",
+	].join('\n');
+	assert.deepEqual(findSuppressions(text), [
+		{ line: 1, kind: 'only' },
+		{ line: 2, kind: 'only' },
+		{ line: 3, kind: 'skip' },
+		{ line: 4, kind: 'skip' },
+		{ line: 5, kind: 'skip' },
+		{ line: 6, kind: 'todo' },
+		{ line: 7, kind: 'skip' },
+		{ line: 8, kind: 'only' },
+		{ line: 9, kind: 'skip' },
+		{ line: 10, kind: 'skip' },
+	]);
 });
 
 test('quarantine: never reads a comment, a string, a template or a regular expression as code', () => {

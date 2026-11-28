@@ -134,7 +134,7 @@ as recovered, so the spent entry is deleted. A skip that depends on the environm
 written as a condition instead and needs no entry, because it runs again whenever the
 condition stops holding: `it.skipIf(...)`, `it.runIf(...)` and Playwright's
 `test.skip(condition, reason)`; a condition that always holds (`true`, `!0`) counts as
-none. An entry covers its whole file, so a second skip added to a quarantined file needs
+none, and a condition covers only itself, so `it.runIf(key).only(...)` still fails. An entry covers its whole file, so a second skip added to a quarantined file needs
 no new entry: review it as you would the first. Not seen, by design: aliases, element
 access (`it['skip']`), option objects (`{ skip: true }`), a test's own context
 (`t.skip()`), a variable title with its body passed by name (`test.skip(title, run)`)
@@ -143,9 +143,13 @@ rather than parsing, so a backtick in JSX text can hide what follows it in that 
 Paths after the options limit the scan to those directories.
 
 **`scripts/check-test-configs.mjs`: no runner may pass having run no tests.** It refuses
-`passWithNoTests` in any Vitest or Vite configuration, and the `--passWithNoTests` flag in
-any `package.json`, GitHub workflow or Lefthook configuration. Paths after the options add
-a repository's own scripts that start runners; a path with no file in it fails. A package
+`passWithNoTests` in any Vitest or Vite configuration, in a root `vitest*` or `vite*` module
+and in any module a configuration imports by a relative path (a shared factory every package
+config calls), and the `--passWithNoTests` flag in any `package.json`, GitHub workflow or
+Lefthook configuration. Only a bare `false` passes. Paths after the options add files to read
+for both, such as a repository's own scripts that start runners; a path with no file in it
+fails. Not seen: a module reached through a package name or a path alias rather than a
+relative path, and an added path's own imports unless a configuration imports it. A package
 with no tests yet adds its first test with its config instead.
 
 **`scripts/check-test-discovery.mjs`: every test file is run by something.** The discovery

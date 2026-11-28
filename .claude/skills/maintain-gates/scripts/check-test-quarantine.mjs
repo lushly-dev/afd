@@ -16,7 +16,8 @@
  * Conditional skips are allowed, because they run again whenever their condition stops
  * holding: `it.skipIf(cond)`, `it.runIf(cond)` and Playwright's `test.skip(cond, reason)`,
  * whose first argument is an expression rather than a title. `test.skip('title', fn)`,
- * `test.skip()` and `it.todo(...)` are unconditional.
+ * `test.skip()` and `it.todo(...)` are unconditional. A condition covers only itself: in
+ * `it.runIf(key).only(...)` or `it.skipIf(cond).concurrent.skip(...)` the later modifier counts.
  *
  * Not covered, by design: aliases (`const s = it.skip`), element access (`it['skip']`),
  * option objects (`{ skip: true }`) and a test's own context (`t.skip()`, `ctx.skip()`).
@@ -219,6 +220,46 @@ function callArguments(code, open) {
 	return args;
 }
 
+/** The index of the bracket closing the one at `open` in masked code, or -1. */
+function closingBracket(code, open) {
+	let depth = 0;
+	for (let i = open; i < code.length; i++) {
+		const c = code[i];
+		if (c === '(' || c === '[' || c === '{') depth++;
+		else if ((c === ')' || c === ']' || c === '}') && --depth === 0) return i;
+	}
+	return -1;
+}
+
+// After a condition's call, `?.` reads as `.` does: `it.runIf(key)?.only(...)`.
+const MEMBER = /\??\.\s*([A-Za-z_$][\w$]*)/g;
+const MEMBERS = /^(?:\s*\??\.\s*[A-Za-z_$][\w$]*)+/;
+const CONDITIONS = new Set(['skipIf', 'runIf']);
+
+/**
+ * The members of a chain and where it ends. A condition's call does not end it: in
+ * `it.runIf(key).only(...)` the chain reads on past `runIf(key)`, so a later `.only`, `.skip`
+ * or `.todo` counts as it would without the condition.
+ */
+function chainMembers(code, offset, segment) {
+	const members = [];
+	for (;;) {
+		for (const member of segment.matchAll(MEMBER))
+			members.push({
+				kind: member[1],
+				at: offset + member.index + member[0].length - member[1].length,
+			});
+		const end = offset + segment.length;
+		if (!CONDITIONS.has(members.at(-1).kind)) return { members, end };
+		const call = code.slice(end).match(/^\s*\(/);
+		const close = call ? closingBracket(code, end + call[0].length - 1) : -1;
+		const rest = close === -1 ? null : code.slice(close + 1).match(MEMBERS);
+		if (!rest) return { members, end };
+		offset = close + 1;
+		segment = rest[0];
+	}
+}
+
 /** Whether a `.skip(...)` call skips unconditionally (a declaration or a bare runtime skip). */
 const ALWAYS = /^\(*\s*(true|1|!0|!false)\s*\)*$/;
 const NEVER = /^\(*\s*(false|0|!1|!true|null|undefined)\s*\)*$/;
@@ -239,25 +280,19 @@ export function findSuppressions(text) {
 	const lineAt = (position) => code.slice(0, position).split('\n').length;
 	for (const match of code.matchAll(chain)) {
 		if (!ROOTS.has(match[1])) continue;
-		const base = match.index + match[1].length;
-		const end = match.index + match[0].length;
-		const members = [...match[2].matchAll(/\.\s*([A-Za-z_$][\w$]*)/g)];
-		members.forEach((member, index) => {
-			const kind = member[1];
-			if (kind === 'skipIf' || kind === 'runIf') {
+		const { members, end } = chainMembers(code, match.index + match[1].length, match[2]);
+		members.forEach(({ kind, at }, index) => {
+			if (CONDITIONS.has(kind)) {
 				// A condition that is a literal decides once and for all: `it.skipIf(true)`.
-				const after = base + member.index + member[0].length;
+				const after = at + kind.length;
 				const call = code.slice(after).match(/^\s*\(/);
 				const first = call ? callArguments(code, after + call[0].length - 1)[0] : undefined;
 				if (first !== undefined && (kind === 'skipIf' ? ALWAYS : NEVER).test(first))
-					found.push({
-						line: lineAt(base + member.index + member[0].indexOf(kind)),
-						kind: 'skip',
-					});
+					found.push({ line: lineAt(at), kind: 'skip' });
 				return;
 			}
 			if (!SUPPRESSIONS.has(kind)) return;
-			const line = lineAt(base + member.index + member[0].indexOf(kind));
+			const line = lineAt(at);
 			const last = index === members.length - 1;
 			const skipLike = kind === 'skip' || kind === 'fixme'; // Playwright's fixme skips too
 			if (!skipLike || !last) {
