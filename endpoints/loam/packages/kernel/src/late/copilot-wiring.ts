@@ -444,10 +444,10 @@ async function readAttachment(
 ): Promise<AttachedContentV1 | CommandResult<never>> {
 	const actor = context.actor as AccessActorV1;
 	if (link.kind === 'document') {
-		if (context.traceId !== undefined) {
+		// Not `doc-stamp`: the content it gives carries neither the time nor the person a stamp changes, as
+		// `document-export`'s envelope does not (#2727). Its caller today is a mutation, which no read orders.
+		if (context.traceId !== undefined)
 			deps.recordOrder?.(context.traceId, `doc:${link.document}`)?.read();
-			deps.recordOrder?.(context.traceId, `doc-stamp:${link.document}`)?.read();
-		}
 		const record = await deps.store.get<DocumentRecordV1>(DOCUMENT_TABLE, link.document);
 		if (
 			context.traceId !== undefined &&

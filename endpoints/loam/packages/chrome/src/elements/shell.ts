@@ -53,7 +53,11 @@ import { defineNotice } from './notice-loader.js';
 import type { LoamPalette } from './palette.js';
 import type { ShellPalette } from './palette-host.js';
 import { definePalette, whenIdle } from './palette-loader.js';
-import { type LoamProjectSwitcher, SWITCHER_OPEN_EVENT } from './project-switcher.js';
+import {
+	type LoamProjectSwitcher,
+	SWITCHER_OPEN_EVENT,
+	type SwitcherOpenDetail,
+} from './project-switcher.js';
 import type { LoamResizeHandle } from './resize-handle.js';
 import { styles } from './shell-styles.js';
 import type { LoamTitlebar } from './titlebar.js';
@@ -465,8 +469,9 @@ export class LoamShell extends FASTElement {
 		});
 		this.#listen(this, SWITCHER_OPEN_EVENT, (event) => {
 			const switcher = event.composedPath()[0] as LoamProjectSwitcher;
+			const closing = (event as CustomEvent<SwitcherOpenDetail | null>).detail?.closing === true;
 			void import('../rail/switcher.js')
-				.then(({ openSwitcher }) => openSwitcher(this, switcher))
+				.then(({ openSwitcher }) => openSwitcher(this, switcher, closing))
 				.catch(reportError);
 		});
 		this.#listen(this, 'resize-preview', (event) => this.#onResize(event, false));

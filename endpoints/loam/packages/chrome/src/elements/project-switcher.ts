@@ -11,6 +11,11 @@ import { entryBase } from './entry-styles.js';
 
 export const SWITCHER_OPEN_EVENT = 'loam-switcher-open';
 
+/** `SWITCHER_OPEN_EVENT`'s detail: `closing` when the press is a pointer's that began with the list open (#2883). */
+export interface SwitcherOpenDetail {
+	closing: boolean;
+}
+
 const template = html<LoamProjectSwitcher>`
 	<button
 		class="entry"
@@ -18,7 +23,8 @@ const template = html<LoamProjectSwitcher>`
 		aria-haspopup="${(x) => (x.variant === 'tabbar' ? 'dialog' : 'listbox')}"
 		aria-expanded="${(x) => String(x.expanded)}"
 		aria-label="${(x) => x.accessibleName}"
-		@click="${(x) => x.press()}"
+		@pointerdown="${(x) => x.pointerDown()}"
+		@click="${(x, c) => x.press(c.event as MouseEvent)}"
 	>
 		<span class="icon"><violet-icon icon="${(x) => x.icon}" decorative></violet-icon></span>
 		<span class="label">${(x) => x.project || 'Project'}</span>
@@ -79,8 +85,30 @@ export class LoamProjectSwitcher extends FASTElement {
 		this.setAttribute('role', 'listitem');
 	}
 
-	press(): void {
-		this.dispatchEvent(new CustomEvent(SWITCHER_OPEN_EVENT, { bubbles: true, composed: true }));
+	/** Whether the list was open when the pointer went down on the button, before that press closed it. */
+	#openAtPointerDown = false;
+
+	/** A pointer goes down on the button: its press closes the list, never reopens it (#2883). */
+	pointerDown(): boolean {
+		this.#openAtPointerDown = this.expanded;
+		return true;
+	}
+
+	/**
+	 * The button's press, or the shell's command's with no event. A pointer's click (its `detail` counts the clicks; a
+	 * key's is 0) that went down on an open list is the press that closed it, however long it was held, so the shell
+	 * does not open the list again. A key's press, and the command's, toggle it.
+	 */
+	press(event?: MouseEvent): void {
+		const closing = event !== undefined && event.detail > 0 && this.#openAtPointerDown;
+		this.#openAtPointerDown = false;
+		this.dispatchEvent(
+			new CustomEvent<SwitcherOpenDetail>(SWITCHER_OPEN_EVENT, {
+				bubbles: true,
+				composed: true,
+				detail: { closing },
+			})
+		);
 	}
 }
 attr({ attribute: 'project' })(LoamProjectSwitcher.prototype, 'project');

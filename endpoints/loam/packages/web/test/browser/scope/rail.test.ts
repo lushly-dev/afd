@@ -448,6 +448,36 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		});
 	}
 
+	it('P2-E3: a pointer press on the open switcher closes it however long it is held, and a key opens it at once (#2883)', async () => {
+		const opened = await withProjects();
+		const { page } = opened;
+		const switcher = page.locator('loam-rail loam-project-switcher button');
+		const expanded = () => switcher.getAttribute('aria-expanded');
+		await switcher.click();
+		await expect.poll(expanded).toBe('true');
+		// The second press, quick and then held past any window, closes it; the next press, at once, opens it.
+		for (const delay of [0, 450]) {
+			await switcher.click({ delay });
+			await expect.poll(expanded).toBe('false');
+			await settle(page);
+			expect(await expanded()).toBe('false');
+			await switcher.click();
+			await expect.poll(expanded).toBe('true');
+		}
+		// Shift+Tab out of the list to the button, then Enter at once, opens it again.
+		await page.keyboard.press('Shift+Tab');
+		await expect.poll(expanded).toBe('false');
+		await page.keyboard.press('Enter');
+		await expect.poll(expanded).toBe('true');
+		// Escape returns focus to the button, and Enter at once opens it.
+		await page.keyboard.press('Escape');
+		await expect.poll(expanded).toBe('false');
+		await page.keyboard.press('Enter');
+		await expect.poll(expanded).toBe('true');
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
 	it('P2-E3: Tab out of the open list closes it, focus staying where it went (A2)', async () => {
 		const opened = await withProjects();
 		const { page } = opened;

@@ -39,6 +39,7 @@ import {
 } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
 import type { LimitKeyV1 } from './limits.js';
+import { REPLAY_RECORDED_QUERIES, recordedCommand } from './replay-recorded.js';
 import type { MembershipV1 } from './scope/access.js';
 import { CALL_MARK } from './scope/runtime.js';
 import { createFixedEnvironment } from './session.js';
@@ -186,18 +187,7 @@ export interface ReplayKernelResult {
 	kernel?: LoamKernel;
 }
 
-/**
- * Queries whose answers depend on what has loaded, not on a command, so a replay answers them from the
- * record (phase 1 specification, 7.6). `project-summary-get` too: a wall-clock deadline decided its rows,
- * and a summary that timed out left no nested entry to answer from (phase 2 specification, 7.7 and 10).
- */
-export const REPLAY_RECORDED_QUERIES: readonly string[] = Object.freeze([
-	'app-list',
-	'app-get',
-	'app-command-list',
-	'app-instance-list',
-	'project-summary-get',
-]);
+export { REPLAY_RECORDED_QUERIES };
 
 /**
  * An agent's `auth-sign-in`, journaled while the agent interface still listed it (refused `HUMAN_REQUIRED` by the
@@ -212,9 +202,8 @@ function historicalAgentSignIn(entry: JournalEntry): boolean {
 function answeredFromRecord(entry: JournalEntry): boolean {
 	const details = entry.result.error?.details as Record<string, unknown> | undefined;
 	return (
-		REPLAY_RECORDED_QUERIES.includes(entry.command) ||
+		recordedCommand(entry.command) ||
 		historicalAgentSignIn(entry) ||
-		entry.command.startsWith('copilot-') ||
 		entry.context?.replay === 'recorded' ||
 		entry.context?.parent !== undefined ||
 		details?.[PAGE_DECIDED] === true

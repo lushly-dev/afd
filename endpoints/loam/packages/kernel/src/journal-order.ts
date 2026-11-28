@@ -7,7 +7,7 @@
  *
  * - **Read-after-write (RAW):** a top-level journaled read that reads a resource after a pending write to it was
  *   issued waits, after its handler, for that write's journal entry (or its end, with none) before its own journal
- *   turn. A nested write counts as its top-level call's.
+ *   turn. A nested write counts as its top-level call's, and so does a nested read (#2727).
  * - **Write-after-read (WAR, #2117, #1045):** a top-level journaled write issued while a read that already read the
  *   same resource has not yet been journaled waits for that read's entry before its own journal turn, so a read that
  *   saw the pre-write state never lands after the write in the journal.
@@ -72,6 +72,8 @@ interface Call {
 	journaled: boolean;
 	/** True for kernel-internal boot/instance/hook calls that a write's chain may await; never waits. */
 	internal: boolean;
+	/** A call a replay answers from its record: its nested calls' reads order nothing (#2727). */
+	recorded: boolean;
 	/** Settles once its entry is appended, or it ended with none. Created lazily when needed. */
 	appended?: Promise<void>;
 	release?: () => void;
@@ -141,7 +143,8 @@ export interface JournalOrder {
 export function createJournalOrder(
 	journaled: (command: string, context?: JournalFilterContext) => boolean,
 	replaying: () => boolean,
-	isMutation: (command: string) => boolean = () => false
+	isMutation: (command: string) => boolean = () => false,
+	recorded: (command: string) => boolean = () => false
 ): JournalOrder {
 	const calls = new Map<string, Call>();
 	/** By resource, the writes whose entries are pending. */
@@ -236,6 +239,24 @@ export function createJournalOrder(
 			if (signal && onAbort) signal.removeEventListener('abort', onAbort);
 		}
 	};
+	/** A call waits for a person: its pre-wait reads are dropped, and every edge on its entry (#2117). */
+	const suspended = (call: Call): void => {
+		for (const resource of call.readFrom ?? []) {
+			const set = readers.get(resource);
+			set?.delete(call);
+			if (set?.size === 0) readers.delete(resource);
+		}
+		call.readFrom?.clear();
+		// Remove stale WAR edges on this suspended read so a post-resume re-read can still wait on that writer (#2117).
+		for (const waiter of call.waiters ?? []) waiter.waitsOn?.delete(call);
+		call.waiters?.clear();
+		if (call.release) {
+			call.release();
+			delete call.release;
+			delete call.appended;
+		}
+	};
+
 	const begin: JournalOrder['begin'] = (traceId, mutation, fields, internal, command, context) => {
 		const parent = typeof fields.parent === 'string' ? fields.parent : undefined;
 		const origin =
@@ -247,6 +268,7 @@ export function createJournalOrder(
 			top,
 			journaled: command === undefined ? true : journaled(command, context),
 			internal: Boolean(internal),
+			recorded: command !== undefined && recorded(command),
 			done: false,
 			...(parent !== undefined ? { parent } : {}),
 			...(origin !== undefined ? { origin } : {}),
@@ -280,20 +302,13 @@ export function createJournalOrder(
 		suspend(traceId) {
 			const call = calls.get(traceId);
 			if (!call || call.done) return;
-			for (const resource of call.readFrom ?? []) {
-				const set = readers.get(resource);
-				set?.delete(call);
-				if (set?.size === 0) readers.delete(resource);
-			}
-			call.readFrom?.clear();
-			// Remove stale WAR edges on this suspended read so a post-resume re-read can still wait on that writer (#2117).
-			for (const waiter of call.waiters ?? []) waiter.waitsOn?.delete(call);
-			call.waiters?.clear();
-			if (call.release) {
-				call.release();
-				delete call.release;
-				delete call.appended;
-			}
+			suspended(call);
+			// A nested call's reads are its top-level call's (#2727), which awaits it: they are dropped with it, so a
+			// write made while the person answers is not held on the root's entry.
+			const root = rootOf(traceId);
+			// A root with a write of its own keeps its entry's edges: what waits on that write still waits.
+			if (root && root !== call && !root.done && !root.mutation && !root.wrote?.size)
+				suspended(root);
 		},
 		store(traceId, resource) {
 			return {
@@ -313,8 +328,20 @@ export function createJournalOrder(
 					held.add(call);
 				},
 				read() {
-					const call = calls.get(traceId);
-					if (!call || call.done || call.mutation || !call.top || !call.journaled || call.internal)
+					// A nested read is its top-level call's, as a nested write is: `document-export`'s type export (#2727).
+					// Under a mutation it adds nothing, so a mutation's own nested read never waits on its own write. Nor under
+					// a call a replay answers from its record, as `project-summary-get`, whose place in the journal changes no
+					// replay: a write after it never waits on its summaries' deadline.
+					const call = rootOf(traceId);
+					if (
+						!call ||
+						call.done ||
+						call.mutation ||
+						(call.recorded && call.traceId !== traceId) ||
+						!call.top ||
+						!call.journaled ||
+						call.internal
+					)
 						return;
 					for (const write of writers.get(resource) ?? []) addWait(call, write);
 					call.readFrom ??= new Set();

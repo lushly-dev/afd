@@ -43,6 +43,7 @@ import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.j
 import { LoamKernelError } from './errors.js';
 import { createJournalOrder, type NestedRerunV1 } from './journal-order.js';
 import { finishRerun, type KernelPartsInternals, rerunFailure } from './replay-internals.js';
+import { recordedCommand } from './replay-recorded.js';
 
 export type { KernelPartsInternals };
 
@@ -447,7 +448,8 @@ export async function createKernelParts(
 	const order = createJournalOrder(
 		journals,
 		() => internals.replaying === true,
-		(name) => mutations?.get(name) === true
+		(name) => mutations?.get(name) === true,
+		recordedCommand
 	);
 	// One journal middleware, shared by every registry, so they share one journal sequence. Each entry is held to
 	// `loam.limits.journalEntryBytes` whole, after the redaction (phase 4 specification, section 11).
