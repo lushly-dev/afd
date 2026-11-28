@@ -439,8 +439,10 @@ Before dispatch and after routing, a hidden command is decided as a name that do
 with `resolve` never asked about it, so no resolver can answer it otherwise.
 
 The server decides `visible` and `known` for every command once per request, as the request
-arrives, and uses that answer for the whole request: a task the request creates runs its command
-with it, and its runner never asks again once the request is answered. A host whose `known` reads
+arrives or when the request first needs them, and at the latest before the request is answered or
+a task it creates starts; it uses that answer for the whole request: a task the request creates
+runs its command with it, and its runner never asks again once the request is answered. A request
+that needs neither, such as `/health`, may never ask. A host whose `known` reads
 state it keeps only while a request is in flight is therefore asked only then.
 
 A command's `requires` names only commands that exist for the caller, wherever it appears:
@@ -822,7 +824,7 @@ TypeScript enforces scopes (Loam phase 3 step 0c): a command's `scopes`, `requir
 `/mcp`, `/message` (whose answer is the body of its own response in TypeScript), `/rpc`, `/batch` and
 `/stream`; the routes and the router decide again after routing, before the confirmation gate; and
 with a resolver the remote engine decides every command again on its validated input, as its first
-middleware. Each admitted request gets a scope view, decided once as it arrives, which the routes,
+middleware. Each admitted request gets a scope view, decided once when first asked, which the routes,
 the router, the engine and the listings read from the command context. A host's own layer admits
 the callers it vouches for with `handler.admit` and runs the bearer layer's own decision with
 `handler.preDispatchCheck`. `mcp-auth-scopes.test.ts` loads the `staticScopes` and `batches` cases

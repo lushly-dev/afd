@@ -79,8 +79,11 @@ export interface McpServerOptions {
 	host?: string;
 
 	/**
-	 * Enable development mode: error responses include exception messages and stacks, and
-	 * validation errors are verbose. When false (the default) they are redacted.
+	 * Enable development mode: a handler exception's message and stack, and a schema callback's
+	 * exception text, reach the caller. When false (the default) they are replaced by a generic
+	 * message. Invalid-input errors carry their field-level issues in both modes. With the `grouped`
+	 * tool strategy it also writes each grouped call's full arguments to stderr and returns them in
+	 * an `INVALID_GROUPED_CALL` result's `_debug.receivedArgs`; arguments can hold secrets.
 	 *
 	 * It changes no HTTP check: Host and Origin validation and CORS headers are the same either
 	 * way, so a browser page on another origin is refused in development as in production. To

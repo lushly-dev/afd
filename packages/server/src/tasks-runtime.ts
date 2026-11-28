@@ -399,7 +399,11 @@ function cloneTaskContext(
 		reportProgress,
 	};
 	const view = scopeViewOf(context);
-	if (view) taskContext = bindScopeView(taskContext, view);
+	if (view) {
+		// Routing decides the view first today; this keeps a future route from asking after the answer.
+		view.settle();
+		taskContext = bindScopeView(taskContext, view);
+	}
 	const state = resolveContextState(context, undefined);
 	if (state !== undefined) taskContext = bindContextState(taskContext, state);
 	if (Object.hasOwn(context, OUTPUT_BUDGET_ASK)) {

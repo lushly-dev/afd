@@ -34,6 +34,11 @@ export interface ScopeView {
 	decideExecution(command: string, input: unknown): RequestDecision;
 	/** The decision on reading or updating a task that runs `command` (`tasks/get`, `tasks/update`). */
 	decideTask(command: string): RequestDecision;
+	/**
+	 * Decide `known` and `shown` now if no question has yet: a task the request creates does so
+	 * before it starts, so its runner never asks the resolver after the request is answered.
+	 */
+	settle(): void;
 	/** The `INSUFFICIENT_SCOPE` failure naming `missing`. */
 	insufficientScope(missing: readonly string[]): CommandError;
 }

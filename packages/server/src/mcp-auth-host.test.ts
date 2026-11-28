@@ -20,8 +20,10 @@ import * as direct from './direct.js';
 import * as root from './index.js';
 import type { PreDispatch, PreDispatchCheckOptions } from './mcp-auth.js';
 import { JwtVerifier, jwksKeySource } from './mcp-auth-jwt.js';
+import type { ProtectedResource } from './mcp-auth-resource.js';
 import type { Credentials } from './mcp-auth-rules.js';
 import { ScopeChallenge } from './mcp-auth-scopes.js';
+import { createScopeAuthority } from './mcp-auth-view.js';
 import { defineCommand } from './schema.js';
 import { createMcpHandler } from './server.js';
 import type { McpHandlerOptions } from './server-types.js';
@@ -521,5 +523,66 @@ describe('P3-E9: M6, the decision before dispatch of a host’s own layer', () =
 				}),
 			})
 		).toThrow(/clockSkewS/);
+	});
+});
+
+describe('#2779: M6, a request’s scope view is decided once, when first asked', () => {
+	function countingResolver() {
+		const asked: string[] = [];
+		const resolver = {
+			resolve: () => 'allowed' as const,
+			visible: (command: string) => {
+				asked.push(command);
+				return true;
+			},
+		};
+		return { asked, resolver };
+	}
+
+	it('asks once, on settle() or the first question, and never again', () => {
+		const { asked, resolver } = countingResolver();
+		const view = createScopeAuthority({
+			requiredScopes: [],
+			resolver,
+			filterToolsByScope: true,
+			commands,
+			toolStrategy: 'individual',
+			groupByFn: undefined,
+			resource: {} as ProtectedResource,
+		}).view(credentials());
+		expect(view.decideRequest()).toBe('proceed');
+		expect(asked).toEqual([]);
+		view.settle();
+		const once = asked.length;
+		expect(once).toBe(commands.length * 2);
+		view.settle();
+		expect([view.known('todo-list'), view.shown('todo-purge')]).toEqual([true, true]);
+		expect(asked).toHaveLength(once);
+	});
+
+	it('never asks the resolver about commands on a request that names none', async () => {
+		const { asked, resolver } = countingResolver();
+		const { base } = await gateway(() => credentials(), {
+			auth: { resolver, filterToolsByScope: true },
+		});
+		const sent = await fetch(`${base}/health`);
+		expect(sent.status).toBe(200);
+		expect(asked).toEqual([]);
+	});
+
+	it('reuses the view the host’s decision before dispatch made once the handler takes it', async () => {
+		const { asked, resolver } = countingResolver();
+		const { base, errors } = await gateway(() => credentials(), {
+			auth: { resolver, filterToolsByScope: true },
+		});
+		const sent = await post(
+			`${base}/message`,
+			rpc('tools/call', { name: 'todo-list', arguments: {} })
+		);
+		expect(errors).toEqual([]);
+		expect(sent.status).toBe(200);
+		expect(sent.text).toContain('inbox');
+		// `known` falls back to `visible`, so each command is asked twice, by one view alone.
+		expect(asked.filter((name) => name === 'todo-list')).toHaveLength(2);
 	});
 });

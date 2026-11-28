@@ -843,6 +843,7 @@ describe('authorization enforcement and error handling on resources', () => {
 			decideRequest: () => 'proceed',
 			decideExecution: () => 'proceed',
 			decideTask: () => 'proceed',
+			settle: () => {},
 			insufficientScope: () => ({
 				code: 'INSUFFICIENT_SCOPE',
 				message: 'missing',
