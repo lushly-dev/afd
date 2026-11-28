@@ -52,8 +52,8 @@ the pinned CLI to link and deploy this fixture. Do not select a production deplo
    the checked-in backend:
 
 ```sh
-../../node_modules/.bin/convex dev --once --configure existing --team <team_slug> --project <project_slug> --dev-deployment cloud --typecheck enable
-../../node_modules/.bin/auth --web-server-url http://127.0.0.1:<fixture-port>
+node_modules/.bin/convex dev --once --configure existing --team <team_slug> --project <project_slug> --dev-deployment cloud --typecheck enable
+node_modules/.bin/auth --web-server-url http://127.0.0.1:<fixture-port>
 ```
 
 The first command selects the project's cloud development deployment, writes ignored
@@ -62,7 +62,8 @@ prints matches the name recorded from the Dashboard before continuing. If it nam
 deployment, stop and correct the project selection before setting variables or running the
 browser test. The second command configures Convex Auth with the same fixed loopback origin used
 for the OAuth return URL. The private `package.json` in this folder establishes the CLI project
-root. The relative binary paths use the versions installed by `packages/auth`; the local gate
+root. The relative binary paths use this fixture's own `node_modules` (Convex 1.32.0 and Convex Auth
+0.0.96), not the newer versions `packages/auth` installs for its own tests; the local gate
 checks the pinned CLI help and SDK compatibility.
 
 Use the Convex Dashboard to set secrets and fixture scope variables on this deployment; do not

@@ -3,7 +3,7 @@ import { readdir } from 'node:fs/promises';
 import { extname, join, relative, resolve, sep } from 'node:path';
 
 // Keep entrypoint discovery aligned with Convex 1.32.0's
-// packages/auth/node_modules/convex/src/bundler/index.ts.
+// packages/auth/hosted/convex/node_modules/convex/src/bundler/index.ts.
 const entryPointExtensions = new Set([
 	'.js',
 	'.mjs',

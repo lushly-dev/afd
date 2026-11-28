@@ -11,8 +11,17 @@ import { areSessionStatesEqual } from './session-state.js';
 import type { AuthAdapter, AuthSessionState, User } from './types.js';
 import { LOADING } from './types.js';
 
-export type { ConvexAuthAdapterOptions } from './adapters/convex.js';
+export type {
+	ConvexAuthAdapterOptions,
+	ConvexAuthV2AdapterOptions,
+} from './adapters/convex.js';
 export { useConvexAuthAdapter } from './adapters/convex.js';
+export type {
+	ConvexOauthSignIn,
+	ConvexOauthStartResult,
+	ConvexPasswordSignIn,
+	ConvexPasswordSignInResult,
+} from './adapters/convex-v2.js';
 
 export interface AuthHooks {
 	useAuth: () => AuthAdapter;

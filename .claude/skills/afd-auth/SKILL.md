@@ -94,11 +94,12 @@ type SignInOutcome =
 - `roles` is `{ [organizationId]: { [userId]: role } }`; owners and admins manage members and invitations, only an owner makes or changes an owner, and the last owner cannot leave or be demoted (Better Auth's error codes in the message). Ids count up (`mock-passkey-1`), so runs are deterministic.
 - Once attached, a passkey sign-in signs in the holder of the passkey added last, and with none is `PASSKEY_CANCELLED`; `_setPasskeyCeremony('cancel' | 'unsupported' | 'complete')` sets how later ceremonies end.
 
-**`useConvexAuthAdapter`** (`/react`): takes `useAuthActions`, `useConvexAuth`, `meQuery` (`() => useQuery(api.users.me)`) and `passwordProviderId` (default `'password'`, the stock `Password()` id).
+**`useConvexAuthAdapter`** (`/react`) takes one of two option shapes, fixed for the component's life. Both take `useConvexAuth` and `meQuery` (`() => useQuery(api.users.me)`).
 
-- It needs `@convex-dev/auth` below 2 (peer `>=0.0.95 <2`). Version 2 has no `useAuthActions().signIn`, only a hook per sign-in method, so do not install 2.x for it (#3006).
-- Credentials call `signIn(passwordProviderId, { email, password, flow: 'signIn' })`; a missing password is `INVALID_CREDENTIALS`. OAuth forwards `redirectTo` and rejects `scopes` with `PROVIDER_ERROR`: set them on the provider in `convex/auth.ts`.
-- `InvalidAccountId`, `InvalidSecret` and `Invalid credentials` map to `INVALID_CREDENTIALS`, fetch failures to `NETWORK_ERROR`, the rest to `PROVIDER_ERROR`; production Convex hides error text unless it is a `ConvexError`, so bad credentials there are `PROVIDER_ERROR`.
+- **2.x** (`ConvexAuthV2AdapterOptions`): `signOut` (`useAuthActions().signOut`), `signInWithPassword` (`useSignInWithEmailPassword(api.auth).signIn`) and `oauth` (`{ github: useSignInWithGithub(api.auth).signIn }`). Call the method hooks in the component and pass their functions. A method not passed is `PROVIDER_ERROR`. The methods' error values map as follows: `INVALID_CREDENTIALS`, `USER_NOT_FOUND` and the password rules to `INVALID_CREDENTIALS`, `RATE_LIMITED` to `PROVIDER_ERROR`, and `OTHER_ERROR` by its `cause`. New apps use 2.x; 0.0.x support goes in the next major (#3006).
+- **0.0.x** (`ConvexAuthAdapterOptions`): `useAuthActions` and `passwordProviderId` (default `'password'`, the stock `Password()` id).
+- 0.0.x credentials call `signIn(passwordProviderId, { email, password, flow: 'signIn' })`; a missing password is `INVALID_CREDENTIALS`. OAuth forwards `redirectTo` and rejects `scopes` with `PROVIDER_ERROR`: set them on the provider in `convex/auth.ts`.
+- 0.0.x errors: `InvalidAccountId`, `InvalidSecret` and `Invalid credentials` map to `INVALID_CREDENTIALS`, fetch failures to `NETWORK_ERROR`, the rest to `PROVIDER_ERROR`; production Convex hides error text unless it is a `ConvexError`, so bad credentials there are `PROVIDER_ERROR`.
 - `loading` while `meQuery` returns `undefined`, `unauthenticated` on `null`. No `expiresAt`: Convex refreshes its JWT itself. The hook returns the same adapter on every render.
 - Convex module filenames allow only letters, digits, underscores and periods; a hyphenated one fails deployment (`packages/auth/hosted/convex/module-paths.mjs` checks this).
 

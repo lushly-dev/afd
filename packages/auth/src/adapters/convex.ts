@@ -1,7 +1,8 @@
 /**
  * @fileoverview Convex auth adapter
  *
- * Bridges @convex-dev/auth React hooks to the AuthAdapter interface.
+ * Bridges @convex-dev/auth React hooks to the AuthAdapter interface, for the
+ * 0.0.x line (`useAuthActions().signIn`) and the 2.x line (a hook per method).
  * This is a React hook — must be called inside a component.
  */
 
@@ -17,6 +18,12 @@ import type {
 	User,
 } from '../types.js';
 import { LOADING, UNAUTHENTICATED } from '../types.js';
+import {
+	type ConvexOauthSignIn,
+	type ConvexPasswordSignIn,
+	type ConvexV2SignIns,
+	signInWithConvexV2,
+} from './convex-v2.js';
 import { describeThrown, isKnownNetworkFailure } from './provider-errors.js';
 
 /** Id of `Password()` from `@convex-dev/auth/providers/Password`. */
@@ -32,6 +39,12 @@ export interface ConvexAuthActions {
 export interface ConvexAuthAdapterOptions {
 	/** Return value of useAuthActions() from @convex-dev/auth/react */
 	useAuthActions: () => ConvexAuthActions;
+	/** 2.x options only; with `useAuthActions`, the 0.0.x shape signs out through it. */
+	signOut?: never;
+	/** 2.x options only. */
+	signInWithPassword?: never;
+	/** 2.x options only. */
+	oauth?: never;
 	/** Return value of useConvexAuth() from convex/react */
 	useConvexAuth: () => { isAuthenticated: boolean; isLoading: boolean };
 	/**
@@ -56,19 +69,57 @@ export interface ConvexAuthAdapterOptions {
 }
 
 /**
+ * Options for `@convex-dev/auth` 2.x, where each sign-in method has its own
+ * hook. Call those hooks in the component and pass the functions they return.
+ * Only the methods passed can sign in; the others reject with PROVIDER_ERROR.
+ */
+export interface ConvexAuthV2AdapterOptions extends ConvexV2SignIns {
+	/** 0.0.x options only: its presence selects the 0.0.x shape. */
+	useAuthActions?: never;
+	/** `useAuthActions().signOut` from `@convex-dev/auth/react` 2.x. */
+	signOut: () => Promise<void>;
+	/**
+	 * `useSignInWithEmailPassword(api.auth).signIn` from
+	 * `@convex-dev/auth/methods/email-password/react`, for `credentials` sign-in.
+	 */
+	signInWithPassword?: ConvexPasswordSignIn;
+	/**
+	 * OAuth sign-in by provider id, the `provider` of an `oauth` sign-in: for
+	 * example `{ github: useSignInWithGithub(api.auth).signIn }`.
+	 */
+	oauth?: Readonly<Record<string, ConvexOauthSignIn>>;
+	/** Return value of useConvexAuth() from convex/react */
+	useConvexAuth: () => { isAuthenticated: boolean; isLoading: boolean };
+	/** As in {@link ConvexAuthAdapterOptions.meQuery}. */
+	meQuery: () => User | null | undefined;
+	/** As in {@link ConvexAuthAdapterOptions.onListenerError}. */
+	onListenerError?: ListenerErrorHandler;
+}
+
+/**
  * React hook that creates an AuthAdapter backed by Convex.
+ *
+ * Pass {@link ConvexAuthAdapterOptions} (`useAuthActions`) for
+ * `@convex-dev/auth` 0.0.x and {@link ConvexAuthV2AdapterOptions}
+ * (`signOut` and the method sign-in functions) for 2.x. Keep to one shape for
+ * the component's life: the 0.0.x shape calls `useAuthActions` as a hook.
  *
  * Must be called inside a ConvexProvider + ConvexAuthProvider tree. It returns
  * the same adapter object on every render; the adapter always uses the latest
  * actions and options passed to the hook.
  */
-export function useConvexAuthAdapter(options: ConvexAuthAdapterOptions): AuthAdapter {
-	const actions = options.useAuthActions();
+export function useConvexAuthAdapter(
+	options: ConvexAuthAdapterOptions | ConvexAuthV2AdapterOptions
+): AuthAdapter {
+	const backend: ConvexBackend = isV2Options(options)
+		? { version: 2, options }
+		: // biome-ignore lint/correctness/useHookAtTopLevel: the options keep one shape for the component's life (see above), so this runs on every render or on none
+			{ version: 0, options, actions: options.useAuthActions() };
 	const { isAuthenticated, isLoading } = options.useConvexAuth();
 	const me = options.meQuery();
 
-	const latest = useRef({ actions, options });
-	latest.current = { actions, options };
+	const latest = useRef(backend);
+	latest.current = backend;
 
 	const stateRef = useRef<AuthSessionState>(LOADING);
 	const notifiedStateRef = useRef<AuthSessionState>(LOADING);
@@ -95,15 +146,21 @@ export function useConvexAuthAdapter(options: ConvexAuthAdapterOptions): AuthAda
 	}, [currentState, listeners]);
 
 	const [adapter] = useState<AuthAdapter>(() => ({
-		signIn: (signInOptions) =>
-			signInWithConvex(
-				latest.current.actions,
-				latest.current.options.passwordProviderId ?? DEFAULT_PASSWORD_PROVIDER_ID,
+		signIn: (signInOptions) => {
+			const current = latest.current;
+			if (current.version === 2) {
+				return signInWithConvexV2(current.options, signInOptions, mapConvexError);
+			}
+			return signInWithConvex(
+				current.actions,
+				current.options.passwordProviderId ?? DEFAULT_PASSWORD_PROVIDER_ID,
 				signInOptions
-			),
+			);
+		},
 		signOut: async () => {
+			const current = latest.current;
 			try {
-				await latest.current.actions.signOut();
+				await (current.version === 2 ? current.options : current.actions).signOut();
 			} catch (error) {
 				throw mapConvexError(error, false);
 			}
@@ -113,6 +170,17 @@ export function useConvexAuthAdapter(options: ConvexAuthAdapterOptions): AuthAda
 	}));
 
 	return adapter;
+}
+
+/** Which @convex-dev/auth line the options are for, with what each one signs in through. */
+type ConvexBackend =
+	| { version: 0; options: ConvexAuthAdapterOptions; actions: ConvexAuthActions }
+	| { version: 2; options: ConvexAuthV2AdapterOptions };
+
+function isV2Options(
+	options: ConvexAuthAdapterOptions | ConvexAuthV2AdapterOptions
+): options is ConvexAuthV2AdapterOptions {
+	return options.useAuthActions === undefined;
 }
 
 function deriveState(

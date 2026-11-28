@@ -163,6 +163,47 @@ goes to `onListenerError`, or is rethrown in a microtask when none is set.
 
 ### Convex
 
+The adapter supports `@convex-dev/auth` 0.0.x (from 0.0.95) and 2.x. It takes
+a different options shape for each line. Keep to one shape for a component's
+life, because the 0.0.x shape calls `useAuthActions` as a hook.
+
+**2.x**, where each sign-in method has its own hook. Call the hooks for the
+methods the app offers and pass the functions they return:
+
+```ts
+import { useAuthActions } from '@convex-dev/auth/react';
+import { useSignInWithEmailPassword } from '@convex-dev/auth/methods/email-password/react';
+import { useSignInWithGithub } from '@convex-dev/auth/methods/github/react';
+
+const adapter = useConvexAuthAdapter({
+  signOut: useAuthActions().signOut,
+  signInWithPassword: useSignInWithEmailPassword(api.auth).signIn,
+  oauth: { github: useSignInWithGithub(api.auth).signIn },
+  useConvexAuth,
+  meQuery: () => useQuery(api.users.me),
+});
+```
+
+- Credentials sign-in calls `signInWithPassword({ email, password })`. A
+  missing password is `INVALID_CREDENTIALS`, and a missing
+  `signInWithPassword` is `PROVIDER_ERROR`.
+- An OAuth sign-in calls `oauth[provider]`, forwarding `redirectTo`, and resolves
+  with a `redirect` outcome. A provider missing from `oauth` is rejected with
+  `PROVIDER_ERROR`, and so are `scopes`.
+- In 2.x, `redirectTo` must be an absolute `http` or `https` URL that the
+  deployment allows as a redirect origin; 0.0.x accepted a relative path.
+- The 2.x methods return errors as values. `INVALID_CREDENTIALS`,
+  `USER_NOT_FOUND` and the password rules become `INVALID_CREDENTIALS`, so a
+  form does not reveal which accounts exist. `RATE_LIMITED` becomes
+  `PROVIDER_ERROR`, with the wait in its suggestion. An `OTHER_ERROR` is mapped
+  from its `cause`, so a failed fetch is `NETWORK_ERROR`.
+
+The 2.x support is checked against the types of `@convex-dev/auth` 2.1.0 and
+by unit tests. The hosted Convex fixture still runs 0.0.96; a hosted 2.x run
+is tracked in #3006.
+
+**0.0.x**, through `useAuthActions().signIn`:
+
 ```ts
 const adapter = useConvexAuthAdapter({
   useAuthActions,
@@ -171,10 +212,6 @@ const adapter = useConvexAuthAdapter({
   passwordProviderId: 'password', // default: the stock Password() provider
 });
 ```
-
-The adapter supports `@convex-dev/auth` from 0.0.95 up to, not including, 2.0. Version 2 replaced
-`useAuthActions().signIn` with a hook per sign-in method, so the adapter cannot
-sign in with it yet (#3006).
 
 - Credentials sign-in calls `signIn(passwordProviderId, { email, password, flow: 'signIn' })`.
   A missing password is rejected with `INVALID_CREDENTIALS`.
@@ -186,6 +223,9 @@ sign in with it yet (#3006).
   failures `NETWORK_ERROR`, everything else `PROVIDER_ERROR`. Production
   Convex deployments hide server error text unless it is thrown as a
   `ConvexError`, so there bad credentials surface as `PROVIDER_ERROR`.
+
+For both lines:
+
 - The state is `loading` while `meQuery` returns `undefined`, and
   `unauthenticated` when it returns `null`.
 - The session has no `expiresAt`, because Convex refreshes its token

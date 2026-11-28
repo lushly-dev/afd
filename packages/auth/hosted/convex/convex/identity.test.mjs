@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { materializeProvider } from '../../../node_modules/@convex-dev/auth/dist/server/provider_utils.js';
+import { materializeProvider } from '../node_modules/@convex-dev/auth/dist/server/provider_utils.js';
 import { createGitHubOAuthProvider } from './github_provider.mjs';
 import {
 	canCreateOrReuseAccount,
