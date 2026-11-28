@@ -354,7 +354,9 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 					throw new JsonRpcError(
 						JsonRpcErrorCode.INVALID_REQUEST,
 						error.message,
-						error.suggestion as string
+						error.suggestion as string,
+						// The modern lane's `{ code, suggestion, scopes }`, so a client on `/message` gets the step-up hint too.
+						{ code: error.code, scopes: decision.forbidden }
 					);
 				}
 				return { tools: getToolsList(bindScopeView(scoped({}, state), view)) };
