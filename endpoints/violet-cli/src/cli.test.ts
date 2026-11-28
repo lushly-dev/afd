@@ -596,7 +596,8 @@ describe('CLI behaviour', () => {
 			JSON.stringify({ nodeId: 'n1', tokenId: 'color.secondary', value: '#FFFFFF' }),
 		);
 		logs.length = 0;
-	});
+		// Seeding the database ran past Vitest's 10 s hook default on a loaded lane host (#2866).
+	}, 60_000);
 
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -1093,6 +1094,7 @@ describe('CLI behaviour', () => {
 		});
 	});
 
+	// The realistic demo takes 8 to 10 s unloaded and 64 s on a loaded lane host (#2866).
 	describe('violations', () => {
 		it('lists violations from the realistic demo system', async () => {
 			const demoDb = path.join(tmpDir, 'violations.db');
@@ -1115,7 +1117,7 @@ describe('CLI behaviour', () => {
 			expect(out).toMatch(/severity\s+node\s+token\s+rule/);
 			expect(out).toMatch(/error\s+azure-mobile\s+color\.text\.primary/);
 			expect(out).not.toContain('warning');
-		}, 60_000);
+		}, 180_000);
 	});
 
 	describe('health', () => {
@@ -1142,7 +1144,7 @@ describe('CLI behaviour', () => {
 			expect(out).toContain('drift: share of resolved tokens that differ from the parent');
 			// Sorted by drift: a dark theme outranks its product
 			expect(out.indexOf('azure-dark')).toBeLessThan(out.indexOf('azure-portal '));
-		}, 60_000);
+		}, 180_000);
 
 		it('returns JSON against a chosen baseline', async () => {
 			const demoDb = path.join(tmpDir, 'health-json.db');
@@ -1177,7 +1179,7 @@ describe('CLI behaviour', () => {
 					}),
 				]),
 			);
-		}, 60_000);
+		}, 180_000);
 	});
 
 	describe('audit', () => {
@@ -1430,7 +1432,7 @@ describe('CLI behaviour', () => {
 				'xbox',
 			]);
 			expect(logs.join('\n')).toContain('xbox-ios-dark (theme)');
-		}, 60_000);
+		}, 180_000);
 	});
 
 	describe('apikeys', () => {

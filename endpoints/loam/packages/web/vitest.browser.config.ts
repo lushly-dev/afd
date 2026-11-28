@@ -15,6 +15,8 @@ export default defineConfig({
 		env: { LOAM_ENGINE: 'chromium' },
 		testTimeout: 30_000,
 		hookTimeout: 60_000,
+		// `expect.poll` waits on the page, not the clock: a loaded lane host renders past its 1 s default (#2866).
+		expect: { poll: { timeout: 10_000 } },
 		fileParallelism: false,
 	},
 });

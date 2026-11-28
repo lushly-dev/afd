@@ -354,9 +354,16 @@ function readConfigFile(filePath, seen, depth) {
 	return merged;
 }
 
-function configChain(startDir, env, homeDir) {
+/**
+ * Cargo reads every ancestor's `.cargo/`, then `$CARGO_HOME`. A `ceiling` (a test's scratch root)
+ * is the last ancestor read, so a test under a home directory with its own `~/.cargo/config.toml`
+ * reads only the configs it wrote (#2745). Cargo itself has no ceiling: callers outside tests
+ * leave it unset.
+ */
+function configChain(startDir, env, homeDir, ceiling = null) {
 	const files = [];
 	const seen = new Set();
+	const top = ceiling ? resolve(ceiling) : null;
 	let current = resolve(startDir);
 	for (;;) {
 		const found = configInFolder(join(current, '.cargo'));
@@ -368,7 +375,7 @@ function configChain(startDir, env, homeDir) {
 			}
 		}
 		const parent = dirname(current);
-		if (parent === current) break;
+		if (parent === current || current === top) break;
 		current = parent;
 	}
 	const home = cargoHome(env, homeDir);
@@ -388,10 +395,10 @@ function configChain(startDir, env, homeDir) {
  */
 export function readCargoBuildConfig(
 	workspaceDir,
-	{ cwd = workspaceDir, env = process.env, homeDir = defaultHomeDir(env) } = {}
+	{ cwd = workspaceDir, env = process.env, homeDir = defaultHomeDir(env), ceiling = null } = {}
 ) {
 	const result = { targetDir: null, buildDir: null };
-	for (const file of configChain(cwd, env, homeDir)) {
+	for (const file of configChain(cwd, env, homeDir, ceiling)) {
 		const parsed = readConfigFile(file, new Set(), 0);
 		if (!result.targetDir && parsed['target-dir']) result.targetDir = parsed['target-dir'];
 		if (!result.buildDir && parsed['build-dir']) result.buildDir = parsed['build-dir'];
@@ -424,13 +431,13 @@ function resolveTemplateDir(template, baseDir, workspaceDir, env, homeDir) {
  */
 export function resolveCargoTargetDir(
 	workspaceDir,
-	{ cwd = workspaceDir, env = process.env, homeDir = defaultHomeDir(env) } = {}
+	{ cwd = workspaceDir, env = process.env, homeDir = defaultHomeDir(env), ceiling = null } = {}
 ) {
 	const ws = resolve(workspaceDir);
 	const runDir = resolve(cwd);
 	const fromEnv = env.CARGO_TARGET_DIR?.trim() || env.CARGO_BUILD_TARGET_DIR?.trim();
 	if (fromEnv) return resolve(runDir, fromEnv);
-	const { targetDir } = readCargoBuildConfig(ws, { cwd: runDir, env, homeDir });
+	const { targetDir } = readCargoBuildConfig(ws, { cwd: runDir, env, homeDir, ceiling });
 	if (targetDir) {
 		return isAbsolute(targetDir.value)
 			? resolve(targetDir.value)
@@ -446,13 +453,13 @@ export function resolveCargoTargetDir(
  */
 export function resolveCargoBuildDir(
 	workspaceDir,
-	{ cwd = workspaceDir, env = process.env, homeDir = defaultHomeDir(env) } = {}
+	{ cwd = workspaceDir, env = process.env, homeDir = defaultHomeDir(env), ceiling = null } = {}
 ) {
 	const ws = resolve(workspaceDir);
 	const runDir = resolve(cwd);
 	const fromEnv = env.CARGO_BUILD_BUILD_DIR?.trim();
 	if (fromEnv) return resolveTemplateDir(fromEnv, runDir, ws, env, homeDir);
-	const { buildDir } = readCargoBuildConfig(ws, { cwd: runDir, env, homeDir });
+	const { buildDir } = readCargoBuildConfig(ws, { cwd: runDir, env, homeDir, ceiling });
 	if (buildDir) return resolveTemplateDir(buildDir.value, buildDir.base, ws, env, homeDir);
 	return null;
 }
@@ -515,9 +522,9 @@ function addPinnedTargetAndBuildDir(dirs, workspaceDir, options) {
  * will actually write into. Pure TypeScript/Node steps that merely sit in a suite declaring
  * `cargo` at the suite level (such as `loam.yml`'s `typecheck:hosted`) contribute no directories.
  */
-export function rustOutputDirsForPlan(plan, { root, env = process.env, homeDir } = {}) {
+export function rustOutputDirsForPlan(plan, { root, env = process.env, homeDir, ceiling } = {}) {
 	const dirs = new Set();
-	const options = homeDir !== undefined ? { env, homeDir } : { env };
+	const options = homeDir !== undefined ? { env, homeDir, ceiling } : { env, ceiling };
 	const addWorkspace = (workspaceDir, cwd = workspaceDir) => {
 		for (const dir of cargoOutputDirs(workspaceDir, { ...options, cwd })) dirs.add(dir);
 	};
@@ -580,11 +587,11 @@ export function rustOutputDirsForPlan(plan, { root, env = process.env, homeDir }
  */
 export function checkRustDiskFloor(
 	plan,
-	{ root, env = process.env, homeDir, statfs = statfsSync, minGb } = {}
+	{ root, env = process.env, homeDir, ceiling, statfs = statfsSync, minGb } = {}
 ) {
 	const floorGb = resolveVerifyMinDiskGb(env, minGb);
 	if (floorGb === 0) return { ok: true, floorGb, checked: [], low: [], unreadable: [] };
-	const dirs = rustOutputDirsForPlan(plan, { root, env, homeDir });
+	const dirs = rustOutputDirsForPlan(plan, { root, env, homeDir, ceiling });
 	if (dirs.length === 0) return { ok: true, floorGb, checked: [], low: [], unreadable: [] };
 	const checked = [];
 	const low = [];

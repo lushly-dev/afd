@@ -45,7 +45,8 @@ const run = (root, env = {}) =>
 		cwd: root,
 		encoding: 'utf8',
 		env: { ...clean, CI: '', AFD_BASE: '', ...env },
-		timeout: 15_000,
+		// A loaded Windows lane host took 20 s for one run (#2866): the timeout only stops a hang.
+		timeout: 60_000,
 	});
 
 /** Git in a fixture: no hooks, no signing, nothing inherited from the caller's repository. */
@@ -68,7 +69,7 @@ const git = (root, ...args) =>
 			env: clean,
 			encoding: 'utf8',
 			stdio: ['ignore', 'pipe', 'ignore'],
-			timeout: 15_000,
+			timeout: 60_000,
 		}
 	).trim();
 

@@ -34,12 +34,15 @@ test('resolveCargoTargetDir follows Cargo precedence: env, nearest config, CARGO
 	mkdirSync(home, { recursive: true });
 
 	// Default: <workspace>/target.
-	assert.equal(resolveCargoTargetDir(ws, { env: {}, homeDir: null }), join(ws, 'target'));
+	assert.equal(
+		resolveCargoTargetDir(ws, { env: {}, homeDir: null, ceiling: root }),
+		join(ws, 'target')
+	);
 
 	// $CARGO_HOME/config.toml relative paths resolve against the parent of $CARGO_HOME (Cargo rule).
 	writeFileSync(join(home, 'config.toml'), '[build]\ntarget-dir = "shared-target"\n');
 	assert.equal(
-		resolveCargoTargetDir(ws, { env: { CARGO_HOME: home }, homeDir: null }),
+		resolveCargoTargetDir(ws, { env: { CARGO_HOME: home }, homeDir: null, ceiling: root }),
 		join(root, 'shared-target')
 	);
 
@@ -50,7 +53,7 @@ test('resolveCargoTargetDir follows Cargo precedence: env, nearest config, CARGO
 		'[build]\ntarget-dir = "repo-target"\n'
 	);
 	assert.equal(
-		resolveCargoTargetDir(ws, { env: { CARGO_HOME: home }, homeDir: null }),
+		resolveCargoTargetDir(ws, { env: { CARGO_HOME: home }, homeDir: null, ceiling: root }),
 		join(root, 'repo', 'repo-target')
 	);
 
@@ -59,7 +62,7 @@ test('resolveCargoTargetDir follows Cargo precedence: env, nearest config, CARGO
 	writeFileSync(join(ws, '.cargo', 'base.toml'), '[build]\ntarget-dir = "from-include"\n');
 	writeFileSync(join(ws, '.cargo', 'config'), 'include = ["base.toml"]\n');
 	assert.equal(
-		resolveCargoTargetDir(ws, { env: { CARGO_HOME: home }, homeDir: null }),
+		resolveCargoTargetDir(ws, { env: { CARGO_HOME: home }, homeDir: null, ceiling: root }),
 		join(ws, 'from-include')
 	);
 
@@ -70,6 +73,7 @@ test('resolveCargoTargetDir follows Cargo precedence: env, nearest config, CARGO
 		resolveCargoTargetDir(ws, {
 			env: { CARGO_HOME: home, CARGO_BUILD_TARGET_DIR: envBuildTarget },
 			homeDir: null,
+			ceiling: root,
 		}),
 		envBuildTarget
 	);
@@ -81,6 +85,7 @@ test('resolveCargoTargetDir follows Cargo precedence: env, nearest config, CARGO
 				CARGO_TARGET_DIR: envTarget,
 			},
 			homeDir: null,
+			ceiling: root,
 		}),
 		envTarget
 	);
@@ -94,17 +99,20 @@ test('resolveCargoBuildDir expands Cargo templates and cargoOutputDirs returns b
 	mkdirSync(ws, { recursive: true });
 	mkdirSync(home, { recursive: true });
 
-	assert.equal(resolveCargoBuildDir(ws, { env: {}, homeDir: null }), null);
+	assert.equal(resolveCargoBuildDir(ws, { env: {}, homeDir: null, ceiling: root }), null);
 
 	writeFileSync(
 		join(home, 'config.toml'),
 		`[build]\nbuild-dir = ${JSON.stringify(join(dev, '{workspace-path-hash}'))}\n`
 	);
-	assert.equal(resolveCargoBuildDir(ws, { env: { CARGO_HOME: home }, homeDir: null }), dev);
-	assert.deepEqual(cargoOutputDirs(ws, { env: { CARGO_HOME: home }, homeDir: null }), [
-		join(ws, 'target'),
-		dev,
-	]);
+	assert.equal(
+		resolveCargoBuildDir(ws, { env: { CARGO_HOME: home }, homeDir: null, ceiling: root }),
+		dev
+	);
+	assert.deepEqual(
+		cargoOutputDirs(ws, { env: { CARGO_HOME: home }, homeDir: null, ceiling: root }),
+		[join(ws, 'target'), dev]
+	);
 
 	// {cargo-cache-home} and {workspace-root} templates expand cleanly.
 	assert.equal(
@@ -114,6 +122,7 @@ test('resolveCargoBuildDir expands Cargo templates and cargoOutputDirs returns b
 				CARGO_BUILD_BUILD_DIR: '{cargo-cache-home}/builds/{workspace-path-hash}',
 			},
 			homeDir: null,
+			ceiling: root,
 		}),
 		join(home, 'builds')
 	);
@@ -121,6 +130,7 @@ test('resolveCargoBuildDir expands Cargo templates and cargoOutputDirs returns b
 		resolveCargoBuildDir(ws, {
 			env: { CARGO_BUILD_BUILD_DIR: '{workspace-root}/custom-build' },
 			homeDir: null,
+			ceiling: root,
 		}),
 		join(ws, 'custom-build')
 	);
@@ -145,6 +155,7 @@ test('rustOutputDirsForPlan matches real launcher target rules, build-dir, cwd, 
 			root,
 			env: { LOAM_UMBEL_TARGET_DIR: loamTarget },
 			homeDir: null,
+			ceiling: root,
 		}),
 		[resolve(loamTarget)]
 	);
@@ -160,6 +171,7 @@ test('rustOutputDirsForPlan matches real launcher target rules, build-dir, cwd, 
 			root,
 			env: { CARGO_BUILD_TARGET_DIR: external },
 			homeDir: null,
+			ceiling: root,
 		}),
 		[resolve(root, 'endpoints/umbel/target')]
 	);
@@ -168,7 +180,10 @@ test('rustOutputDirsForPlan matches real launcher target rules, build-dir, cwd, 
 	const hostedPlan = loamSuite.steps
 		.filter((step) => step.gate === 'hosted')
 		.map((step) => ({ suite: loamSuite, step }));
-	assert.deepEqual(rustOutputDirsForPlan(hostedPlan, { root, env: {}, homeDir: null }), []);
+	assert.deepEqual(
+		rustOutputDirsForPlan(hostedPlan, { root, env: {}, homeDir: null, ceiling: root }),
+		[]
+	);
 
 	// Specimen pinned-target steps (test:stories and loam test:browser) include both the pinned
 	// target and any Cargo build-dir for intermediate artifacts.
@@ -183,6 +198,7 @@ test('rustOutputDirsForPlan matches real launcher target rules, build-dir, cwd, 
 			root,
 			env: { CARGO_BUILD_BUILD_DIR: buildDir },
 			homeDir: null,
+			ceiling: root,
 		}),
 		[resolve(root, 'foundations/specimen/host/target'), resolve(buildDir)]
 	);
@@ -198,6 +214,7 @@ test('rustOutputDirsForPlan matches real launcher target rules, build-dir, cwd, 
 			root,
 			env: { CARGO_BUILD_BUILD_DIR: buildDir },
 			homeDir: null,
+			ceiling: root,
 		}),
 		[resolve(root, 'foundations/specimen/host/target'), resolve(buildDir)]
 	);
@@ -215,6 +232,7 @@ test('rustOutputDirsForPlan matches real launcher target rules, build-dir, cwd, 
 			root,
 			env: { CARGO_TARGET_DIR: '../cache' },
 			homeDir: null,
+			ceiling: root,
 		}),
 		[resolve(root, 'packages/examples/cache')]
 	);
@@ -229,6 +247,7 @@ test('rustOutputDirsForPlan matches real launcher target rules, build-dir, cwd, 
 			root,
 			env: { CARGO_TARGET_DIR: '../cache' },
 			homeDir: null,
+			ceiling: root,
 		}),
 		[resolve(root, 'endpoints/cache'), resolve(root, 'packages/examples/cache')]
 	);
@@ -254,6 +273,7 @@ test('checkRustDiskFloor blocks low or unreadable volumes, passes above, and hon
 		root,
 		env: { CARGO_TARGET_DIR: external },
 		homeDir: null,
+		ceiling: root,
 		statfs: () => fakeStatfs(4.2),
 	});
 	assert.equal(low.ok, false);
@@ -269,6 +289,7 @@ test('checkRustDiskFloor blocks low or unreadable volumes, passes above, and hon
 		root,
 		env: { CARGO_TARGET_DIR: external },
 		homeDir: null,
+		ceiling: root,
 		statfs: () => {
 			throw new Error('EACCES');
 		},
@@ -282,6 +303,7 @@ test('checkRustDiskFloor blocks low or unreadable volumes, passes above, and hon
 		root,
 		env: { CARGO_TARGET_DIR: external },
 		homeDir: null,
+		ceiling: root,
 		statfs: () => fakeStatfs(25),
 	});
 	assert.equal(ok.ok, true);
@@ -292,6 +314,7 @@ test('checkRustDiskFloor blocks low or unreadable volumes, passes above, and hon
 		root,
 		env: { AFD_VERIFY_MIN_DISK_GB: '0' },
 		homeDir: null,
+		ceiling: root,
 		statfs: () => {
 			throw new Error('should not be called when disabled');
 		},
@@ -305,6 +328,7 @@ test('checkRustDiskFloor blocks low or unreadable volumes, passes above, and hon
 			root,
 			env: {},
 			homeDir: null,
+			ceiling: root,
 			statfs: () => fakeStatfs(0.1),
 		}
 	);
