@@ -22,7 +22,7 @@ Where Loam stands, on one screen, as of 2026-11-23. It sums up the sections belo
 | 7, 8 and the collaboration service | Not started | Phase 7: phases 4, 5 and 6's exits. Phase 8: phase 7's. The service: phase 6's exit (D46) |
 
 - **Open now:** each open phase's steps not merged, one line each under [5](#5-bus-copilot-and-mounted-servers) and [6](#6-hosts-and-distribution); the [AFD prerequisites](#afd-prerequisites), where phase 5's records for the Agent Engine remain; the [open follow-ups](#follow-ups-not-yet-issues); and the rules of [the frozen hosted lane](#the-frozen-hosted-lane).
-- **Owner decisions waiting:** none on the hosted lane: it reopens when phase 5's milestone B is reached (D173), and until then holds phase 6's steps 8 to 10, its exit and phase 7 behind it. Phase 2's questions [open with the owner and not depended on](#2-scope-projects-and-documents): WebRTC from a view (#711), D65's reach, and whether an agent may ever cause a person's unsaved edits to be lost. The decision log's [open decisions](decisions.md#open-decisions) are all closed.
+- **Owner decisions waiting:** none on the hosted lane: it reopens when phase 5's milestone B is reached (D173), and until then holds phase 6's steps 8 to 10, its exit and phase 7 behind it. Phase 2's questions [open with the owner and not depended on](#2-scope-projects-and-documents): WebRTC from a view (#711), D65's reach, and whether an agent may ever cause a person's unsaved edits to be lost. Phase 6's [Q7 and Q8](phases/6-hosts/spec.md#q7-should-the-desktop-back-its-store-up-by-itself-proposed-2026-11-27-with-105), proposed 2026-11-27 with 10.5's store-file amendment ([#1928](https://github.com/lushly-dev/afd/issues/1928)): automatic desktop backups, and a copy kept after the IndexedDB move; neither blocks a step. The decision log's [open decisions](decisions.md#open-decisions) are all closed.
 - **Where a session writes:** its step's line under [Phase detail](#phase-detail), its own file in [sessions/](sessions/) ([Session log](#session-log)), and a row at the end of its area's follow-ups table for each follow-up it raises. Follow-ups: [phase 3](#follow-ups-phase-3-identity), [4](#follow-ups-phase-4-settings-experiments-notifications-overlays), [5](#follow-ups-phase-5-bus-copilot-and-mounted-servers), [6](#follow-ups-phase-6-hosts-and-distribution), [every other area](#follow-ups-every-other-area). The rules: [How to keep this file](#how-to-keep-this-file). History: [Archive](#archive).
 
 ## How to keep this file
@@ -265,6 +265,12 @@ The design review and phases 0, 1, 2 and 4 are done or exited: their detail is a
   - 9, the OCI image: not started. Held by D164 until the hosted lane reopens at phase 5's milestone B (D173).
 
   - 10, M4's documents: not started. Held by D164 until the hosted lane reopens at phase 5's milestone B (D173).
+
+  - 11c, AFD's read-only `SqliteAdapter` ([10.5](phases/6-hosts/spec.md#105-the-store-and-d52s-measurement), [#1928](https://github.com/lushly-dev/afd/issues/1928)): not started. Waits for the coordinator's approval of 10.5's amendment of 2026-11-27.
+
+  - 11d, the desktop's store file (10.5, #1928): not started. Waits for the same approval.
+
+  - 11e, the move from IndexedDB (10.5, #1928): not started. Waits for the same approval.
 
   - 13, the exit: not started.
 - **Follow-ups:** in the [specification](phases/6-hosts/spec.md#follow-ups).
