@@ -29,13 +29,15 @@
 //! owner: a full store, and a finished task dropped early to make room, reflect everyone's
 //! activity together, never whose.
 //!
-//! **Expiry and the token.** A row is gone at its `ttlMs`, which AFD ends at the starting
-//! token's `exp` plus [`TOKEN_EXPIRY_GRACE_MS`]. Inside that grace the store keeps only the
-//! notice that the token expired (`TASK_TOKEN_EXPIRED`, written by the runner once it had) or
-//! that the task was lost (`TASK_LOST`, the store's own): any other outcome, a result above all,
-//! is gone at the token's `exp`, so no result outlives the authorization that produced it (step
-//! 8's amendment). Every write purges what has gone, with `secure_delete` on, and then truncates
-//! the write-ahead log, so a purged result is left in neither file.
+//! **Expiry and the token.** A row is gone at its `ttlMs` and not before: AFD's TTL, an hour
+//! after the task finished. The token that started a task bounds its run (AFD stops it with
+//! `TASK_TOKEN_EXPIRED` at the token's `exp`), not its result: its owner reads the finished task,
+//! that notice included, with any later token that binds to the same principal, as the owner
+//! check below finds it, until its TTL ends (`spec/tasks.md`, #2506, which superseded step 8's
+//! grace). Every write purges what has gone, with `secure_delete` on, and then truncates the
+//! write-ahead log, so a purged result is left in neither file. The `content_until_ms` column,
+//! which held the token's `exp` for that grace, is now written equal to `expires_ms` and read by
+//! nothing, so the schema stays at version 1.
 //!
 //! **Leases.** A working task is leased to the process that runs it for [`LEASE_MS`]. Only AFD's
 //! runner renews it, through [`TaskStore::heartbeat`] at every check; a `tasks/*` read never
@@ -90,10 +92,6 @@ pub(crate) const MAX_TASKS: i64 = afd::server::tasks::DEFAULT_MAX_TASKS as i64;
 /// The largest result a task keeps, in bytes of its JSON (AFD's default, 1 MiB): AFD replaces a
 /// larger one, and the store refuses one that is larger still.
 pub(crate) const MAX_RESULT_BYTES: usize = afd::server::tasks::DEFAULT_MAX_TASK_RESULT_BYTES;
-/// How long after the starting token's `exp` a task's record lasts (step 8's amendment): long
-/// enough for its owner to poll with a new token and learn that the token expired, and holding
-/// nothing but that notice.
-pub(crate) const TOKEN_EXPIRY_GRACE_MS: u64 = 60_000;
 /// A task whose process died (section 10.5).
 pub(crate) const TASK_LOST: &str = "TASK_LOST";
 /// The longest phase name a task's `statusMessage` holds (`task-record.v1`).
@@ -198,15 +196,6 @@ fn error_code(result: &Map<String, Value>) -> Option<&str> {
         .get("error")?
         .get("code")?
         .as_str()
-}
-
-/// Whether a completed result, finished at `at`, is the notice the store keeps past the token's
-/// `exp`: AFD's `TASK_TOKEN_EXPIRED`, written once the token had expired (`content_until_ms` is
-/// the token's `exp`). A command's own failure with that code, returned before the `exp`, is not
-/// one, so nothing a command produced outlives its token. (`TASK_LOST` is the store's own, set
-/// where it is found.)
-fn is_notice(result: &Map<String, Value>, at: i64, content_until_ms: i64) -> bool {
-    at >= content_until_ms && error_code(result) == Some(afd::error_codes::TASK_TOKEN_EXPIRED)
 }
 
 /// `TASK_LOST`: the process running the task ended (or stalled past its lease) before it
@@ -324,7 +313,6 @@ struct Row {
     updated_ms: i64,
     ttl_ms: i64,
     expires_ms: i64,
-    content_until_ms: i64,
     poll_ms: i64,
     cancel_requested: bool,
     mutation: bool,
@@ -372,7 +360,7 @@ fn read_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
         updated_ms: row.get(5)?,
         ttl_ms: row.get(6)?,
         expires_ms: row.get(7)?,
-        content_until_ms: row.get(8)?,
+        // Column 8, `content_until_ms`, is written equal to `expires_ms` and read by nothing.
         poll_ms: row.get(9)?,
         cancel_requested: row.get::<_, i64>(10)? != 0,
         mutation: row.get::<_, i64>(11)? != 0,
@@ -383,11 +371,10 @@ fn read_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
 }
 
 impl Row {
-    /// Whether the row is gone at `now_ms`: its TTL ended, or it finished and holds more than a
-    /// notice past the token's `exp`.
+    /// Whether the row is gone at `now_ms`: its TTL ended. (A row an older build wrote, whose
+    /// `content_until_ms` held its token's `exp`, lasts to its TTL too.)
     fn gone(&self, now_ms: i64) -> bool {
         now_ms >= self.expires_ms
-            || (self.status != TaskState::Working && now_ms >= self.content_until_ms)
     }
 
     /// AFD's record of the row, owned by `owner` (whose digest the row matched).
@@ -578,11 +565,7 @@ fn truncate_log(connection: &Connection, purged: u64) {
 /// Purge every row that has gone at `now_ms`; returns how many.
 fn purge(transaction: &rusqlite::Transaction<'_>, now_ms: i64) -> Result<u64, TaskStoreError> {
     let removed = transaction
-        .execute(
-            "DELETE FROM tasks WHERE expires_ms <= ?1
-                 OR (status <> 'working' AND content_until_ms <= ?1)",
-            params![now_ms],
-        )
+        .execute("DELETE FROM tasks WHERE expires_ms <= ?1", params![now_ms])
         .map_err(|error| sql_error(&error))?;
     Ok(removed as u64)
 }
@@ -690,14 +673,8 @@ impl TaskStore for SqliteTasks {
         let space = space_of(call.input, &self.0.default_space);
         let mutation = call.command.mutation;
         let expires_ms = record.expires_at();
-        // No outcome but a notice outlives the starting token's `exp`.
-        let content_until_ms = call
-            .context
-            .credentials
-            .as_deref()
-            .map_or(expires_ms, |credentials| {
-                credentials.expires_at.saturating_mul(1000).min(expires_ms)
-            });
+        // An outcome lasts the task's TTL, past the starting token's `exp` (#2506).
+        let content_until_ms = expires_ms;
         let owner_key = self.0.owner_key(&record.owner);
         // The record as `task-record.v1` gives it, checked before anything is written: a call
         // whose owner, command or space the schema refuses gets no task.
@@ -793,9 +770,7 @@ impl TaskStore for SqliteTasks {
             }
             // The lease ran out: its runner's heartbeat stopped, its process dead or the runner
             // hung. Whichever process reads it first, its own included, ends it, once, tightening
-            // its TTL to post-completion retention (never wider than its initial `ttl_ms`). As a
-            // host notice (phase 5 spec, section 12.2), `TASK_LOST` stays visible through any
-            // token-expiry grace within `new_expires_ms`.
+            // its TTL to post-completion retention (never wider than its initial `ttl_ms`).
             let lost = afd::server::failure_result(task_lost(row.mutation))
                 .ok_or_else(|| unavailable(&"the lost task's result could not be built"))?;
             let elapsed = now.saturating_sub(row.created_ms).max(0);
@@ -849,20 +824,12 @@ impl TaskStore for SqliteTasks {
                           at: i64,
                           ttl_ms: Option<u64>|
              -> Result<(), TaskStoreError> {
-                let notice = result
-                    .as_ref()
-                    .is_some_and(|result| is_notice(result, at, row.content_until_ms));
                 let new_ttl_ms = ttl_ms.map_or(row.ttl_ms, |ms| {
                     i64::try_from(ms.clamp(1, i64::MAX as u64))
                         .unwrap_or(i64::MAX)
                         .min(row.ttl_ms)
                 });
                 let new_expires_ms = row.created_ms.saturating_add(new_ttl_ms);
-                let new_content_until_ms = if notice {
-                    new_expires_ms
-                } else {
-                    row.content_until_ms.min(new_expires_ms)
-                };
                 transaction
                     .execute(
                         "UPDATE tasks SET status = ?1, result = ?2, error = ?3, updated_ms = ?4,
@@ -876,7 +843,7 @@ impl TaskStore for SqliteTasks {
                             at,
                             new_ttl_ms,
                             new_expires_ms,
-                            new_content_until_ms,
+                            new_expires_ms,
                             id,
                         ],
                     )
@@ -983,13 +950,11 @@ fn record_schema() -> Option<&'static jsonschema::Validator> {
         .as_ref()
 }
 
-/// The options of every hosted surface's tasks (section 12.2, step 8's amendment): AFD's TTL,
-/// poll and check intervals, the result cap, and each task's TTL ended at its token's `exp` plus
-/// [`TOKEN_EXPIRY_GRACE_MS`].
+/// The options of every hosted surface's tasks (section 12.2): AFD's run budget, TTL, poll and
+/// check intervals, and the result cap. No token-expiry cap: a finished task's result lasts its
+/// TTL past the starting token's `exp`, for its owner (#2506).
 pub(crate) fn options() -> afd::server::TaskOptions {
-    afd::server::TaskOptions::new()
-        .with_max_result_bytes(MAX_RESULT_BYTES)
-        .with_ttl_capped_at_token_expiry(TOKEN_EXPIRY_GRACE_MS)
+    afd::server::TaskOptions::new().with_max_result_bytes(MAX_RESULT_BYTES)
 }
 
 /// `server` with the workspace's shared task store and [`options`], on `clock` (the host's, or

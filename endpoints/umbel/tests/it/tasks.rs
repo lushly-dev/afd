@@ -923,14 +923,15 @@ async fn an_owner_s_tasks_are_capped_across_processes_and_a_result_is_capped() {
 // ─── The TTL and the token ───────────────────────────────────────────────────────────────────
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn a_task_stops_at_its_token_s_exp_and_only_that_notice_lasts_the_grace() {
+async fn a_task_stops_at_its_token_s_exp_and_its_owner_reads_every_result_after_it() {
+    // #2506: the token bounds a task's run, not its result.
     let world = World::start().await;
     let ada = bearer(&world.token("ada", "app"));
-    // The token has 300 seconds: the TTL ends a minute after it.
+    // AFD's TTL, uncapped by the token's 300 seconds: the run budget and an hour.
     let task = created(&call(&world.a.client, &ada, "job-wait", json!({}), true).await);
-    assert_eq!(task["ttlMs"], json!(360_000));
+    assert_eq!(task["ttlMs"], json!(7_200_000));
     let id = task["taskId"].as_str().unwrap().to_owned();
-    // A task that finished before the token's exp, and one cancelled.
+    // A task that finished before the token's exp.
     let done = id_of(&call(&world.a.client, &ada, "job-echo", json!({}), true).await);
     settled(&world.a.client, &done, &ada).await;
     eventually(|| world.gate.started.load(Ordering::SeqCst) == 1).await;
@@ -949,43 +950,56 @@ async fn a_task_stops_at_its_token_s_exp_and_only_that_notice_lasts_the_grace() 
     // A mutation that started may have made its change: not retryable.
     assert_eq!(result["error"]["retryable"], json!(false), "{result}");
     eventually(|| world.gate.stopped.load(Ordering::SeqCst) == 1).await;
-    // The finished task's result did not outlive the token: gone, as an unknown id is.
-    assert_unknown(
-        &task_rpc(&world.b.client, "tasks/get", &done, &renewed).await,
-        "a result past exp",
-    );
-    // The notice lasts the grace, on both processes, and is then gone.
-    world.clock.advance(59_999);
-    let renewed = bearer(&world.token("ada", "app"));
+    // The result that finished before the exp outlived the token, on both processes.
     for process in [&world.a, &world.b] {
-        let body = get(&process.client, &id, &renewed).await;
-        assert_eq!(
-            task_result(&body)["error"]["code"],
-            json!("TASK_TOKEN_EXPIRED")
-        );
+        let body = get(&process.client, &done, &renewed).await;
+        assert_eq!(task_result(&body)["success"], json!(true), "{body}");
     }
+    // Each lasts an hour after it finished: `done` at the start, the notice at the exp.
+    world.clock.advance(3_600_000 - 300_000 - 1);
+    let renewed = bearer(&world.token("ada", "app"));
+    assert_eq!(
+        task_result(&get(&world.b.client, &done, &renewed).await)["success"],
+        json!(true)
+    );
     world.clock.advance(1);
     let renewed = bearer(&world.token("ada", "app"));
     assert_unknown(
+        &task_rpc(&world.b.client, "tasks/get", &done, &renewed).await,
+        "a result past its TTL",
+    );
+    assert_eq!(
+        task_result(&get(&world.a.client, &id, &renewed).await)["error"]["code"],
+        json!("TASK_TOKEN_EXPIRED")
+    );
+    world.clock.advance(300_000);
+    let renewed = bearer(&world.token("ada", "app"));
+    assert_unknown(
         &task_rpc(&world.b.client, "tasks/get", &id, &renewed).await,
-        "past the grace",
+        "the notice past its TTL",
     );
     let unknown = task_rpc(&world.b.client, "tasks/get", &"b".repeat(26), &renewed).await;
     assert_unknown(&unknown, "unknown");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn the_ttl_never_runs_past_a_short_token_and_its_result_not_past_the_exp() {
+async fn a_short_token_s_result_outlives_it_until_the_task_s_own_ttl() {
     let world = World::start().await;
     let token = world.builder("ada", "app").lifetime(30).sign();
     let ada = bearer(&token);
     let task = created(&call(&world.a.client, &ada, "job-echo", json!({}), true).await);
-    // The token's 30 seconds and the minute's grace, not the hour's default.
-    assert_eq!(task["ttlMs"], json!(30_000 + 60_000));
+    // AFD's TTL, not the token's 30 seconds (#2506).
+    assert_eq!(task["ttlMs"], json!(7_200_000));
     let id = task["taskId"].as_str().unwrap().to_owned();
     finished_in_store(world.dir.path(), &id).await;
-    // The result lasts until the token's exp, and not a millisecond past it, though the TTL does.
-    world.clock.advance(29_999);
+    // Past the token's exp, a new token reads the result, to an hour after it finished.
+    world.clock.advance(30_000);
+    let renewed = bearer(&world.token("ada", "app"));
+    assert_eq!(
+        task_result(&get(&world.b.client, &id, &renewed).await)["success"],
+        json!(true)
+    );
+    world.clock.advance(3_600_000 - 30_000 - 1);
     let renewed = bearer(&world.token("ada", "app"));
     assert_eq!(
         task_result(&get(&world.b.client, &id, &renewed).await)["success"],
@@ -995,7 +1009,7 @@ async fn the_ttl_never_runs_past_a_short_token_and_its_result_not_past_the_exp()
     let renewed = bearer(&world.token("ada", "app"));
     assert_unknown(
         &task_rpc(&world.b.client, "tasks/get", &id, &renewed).await,
-        "a result at its token's exp",
+        "a result past its TTL",
     );
 }
 
@@ -1247,7 +1261,7 @@ async fn a_task_whose_process_dies_is_lost_once_for_every_process() {
 // ─── The gateway ─────────────────────────────────────────────────────────────────────────────
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn a_gateway_task_never_outlives_its_assertion() {
+async fn a_gateway_task_never_runs_past_its_assertion() {
     let kit = TestIdp::start().await.unwrap();
     let dir = support::workspace(&support::gateway::config(
         &kit,
@@ -1272,8 +1286,9 @@ async fn a_gateway_task_never_outlives_its_assertion() {
         )]
     };
     let task = created(&call(client, &assertion("gw-client"), "job-wait", json!({}), true).await);
-    // The assertion lives 60 seconds: the task's TTL ends a minute after it.
-    assert_eq!(task["ttlMs"], json!(120_000));
+    // The assertion lives 60 seconds; the TTL is AFD's, since the token bounds the run, not the
+    // result (#2506).
+    assert_eq!(task["ttlMs"], json!(7_200_000));
     let id = task["taskId"].as_str().unwrap().to_owned();
     eventually(|| gate.started.load(Ordering::SeqCst) == 1).await;
     // Each poll carries a fresh assertion for the same caller: the same owner.
@@ -1296,10 +1311,21 @@ async fn a_gateway_task_never_outlives_its_assertion() {
         "{body}"
     );
     eventually(|| gate.stopped.load(Ordering::SeqCst) == 1).await;
-    clock.advance(60_000);
+    // The notice lasts an hour after the stop, for the same caller with fresh assertions, and
+    // not for another client; then it is gone.
+    clock.advance(3_600_000 - 1);
+    assert_eq!(
+        task_result(&get(client, &id, &assertion("gw-client")).await)["error"]["code"],
+        json!("TASK_TOKEN_EXPIRED")
+    );
+    assert_unknown(
+        &task_rpc(client, "tasks/get", &id, &assertion("other-client")).await,
+        "another gateway client, after the stop",
+    );
+    clock.advance(1);
     assert_unknown(
         &task_rpc(client, "tasks/get", &id, &assertion("gw-client")).await,
-        "past the grace",
+        "past its TTL",
     );
 }
 

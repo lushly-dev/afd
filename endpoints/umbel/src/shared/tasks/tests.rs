@@ -297,12 +297,13 @@ async fn the_store_holds_at_most_its_total() {
 }
 
 #[tokio::test]
-async fn a_result_is_gone_at_the_token_s_exp_and_only_a_notice_lasts_the_grace() {
+async fn a_finished_task_outlives_its_starting_token_for_a_later_token_until_its_ttl() {
+    // #2506: the token bounds the run, not the result.
     let fixture = Fixture::new();
     let store = fixture.store();
     let exp = NOW / 1000 + 120;
     let ada = context("ada", "app", exp);
-    let ttl = 120_000 + TOKEN_EXPIRY_GRACE_MS;
+    let ttl = 600_000;
     let done = create(&store, &ada, json!({}), ttl, true).await.unwrap();
     let expired = create(&store, &ada, json!({}), ttl, true).await.unwrap();
     let cancelled = create(&store, &ada, json!({}), ttl, true).await.unwrap();
@@ -329,14 +330,8 @@ async fn a_result_is_gone_at_the_token_s_exp_and_only_a_notice_lasts_the_grace()
         )
         .await
         .unwrap();
-    fixture.clock.advance(119_999);
-    for id in [&done, &expired, &cancelled] {
-        assert!(store.get(id, &owner(&ada)).await.unwrap().is_some());
-    }
-    fixture.clock.advance(1);
-    assert!(store.get(&done, &owner(&ada)).await.unwrap().is_none());
-    assert!(store.get(&cancelled, &owner(&ada)).await.unwrap().is_none());
-    // The runner writes the notice once the token has expired; it lasts the grace.
+    // The runner writes the notice once the token has expired.
+    fixture.clock.advance(120_000);
     let notice = afd::server::tasks::failure_result(CommandError::new(
         afd::error_codes::TASK_TOKEN_EXPIRED,
         "expired",
@@ -354,27 +349,35 @@ async fn a_result_is_gone_at_the_token_s_exp_and_only_a_notice_lasts_the_grace()
         )
         .await
         .unwrap();
-    assert!(store.get(&expired, &owner(&ada)).await.unwrap().is_some());
-    fixture.clock.advance(TOKEN_EXPIRY_GRACE_MS as i64 - 1);
-    assert!(store.get(&expired, &owner(&ada)).await.unwrap().is_some());
+    // Past the token's exp, a later token of the same principal is the owner of all three;
+    // another client of the same person is not.
+    let later = context("ada", "app", exp + 3_600);
+    let elsewhere = context("ada", "other-app", exp + 3_600);
+    fixture.clock.advance(ttl as i64 - 120_000 - 1);
+    for id in [&done, &expired, &cancelled] {
+        assert!(store.get(id, &owner(&later)).await.unwrap().is_some());
+        assert!(store.get(id, &owner(&elsewhere)).await.unwrap().is_none());
+    }
+    // Gone at the task's own TTL, and purged: no row is left.
     fixture.clock.advance(1);
-    assert!(store.get(&expired, &owner(&ada)).await.unwrap().is_none());
-    // Gone means purged: no row is left.
+    for id in [&done, &expired, &cancelled] {
+        assert!(store.get(id, &owner(&later)).await.unwrap().is_none());
+    }
     assert_eq!(store.expire(fixture.clock_now()).await.unwrap(), 0);
     assert!(store.record_v1(&expired).is_none());
     assert!(store.record_v1(&done).is_none());
 }
 
 #[tokio::test]
-async fn a_command_s_own_failure_named_like_the_notice_does_not_outlive_the_token() {
+async fn a_command_s_own_failure_named_like_the_notice_lasts_its_ttl_as_any_result_does() {
     let fixture = Fixture::new();
     let store = fixture.store();
     let exp = NOW / 1000 + 120;
     let ada = context("ada", "app", exp);
-    let ttl = 120_000 + TOKEN_EXPIRY_GRACE_MS;
+    let ttl = 600_000;
     let id = create(&store, &ada, json!({}), ttl, true).await.unwrap();
-    // Before the token's exp, a failure with the notice's code is the command's own: it may
-    // carry what the command produced.
+    // Before the token's exp, a failure with the notice's code is the command's own. With no
+    // token-expiry grace (#2506) it needs no rule of its own: like any result, it lasts the TTL.
     let forged = afd::server::tasks::failure_result(CommandError::new(
         afd::error_codes::TASK_TOKEN_EXPIRED,
         "canary-forged",
@@ -392,7 +395,9 @@ async fn a_command_s_own_failure_named_like_the_notice_does_not_outlive_the_toke
         )
         .await
         .unwrap();
-    fixture.clock.advance(120_000);
+    fixture.clock.advance(ttl as i64 - 1);
+    assert!(store.get(&id, &owner(&ada)).await.unwrap().is_some());
+    fixture.clock.advance(1);
     assert!(store.get(&id, &owner(&ada)).await.unwrap().is_none());
     assert!(store.record_v1(&id).is_none());
 }
@@ -574,7 +579,8 @@ async fn a_purged_result_is_gone_from_the_database_and_its_log() {
     };
     let held = |bytes: &[u8]| String::from_utf8_lossy(bytes).contains("canary-result-id");
     assert!(held(&read("tasks.sqlite3")) || held(&read("tasks.sqlite3-wal")));
-    fixture.clock.advance(120_000);
+    // Purged at the task's TTL (past the token's exp, #2506).
+    fixture.clock.advance(180_000);
     assert!(store.get(&id, &owner(&ada)).await.unwrap().is_none());
     assert!(!held(&read("tasks.sqlite3")), "the database");
     assert!(!held(&read("tasks.sqlite3-wal")), "the log");
@@ -722,7 +728,7 @@ async fn the_file_is_private_and_durable_before_create_returns() {
 }
 
 #[tokio::test]
-async fn completion_updates_ttl_ms_while_preserving_token_exp_cap() {
+async fn completion_updates_ttl_ms_and_never_widens_it() {
     let fixture = Fixture::new();
     let store = fixture.store();
     // Long-lived token: ttl_ms tightens from initial 7_200_000 to finished_at + 3_600_000.
@@ -750,20 +756,14 @@ async fn completion_updates_ttl_ms_while_preserving_token_exp_cap() {
     fixture.clock.advance(1);
     assert!(store.get(&id, &owner(&long_tok)).await.unwrap().is_none());
 
-    // Short-lived token: content_until_ms stays capped at token exp even if ttl_ms is larger.
+    // Short-lived token: the result outlives it (#2506), to finished_at + 1h.
     let fixture2 = Fixture::new();
     let store2 = fixture2.store();
     let exp = NOW / 1000 + 120;
     let short_tok = context("ada", "app", exp);
-    let id2 = create(
-        &store2,
-        &short_tok,
-        json!({}),
-        120_000 + TOKEN_EXPIRY_GRACE_MS,
-        true,
-    )
-    .await
-    .unwrap();
+    let id2 = create(&store2, &short_tok, json!({}), 7_200_000, true)
+        .await
+        .unwrap();
     store2
         .update(
             &id2,
@@ -771,12 +771,12 @@ async fn completion_updates_ttl_ms_while_preserving_token_exp_cap() {
             TaskChange::Completed {
                 result: completed(json!({ "ok": true })),
                 at: NOW + 5_000,
-                ttl_ms: Some(120_000 + TOKEN_EXPIRY_GRACE_MS),
+                ttl_ms: Some(3_605_000),
             },
         )
         .await
         .unwrap();
-    fixture2.clock.advance(119_999);
+    fixture2.clock.advance(3_604_999);
     assert!(
         store2
             .get(&id2, &owner(&short_tok))
@@ -835,8 +835,8 @@ async fn completion_updates_ttl_ms_while_preserving_token_exp_cap() {
     let store4 = fixture4.store();
     let exp4 = NOW / 1000 + 120;
     let short_tok4 = context("ada", "app", exp4);
-    let grace_ttl = 120_000 + TOKEN_EXPIRY_GRACE_MS;
-    let id4 = create(&store4, &short_tok4, json!({}), grace_ttl, true)
+    let row_ttl = 180_000;
+    let id4 = create(&store4, &short_tok4, json!({}), row_ttl, true)
         .await
         .unwrap();
     let notice = afd::server::tasks::failure_result(CommandError::new(
@@ -851,7 +851,7 @@ async fn completion_updates_ttl_ms_while_preserving_token_exp_cap() {
             TaskChange::Completed {
                 result: notice,
                 at: NOW + 120_000,
-                ttl_ms: Some(grace_ttl + 500_000),
+                ttl_ms: Some(row_ttl + 500_000),
             },
         )
         .await
@@ -861,8 +861,8 @@ async fn completion_updates_ttl_ms_while_preserving_token_exp_cap() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(rec4.ttl_ms, grace_ttl);
-    fixture4.clock.advance(grace_ttl as i64 - 1);
+    assert_eq!(rec4.ttl_ms, row_ttl);
+    fixture4.clock.advance(row_ttl as i64 - 1);
     assert!(
         store4
             .get(&id4, &owner(&short_tok4))
