@@ -126,6 +126,83 @@ Replay feeds the tape back, so the handler sees the same times and the same rand
 any surface, with the real clock or a seeded one. A seed alone would not be enough: the random
 source is shared across calls, so its state at a given call depends on everything drawn before.
 
+## Calls that end at a deadline
+
+When the engine stops waiting for a handler at a deadline, the caller is given a failure in place
+of the handler's result: the command's own deadline (`TIMEOUT`), a batch's (`BATCH_TIMEOUT`) or a
+pipeline's (`PIPELINE_TIMEOUT`) ([execution controls](./execution-controls.md)). What the journal
+holds for such a call differs by language, as below. In no language does an entry hold the failure
+the caller was given or mark the call as cut short; a rule that does is held
+([journal seams, S4](../docs/features/active/journal-seams/journal-seams.proposal.md#s4-abandoned-calls),
+[#2725](https://github.com/lushly-dev/afd/issues/2725)). Streams (`STREAM_TIMEOUT`) are not covered
+here.
+
+The table covers the engine's deadlines: the command's own wherever the language sets one (in
+TypeScript only the standalone server does; its registries have none), and every batch and pipeline
+deadline. `DirectClient`'s own `timeout` is covered after it. The same
+holds at all three deadlines, for the command, the batch item or the pipeline step whose handler
+was running when the deadline passed:
+
+| | At the deadline | When the handler settles later | A handler that never settles |
+|---|---|---|---|
+| TypeScript | No entry. The engine races the call against a timer outside the recorder, which keeps waiting | An entry, appended then, whose `result` is the handler's result | No entry |
+| Python | No entry. The engine cancels the task running the middleware chain, and the recorder does not catch `asyncio.CancelledError` | No entry, unless the handler catches the cancellation: then an entry, appended when it returns, whose `result` is its result, or `COMMAND_EXECUTION_ERROR` (with `record_failures`) when it raises an ordinary exception instead | No entry |
+| Rust | No entry. The engine drops the call's future, and the recorder, which runs after the chain in that future, is dropped with it | Cannot happen: the handler's future is gone. Work it spawned is not the call's result and is not recorded | No entry |
+| C++ | No entry yet. The engine does not stop waiting: the deadline is on `context.cancellation`, and a handler is never interrupted | An entry, appended when the handler returns, whose `result` is the handler's result. Only after that does the engine see that the deadline passed and give the caller the deadline failure | No entry, and the call itself never returns |
+
+A batch item or pipeline step that had not started when the deadline passed did not run, and in
+every language it has no entry. The usual rules still decide whether a late result is recorded: a
+failure only with `recordFailures`, so a handler that returns its own failure when it sees the
+abort leaves no entry by default. An entry's `timestamp` is when the recorder began recording the
+call and its `durationMs` runs from then until the rest of the chain returned to the recorder, as
+for any entry; neither is measured from the deadline. A middleware that holds the call before the
+recorder starts makes that `timestamp` later than the call's start, and possibly later than the
+deadline.
+
+The recorder's own `append` counts against the deadline where the recorder runs inside it. In
+TypeScript, Python and C++ it does, so a handler that finished in time followed by a slow `append`
+still gives the caller the deadline failure: TypeScript and C++ write the entry once the `append`
+returns, and in Python the cancellation reaches the `append`, so whether the entry lands depends on
+the sink. Rust records after its command deadline, so there a slow `append` never turns a
+finished call into a deadline failure; its batch, pipeline and `DirectClient` deadlines drop the
+call's future with the `append` in it, so whether the entry lands depends on the sink, as in
+Python.
+
+The surfaces, and the cases that are not a plain deadline:
+
+- **TypeScript:** the standalone server's single calls, batches and pipelines
+  (`withCommandDeadlines` puts the command deadline outside every middleware). When a deadline passes
+  before the handler starts (a middleware was still waiting, an approval for one), the check in
+  front of the handler returns `COMMAND_CANCELLED` and the handler never runs: with
+  `recordFailures`, the entry holds `COMMAND_CANCELLED` for a call whose caller was given the
+  deadline failure.
+- **Python:** `create_server`'s `execute`, batches and pipelines, and `CommandRegistry`. One
+  cancellation does not keep the handler's result: when a deadline is armed (the server's default
+  or the call's own) and the task running the chain ends cancelled before it passes, because the
+  handler raised `asyncio.CancelledError` or let one through from a task it awaited, the caller is
+  given `COMMAND_CANCELLED` and the journal has no entry. Cancellation through the call's signal
+  after a handler starts is cooperative and keeps the handler's result
+  ([execution controls](./execution-controls.md)), so nothing is cut short.
+- **Rust:** `CommandRegistry::execute`, and so the MCP server, batches and pipelines, which run
+  each item through it.
+- **C++:** `CommandRegistry::execute`, `execute_batch` and `execute_pipeline`, and
+  `afd::mcp_stdio`. As in TypeScript, a deadline that passes before the handler starts makes the
+  check in front of the handler return `COMMAND_CANCELLED`, which the entry holds with
+  `record_failures`; the handler never runs, and the caller is given the deadline failure.
+
+`DirectClient`'s own `timeout` is the client's deadline, not the engine's. In TypeScript it races
+outside the registry and its middleware, as the server's does, and the table's TypeScript row holds
+for it. In C++ it is a deadline on `context.cancellation` like the registry's, and the C++ row
+holds. In Python and Rust the client stops waiting at the deadline, as in their rows (Python cancels
+its task, Rust drops the call), and it also reads the clock once the registry has returned: a
+handler that blocks the thread past the deadline and then returns is recorded with its result, and
+the caller is given `TIMEOUT`.
+
+A test in each language pins this, with a handler that waits until the test releases it or, for
+the blocking handler, that is still running when the deadline passes:
+`packages/server/src/journal-deadline.test.ts`, `python/tests/test_journal_deadline.py`,
+`packages/rust/tests/journal_deadline.rs` and `packages/cpp/tests/journal_deadline_test.cpp`.
+
 ## Replay
 
 A replayer re-executes entries in `seq` order against a fresh registry (or one reset to the state
