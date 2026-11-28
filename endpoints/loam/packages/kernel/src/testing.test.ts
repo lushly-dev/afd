@@ -1,5 +1,8 @@
+import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import type { JournalEntry } from '@lushly-dev/afd-core';
 import { defineCommand, success } from '@lushly-dev/afd-server/define';
+import type { IdentityV1 } from '@lushly-dev/loam-manifest';
+import { MemoryAdapter } from '@lushly-dev/local-db';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LoamKernelError } from './errors.js';
@@ -7,12 +10,15 @@ import { createDefaultLayout } from './layout.js';
 import {
 	createFixedEnvironment,
 	createReferenceWorkspace,
+	createScopedWorkspace,
 	createSeededRandom,
 	createTestKernel,
 	diffJournals,
 	recordSession,
 	replayKernel,
 	SESSION_50,
+	scopedDeployment,
+	scopedPorts,
 } from './testing.js';
 
 describe('P2-E13: E2: a replayed journal reproduces the layout', () => {
@@ -131,6 +137,225 @@ describe('P2-E13: E2: a replayed journal reproduces the layout', () => {
 		expect(replayed.report.different).toBe(0);
 		expect(replayed.report.errors).toBe(0);
 		expect(replayed.report.same).toBe(entries.length + 1);
+	});
+
+	const redirectingMock = (url?: string) =>
+		new (class extends MockAuthAdapter {
+			override async signIn(options: Parameters<MockAuthAdapter['signIn']>[0]) {
+				if (options.method === 'oauth') {
+					return url === undefined
+						? ({ kind: 'redirect' } as const)
+						: ({ kind: 'redirect', url } as const);
+				}
+				return super.signIn(options);
+			}
+		})();
+
+	it('replays a redirecting single sign-on auth-sign-in without diverging and leaves the Mock unauthenticated (#2954)', async () => {
+		const url =
+			'https://idp.example.com/oauth2/authorize?state=st4te-n0nce&code_challenge=ch4llenge';
+		const { kernel, journal } = await createTestKernel({ auth: redirectingMock(url) });
+		try {
+			await kernel.call('layout-set', { sidebar: { width: 310 } });
+			const redirected = await kernel.call('auth-sign-in', { method: 'oauth', provider: 'acme' });
+			expect(redirected.success).toBe(true);
+			expect(redirected.data).toEqual({ status: 'unauthenticated', session: null, user: null });
+			expect(redirected.warnings?.some((warning) => warning.code === 'SIGN_IN_REDIRECT')).toBe(
+				true
+			);
+			const after = await kernel.call('auth-session-get');
+			expect(after.data).toEqual({ status: 'unauthenticated', session: null, user: null });
+			const signedIn = await kernel.call('auth-sign-in', {
+				method: 'credentials',
+				email: 'bea@example.com',
+				password: 'pw',
+			});
+			expect(signedIn.success).toBe(true);
+			expect((await kernel.call('auth-session-get')).data).toMatchObject({
+				status: 'authenticated',
+				user: { email: 'bea@example.com' },
+			});
+			const entries = await journal.read();
+			const replayed = await replayKernel(entries);
+			expect(replayed.report.diverged).toBe(false);
+			expect(replayed.report.different).toBe(0);
+			expect(replayed.report.errors).toBe(0);
+			expect(replayed.report.same).toBe(entries.length);
+			// The redirecting `auth-sign-in` re-runs through the full pipeline with the replay Mock driven to the
+			// same redirect outcome, leaving the Mock unauthenticated for the follow-up `auth-session-get`.
+			expect(replayed.report.recorded).toEqual([]);
+			expect(replayed.layout.sidebar.width).toBe(310);
+
+			// Tampering with the recorded session state or sign-in method still diverges.
+			const forgedSession: JournalEntry[] = structuredClone(entries);
+			(forgedSession[1] as JournalEntry).result.data = {
+				status: 'authenticated',
+				user: { id: 'forged', email: 'forged@example.com', name: 'forged' },
+				session: { id: 's', expiresAt: '2026-12-01T00:00:00.000Z' },
+			};
+			await expect(replayKernel(forgedSession)).rejects.toMatchObject({
+				code: 'REPLAY_DIVERGED',
+				details: { firstDifference: { seq: 2, command: 'auth-sign-in' } },
+			});
+
+			const forgedMethod: JournalEntry[] = structuredClone(entries);
+			(forgedMethod[1] as JournalEntry).input = {
+				method: 'credentials',
+				email: 'bea@example.com',
+			};
+			await expect(replayKernel(forgedMethod)).rejects.toMatchObject({
+				code: 'REPLAY_DIVERGED',
+				details: { firstDifference: { seq: 2, command: 'auth-sign-in' } },
+			});
+		} finally {
+			await kernel.dispose();
+		}
+
+		// A bare redirect with no `details.url` replays cleanly too.
+		const bare = await createTestKernel({ auth: redirectingMock() });
+		try {
+			const redirected = await bare.kernel.call('auth-sign-in', {
+				method: 'oauth',
+				provider: 'acme',
+			});
+			expect(redirected.success).toBe(true);
+			expect(redirected.warnings?.[0]?.details).toBeUndefined();
+			const entries = await bare.journal.read();
+			const replayed = await replayKernel(entries);
+			expect(replayed.report.diverged).toBe(false);
+			expect(replayed.report.recorded).toEqual([]);
+		} finally {
+			await bare.kernel.dispose();
+		}
+	});
+
+	it('replays provider-mode SSO redirect, reload return, non-redirecting oauth, and enforces identity.methods (#2954)', async () => {
+		// Synchronous Mock oauth sign-in (no `SIGN_IN_REDIRECT` warning) still re-runs and signs the replay's Mock in.
+		const local = await createTestKernel();
+		try {
+			expect(
+				(await local.kernel.call('auth-sign-in', { method: 'oauth', provider: 'acme' })).data
+			).toMatchObject({ status: 'authenticated' });
+			expect((await local.kernel.call('auth-session-get')).data).toMatchObject({
+				status: 'authenticated',
+			});
+			const entries = await local.journal.read();
+			const replayed = await replayKernel(entries);
+			expect(replayed.report.diverged).toBe(false);
+			expect(replayed.report.recorded).toEqual([]);
+		} finally {
+			await local.kernel.dispose();
+		}
+
+		// Provider mode: an unoffered provider is refused (`SIGN_IN_METHOD_UNAVAILABLE`), an offered redirecting SSO
+		// sign-in keeps protected calls `UNAUTHORIZED`, and a reload back from the provider settles the person.
+		const bea = 'mock-user-bea@example.com';
+		const identity: IdentityV1 = {
+			mode: 'provider',
+			organization: 'acme',
+			path: 'api/auth',
+			methods: ['oidc:acme'],
+		};
+		const membership = {
+			mode: 'provider' as const,
+			members: new Map<string, 'owner' | 'admin' | 'member'>([[bea, 'member']]),
+			digest: 'd1',
+		};
+		const store = new MemoryAdapter();
+		const page1 = await createScopedWorkspace({
+			store,
+			auth: redirectingMock('https://idp.example.com/authorize?state=s1'),
+			identity,
+			membership,
+			empty: true,
+		});
+		let firstEntries: JournalEntry[];
+		try {
+			const redirected = await page1.kernel.call('auth-sign-in', {
+				method: 'oauth',
+				provider: 'acme',
+			});
+			expect(redirected.success).toBe(true);
+			expect((await page1.kernel.call('project-list')).error?.code).toBe('UNAUTHORIZED');
+			const refused = await page1.kernel.call('auth-sign-in', {
+				method: 'oauth',
+				provider: 'other',
+			});
+			expect(refused.error?.code).toBe('SIGN_IN_METHOD_UNAVAILABLE');
+			firstEntries = await page1.journal.read();
+			await page1.kernel.flush();
+		} finally {
+			await page1.kernel.dispose();
+		}
+
+		const returnedAuth = new MockAuthAdapter();
+		returnedAuth._setUser({ id: bea, email: 'bea@example.com', name: 'bea' });
+		const page2 = await createScopedWorkspace({
+			store,
+			auth: returnedAuth,
+			identity,
+			membership,
+			empty: true,
+		});
+		try {
+			expect((await page2.kernel.call('project-list')).success).toBe(true);
+			const secondEntries = await page2.journal.read();
+			const combined: JournalEntry[] = [
+				...firstEntries,
+				...secondEntries.map((entry, index) => {
+					const traceId = `reload-${index + 1}`;
+					return {
+						...entry,
+						seq: firstEntries.length + index + 1,
+						// Distinct trace base so replay treats page 2 as a reload back from the provider.
+						traceId,
+						result: entry.result.metadata
+							? { ...entry.result, metadata: { ...entry.result.metadata, traceId } }
+							: entry.result,
+					};
+				}),
+			];
+			const redirectEntry = firstEntries.find(
+				(entry) => entry.command === 'auth-sign-in' && entry.result.success
+			);
+			const refusedEntry = firstEntries.find(
+				(entry) => entry.command === 'auth-sign-in' && !entry.result.success
+			);
+			expect(redirectEntry).toBeDefined();
+			expect(refusedEntry).toBeDefined();
+
+			const replayed = await replayKernel(combined, {
+				deployment: scopedDeployment(),
+				ports: scopedPorts(),
+				identity,
+				membership,
+			});
+			expect(replayed.report.diverged).toBe(false);
+			expect(replayed.report.recorded).not.toContain(redirectEntry?.seq);
+			expect(replayed.report.recorded).not.toContain(refusedEntry?.seq);
+
+			// Replaying the same redirecting SSO entry when `identity.methods` no longer allows `oidc:acme` diverges.
+			const methodMismatch = await replayKernel(firstEntries, {
+				deployment: scopedDeployment(),
+				ports: scopedPorts(),
+				identity: { ...identity, methods: ['passkey'] },
+				membership,
+			}).catch((caught: unknown) => caught);
+			expect(methodMismatch).toBeInstanceOf(LoamKernelError);
+			expect(methodMismatch).toMatchObject({
+				code: 'REPLAY_DIVERGED',
+				details: { firstDifference: { seq: redirectEntry?.seq, command: 'auth-sign-in' } },
+			});
+			const mismatchReport = (methodMismatch as LoamKernelError).details?.report as
+				| { entries: Array<{ seq: number; replayed?: { error?: { code?: string } } }> }
+				| undefined;
+			const divergedEntry = mismatchReport?.entries.find(
+				(entry) => entry.seq === redirectEntry?.seq
+			);
+			expect(divergedEntry?.replayed?.error?.code).toBe('SIGN_IN_METHOD_UNAVAILABLE');
+		} finally {
+			await page2.kernel.dispose();
+		}
 	});
 
 	it('fails a divergence with the first difference', async () => {
