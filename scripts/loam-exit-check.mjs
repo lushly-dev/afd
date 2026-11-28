@@ -820,10 +820,10 @@ export const PHASES = {
 	},
 };
 
-/** A phase's minimums as its file records them: the whole file's, or its milestone's object. */
-function fileMinimums(id) {
-	const { minimumsFile, minimumsKey } = PHASES[id];
-	const minimums = readMinimums(minimumsFile);
+/** A phase's minimums as its file records them (`file`, its committed one by default): the whole file's, or its milestone's object. */
+function fileMinimums(id, file = PHASES[id].minimumsFile) {
+	const { minimumsKey } = PHASES[id];
+	const minimums = readMinimums(file);
 	return minimumsKey === undefined ? minimums : (minimums[minimumsKey] ?? {});
 }
 
@@ -889,8 +889,12 @@ function resultLines(log, location) {
  * the title problems (condition 3, this phase's and each reused phase's, in that order), the row problems,
  * the report's lines and the counts observed for this phase's own rows.
  */
-function checkPhase(id, { log, desktopLog, minimumsOf, reused = false }) {
-	const { prefix, minimumsFile, budgetRows, budgetLine } = PHASES[id];
+function checkPhase(
+	id,
+	{ log, desktopLog, minimumsOf, fileOf = (phase) => PHASES[phase].minimumsFile, reused = false }
+) {
+	const { prefix, budgetRows, budgetLine } = PHASES[id];
+	const minimumsFile = fileOf(id);
 	const rows = rowsOf(id, reused);
 	const line = reused ? PHASES[id].line : { ...PHASES[id].line, ...PHASES[id].ownLine };
 	const titles = titlesOf(
@@ -911,11 +915,11 @@ function checkPhase(id, { log, desktopLog, minimumsOf, reused = false }) {
 	const observed = {};
 	for (const { row, in: places, reuse } of rows) {
 		if (reuse) {
-			const inner = checkPhase(reuse, { log, desktopLog, minimumsOf, reused: true });
+			const inner = checkPhase(reuse, { log, desktopLog, minimumsOf, fileOf, reused: true });
 			titleIssues.push(...inner.titleIssues);
 			nested.push(...inner.problems.map((problem) => `${prefix}-${row}: ${problem}`));
 			report.push(
-				`${prefix}-${row}: phase ${reuse}'s rows, in their places, at ${PHASES[reuse].minimumsFile}'s counts:`,
+				`${prefix}-${row}: phase ${reuse}'s rows, in their places, at ${fileOf(reuse)}'s counts:`,
 				...inner.report.map((entry) => `  ${entry}`)
 			);
 			continue;
@@ -961,7 +965,9 @@ function checkPhase(id, { log, desktopLog, minimumsOf, reused = false }) {
  * desktop run's. Returns the problems, each naming what is wrong, the report's lines, and the counts observed
  * for the phase's own rows, in the minimums file's shape. `minimums` is the phase's own (its file by default),
  * `phase2Minimums` phase 2's when another phase reuses it, and `minimumsByPhase` any phase's, by number; each
- * defaults to the committed file, which fails the check while it says `placeholder`.
+ * defaults to the committed file, which fails the check while it says `placeholder`. `minimumsFiles` names another
+ * file for a phase, by its id (`2`, `'5-a'`), read in its committed file's place, its `placeholder` included, so a test can check
+ * that a file holding placeholders fails the check (#2658).
  */
 export function checkExit({
 	loam,
@@ -973,6 +979,7 @@ export function checkExit({
 	minimums,
 	phase2Minimums,
 	minimumsByPhase = {},
+	minimumsFiles = {},
 	allowRerun = false,
 }) {
 	// A phase this check has no rows for is refused, never read as phase 2's: phases 5 and 6 only by a milestone.
@@ -986,7 +993,8 @@ export function checkExit({
 	const given = { ...minimumsByPhase };
 	if (phase2Minimums !== undefined) given[2] = phase2Minimums;
 	if (minimums !== undefined) given[phase] = minimums;
-	const minimumsOf = (id) => given[id] ?? fileMinimums(id);
+	const fileOf = (id) => minimumsFiles[id] ?? PHASES[id].minimumsFile;
+	const minimumsOf = (id) => given[id] ?? fileMinimums(id, fileOf(id));
 	const problems = [
 		...checkRun(loam, WORKFLOWS.loam, {
 			allowRerun,
@@ -1008,18 +1016,16 @@ export function checkExit({
 		problems.push(
 			`the runs are of different commits: loam.yml ${loam.headSha}, ${WORKFLOWS.desktop.file} ${desktop.headSha}`
 		);
-	// Each phase read from its committed file, a reused one included: one holding placeholders fails.
+	// Each phase read from its minimums file (its committed one unless `minimumsFiles` names another), a reused one
+	// included: one holding placeholders fails.
 	const phasesRead = (id) => [
 		id,
 		...PHASES[id].rows.flatMap((row) => (row.reuse ? phasesRead(row.reuse) : [])),
 	];
 	for (const id of new Set(phasesRead(phase)))
-		if (
-			given[id] === undefined &&
-			minimumsArePlaceholders(PHASES[id].minimumsFile, PHASES[id].minimumsKey)
-		)
+		if (given[id] === undefined && minimumsArePlaceholders(fileOf(id), PHASES[id].minimumsKey))
 			problems.push(
-				`${PHASES[id].minimumsFile} holds placeholder counts, not a manual run's: set them from the runs' --print-minimums`
+				`${fileOf(id)} holds placeholder counts, not a manual run's: set them from the runs' --print-minimums`
 			);
 
 	const resolvedLog = resolveLogSteps(log, loam);
@@ -1048,7 +1054,12 @@ export function checkExit({
 			);
 	}
 
-	const own = checkPhase(phase, { log: resolvedLog, desktopLog: resolvedDesktopLog, minimumsOf });
+	const own = checkPhase(phase, {
+		log: resolvedLog,
+		desktopLog: resolvedDesktopLog,
+		minimumsOf,
+		fileOf,
+	});
 	problems.push(...own.titleIssues, ...own.problems);
 	const { report, observed } = own;
 
