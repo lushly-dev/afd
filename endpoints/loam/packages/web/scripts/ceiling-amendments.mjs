@@ -3,10 +3,10 @@
  * D163, #1929). `scripts/ceiling-raises.mjs` reads both; `budget` runs it.
  *
  * `D115_ENDS_ON` is the last day, in UTC, on which D115 lets a pull request raise a ceiling with no approval.
- * It stays `null` until the owner names the date; D161 in `endpoints/loam/docs/decisions.md` records it, as "D115
- * ends on YYYY-MM-DD", in the same pull request that sets it here, and the check refuses a date D161 does not hold.
- * Once `main` holds a date, a change that moves or unsets it must rewrite D161's "D115 ends on <date>" too. While it is `null` the
- * check says it is inert; it still reads the base's date, so a change cannot unset one `main` holds.
+ * Set to `'2026-11-30'` by the owner's decision (2026-11-27, recorded in #2260); D161 in `endpoints/loam/docs/decisions.md`
+ * records it, as "D115 ends on YYYY-MM-DD", and the check refuses a date D161 does not hold.
+ * Once `main` holds a date, a change that moves or unsets it must rewrite D161's "D115 ends on <date>" too. If set to `null`,
+ * the check says it is inert; it still reads the base's date, so a change cannot unset one `main` holds.
  *
  * From the day after it, the rules D115 amended apply again as they were written: phase 0's 8.1 ("raising a
  * ceiling needs an amendment with the reason"), phase 2's 2.4 (a step over its allowance moves code out or
@@ -32,7 +32,7 @@
  */
 
 /** @type {string | null} */
-export const D115_ENDS_ON = null;
+export const D115_ENDS_ON = '2026-11-30';
 
 /** @type {readonly import('./ceiling-raises.mjs').CeilingAmendment[]} */
 export const CEILING_AMENDMENTS = Object.freeze([]);

@@ -67,7 +67,7 @@ Epic: [#1543](https://github.com/lushly-dev/afd/issues/1543). File new work for 
   - D41 (autonomy: **settings in phase 4, enforcement in phase 5**); D51 (appearance's storage); D54 (native apps are trusted code); D67 (phase 4 completes the overlay manager).
   - D71 to D73 and D83 (scope, the order of a call, the ports); D75 and R8 (a personal rail order).
   - D85 to D87, D96 (modes, owners); D89 (persona); D98, D110 (connected agents; members).
-  - D103, D104 (the hosted lane); D115 (size limits do not gate the epic).
+  - D103, D104 (the hosted lane); D115 (size limits do not gate the epic; ended 2026-11-30 UTC by D161).
 - **Decisions this specification proposes:** D116 to D127 ([Amendments](#amendments-to-the-architecture-and-the-decision-log)).
 
 ### Carried from earlier phases, answered here
