@@ -257,7 +257,7 @@ jobs:
         if: ${{ always() }}
         # A diagnostic: an outage of the artifact service must not fail a job whose suites passed.
         continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: loam-firefox-test-results
           path: endpoints/loam/packages/web/test-results/
@@ -291,7 +291,7 @@ jobs:
         if: ${{ always() }}
         # A diagnostic: an outage of the artifact service must not fail a job whose suites passed.
         continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: loam-webkit-test-results
           path: endpoints/loam/packages/web/test-results/
