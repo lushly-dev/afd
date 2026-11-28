@@ -45,8 +45,12 @@ fn flags() -> ReadFlags {
     }
 }
 
+/// Open the memory store with the contending lock timeout so multi-process and multi-thread
+/// key-file tests do not hit `Busy` under host load (#2728). The timeout itself is tested by
+/// `memory_multiprocess::a_writer_past_the_lock_timeout_is_busy` (200 ms) and the explicit
+/// pragma test below (4321 ms).
 fn open(dir: &Path) -> std::sync::Arc<SqliteMemoryStore> {
-    open_memory(dir, "main", StoreOptions::default()).expect("opening")
+    open_memory(dir, "main", support::child_options()).expect("opening")
 }
 
 fn store_dir(dir: &Path) -> PathBuf {
@@ -885,7 +889,7 @@ fn two_processes_write_keys_while_a_third_forgets() {
             .env(support::ENV_MODE, "memory-race")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null());
+            .stderr(Stdio::piped());
         children.push(command.spawn().expect("a writer"));
     }
     for c in &mut children {
@@ -899,7 +903,7 @@ fn two_processes_write_keys_while_a_third_forgets() {
     // Forget each record as it appears, while they write.
     let mut forgotten = std::collections::BTreeSet::new();
     let mut after = 0;
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
     while std::time::Instant::now() < deadline {
         let changes = m.changes(after, 1000, &ada(), None).expect("changes");
         for c in &changes {
@@ -920,7 +924,13 @@ fn two_processes_write_keys_while_a_third_forgets() {
     let mut written = Vec::new();
     for c in children {
         let out = c.wait_with_output().expect("a writer");
-        assert!(out.status.success());
+        assert!(
+            out.status.success(),
+            "a writer failed ({}):\n{}\n{}",
+            out.status,
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
         for line in String::from_utf8_lossy(&out.stdout).lines() {
             if let Some(rest) = line.strip_prefix(umbel_store::conformance::WROTE_PREFIX) {
                 written.push(rest.trim().split_once(' ').expect("a line").1.to_owned());

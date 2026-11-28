@@ -737,7 +737,7 @@ fn two_handles_opening_a_version_1_store_migrate_it_once() {
         .map(|_| {
             let path = path.clone();
             std::thread::spawn(move || {
-                SqliteStore::open(&path, "main", StoreOptions::default()).map(|s| s.head())
+                SqliteStore::open(&path, "main", support::child_options()).map(|s| s.head())
             })
         })
         .collect();
