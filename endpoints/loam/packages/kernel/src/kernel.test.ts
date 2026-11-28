@@ -282,6 +282,93 @@ describe('the journal', () => {
 		expect(JSON.stringify(redactJournalRecord(secret, false, true))).not.toMatch(/passphrase|"k"/);
 	});
 
+	it("journals a single sign-on redirect's authorize URL without its query (#2786)", () => {
+		const url =
+			'https://idp.example.com/oauth2/authorize?client_id=loam&state=st4te-n0nce&code_challenge=ch4llenge#frag';
+		const record = {
+			timestamp: '2026-01-01T00:00:00.000Z',
+			contextDigest: { hash: 'sha256:0' },
+			durationMs: 0,
+			command: 'auth-sign-in',
+			input: { method: 'oauth', provider: 'acme' },
+			result: {
+				success: true,
+				warnings: [
+					{ code: 'OTHER', message: 'kept', details: { url } },
+					{ code: 'SIGN_IN_REDIRECT', message: 'continues', severity: 'info', details: { url } },
+				],
+			},
+		};
+		const clean = redactJournalRecord(record as never) as unknown as typeof record;
+		expect(clean.result.warnings[1]).toEqual({
+			code: 'SIGN_IN_REDIRECT',
+			message: 'continues',
+			severity: 'info',
+			details: { url: 'https://idp.example.com/oauth2/authorize' },
+		});
+		// Only the redirect's URL is cut; the record keeps its input, and the original is not changed.
+		expect(clean.result.warnings[0]).toEqual(record.result.warnings[0]);
+		expect(clean.input).toEqual(record.input);
+		expect(record.result.warnings[1]?.details.url).toBe(url);
+		const unparsed = {
+			...record,
+			result: {
+				success: true,
+				warnings: [
+					{ code: 'SIGN_IN_REDIRECT', message: '', details: { url: 'not a url?state=x' } },
+				],
+			},
+		};
+		const withheld = redactJournalRecord(unparsed as never) as unknown as typeof record;
+		expect(withheld.result.warnings[0]?.details.url).toBe('withheld');
+		// A scheme other than http or https keeps nothing either: `data:` holds its whole text in its path.
+		const data = {
+			...record,
+			result: {
+				success: true,
+				warnings: [
+					{ code: 'SIGN_IN_REDIRECT', message: '', details: { url: 'data:text/plain,state=x' } },
+				],
+			},
+		};
+		const dataCut = redactJournalRecord(data as never) as unknown as typeof record;
+		expect(dataCut.result.warnings[0]?.details.url).toBe('withheld');
+		// A null warning is passed over, not thrown on.
+		const nulled = { ...record, result: { success: true, warnings: [null] } };
+		expect(redactJournalRecord(nulled as never)).toBe(nulled);
+		// A redirect with no URL, and any other command's warning, stay as they were.
+		const bare = {
+			...record,
+			result: { success: true, warnings: [{ code: 'SIGN_IN_REDIRECT', message: '' }] },
+		};
+		expect(redactJournalRecord(bare as never)).toBe(bare);
+		const other = { ...record, command: 'reports-create' };
+		expect(redactJournalRecord(other as never)).toBe(other);
+	});
+
+	it('P3-E15: a real single sign-on auth-sign-in answers the whole authorize URL and journals it cut (#2786)', async () => {
+		const url =
+			'https://idp.example.com/oauth2/authorize?state=st4te-n0nce&code_challenge=ch4llenge';
+		class RedirectingMock extends MockAuthAdapter {
+			override async signIn(options: Parameters<MockAuthAdapter['signIn']>[0]) {
+				if (options.method === 'oauth') return { kind: 'redirect' as const, url };
+				return super.signIn(options);
+			}
+		}
+		const { kernel: k, journal } = await kernel({ auth: new RedirectingMock() });
+		const answer = await k.call('auth-sign-in', { method: 'oauth', provider: 'acme' });
+		expect(answer.success).toBe(true);
+		const live = answer.warnings?.find((warning) => warning.code === 'SIGN_IN_REDIRECT');
+		expect(live?.details).toEqual({ url });
+		const entry = (await journal.read()).find((each) => each.command === 'auth-sign-in');
+		const kept = (entry?.result as { warnings?: { code: string; details?: unknown }[] } | undefined)
+			?.warnings;
+		expect(kept?.find((warning) => warning.code === 'SIGN_IN_REDIRECT')?.details).toEqual({
+			url: 'https://idp.example.com/oauth2/authorize',
+		});
+		expect(JSON.stringify(entry)).not.toMatch(/st4te-n0nce|ch4llenge/);
+	});
+
 	it('records failures and filters unjournaled commands and standalone notification-list', () => {
 		const journalOptions = kernelJournalOptions();
 		expect(journalOptions.recordFailures).toBe(true);
