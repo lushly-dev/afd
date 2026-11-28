@@ -267,7 +267,9 @@ describe('SessionSync', () => {
 		expect(received).toHaveLength(0);
 	});
 
-	it('debounces rapid notifications', async () => {
+	it('debounces rapid notifications', () => {
+		// Fake timers, so the debounce is measured on its own clock, never against a loaded machine (#2969).
+		vi.useFakeTimers();
 		const sync = new SessionSync({ debounceMs: 50 });
 		const received: unknown[] = [];
 
@@ -276,12 +278,17 @@ describe('SessionSync', () => {
 		});
 
 		deliver({ type: 'profile-updated', userId: 'first' });
+		vi.advanceTimersByTime(30);
 		deliver({ type: 'profile-updated', userId: 'second' });
+		vi.advanceTimersByTime(30);
 		deliver({ type: 'profile-updated', userId: 'third' });
 
-		await new Promise((r) => setTimeout(r, 100));
+		// Each message restarts the wait: 109 ms after the first (49 ms after the third), nothing is delivered.
+		vi.advanceTimersByTime(49);
+		expect(received).toEqual([]);
 
-		// Only the last one of the type is delivered
+		// Only the last one of the type is delivered, once its own 50 ms have passed.
+		vi.advanceTimersByTime(1);
 		expect(received).toEqual([{ type: 'profile-updated', userId: 'third' }]);
 
 		sync.dispose();
