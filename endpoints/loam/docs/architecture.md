@@ -393,7 +393,8 @@ sequenceDiagram
   `persona-list`, `persona-create`, `persona-update`, `persona-remove`, `persona-set`; `member-list`,
   `member-invite`, `member-invitation-list`, `member-invitation-cancel`, `member-remove`,
   `member-role-set`, `member-leave`; `agent-member-add`, `agent-member-list`, `agent-member-get`,
-  `agent-member-update`, `agent-member-remove`, `agent-member-confirm`, `agent-member-decline`), with
+  `agent-member-update`, `agent-member-remove`, `agent-member-confirm`, `agent-member-decline`,
+  `agent-member-withdraw`), with
   `member` among the shell's domains; `shell-open`, `event-list`; `document-type-list`, `new-list`, `document-create`,
   `document-open`, `document-list`, `document-get`, `document-rename`, `document-update`,
   `document-move`, `document-trash`, `document-restore`,

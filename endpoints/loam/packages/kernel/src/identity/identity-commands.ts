@@ -52,6 +52,7 @@ export const HUMAN_COMMANDS: readonly string[] = Object.freeze([
 	'member-leave',
 	'agent-member-confirm',
 	'agent-member-decline',
+	'agent-member-withdraw',
 	// Phase 5's copilot: no agent drives the copilot (its 3.3 and 3.5).
 	'copilot-session-start',
 	'copilot-message-send',

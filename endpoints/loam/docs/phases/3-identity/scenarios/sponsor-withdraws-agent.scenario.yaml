@@ -1,0 +1,84 @@
+# JTBD scenario for Loam's phase 3 specification, 8.2 and 8.3 (#2781). Needs Loam's runner (tag loam-runner): it
+# runs on the seed p4-base and reads the step directives in descriptions, which AFD's `afd scenario run --server`
+# ignores. p4-base is a `local` workspace whose one person, Ada, is an owner, so she sponsors the agent member she
+# adds, and naming herself again confirms it (D111). The provider-mode half (only the sponsor withdraws, an owner who is
+# not the sponsor is refused, and a withdrawn agent member is allowed nothing on line 4) is the kernel's units',
+# `kernel/src/identity/agent-members.test.ts`, since a scenario cannot sign another person in. The data is invented.
+name: Withdraw an agent member I sponsor
+description: >-
+  When I no longer want to answer for an agent member I sponsor, I want to withdraw it myself, at once and without
+  asking an owner, so that it can do nothing more in my name, and so that nothing short of my confirming again can
+  give it back what it had.
+job: sponsor-withdraws-agent
+tags: [loam-runner, seed:p4-base]
+steps:
+  - description: I add an agent member that I sponsor; as its sponsor I confirm it by doing it
+    command: agent-member-add
+    input:
+      name: Reviewer
+      sponsor: mock-user-ada@example.com
+      access: { workspace: false, projects: [prj_atlas] }
+    expect:
+      success: true
+      data:
+        status: active
+        sponsor: mock-user-ada@example.com
+  - description: "[agent] An agent cannot withdraw it for me: withdrawing is a person's"
+    command: agent-member-withdraw
+    input: { agent: "${{ steps[0].data.id }}" }
+    expect:
+      success: false
+      error:
+        code: HUMAN_REQUIRED
+  - description: I withdraw it; the record says why it is suspended
+    command: agent-member-withdraw
+    input: { agent: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        status: suspended
+        suspended: sponsor-withdrew
+  - description: Anyone who reads it sees it withdrawn, its access as it was
+    command: agent-member-get
+    input: { agent: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        status: suspended
+        suspended: sponsor-withdrew
+        access: { workspace: false }
+  - description: Withdrawing it again is refused, with the way forward
+    command: agent-member-withdraw
+    input: { agent: "${{ steps[0].data.id }}" }
+    expect:
+      success: false
+      error:
+        code: AGENT_MEMBER_NOT_ACTIVE
+        suggestion: { contains: agent-member-update }
+  - description: Widening its access without naming a sponsor leaves it withdrawn
+    command: agent-member-update
+    input:
+      agent: "${{ steps[0].data.id }}"
+      access: { workspace: true, projects: [prj_atlas] }
+    expect:
+      success: true
+      data:
+        status: suspended
+        suspended: sponsor-withdrew
+  - description: An id the agent-member table does not hold is refused, naming how to disconnect a connected agent (p4-base has none; the unit holds a real one)
+    command: agent-member-withdraw
+    input: { agent: agt_zzzzzzzzzzzzzzzzzzzz }
+    expect:
+      success: false
+      error:
+        code: AGENT_MEMBER_NOT_FOUND
+        suggestion: { contains: account-agent-disconnect }
+  - description: Only naming its sponsor again brings it back; I am the sponsor, so naming myself confirms it
+    command: agent-member-update
+    input:
+      agent: "${{ steps[0].data.id }}"
+      sponsor: mock-user-ada@example.com
+    expect:
+      success: true
+      data:
+        status: active

@@ -116,7 +116,8 @@ export interface AgentMemberV1 {
 	/** Up to 8 KiB; read by phase 5. */
 	guidance?: string;
 	status: 'pending' | 'active' | 'suspended';
-	suspended?: 'sponsor-left' | 'sponsor-declined' | 'disconnected' | 'owner';
+	/** Why it is suspended: `sponsor-withdrew` when its sponsor withdrew it with `agent-member-withdraw` (8.2). */
+	suspended?: 'sponsor-left' | 'sponsor-declined' | 'sponsor-withdrew' | 'disconnected' | 'owner';
 	createdAt: number;
 	updatedAt: number;
 	updatedBy: string;

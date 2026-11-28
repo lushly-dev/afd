@@ -663,8 +663,10 @@ Phase 3's 2.5 makes the hosted server's store authoritative for `ProjectV1.acces
 /** Run on the hosted server from a browser, in a hosted provider deployment (6.1). */
 export const SERVER_COMMANDS = ['project-create', 'project-update', 'project-archive', 'project-restore',
 	'workspace-app-set', 'agent-member-add', 'agent-member-update', 'agent-member-remove',
-	'agent-member-confirm', 'agent-member-decline', 'trust-record-snapshot'] as const;
+	'agent-member-confirm', 'agent-member-decline', 'agent-member-withdraw', 'trust-record-snapshot'] as const;
 ```
+
+`agent-member-withdraw` joined the list with phase 3's #2781, a sponsor's write of the same table as `-confirm` and `-decline`.
 
 - **`trust-record-snapshot`**, a new query, served only to the transport: `{}` to `TrustRecordSnapshotV1`, exactly what `project-list { status: 'all' }`, `workspace-app-list` and `agent-member-list { status: 'all' }` answer the session's person on the server.
 

@@ -2,8 +2,9 @@
  * @fileoverview The members tab's agent members (phase 3 specification, 8.2, 8.3 and 14), in the `account` chunk with
  * `account.ts`, which alone imports it: each agent member listed apart from the people as "Agent · Sponsored by <name>",
  * in text, with its kind, its status in words (never by color alone) and the projects the viewer may see; an owner's
- * add form and remove buttons, absent for anyone else; and the sponsor's confirm and decline on a pending one. Every
- * change is a command; a destructive or accountable one is confirmed in a native modal dialog with its consequence.
+ * add form and remove buttons, absent for anyone else; the sponsor's confirm and decline on a pending one, and
+ * withdraw on an active installed one. Every change is a command; a destructive or accountable one is confirmed in a
+ * native modal dialog with its consequence.
  */
 
 import type { AgentMemberRowV1, LoamKernel, MemberV1 } from '@lushly-dev/loam-kernel';
@@ -28,6 +29,7 @@ const KINDS: Record<string, string> = { installed: 'Installed', connected: 'Conn
 const WHY: Record<string, string> = {
 	'sponsor-left': 'its sponsor left the workspace',
 	'sponsor-declined': 'its sponsor declined',
+	'sponsor-withdrew': 'its sponsor withdrew it',
 	disconnected: 'it was disconnected',
 	owner: 'by an owner',
 };
@@ -94,6 +96,26 @@ export async function agentMembersPart(view: AgentMembersView): Promise<Node[]> 
 							agent: agent.id,
 						})) as Answer;
 						view.say(answer.success ? `You declined ${agent.name}.` : view.failed(answer));
+						await view.read();
+					})
+				);
+			}
+			// The sponsor's withdrawal of an active installed one (8.2, #2781); a connected agent is disconnected in the
+			// account section instead (5.3).
+			if (agent.status === 'active' && agent.kind === 'installed' && agent.sponsor === view.me) {
+				actions.push(
+					button(`Withdraw ${agent.name}`, async () => {
+						const sure = await confirmIn(
+							root,
+							`Withdraw ${agent.name}?`,
+							`${agent.name} is suspended at once and can do nothing more in your name. It comes back only when an owner names a sponsor again and that sponsor confirms.`,
+							'Withdraw'
+						);
+						if (!sure) return;
+						const answer = (await kernel.call('agent-member-withdraw', {
+							agent: agent.id,
+						})) as Answer;
+						view.say(answer.success ? `You withdrew ${agent.name}.` : view.failed(answer));
 						await view.read();
 					})
 				);

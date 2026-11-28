@@ -404,6 +404,7 @@ describe('P6-E4: the browser routes the trust-record commands and keeps a copy (
 			'agent-member-update': { agent, name: 'Y' },
 			'agent-member-confirm': { agent },
 			'agent-member-decline': { agent },
+			'agent-member-withdraw': { agent },
 			'agent-member-remove': { agent },
 		};
 		expect(Object.keys(inputs).sort()).toEqual([...ROUTED_WRITES].sort());
@@ -745,6 +746,8 @@ async function runServerCommands(
 		['agent-member-confirm', () => ({ agent: ids.yes }), pendingOutcome],
 		['agent-member-decline', () => ({ agent: ids.no }), pendingOutcome],
 		['trust-record-snapshot', () => ({}), 'COMMAND_NOT_FOUND'],
+		// #2781's, after the pinned runs, so theirs keep their bytes: the sponsor withdraws the one she confirmed.
+		['agent-member-withdraw', () => ({ agent: ids.yes }), 'ok'],
 	];
 	expect([...new Set(steps.map(([name]) => name))].sort()).toEqual([...SERVER_COMMANDS].sort());
 	for (const [name, input, expected, keep] of steps) {
@@ -779,7 +782,10 @@ async function runServerCommands(
 /**
  * Each mode's runs as the kernel before step 5's routing answered them (`7aacc4987`, step 5's parent on `main`): written
  * there by this sequence, and byte-identical there in all eight deployments below, which share these two baselines.
+ * Commands added since (`agent-member-withdraw`, #2781) run after them, so the pinned runs keep their bytes; theirs are
+ * held equal across the eight deployments here, and to the kernel without the port by the test after this one.
  */
+const SINCE_PINNED = ['agent-member-withdraw'];
 const PINNED = JSON.parse(
 	readFileSync(new URL('../../test/fixtures/hosted-phase3-pinned.json', import.meta.url), 'utf8')
 ) as { provenance: { commit: string }; local: CommandRun[]; provider: CommandRun[] };
@@ -801,6 +807,7 @@ describe('P6-E3: in every other deployment kind and mode, each server command ru
 			['desktop, local mode', LOCAL, v4('desktop'), true],
 			['desktop, local mode, no transport', LOCAL, v4('desktop'), false],
 		];
+		const firstSince: Partial<Record<'local' | 'provider', CommandRun[]>> = {};
 		for (const [label, identity, deployment, port] of cases) {
 			const mode = identity.mode === 'local' ? 'local' : 'provider';
 			const server = fakeServer();
@@ -818,10 +825,17 @@ describe('P6-E3: in every other deployment kind and mode, each server command ru
 			expect(
 				runs.map((run) => run.name),
 				label
-			).toEqual(pinned.map((run) => run.name));
-			for (const [at, run] of runs.entries()) {
+			).toEqual([...pinned.map((run) => run.name), ...SINCE_PINNED]);
+			for (const [at, run] of runs.slice(0, pinned.length).entries()) {
 				expect(run.result, `${label}: ${run.name}'s result`).toBe(pinned[at]?.result);
 				expect(run.journal, `${label}: ${run.name}'s journal`).toBe(pinned[at]?.journal);
+			}
+			const since = runs.slice(pinned.length);
+			firstSince[mode] ??= since;
+			const first = firstSince[mode];
+			for (const [at, run] of since.entries()) {
+				expect(run.result, `${label}: ${run.name}'s result`).toBe(first[at]?.result);
+				expect(run.journal, `${label}: ${run.name}'s journal`).toBe(first[at]?.journal);
 			}
 			expect(server.calls, label).toEqual([]);
 		}
@@ -888,6 +902,7 @@ describe('P6-E3: in a hosted provider deployment, every routed write is the serv
 			['agent-member-update', { agent, name: 'Y' }],
 			['agent-member-confirm', { agent }],
 			['agent-member-decline', { agent }],
+			['agent-member-withdraw', { agent }],
 			['agent-member-remove', { agent }],
 		];
 		expect(writes.map(([name]) => name).sort()).toEqual(
