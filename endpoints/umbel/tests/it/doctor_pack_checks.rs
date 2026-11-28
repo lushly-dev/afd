@@ -332,3 +332,71 @@ fn without_a_sealed_host_the_check_is_skipped() {
     assert_eq!(check.status, CheckStatus::Skip);
     assert!(check.message.contains("sealed host"), "{}", check.message);
 }
+
+#[cfg(feature = "component")]
+fn mixed_workspace(compiled_files: &[&str], unchecked: bool) -> (tempfile::TempDir, PathBuf) {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("ws");
+    fs::create_dir_all(root.join("plugins")).unwrap();
+    crate::components::components_dir(&root.join("plugins"));
+    fs::write(
+        root.join("umbel.toml"),
+        "config_version = 2\ndefault_space = \"main\"\n[spaces.main]\n[spaces.beta]\n[plugins]\nenabled = [\"checker\", \"components\"]\n[plugins.components]\nsource = \"plugins/components\"\n",
+    )
+    .unwrap();
+    override_pack(&root, "main", "voice", compiled_files);
+    if unchecked {
+        override_pack(&root, "beta", "plain", &["words.txt"]);
+    }
+    crate::components::copy_tree(
+        &crate::components::components_crate().join("packs/library"),
+        &root.join("spaces/main/packs/components/library"),
+    );
+    (dir, root)
+}
+
+#[cfg(feature = "component")]
+#[tokio::test(flavor = "multi_thread")]
+async fn mixed_compiled_and_component_overrides_keep_component_disclosure_on_pass_warn_and_fail() {
+    let disclosure = "; 1 override(s) of component plugin(s) (components) are checked for layout \
+                      only (components have no check-pack export)";
+
+    // Pass: compiled checked + compiled unchecked + component override all appear together.
+    let (_dir, root) = mixed_workspace(&["words.txt"], true);
+    let (_host, report) = sealed(&root).await;
+    let check = find(&report, "plugins.pack_checks");
+    assert_eq!(check["status"], "pass", "{check}");
+    assert_eq!(
+        check["message"],
+        format!(
+            "1 override(s) pass their plugin's own check; 1 override(s) of plugins that offer no \
+             check are checked for layout only{disclosure}"
+        )
+    );
+
+    // Warn (retryable compiled refusal): warning status, code and suggestion stay, and the
+    // component layout-only disclosure is preserved.
+    let (_dir, root) = mixed_workspace(&["busy.txt"], false);
+    let (_host, report) = sealed(&root).await;
+    let check = find(&report, "plugins.pack_checks");
+    assert_eq!(check["status"], "warn", "{check}");
+    let message = check["message"].as_str().unwrap();
+    assert!(message.contains("VOICE_BUSY"), "{message}");
+    assert!(message.ends_with(disclosure), "{message}");
+    assert_eq!(check["suggestion"], "Retry in a moment.");
+
+    // Fail (required compiled refusal): fail status, code and suggestion stay, and the
+    // component layout-only disclosure is preserved.
+    let (_dir, root) = mixed_workspace(&["bad.txt"], false);
+    let (_host, report) = sealed(&root).await;
+    assert_eq!(report["healthy"], false);
+    let check = find(&report, "plugins.pack_checks");
+    assert_eq!(check["status"], "fail", "{check}");
+    let message = check["message"].as_str().unwrap();
+    assert!(message.contains("VOICE_INVALID"), "{message}");
+    assert!(message.ends_with(disclosure), "{message}");
+    assert_eq!(
+        check["suggestion"],
+        "Remove data/bad.txt from the voice pack."
+    );
+}

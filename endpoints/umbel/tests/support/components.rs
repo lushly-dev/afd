@@ -72,7 +72,7 @@ pub fn hello_crate() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("plugins/hello")
 }
 
-fn copy_tree(from: &Path, to: &Path) {
+pub fn copy_tree(from: &Path, to: &Path) {
     std::fs::create_dir_all(to).unwrap();
     for entry in std::fs::read_dir(from).unwrap().flatten() {
         let target = to.join(entry.file_name());

@@ -1566,9 +1566,12 @@ gracefully. A refusal therefore is:
 - **Free of partial answers.** It holds no record, rule or other pack text, and no `content` part. An agent cannot
   mistake it for a short brief.
 - **Exact about what is wrong.** The problems are the same ones `checkPack` reports (3.3).
-- **Found before a call.** The doctor's `plugins.pack_checks` runs the same reader on every space override, so an
-  override a call would refuse fails the doctor with the call's code, its first problems and its suggestion,
-  before any command is called (D172, A23).
+- **Found before a call (compiled build).** On the compiled build, the doctor's `plugins.pack_checks` runs the same
+  reader on every space override, so an override a call would refuse fails the doctor with the call's code, its first
+  problems and its suggestion, before any command is called (D172, A23). On the component build, `plugins.pack_checks`
+  reports space overrides as checked for layout only and a refused override fails on the call instead (D223,
+  [#1445](https://github.com/lushly-dev/afd/issues/1445); a `check-pack` WIT export waits for world 1.2.0,
+  [#1381](https://github.com/lushly-dev/afd/issues/1381)).
 - **Exact about the way forward.** The details say what can still be served:
 
   | Detail | Holds |
@@ -1701,4 +1704,4 @@ lives (D150), reading whole libraries on every call (D152), the shedding order's
 | 2026-11-10 | This specification | The component build needs WIT world 1.1.0 to carry the output budget | Done 2026-11-17: world 1.1.0 (D189 to D191), the deployer's journal mode (D195 to D197), and the build itself (A29, D198) |
 | 2026-11-12 | Step C5 | A tag that is not a custom element name (`breadcrumb`) is refused with `COMPONENTS_INVALID` and a generic suggestion; a rerun session recovered with `components-list`. The refusal could name each library's prefix, or answer such a name as `unknown` with `nearest` | Done 2026-11-16 by amendment A26 ([#1151](https://github.com/lushly-dev/afd/issues/1151)): the refusal names the matching served tags, or the prefixes |
 | 2026-11-12 | Step C5 | Claude Code defers MCP tools, so `components-brief` as a first-class suggestion is out of sight until a task names it; two Loam sessions told only by the design record and a skill never called it | The Component Briefs status, the owner's |
-| 2026-11-11 | A23 | The doctor's `plugins.pack_checks` reaches compiled plugins only: a component (WIT world 1.0.0) and a mounted server offer no check, so once this plugin is built as a component (step D2) its overrides are checked for layout only unless the world gains an export for it | Open since D2 (A29): #1445 |
+| 2026-11-11 | A23 | The doctor's `plugins.pack_checks` reaches compiled plugins only: a component (WIT world 1.0.0) and a mounted server offer no check, so once this plugin is built as a component (step D2) its overrides are checked for layout only unless the world gains an export for it | Decided 2026-11-27 (D223, [#1445](https://github.com/lushly-dev/afd/issues/1445)): `plugins.pack_checks` now reports component space overrides as checked for layout only; a `check-pack` WIT export waits until world 1.2.0 is triggered by [#1381](https://github.com/lushly-dev/afd/issues/1381) |

@@ -8,7 +8,7 @@
 use crate::components;
 use crate::support;
 use afd::{Actor, ActorKind, CommandInterface, CommandResult};
-use components::{components_crate, components_dir};
+use components::{components_crate, components_dir, copy_tree};
 use serde_json::{Value, json};
 use support::journal_entries;
 use umbel::testkit::{TestHost, TestHostBuilder};
@@ -317,5 +317,66 @@ async fn the_deployer_journals_the_component_as_digest() {
     assert_eq!(
         journal("components-list")["keep"],
         json!(["space", "library"])
+    );
+}
+
+fn find_check<'a>(report: &'a Value, id: &str) -> &'a Value {
+    report["checks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|check| check["id"] == id)
+        .unwrap_or_else(|| panic!("no check {id} in {report}"))
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_doctor_reports_component_pack_overrides_as_layout_only() {
+    let parent = tempfile::tempdir().unwrap();
+    let plugin_dir = components_dir(parent.path());
+
+    // Without a space override, the default pack is not counted as a layout-only override.
+    let without = TestHost::directory(&plugin_dir).boot().unwrap();
+    let report = without
+        .call("workspace-doctor", json!({}))
+        .await
+        .data
+        .unwrap();
+    let check = find_check(&report, "plugins.pack_checks");
+    assert_eq!(check["status"], "pass", "{check}");
+    assert_eq!(
+        check["message"],
+        "0 override(s) pass their plugin's own check"
+    );
+
+    // With a space override the plugin itself refuses (PACK_INVALID), the layout check passes,
+    // `plugins.pack_checks` passes while stating the component's override was checked for layout
+    // only (D223, #1445), and the call itself still refuses the override.
+    let broken_override = parent.path().join("broken-library");
+    copy_tree(&components_crate().join("packs/library"), &broken_override);
+    std::fs::write(
+        broken_override.join("data/example/components/example-select.json"),
+        "{}",
+    )
+    .unwrap();
+
+    let with = TestHost::directory(&plugin_dir)
+        .pack_override("main", "library", &broken_override)
+        .boot()
+        .unwrap();
+    let listed = with
+        .call("components-list", json!({ "space": "main" }))
+        .await;
+    assert!(!listed.success, "{listed:?}");
+    assert_eq!(listed.error.as_ref().unwrap().code, "PACK_INVALID");
+
+    let report = with.call("workspace-doctor", json!({})).await.data.unwrap();
+    assert_eq!(report["healthy"], true, "{report}");
+    assert_eq!(find_check(&report, "plugins.packs")["status"], "pass");
+    let check = find_check(&report, "plugins.pack_checks");
+    assert_eq!(check["status"], "pass", "{check}");
+    assert_eq!(
+        check["message"],
+        "0 override(s) pass their plugin's own check; 1 override(s) of component plugin(s) \
+         (components) are checked for layout only (components have no check-pack export)"
     );
 }

@@ -164,9 +164,9 @@ components-pattern-open = { mode = "digest", keep = ["space", "library", "patter
 ```
 
 Without it, the journal records each call in full, including a page's `source`. The doctor's
-`plugins.pack_checks` runs only on the compiled build. For the component, the doctor's
-`plugins.packs` checks a space override's layout only, and a pack the plugin refuses is refused on
-the call.
+`plugins.pack_checks` runs the plugin's own check only on the compiled build. For the component,
+`plugins.packs` checks a space override's layout, `plugins.pack_checks` reports any space overrides
+as checked for layout only (D223), and a pack the plugin refuses is refused on the call.
 
 ## Limits
 

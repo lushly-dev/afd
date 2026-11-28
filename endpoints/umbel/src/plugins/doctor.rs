@@ -21,7 +21,7 @@ use super::error::PluginError;
 use super::files::DirFiles;
 use super::loader::{LoadedPlugins, Status, TRUST_NOTE};
 use super::manifest::{Bearer, Manifest, PluginKind, Transport};
-use super::packs::check_pack;
+use super::packs::{PackOrigin, check_pack};
 use super::pipelines::PipelineState;
 use super::skills::check_skill;
 use super::source::{CompiledCatalog, ResolvedSource, resolve_source};
@@ -223,12 +223,15 @@ pub(crate) fn pipelines_check(loaded: &LoadedPlugins) -> Check {
 /// How many of a failure's problems `plugins.pack_checks` and `plugins.config_checks` show.
 const SHOWN_PROBLEMS: usize = 3;
 
-/// `plugins.pack_checks` on a sealed host (D172): every space override of a compiled instance's
-/// pack, handed to the plugin's own check, the same reader its commands use, so the codes match a
-/// call's exactly. A failure is `fail` for a required instance, `warn` for an optional one or a
-/// retryable failure. An override whose plugin offers no check is counted, and checked for its
-/// layout only (`plugins.packs`). A check that panics is `fail` whatever its instance; one that
-/// gets no turn of D204's bound, or does not finish, by `deadline` is `warn` (`run_plugin_check`).
+/// `plugins.pack_checks` on a sealed host (D172, D223): every space override of a compiled
+/// instance's pack, handed to the plugin's own check, the same reader its commands use, so the
+/// codes match a call's exactly. A failure is `fail` for a required instance, `warn` for an
+/// optional one or a retryable failure. An override whose plugin offers no check is counted, and
+/// checked for its layout only (`plugins.packs`); space overrides of loaded component instances
+/// are likewise counted and named in the check's message (whether it passes, warns or fails on a
+/// compiled instance) as checked for layout only (components have no `check-pack` export until
+/// WIT world 1.2.0, #1381). A check that panics is `fail` whatever its instance; one that gets
+/// no turn of D204's bound, or does not finish, by `deadline` is `warn` (`run_plugin_check`).
 pub(crate) async fn pack_checks_check(
     loaded: &LoadedPlugins,
     turns: &Arc<Semaphore>,
@@ -267,13 +270,37 @@ pub(crate) async fn pack_checks_check(
             "Run a command of the plugin in that space for its own suggestion.".to_owned()
         }));
     }
+    let mut component_overrides = 0usize;
+    let mut component_instances = Vec::new();
+    for instance in &loaded.instances {
+        if instance.status != Status::Loaded || instance.kind() != Some(PluginKind::Component) {
+            continue;
+        }
+        let overrides = instance
+            .packs
+            .iter()
+            .flat_map(|(_, states)| states.iter())
+            .filter(|state| state.origin == PackOrigin::Override)
+            .count();
+        if overrides > 0 {
+            component_overrides += overrides;
+            component_instances.push(instance.id.as_str());
+        }
+    }
     let mut pass = format!("{checked} override(s) pass their plugin's own check");
     if unchecked > 0 {
         pass.push_str(&format!(
             "; {unchecked} override(s) of plugins that offer no check are checked for layout only"
         ));
     }
-    verdict("plugins.pack_checks", pass, &issues, &[])
+    let mut check = verdict("plugins.pack_checks", pass, &issues, &[]);
+    if component_overrides > 0 {
+        check.message.push_str(&format!(
+            "; {component_overrides} override(s) of component plugin(s) ({}) are checked for layout only (components have no check-pack export)",
+            component_instances.join(", ")
+        ));
+    }
+    check
 }
 
 /// `plugins.config_checks` on a sealed host (D206): each loaded compiled instance's configuration,
@@ -1074,5 +1101,134 @@ mod plugin_check_tests {
             settled::<()>(Err(()), deadline, deadline),
             Err(PluginCheckFailure::Panicked)
         ));
+    }
+
+    fn test_instance(
+        id: &str,
+        manifest_toml: &str,
+        status: Status,
+        packs: Vec<(String, Vec<crate::plugins::packs::PackState>)>,
+    ) -> crate::plugins::loader::InstanceReport {
+        let manifest = Manifest::parse(manifest_toml, "test").unwrap();
+        crate::plugins::loader::InstanceReport {
+            id: id.to_owned(),
+            required: true,
+            source: format!("plugins/{id}"),
+            spaces: vec!["main".to_owned(), "beta".to_owned()],
+            manifest: Some(manifest),
+            grants: Vec::new(),
+            commands: Vec::new(),
+            packs,
+            contexts: Vec::new(),
+            pipelines: Vec::new(),
+            mount: None,
+            status,
+        }
+    }
+
+    fn component_instance(
+        id: &str,
+        status: Status,
+        packs: Vec<(String, Vec<crate::plugins::packs::PackState>)>,
+    ) -> crate::plugins::loader::InstanceReport {
+        test_instance(
+            id,
+            &format!(
+                "manifest_version = 1\nprotocol = 1\n[plugin]\nid = \"{id}\"\ntitle = \"{id}\"\nversion = \"1.0.0\"\ndescription = \"d\"\nkind = \"component\"\ndomains = [\"{id}\"]\n[component]\npath = \"{id}.wasm\"\n"
+            ),
+            status,
+            packs,
+        )
+    }
+
+    fn pack_state(space: &str, origin: PackOrigin) -> crate::plugins::packs::PackState {
+        crate::plugins::packs::PackState {
+            space: space.to_owned(),
+            origin,
+            version: "1.0.0".to_owned(),
+            files: 1,
+        }
+    }
+
+    #[tokio::test]
+    async fn pack_checks_counts_component_overrides_and_names_each_instance_once() {
+        let loaded = LoadedPlugins {
+            instances: vec![
+                // Two spaces on `library` plus one override on `consumers`: counted as 3, named once.
+                component_instance(
+                    "components",
+                    Status::Loaded,
+                    vec![
+                        (
+                            "library".to_owned(),
+                            vec![
+                                pack_state("main", PackOrigin::Override),
+                                pack_state("beta", PackOrigin::Override),
+                            ],
+                        ),
+                        (
+                            "consumers".to_owned(),
+                            vec![pack_state("main", PackOrigin::Override)],
+                        ),
+                    ],
+                ),
+                // Default pack only: not counted.
+                component_instance(
+                    "defaults",
+                    Status::Loaded,
+                    vec![(
+                        "guide".to_owned(),
+                        vec![pack_state("main", PackOrigin::Default)],
+                    )],
+                ),
+                // Non-component kinds (pack, mounted) with overrides: not counted under components.
+                test_instance(
+                    "style",
+                    "manifest_version = 1\nprotocol = 1\n[plugin]\nid = \"style\"\ntitle = \"style\"\nversion = \"1.0.0\"\ndescription = \"d\"\nkind = \"pack\"\n",
+                    Status::Loaded,
+                    vec![(
+                        "voice".to_owned(),
+                        vec![pack_state("main", PackOrigin::Override)],
+                    )],
+                ),
+                test_instance(
+                    "tickets",
+                    "manifest_version = 1\nprotocol = 1\n[plugin]\nid = \"tickets\"\ntitle = \"tickets\"\nversion = \"1.0.0\"\ndescription = \"d\"\nkind = \"mounted\"\ndomains = [\"tickets\"]\n[mount]\nprefix = \"tickets\"\ntransport = \"stdio\"\ncommand = [\"bin/server\"]\n",
+                    Status::Loaded,
+                    vec![(
+                        "rules".to_owned(),
+                        vec![pack_state("main", PackOrigin::Override)],
+                    )],
+                ),
+                // Second loaded component with an override: counted and named in order.
+                component_instance(
+                    "other",
+                    Status::Loaded,
+                    vec![(
+                        "voice".to_owned(),
+                        vec![pack_state("main", PackOrigin::Override)],
+                    )],
+                ),
+                // Failed optional component: not counted.
+                component_instance(
+                    "failed",
+                    Status::Failed(PluginError::not_found("failed", "missing")),
+                    vec![(
+                        "voice".to_owned(),
+                        vec![pack_state("main", PackOrigin::Override)],
+                    )],
+                ),
+            ],
+            ..LoadedPlugins::default()
+        };
+        let turns = Arc::new(Semaphore::new(1));
+        let check =
+            pack_checks_check(&loaded, &turns, Instant::now() + Duration::from_secs(5)).await;
+        assert_eq!(check.status, crate::doctor::CheckStatus::Pass);
+        assert_eq!(
+            check.message,
+            "0 override(s) pass their plugin's own check; 4 override(s) of component plugin(s) \
+             (components, other) are checked for layout only (components have no check-pack export)"
+        );
     }
 }
