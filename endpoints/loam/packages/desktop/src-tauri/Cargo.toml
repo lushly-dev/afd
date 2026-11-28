@@ -42,7 +42,7 @@ hyper = { version = "=1.12.0", features = ["server", "client", "http1"] }
 hyper-util = { version = "=0.1.21", features = ["tokio"] }
 http-body-util = "=0.1.5"
 bytes = "=1.12.1"
-getrandom = "=0.3.4"
+getrandom = "=0.4.3"
 # The headless materializer's projection `generation` (phase 5 no-terminal amendment, 9.2), and
 # constant-time HMAC-SHA256 for pre-bearer `/health` proof verification (5.2), at the versions `Cargo.lock`
 # and `loam-mail` already pin.
