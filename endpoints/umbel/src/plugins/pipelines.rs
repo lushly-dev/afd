@@ -47,6 +47,7 @@
 //!   name in its own journal mode, as every call is.
 
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Weak};
 
 use afd::{
@@ -60,6 +61,7 @@ use serde_json::{Map, Value, json};
 use super::attestation::PipelineAttestations;
 use super::error::PluginError;
 use super::manifest::{Effect, Manifest, PersonDecl, PipelineDecl, PipelineResult, TaskMode};
+use crate::middleware::TRUST_KEY;
 use umbel_sdk::PipelineAttestation;
 
 /// The interfaces a pipeline may be exposed to; no pipeline is offered in the palette.
@@ -492,6 +494,11 @@ impl CommandHandler for PipelineHandler {
                 .unwrap_or_else(crate::host::new_trace_id),
         };
         let attestations = Arc::clone(&self.owner.attestations);
+        // Whether a step's result was labelled content: the pipeline's own result, built fresh
+        // from the steps' data below, then carries the label too, so a task store (or anything
+        // else that reads it) refuses it as it refuses the step's (#3010).
+        let content = Arc::new(AtomicBool::new(false));
+        let saw_content = Arc::clone(&content);
         // AFD's step context (its `traceId`, `<pipeline id>-step-<i>`) is ignored: each step gets
         // a fresh random trace id, recorded until the step returns (section 10.1).
         let executor: CommandExecutor = Arc::new(move |command, input, _step| {
@@ -499,6 +506,7 @@ impl CommandHandler for PipelineHandler {
             let attestations = Arc::clone(&attestations);
             let attestation = attestation.clone();
             let mut context = context.clone();
+            let saw_content = Arc::clone(&saw_content);
             Box::pin(async move {
                 let Some(step) = attestations.begin(attestation, &command) else {
                     return no_random_source();
@@ -506,6 +514,9 @@ impl CommandHandler for PipelineHandler {
                 context.trace_id = Some(step.trace().to_owned());
                 let result = registry.execute(&command, input, Some(context)).await;
                 drop(step);
+                if labelled_content(&result) {
+                    saw_content.store(true, Ordering::SeqCst);
+                }
                 result
             })
         });
@@ -535,7 +546,7 @@ impl CommandHandler for PipelineHandler {
                 .filter(|step| step.status == StepStatus::Success)
                 .and_then(|step| step.data.clone())
                 .unwrap_or(Value::Null);
-            return success(last);
+            return with_content_label(success(last), &content);
         }
         let steps: Vec<Value> = result
             .steps
@@ -561,6 +572,31 @@ impl CommandHandler for PipelineHandler {
                 Value::Object(item)
             })
             .collect();
-        success(json!({ "steps": steps }))
+        with_content_label(success(json!({ "steps": steps })), &content)
     }
+}
+
+/// Whether a step's result carries the content trust label (`dev.umbel/trust: "content"`).
+fn labelled_content(result: &CommandResult<Value>) -> bool {
+    result
+        .metadata
+        .as_ref()
+        .and_then(|metadata| metadata.extra.get(TRUST_KEY))
+        .and_then(Value::as_str)
+        == Some("content")
+}
+
+/// `result` labelled content when any step's result was.
+fn with_content_label(
+    mut result: CommandResult<Value>,
+    content: &AtomicBool,
+) -> CommandResult<Value> {
+    if content.load(Ordering::SeqCst) {
+        result
+            .metadata
+            .get_or_insert_with(afd::ResultMetadata::new)
+            .extra
+            .insert(TRUST_KEY.to_owned(), json!("content"));
+    }
+    result
 }

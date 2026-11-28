@@ -549,6 +549,258 @@ async fn a_notice_s_code_from_a_command_is_replaced_by_the_host_s_own_notice() {
 }
 
 #[tokio::test]
+async fn a_command_s_failure_is_kept_as_its_code_never_its_words() {
+    // #3010: a failure's message, suggestion and details may repeat the call's input
+    // (`COLLECTION_NOT_FOUND` names the collection asked for); a task keeps none of them.
+    let fixture = Fixture::new();
+    let store = fixture.store();
+    let ada = context("ada", "app", NOW / 1000 + 3_600);
+    for (code, retryable, kept) in [
+        ("COLLECTION_NOT_FOUND", false, "COLLECTION_NOT_FOUND"),
+        ("RATE_LIMITED", true, "RATE_LIMITED"),
+        ("not a code: canary-input", false, "COMMAND_EXECUTION_ERROR"),
+    ] {
+        let id = create(&store, &ada, json!({}), TTL, true).await.unwrap();
+        let failed = afd::server::tasks::failure_result(
+            CommandError::new(code, "the space declares no collection `canary-input`")
+                .with_suggestion("Declare `canary-input`, or call without it.")
+                .with_details(std::collections::HashMap::from([(
+                    "collection".to_owned(),
+                    json!("canary-input"),
+                )]))
+                .with_retryable(retryable),
+        )
+        .unwrap();
+        store
+            .update(
+                &id,
+                &owner(&ada),
+                TaskChange::Completed {
+                    result: failed,
+                    at: NOW + 1,
+                    ttl_ms: None,
+                },
+            )
+            .await
+            .unwrap();
+        let result = store
+            .get(&id, &owner(&ada))
+            .await
+            .unwrap()
+            .unwrap()
+            .result
+            .unwrap();
+        assert_eq!(result["isError"], json!(true));
+        let error = &result["structuredContent"]["error"];
+        assert_eq!(error["code"], json!(kept), "{error}");
+        assert_eq!(error["retryable"], json!(retryable), "{error}");
+        assert!(
+            error["suggestion"]
+                .as_str()
+                .is_some_and(|text| !text.is_empty())
+        );
+        assert!(error.get("details").is_none(), "{error}");
+        assert!(
+            !Value::Object(result.clone())
+                .to_string()
+                .contains("canary-input")
+        );
+    }
+    let file = std::fs::read(fixture.dir.path().join("shared").join("tasks.sqlite3")).unwrap();
+    let wal = std::fs::read(fixture.dir.path().join("shared").join("tasks.sqlite3-wal"))
+        .unwrap_or_default();
+    for bytes in [file, wal] {
+        assert!(!String::from_utf8_lossy(&bytes).contains("canary-input"));
+    }
+}
+
+/// The result `store` keeps for `result`, completed on a new task of `mutation`.
+async fn kept(
+    store: &SqliteTasks,
+    result: Map<String, Value>,
+    mutation: bool,
+) -> Map<String, Value> {
+    let ada = context("ada", "app", NOW / 1000 + 3_600);
+    let id = create(store, &ada, json!({}), TTL, mutation).await.unwrap();
+    store
+        .update(
+            &id,
+            &owner(&ada),
+            TaskChange::Completed {
+                result,
+                at: NOW + 1,
+                ttl_ms: None,
+            },
+        )
+        .await
+        .unwrap();
+    store
+        .get(&id, &owner(&ada))
+        .await
+        .unwrap()
+        .unwrap()
+        .result
+        .unwrap()
+}
+
+fn failed(error: CommandError) -> Map<String, Value> {
+    afd::server::tasks::failure_result(error).unwrap()
+}
+
+#[tokio::test]
+async fn the_host_s_own_failures_are_kept_with_their_own_advice() {
+    let fixture = Fixture::new();
+    let store = fixture.store();
+    // AFD's oversized result says the command ran, with its sizes: rebuilt as such, never as a
+    // failure to run again.
+    let too_large = failed(
+        CommandError::new(afd::error_codes::INTERNAL_ERROR, "canary words")
+            .with_suggestion("canary advice")
+            .with_details(std::collections::HashMap::from([
+                ("limitBytes".to_owned(), json!(1_048_576)),
+                ("actualBytes".to_owned(), json!(2_000_000)),
+            ])),
+    );
+    let result = kept(&store, too_large, true).await;
+    let error = &result["structuredContent"]["error"];
+    assert_eq!(error["code"], json!("INTERNAL_ERROR"));
+    assert!(
+        error["message"].as_str().unwrap().contains("ran"),
+        "{error}"
+    );
+    assert!(
+        error["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("check its effect"),
+        "{error}"
+    );
+    // The host's own limit, not a size the result supplied.
+    assert_eq!(error["details"]["limitBytes"], json!(MAX_RESULT_BYTES));
+    assert!(error["details"].get("actualBytes").is_none(), "{error}");
+    // An ordinary INTERNAL_ERROR with one of those keys is not that notice: a failure as any.
+    let ordinary = failed(
+        CommandError::new(afd::error_codes::INTERNAL_ERROR, "canary words")
+            .with_details(std::collections::HashMap::from([(
+                "limitBytes".to_owned(),
+                json!(5),
+            )]))
+            .with_retryable(true),
+    );
+    let error = kept(&store, ordinary, false).await["structuredContent"]["error"].clone();
+    assert_eq!(error["code"], json!("INTERNAL_ERROR"));
+    assert_eq!(error["retryable"], json!(true), "{error}");
+    assert!(error.get("details").is_none(), "{error}");
+    assert!(
+        error["message"]
+            .as_str()
+            .unwrap()
+            .starts_with("The command failed with")
+    );
+    // A mutation's TIMEOUT warns of a partial change and is not retryable, even when it claims,
+    // in AFD's own words, that nothing ran: only the runner knows that.
+    let timeout = failed(CommandError::new(
+        afd::error_codes::TIMEOUT,
+        "The task did not start: its execution run budget elapsed",
+    ));
+    let error = kept(&store, timeout, true).await["structuredContent"]["error"].clone();
+    assert!(
+        error["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("part of its change"),
+        "{error}"
+    );
+    assert_eq!(error["retryable"], json!(false));
+    // Umbel's TASK_SPACE_UNREADABLE is the host's notice.
+    let unreadable = failed(CommandError::new(
+        crate::plugins::TASK_SPACE_UNREADABLE,
+        "canary words",
+    ));
+    let error = kept(&store, unreadable, true).await["structuredContent"]["error"].clone();
+    assert_eq!(
+        error,
+        failed(crate::plugins::space_unreadable())["structuredContent"]["error"]
+    );
+}
+
+#[tokio::test]
+async fn a_failure_without_an_error_and_a_labelled_result_keep_none_of_their_words() {
+    let fixture = Fixture::new();
+    let store = fixture.store();
+    // An embedder's failure with no `error`: data and text are not kept.
+    let Value::Object(bare) = json!({
+        "resultType": "complete",
+        "content": [{ "type": "text", "text": "canary-bare" }],
+        "structuredContent": { "success": false, "data": { "echo": "canary-bare" } },
+        "isError": true,
+    }) else {
+        unreachable!()
+    };
+    let result = kept(&store, bare, false).await;
+    assert_eq!(
+        result["structuredContent"]["error"]["code"],
+        json!("COMMAND_EXECUTION_ERROR")
+    );
+    assert!(!Value::Object(result).to_string().contains("canary-bare"));
+    // An `error` beside `success: true` is a failure all the same.
+    let Value::Object(mixed) = json!({
+        "resultType": "complete",
+        "content": [{ "type": "text", "text": "canary-mixed" }],
+        "structuredContent": {
+            "success": true,
+            "error": { "code": "COLLECTION_NOT_FOUND", "message": "canary-mixed" },
+        },
+        "isError": false,
+    }) else {
+        unreachable!()
+    };
+    let result = kept(&store, mixed, false).await;
+    assert_eq!(
+        result["structuredContent"]["error"]["code"],
+        json!("COLLECTION_NOT_FOUND")
+    );
+    assert!(!Value::Object(result).to_string().contains("canary-mixed"));
+    // Umbel's fixed store codes are kept as they came.
+    let busy = failed(CommandError::new("STORE_BUSY", "canary words").with_retryable(true));
+    let error = kept(&store, busy, false).await["structuredContent"]["error"].clone();
+    assert_eq!(error["code"], json!("STORE_BUSY"));
+    assert_eq!(error["retryable"], json!(true));
+    // A mounted plugin's result is labelled `external`, as a mounted plugin's pipeline's is: not
+    // kept either.
+    let mut labelled = completed(json!({ "text": "canary-external" }));
+    labelled["structuredContent"]["metadata"] = json!({ "dev.umbel/trust": "external" });
+    let result = kept(&store, labelled, false).await;
+    assert!(
+        !Value::Object(result.clone())
+            .to_string()
+            .contains("canary-external")
+    );
+    assert!(
+        result["structuredContent"]["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("labelled as content")
+    );
+    // A mutation's failure never invites a blind re-run.
+    let error = kept(
+        &store,
+        failed(CommandError::new("COLLECTION_NOT_FOUND", "canary words").with_retryable(true)),
+        true,
+    )
+    .await["structuredContent"]["error"]
+        .clone();
+    assert!(
+        error["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("check its effect"),
+        "{error}"
+    );
+    assert_eq!(error["retryable"], json!(true));
+}
+
+#[tokio::test]
 async fn a_purged_result_is_gone_from_the_database_and_its_log() {
     let fixture = Fixture::new();
     let store = fixture.store();
