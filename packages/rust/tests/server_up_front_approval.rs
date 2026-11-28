@@ -3,6 +3,8 @@
 //! before any step runs, or nothing runs.
 #![cfg(all(feature = "server", feature = "approval"))]
 
+mod common;
+
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -13,6 +15,7 @@ use afd::{
     CommandResult,
 };
 use async_trait::async_trait;
+use common::legacy_call;
 use http_body_util::{BodyExt, Full};
 use serde_json::{json, Value};
 use tower::ServiceExt;
@@ -599,50 +602,6 @@ async fn a_confirmation_then_the_approval_are_asked_in_turn() {
         .await;
     assert_eq!(body(&ran)["success"], true, "{ran}");
     assert_eq!(setup.calls(), ["clear"]);
-}
-
-/// A 2025 stdio connection whose client declares form elicitation and answers each
-/// `elicitation/create` with the next of `answers`; returns the call's response and the questions.
-async fn legacy_call(server: McpServer, params: Value, answers: Vec<Value>) -> (Value, Vec<Value>) {
-    use rmcp::ServiceExt;
-    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-    let (mut writer, server_reader) = tokio::io::duplex(1 << 20);
-    let (server_writer, client_reader) = tokio::io::duplex(1 << 20);
-    tokio::spawn(async move {
-        if let Ok(running) = server.serve((server_reader, server_writer)).await {
-            let _ = running.waiting().await;
-        }
-    });
-    let mut reader = BufReader::new(client_reader);
-    let send = |message: Value| format!("{message}\n");
-    let mut answers = answers.into_iter();
-    let mut asked = Vec::new();
-    let initialize = json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
-        "protocolVersion": "2025-11-25",
-        "capabilities": { "elicitation": { "form": {} } },
-        "clientInfo": { "name": "legacy", "version": "0" },
-    }});
-    writer.write_all(send(initialize).as_bytes()).await.unwrap();
-    let initialized = json!({ "jsonrpc": "2.0", "method": "notifications/initialized" });
-    writer
-        .write_all(send(initialized).as_bytes())
-        .await
-        .unwrap();
-    let call = json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": params });
-    writer.write_all(send(call).as_bytes()).await.unwrap();
-    loop {
-        let mut line = String::new();
-        assert!(reader.read_line(&mut line).await.unwrap() > 0);
-        let message: Value = serde_json::from_str(&line).unwrap();
-        if message["method"] == "elicitation/create" {
-            asked.push(message["params"].clone());
-            let answer = answers.next().unwrap_or(json!({ "action": "cancel" }));
-            let reply = json!({ "jsonrpc": "2.0", "id": message["id"], "result": answer });
-            writer.write_all(send(reply).as_bytes()).await.unwrap();
-        } else if message["id"] == 2 {
-            return (message, asked);
-        }
-    }
 }
 
 #[tokio::test]
