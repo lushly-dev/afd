@@ -281,7 +281,16 @@ class TaskStore(Protocol):
     """Durable store for MCP task records (``spec/command-metadata.md``, "Tasks").
 
     Implementations may also define an optional ``async def heartbeat(self, task_id: str,
-    owner: str, now: int) -> None`` method for lease renewal while a task runs.
+    owner: str, now: int) -> None`` method for lease renewal while a task runs, and an optional
+    ``async def get_for(self, task_id: str, owner: str, caller: CommandContext) ->
+    TaskRecord | None``: the task for the caller of a ``tasks/get``, ``tasks/update`` or
+    ``tasks/cancel`` request, as ``get`` finds it, with the context that request runs with (its
+    actor, the ``afd.server.Credentials`` the server verified (``None`` on a transport without
+    them, or when only the MCP SDK verified the token) and what the context hook set). A host's
+    store defines it to
+    apply a check of its own to that caller, such as whether it may still read the task's space,
+    and returns ``None`` to refuse, which the server answers as an unknown task
+    (``spec/tasks.md``). Without it the server calls ``get``.
     """
 
     async def create(self, record: TaskRecord, call: TaskCall) -> None: ...

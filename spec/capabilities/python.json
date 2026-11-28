@@ -584,7 +584,7 @@
 		},
 		"mcp.tasks": {
 			"status": "yes",
-			"note": "([#1972](https://github.com/lushly-dev/afd/issues/1972)): `task: TaskSupport`, `TaskStore`, `InMemoryTaskStore`, `TaskOptions`, `tasks/*` (`mcp` 2.x `Extension`), `McpClient(McpClientConfig(tasks=True))`, todo `--suite tasks`",
+			"note": "([#1972](https://github.com/lushly-dev/afd/issues/1972)): `task: TaskSupport`, `TaskStore` (an optional `get_for` sees each `tasks/*` caller, #3011), `InMemoryTaskStore`, `TaskOptions`, `tasks/*` (`mcp` 2.x `Extension`), `McpClient(McpClientConfig(tasks=True))`, todo `--suite tasks`",
 			"views": {
 				"command-metadata": "([#1972](https://github.com/lushly-dev/afd/issues/1972): `TaskSupport`, `TaskStore`, `InMemoryTaskStore` (32/owner, 256 total), `task_store`/`task_options`, `CommandContext.report_progress`/`cancel`, `McpClient(McpClientConfig(tasks=True))`; `test_tasks.py`, `test_tasks_client.py`, todo `--suite tasks`)",
 				"pc-tasks": "(`python/tests/test_tasks.py`, `test_tasks_client.py`, todo `--suite tasks`; [#1972](https://github.com/lushly-dev/afd/issues/1972))"

@@ -8,6 +8,7 @@ import type { AddressInfo } from 'node:net';
 import { inspect } from 'node:util';
 import {
 	type Actor,
+	type CommandContext,
 	ErrorCodes,
 	failure,
 	fixedClock,
@@ -1366,6 +1367,152 @@ describe('MCP Tasks over HTTP', () => {
 		const settled = await pollUntilSettled(httpB.url, id);
 		expect(settled.status).toBe('cancelled');
 		expect(runs.aborted).toBe(1);
+	});
+
+	it('gives a store each tasks/* caller and answers a refusal as an unknown task (#3011)', async () => {
+		const runs = { echo: 0, wait: 0, list: 0, aborted: 0 };
+		const callers: unknown[] = [];
+		let refuse = false;
+		class ChecksCallers extends InMemoryTaskStore {
+			async getFor(id: string, owner: string, caller: CommandContext) {
+				callers.push((caller.actor as Actor | undefined)?.id);
+				return refuse ? undefined : this.get(id, owner);
+			}
+		}
+		const http = await listenHandler(
+			createMcpHandler({
+				name: 'checks-callers',
+				version: '1.0.0',
+				commands: makeCommands({ runs }),
+				toolStrategy: 'individual',
+				createContext: makeActorContext,
+				taskStore: new ChecksCallers(),
+				taskOptions: defaultTaskOptions,
+			})
+		);
+		try {
+			const created = await rpc(
+				http.url,
+				'tools/call',
+				{ name: 'job-echo', arguments: {} },
+				{ tasks: true, headers: { 'x-test-user': 'bob' } }
+			);
+			const id = String((created.body.result as { taskId: string }).taskId);
+			const settled = await pollUntilSettled(http.url, id, { 'x-test-user': 'bob' });
+			expect(settled.status).toBe('completed');
+			expect(callers.length).toBeGreaterThan(0);
+			expect(callers.every((actor) => actor === 'bob')).toBe(true);
+			// The store's actor is the one the binding was made from, so the owner still finds its
+			// task (covered below with a getter-backed id, which a spread would drop).
+			refuse = true;
+			for (const method of ['tasks/get', 'tasks/update', 'tasks/cancel'] as const) {
+				const params =
+					method === 'tasks/update' ? { taskId: id, inputResponses: {} } : { taskId: id };
+				const refused = await rpc(http.url, method, params, {
+					tasks: true,
+					headers: { 'x-test-user': 'bob' },
+				});
+				expect(refused.body.error).toEqual({ code: -32602, message: 'Task not found' });
+			}
+		} finally {
+			await http.close();
+		}
+	});
+
+	it('keeps a getter-backed actor id in the binding a store is asked with (#3011)', async () => {
+		const runs = { echo: 0, wait: 0, list: 0, aborted: 0 };
+		const seen: unknown[] = [];
+		class GetterActor {
+			readonly kind = 'human' as const;
+			// A field a host adds, kept beside the identity.
+			readonly workspaceId = 'w-1';
+			get id() {
+				return 'carol';
+			}
+		}
+		class SeesCallers extends InMemoryTaskStore {
+			async getFor(id: string, owner: string, caller: CommandContext) {
+				seen.push(caller.actor);
+				return this.get(id, owner);
+			}
+		}
+		const http = await listenHandler(
+			createMcpHandler({
+				name: 'getter-actor',
+				version: '1.0.0',
+				commands: makeCommands({ runs }),
+				toolStrategy: 'individual',
+				createContext: () => ({ actor: new GetterActor() as unknown as Actor }),
+				taskStore: new SeesCallers(),
+				taskOptions: defaultTaskOptions,
+			})
+		);
+		try {
+			const created = await rpc(
+				http.url,
+				'tools/call',
+				{ name: 'job-echo', arguments: {} },
+				{ tasks: true }
+			);
+			const id = String((created.body.result as { taskId: string }).taskId);
+			const settled = await pollUntilSettled(http.url, id);
+			expect(settled.status).toBe('completed');
+			expect(seen.length).toBeGreaterThan(0);
+			for (const actor of seen) {
+				expect(actor).toEqual({ kind: 'human', id: 'carol', workspaceId: 'w-1' });
+			}
+		} finally {
+			await http.close();
+		}
+	});
+
+	it('reads each of a task caller actor fields once (#3011)', async () => {
+		const runs = { echo: 0, wait: 0, list: 0, aborted: 0 };
+		let reads = 0;
+		// An object-literal getter is an own enumerable field: a second read would throw.
+		const actor = {
+			kind: 'human' as const,
+			get id() {
+				reads += 1;
+				if (reads > 1 && inLookup) throw new Error('read twice');
+				return 'dana';
+			},
+		};
+		let inLookup = false;
+		class SeesCallers extends InMemoryTaskStore {
+			async getFor(id: string, owner: string, caller: CommandContext) {
+				expect(caller.actor).toEqual({ kind: 'human', id: 'dana' });
+				return this.get(id, owner);
+			}
+		}
+		const http = await listenHandler(
+			createMcpHandler({
+				name: 'once-actor',
+				version: '1.0.0',
+				commands: makeCommands({ runs }),
+				toolStrategy: 'individual',
+				createContext: () => ({ actor: actor as unknown as Actor }),
+				taskStore: new SeesCallers(),
+				taskOptions: defaultTaskOptions,
+			})
+		);
+		try {
+			const created = await rpc(
+				http.url,
+				'tools/call',
+				{ name: 'job-echo', arguments: {} },
+				{ tasks: true }
+			);
+			const id = String((created.body.result as { taskId: string }).taskId);
+			reads = 0;
+			inLookup = true;
+			const got = await rpc(http.url, 'tasks/get', { taskId: id }, { tasks: true });
+			inLookup = false;
+			expect(got.body.error).toBeUndefined();
+			expect(reads).toBe(1);
+		} finally {
+			await http.close();
+		}
 	});
 
 	it('handles 2025 /message lane and in-process execute()', async () => {
