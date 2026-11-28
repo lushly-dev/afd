@@ -850,7 +850,7 @@
     "pack:build": "node scripts/build-pack.mjs"
   },
   "dependencies": {
-    "@tanstack/virtual-core": "3.19.11",
+    "@tanstack/virtual-core": "3.19.13",
     "tslib": "^2.6.3"
   },
   "peerDependencies": {
