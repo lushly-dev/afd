@@ -95,11 +95,16 @@ export class CreateTaskSignal {
  */
 export function patchToolsCallForTasks(server: Server): void {
 	const sdk = server as unknown as {
-		_wrapHandler(
+		_wrapHandler?: (
 			method: string,
 			handler: (request: unknown, ctx: unknown) => Promise<unknown>
-		): (request: unknown, extra: unknown) => Promise<unknown>;
+		) => (request: unknown, extra: unknown) => Promise<unknown>;
 	};
+	if (typeof sdk._wrapHandler !== 'function') {
+		throw new Error(
+			'@modelcontextprotocol/server Server._wrapHandler is missing; MCP Tasks dispatch requires it (#1744)'
+		);
+	}
 	const originalWrap = sdk._wrapHandler.bind(server);
 	sdk._wrapHandler = (method, handler) => {
 		if (method !== 'tools/call') return originalWrap(method, handler);
