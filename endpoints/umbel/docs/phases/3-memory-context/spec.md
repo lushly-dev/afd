@@ -1086,7 +1086,10 @@ allow-list is unchanged: `dev.umbel/trust: "content"` covers memory hits.
 every replayed capture would append an event. For a command of a plugin holding `memory_write`, when
 the ledger recorded no memory revision, the gate sets the host-only key `dev.umbel/no-change`, and
 `event_stamp`, which is outer, then removes the mutation stamp. This covers a replay, a refused
-capture, a forget that found nothing and an empty sweep. Other plugins are unchanged. An observation
+capture, a forget that found nothing and an empty sweep. Other plugins are unchanged. (Amended
+2026-11-27 by [D224](../../decisions.md): a compiled or component plugin that holds no store write
+grant may also set the key on a success of its own, which the gate keeps when the call wrote,
+confirmed and erased nothing, so the key is no longer the host's alone.) An observation
 takes a revision, so it does make an event.
 
 ## 7. Journal, events and forgetting (D72, D73, D82)

@@ -57,6 +57,7 @@ mod hello_three_ways;
 mod hybrid_surface;
 mod journal_digest;
 mod journal_events;
+mod journal_required;
 mod journal_secret;
 mod limits;
 mod limits_throughput;

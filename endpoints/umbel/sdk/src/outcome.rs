@@ -124,9 +124,9 @@ impl Outcome {
     }
 
     /// Set `result.metadata[key]`, for the keys a command may supply (`dev.umbel/record`,
-    /// `dev.umbel/provenance`, and for compiled and component plugins `dev.umbel/index` and
-    /// `dev.umbel/trust` with the value `"content"`); the host removes every other `dev.umbel/`
-    /// key.
+    /// `dev.umbel/provenance`, and for compiled and component plugins `dev.umbel/index`,
+    /// `dev.umbel/trust` with the value `"content"` and `dev.umbel/no-change` with `true`); the
+    /// host removes every other `dev.umbel/` key.
     #[must_use]
     pub fn with_metadata(mut self, key: &str, value: Value) -> Self {
         let metadata = self
@@ -137,6 +137,15 @@ impl Outcome {
             map.insert(key.to_owned(), value);
         }
         self
+    }
+
+    /// Say that this successful call changed nothing, so the host projects no event for it
+    /// (`result.metadata["dev.umbel/no-change"] = true`, Umbel D224): a repeat that found its
+    /// effect already there. The host keeps it only on a success that wrote no store revision;
+    /// a call that wrote one is projected whatever the outcome says.
+    #[must_use]
+    pub fn with_no_change(self) -> Self {
+        self.with_metadata("dev.umbel/no-change", Value::Bool(true))
     }
 
     /// Whether the outcome is a success.

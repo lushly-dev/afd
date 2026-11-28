@@ -39,6 +39,12 @@ fn keepable(value: &Value) -> bool {
 /// confirms a guess at short text.
 fn digest_input(input: &Value, keep: &[String]) -> Value {
     let bytes = umbel_store::canonical_json(input).len();
+    json!({ JOURNAL_KEY: "digest", "bytes": bytes, "keep": kept_input(input, keep) })
+}
+
+/// The kept keys of an input: those of `keep` whose value is keepable. A required call's intent
+/// keeps the same (D208).
+pub(crate) fn kept_input(input: &Value, keep: &[String]) -> Map<String, Value> {
     let mut kept = Map::new();
     if let Value::Object(map) = input {
         for key in keep {
@@ -47,7 +53,7 @@ fn digest_input(input: &Value, keep: &[String]) -> Value {
             }
         }
     }
-    json!({ JOURNAL_KEY: "digest", "bytes": bytes, "keep": kept })
+    kept
 }
 
 /// The digest of a result: no data and no text, the codes and the host's keys kept.

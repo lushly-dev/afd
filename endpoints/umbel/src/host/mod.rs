@@ -12,6 +12,7 @@ mod journal_redact;
 mod space;
 
 pub(crate) use approvals::as_registered;
+pub(crate) use digest::kept_input;
 
 pub use error::HostError;
 pub use space::SPACE_NOT_FOUND;
@@ -118,6 +119,8 @@ pub struct HostBuilder {
     usage: crate::usage::Setup,
     /// The MCP server's announced name and version: Umbel's, unless the embedder sets its own.
     server_identity: surfaces::mcp::ServerIdentity,
+    /// The embedder's journal policies per command (D208, D221, D224); none by default.
+    journal: Option<crate::journal_policy::JournalPolicies>,
 }
 
 /// What a test sees of a held approval: AFD's request, its token included.
@@ -150,7 +153,23 @@ impl HostBuilder {
             #[cfg(feature = "auth")]
             usage: crate::usage::Setup::default(),
             server_identity: surfaces::mcp::ServerIdentity::default(),
+            journal: None,
         }
+    }
+
+    /// Journal the commands `policies` names by their policies (D208 as amended by D221, D224):
+    /// `required` writes and syncs an intent before the handler and refuses the call with
+    /// `JOURNAL_UNAVAILABLE` when it cannot, `buffered` holds a carried-out call's entry while
+    /// the journal cannot be written, `droppable` drops and counts it. Only the embedder sets
+    /// them; a plugin manifest cannot. Keep
+    /// [`JournalPolicies::health`](crate::JournalPolicies::health) (or read
+    /// [`Host::journal_health`]) for `writable`, `pending`, `dropped` and the intents left
+    /// unsettled at open. With no policies the journal stays fail-open (D66), as without this
+    /// call. `seal` refuses a policy for a command it does not register.
+    #[must_use]
+    pub fn with_journal_policies(mut self, policies: crate::JournalPolicies) -> Self {
+        self.journal = (!policies.is_empty()).then_some(policies);
+        self
     }
 
     /// Announce `name` and `version` as the MCP server's `serverInfo` instead of Umbel's own, for
@@ -522,6 +541,17 @@ impl HostBuilder {
             )?;
         }
 
+        let journal = match self.journal {
+            None => None,
+            Some(policies) => Some(open_journal_policies(
+                policies,
+                &registry,
+                &workspace,
+                self.clock.clone(),
+                &loaded,
+            )?),
+        };
+
         let plan = surfaces::first_class_plan(
             workspace.config().mcp.first_class_tools.as_deref(),
             &registry,
@@ -560,6 +590,7 @@ impl HostBuilder {
             self.approval_observer,
             (&stores, &stash),
             (&local_gate, &local_marks),
+            journal.as_ref(),
             #[cfg(feature = "auth")]
             Arc::clone(&self.auth_environment.clock),
         )?;
@@ -571,6 +602,7 @@ impl HostBuilder {
             &projector,
             digest_commands(&loaded),
             stash,
+            journal.as_ref(),
         );
 
         // The person page and Umbel's relay (phase 5 step 5), in a hosted mode: a command a
@@ -614,6 +646,7 @@ impl HostBuilder {
         }
 
         Ok(Host {
+            journal_health: journal.as_ref().map(|journal| journal.health()),
             workspace,
             registry,
             first_class,
@@ -754,6 +787,7 @@ fn install_middleware(
         &crate::person::LocalGateSlot,
         &Arc<crate::person::LocalMarks>,
     ),
+    journal: Option<&Arc<crate::journal_policy::Policies>>,
     #[cfg(feature = "auth")] auth_clock: Arc<dyn Clock>,
 ) -> Result<Arc<crate::auth::scopes::ScopePolicy>, HostError> {
     let commands = registry.list();
@@ -966,6 +1000,20 @@ fn install_middleware(
         }),
         None => options,
     };
+    // The approval that admitted a held required call, filed beside its intent (D221).
+    let options = match journal {
+        Some(journal) => {
+            let journal = Arc::clone(journal);
+            options.with_on_approval_accepted(move |summary, dispatch_id| {
+                let journal = Arc::clone(&journal);
+                Box::pin(async move {
+                    journal.file_approval(&summary, dispatch_id).await;
+                    Ok(())
+                })
+            })
+        }
+        None => options,
+    };
     let approval = create_approval_middleware(options).map_err(|message| {
         HostError::new(
             codes::WORKSPACE_KEY_INVALID,
@@ -984,7 +1032,47 @@ fn install_middleware(
         registry.add_middleware(crate::shared::nonces::spend_failures());
     }
     registry.add_middleware(approval);
+    // Innermost, right before the handler: a call any layer above refuses writes no intent.
+    if let Some(journal) = journal {
+        registry.add_middleware(crate::journal_policy::middleware(Arc::clone(journal)));
+    }
     Ok(policy)
+}
+
+/// Open the embedder's journal policies over the sealed commands: each must name a registered
+/// command; the write-ahead file is read for the unsettled report.
+fn open_journal_policies(
+    policies: crate::JournalPolicies,
+    registry: &CommandRegistry,
+    workspace: &Workspace,
+    clock: Option<Arc<dyn Clock>>,
+    loaded: &LoadedPlugins,
+) -> Result<Arc<crate::journal_policy::Policies>, HostError> {
+    let names: HashSet<String> = registry
+        .list()
+        .iter()
+        .map(|command| command.name.clone())
+        .collect();
+    if let Some(unknown) = policies.names().find(|name| !names.contains(*name)) {
+        return Err(HostError::config_invalid(
+            &format!("Journal policy for `{unknown}`"),
+            "names a command this host does not register",
+            "Name a command the host registers (a built-in, the embedder's own or a loaded plugin's), or remove the policy.",
+        ));
+    }
+    policies
+        .open(
+            workspace.layout().journal_ahead_file(),
+            clock,
+            digest_commands(loaded),
+        )
+        .map_err(|problem| {
+            HostError::config_invalid(
+                "Journal policies",
+                &problem,
+                "Build a new JournalPolicies for each host.",
+            )
+        })
 }
 
 /// The terminal prompts and pipeline steps of the loaded plugins (phase 3 section 3.3).
@@ -1049,9 +1137,18 @@ fn install_journal(
     projector: &Arc<Projector>,
     digests: digest::DigestCommands,
     stash: Arc<crate::positions::Stash>,
+    journal: Option<&Arc<crate::journal_policy::Policies>>,
 ) {
+    let projecting: Arc<dyn afd::JournalSink> =
+        Arc::new(ProjectingSink::new(Arc::clone(projector)));
+    // The policies' sink holds or drops what the journal cannot take (D208); without policies
+    // the journal is the projecting sink alone, fail-open as before (D66).
+    let sink: Arc<dyn afd::JournalSink> = match journal {
+        Some(journal) => Arc::new(crate::journal_policy::PolicySink::new(projecting, journal)),
+        None => projecting,
+    };
     registry.set_journal(
-        JournalRecorder::new(Arc::new(ProjectingSink::new(Arc::clone(projector))))
+        JournalRecorder::new(sink)
             .with_record_failures(workspace.config().journal.record_failures)
             .with_redact_info(move |record, info| {
                 journal_redact::entry(&digests, &stash, record, info.secret)
@@ -1062,6 +1159,8 @@ fn install_journal(
 
 /// A sealed host: the registry, the workspace, and the surfaces built over them.
 pub struct Host {
+    /// The journal policies' live state, when the embedder set any (D208, D224).
+    journal_health: Option<crate::JournalHealth>,
     workspace: Arc<Workspace>,
     registry: Arc<CommandRegistry>,
     first_class: Vec<String>,
@@ -1108,6 +1207,13 @@ impl Host {
     #[cfg(feature = "cli")]
     pub(crate) fn metrics(&self) -> Arc<crate::metrics::Metrics> {
         Arc::clone(&self.metrics)
+    }
+
+    /// The journal policies' live state (`writable`, `pending`, `dropped`, the intents left
+    /// unsettled at open), when the embedder set policies with
+    /// [`HostBuilder::with_journal_policies`]; `None` for Umbel's default journal (D66).
+    pub fn journal_health(&self) -> Option<crate::JournalHealth> {
+        self.journal_health.clone()
     }
 
     /// The workspace.

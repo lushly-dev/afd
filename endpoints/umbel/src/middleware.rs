@@ -59,8 +59,10 @@ pub(crate) const HUMAN_CONFIRMED_KEY: &str = "dev.umbel/human-confirmed";
 /// `result.metadata` key: a command's record, which the event projector reads (phase 0).
 pub(crate) const RECORD_KEY: &str = "dev.umbel/record";
 /// `result.metadata` key: `true` on a successful call of a plugin holding `memory_write` that
-/// wrote no memory revision (phase 3 section 6.4). Set only by the plugin gate; the event stamp,
-/// which is outer, then leaves the result unstamped, so a no-op makes no event.
+/// wrote no memory revision (phase 3 section 6.4), and on a compiled or component plugin's
+/// successful call that said so itself and wrote no store revision (D224). Kept only by the
+/// plugin gate; the event stamp, which is outer, then leaves the result unstamped, so a no-op
+/// makes no event.
 pub(crate) const NO_CHANGE_KEY: &str = "dev.umbel/no-change";
 /// The envelope fields the host nulls in a memory writer's event (phase 3 sections 6.2 and 7.3):
 /// they stay sealed on the stored record. A lane writer's event loses the same fields (the
@@ -608,6 +610,19 @@ fn sanitize(
     let content = (metadata.extra.get(TRUST_KEY).and_then(Value::as_str) == Some("content")
         && !mounted)
         .then(|| Value::String("content".to_owned()));
+    // A compiled or component plugin may say that a successful call changed nothing (D224): a
+    // repeat that found its effect already there. It hides no store change: only an instance
+    // that holds no store write grant may say it, a call the host saw write a revision, confirm
+    // or erase is projected whatever the plugin says, and a mounted server, outside the host,
+    // cannot say it at all.
+    let said_unchanged = !mounted
+        && !entry.store_writer
+        && success
+        && metadata.extra.get(NO_CHANGE_KEY) == Some(&Value::Bool(true))
+        && record.count == 0
+        && record.memory.count == 0
+        && record.confirmation.is_none()
+        && record.erasure.is_none();
     // A compiled or component result may carry a record for the event projector; nothing a
     // mounted server says about the host is kept.
     metadata
@@ -677,7 +692,7 @@ fn sanitize(
             }),
         );
     }
-    if success && entry.memory_writer && record.memory.count == 0 {
+    if said_unchanged || (success && entry.memory_writer && record.memory.count == 0) {
         // A replay, a refused capture, a forget that found nothing, an empty sweep: no event.
         metadata
             .extra
