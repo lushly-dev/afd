@@ -47,7 +47,7 @@ umbel-plugin-sources-filesystem = { path = "../plugins/sources-filesystem" }
 # The leak and poisoning probes call the commands as library actors (section 12).
 afd = { path = "../../../packages/rust", default-features = false }
 # `context-bundle` is validated against `context-bundle.v1.json`.
-jsonschema = { version = "0.61", default-features = false }
+jsonschema = { version = "0.63", default-features = false }
 # `forget_bytes.rs` holds a reader open across a forget and reads the key file's markers.
 rusqlite = { version = "0.43", features = ["bundled"] }
 serde_json = "1"

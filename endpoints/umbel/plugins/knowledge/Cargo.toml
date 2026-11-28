@@ -63,7 +63,7 @@ umbel-plugin-sources-filesystem = { path = "../sources-filesystem" }
 umbel-testkit-idp = { path = "../../testkit-idp" }
 url = "2"
 # The query set and the report are validated against their schemas.
-jsonschema = { version = "0.61", default-features = false }
+jsonschema = { version = "0.63", default-features = false }
 # `en_stem`, the index's tokenizer, to check the fixture's vocabulary under it (the stemmer
 # feature is the one the embedded backend enables).
 tantivy = { version = "0.27", default-features = false, features = ["stemmer"] }

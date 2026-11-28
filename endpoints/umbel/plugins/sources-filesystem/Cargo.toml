@@ -11,7 +11,7 @@ repository = "https://github.com/lushly-dev/afd"
 [dependencies]
 globset = "0.4"
 # Offline only: the frontmatter schema pack is a file, never fetched.
-jsonschema = { version = "0.61", default-features = false }
+jsonschema = { version = "0.63", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "1"
