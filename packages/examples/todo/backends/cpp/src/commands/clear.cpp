@@ -53,6 +53,7 @@ afd::CommandDefinition todo_clear(std::shared_ptr<TodoStore> store) {
         "gated only by its confirmation prompt, where the server enforces confirmations";
     command.tags = {"todo", "clear", "write", "batch", "destructive"};
     command.mutation = true;
+    command.idempotency = afd::IdempotencySupport::natural;
     command.destructive = true;
     // Enforced when the server runs with CONFIRMATIONS=enforce (spec/confirmation-cases.json).
     command.confirm_prompt = "Delete these todos? This cannot be undone.";

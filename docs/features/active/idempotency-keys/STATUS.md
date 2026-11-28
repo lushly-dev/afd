@@ -20,6 +20,7 @@ the pull request's number.
 - **3. TypeScript** ([#2675](https://github.com/lushly-dev/afd/issues/2675)): merged in #2864. Every case of `spec/vectors/idempotency.json` runs in `packages/server/src/idempotency-vectors.test.ts` (the `waits`, `cancels` and `drops` engines' S7 cases skipped as another engine's); the three codes are in the catalog with constants in all four languages; the todo example declares its nine mutations, and `afd validate --surface` reports none undeclared (`missing-idempotency`). A direct registry takes a step built with `createIdempotencyStep`, so `/direct` hosts without it do not bundle it.
 
 - **4. Python, Rust and C++** (#2676, split on 2026-11-27): one issue per language, each planned and independent of the others: Python [#2955](https://github.com/lushly-dev/afd/issues/2955), Rust [#2956](https://github.com/lushly-dev/afd/issues/2956), C++ [#2957](https://github.com/lushly-dev/afd/issues/2957). Not started.
+  - **C++** ([#2957](https://github.com/lushly-dev/afd/issues/2957)): merged in #3051. `CommandRegistryOptions::idempotency` adds the step inside the registry's innermost link, after the approval admission check. C++ waits for a late handler (S7, `waits`), so the step settles from the handler's result before the caller gets `TIMEOUT`. Every case of `spec/vectors/idempotency.json` runs in `packages/cpp/tests/idempotency_vectors_test.cpp` except other engines' S7 cases and the HTTP and task cases, which C++ has no surface for; C++ has left `gaps`. The todo C++ backend declares its nine mutations, and `afd validate --surface`'s rules find none undeclared. R3's recovery is on the `TIMEOUT` of the registry, `DirectClient` and `afd::mcp_stdio`. Not done here, because two languages still have to land: the last-lander items (`spec/meta-tools.json`'s `meta` description, `spec/context-fields.md`'s "once every language accepts it").
 
 ## Follow-ups not yet issues
 
@@ -55,6 +56,14 @@ the pull request's number.
   `@lushly-dev/afd-core/internal/idempotency`: the router, the server engine, the core registry and
   the meta argument, so a nested call from a batch item never trips K2 on its parent's derived
   key.
+
+- C++'s step runs in `CommandRegistry::run_chain`'s innermost link (`detail::run_idempotency_step`,
+  `packages/cpp/src/idempotency.cpp`). The retry middleware reads `mutation`, `idempotency` and
+  whether the call carries a key from the registry's per-call admission record
+  (`detail::live_repeat_declaration`). The surface that owns a call's deadline (the registry,
+  `DirectClient`, `afd::mcp_stdio`) hands the registry a `detail::IdempotencyNote` and reads from
+  it whether the step reserved the key (R3). On stdio, a call whose `context_hook` left the
+  server's default actor is scoped to its connection (S3).
 
 ## How to keep this file
 

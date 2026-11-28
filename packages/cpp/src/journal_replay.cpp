@@ -12,6 +12,7 @@
 #include "detail/approval_admission.hpp"
 #include "detail/context_fields.hpp"
 #include "detail/exceptions.hpp"
+#include "detail/idempotency.hpp"
 #include "detail/iso8601.hpp"
 #include "detail/journal_state.hpp"
 #include "detail/random_unit.hpp"
@@ -464,6 +465,8 @@ ReplayEntryReport replay_entry(const CommandExecutor& execute, const JournalEntr
     CommandContext context;
     context.trace_id = entry.trace_id;
     context.actor = entry.actor;
+    // The recorded key, as the engine's own: a derived one does not fail K2 (spec/journal.md).
+    detail::set_engine_idempotency_key(context, entry.idempotency_key);
     if (entry.context_digest.surface) {
         context.surface = detail::parse_surface(*entry.context_digest.surface);
         if (!context.surface) {
@@ -659,6 +662,7 @@ CommandResult record_call(JournalSink& sink, const JournalMiddlewareOptions& opt
                 create_context_digest(context, fields.context, fields.omitted);
             return JournalRecord{.timestamp = wire::iso8601_utc(started_at),
                                  .trace_id = context.trace_id,
+                                 .idempotency_key = context.idempotency_key,
                                  .command = std::string(name),
                                  .input = input,
                                  .actor = context.actor,

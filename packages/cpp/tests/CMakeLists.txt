@@ -21,6 +21,7 @@ add_executable(
     human_relay_vectors_test.cpp
     helpers_test.cpp
     idempotency_keys_test.cpp
+    idempotency_test.cpp
     idempotency_vectors_test.cpp
     journal_context_cap_vectors_test.cpp
     journal_deadline_test.cpp

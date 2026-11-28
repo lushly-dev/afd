@@ -1,10 +1,15 @@
 #include "tools.hpp"
 
+#include "afd/builtin_names.hpp"
+#include "afd/contexts.hpp"
+#include "afd/idempotency.hpp"
 #include "afd/mcp.hpp"
+#include "afd/output_budget.hpp"
 #include "afd/schema.hpp"
 #include "afd/similarity.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <chrono>
 #include <cmath>
@@ -664,6 +669,52 @@ std::optional<std::string> first_class_fault(const CommandRegistry& registry,
             return quoted + " is not exposed to MCP (expose.mcp is not true), so it cannot be "
                             "listed: expose it, or remove it";
         }
+    }
+    return std::nullopt;
+}
+
+std::optional<CommandResult> lift_meta_argument(Json& params, Json& meta) {
+    const std::string tool =
+        params.is_object() && params.contains("name") && params["name"].is_string()
+            ? params["name"].get<std::string>()
+            : std::string();
+    const bool meta_tool = std::find(std::begin(afd_meta_tool_names), std::end(afd_meta_tool_names),
+                                     tool) != std::end(afd_meta_tool_names);
+    if (!meta_tool || !params.contains("arguments") || !params["arguments"].is_object() ||
+        !params["arguments"].contains("meta")) {
+        return std::nullopt;
+    }
+    Json& arguments = params["arguments"];
+    const Json argument = arguments["meta"];
+    arguments.erase("meta");
+    if (argument.is_null()) {
+        return std::nullopt;
+    }
+    const std::array<std::string, 3> allowed_keys{std::string(context_meta_key),
+                                                  std::string(output_budget_meta_key),
+                                                  std::string(afd_idempotency_key_meta_key)};
+    if (!argument.is_object()) {
+        return failure(create_error(
+            error_codes::VALIDATION_ERROR, "The meta argument of " + tool + " must be an object",
+            {.suggestion = "Send meta as an object whose keys are _meta keys: " + allowed_keys[0] +
+                           ", " + allowed_keys[1] + ", " + allowed_keys[2],
+             .details = Json{{"argument", "meta"}}}));
+    }
+    for (const std::string& key : allowed_keys) {
+        const auto value = argument.find(key);
+        if (value == argument.end() || value->is_null()) {
+            continue;
+        }
+        const auto sent = meta.find(key);
+        if (sent != meta.end() && !sent->is_null() && *sent != *value) {
+            return failure(create_error(
+                error_codes::VALIDATION_ERROR,
+                "_meta[\"" + key + "\"] and the meta argument of " + tool + " disagree",
+                {.suggestion =
+                     "Send " + key + " in _meta or in the meta argument, or the same value in both",
+                 .details = Json{{"meta", key}}}));
+        }
+        meta[key] = *value;
     }
     return std::nullopt;
 }

@@ -97,6 +97,9 @@ std::optional<Json> command_tool_meta(const CommandDefinition& command) {
     if (command.mutation) {
         meta["mutation"] = true;
     }
+    if (command.idempotency) {
+        meta["idempotency"] = std::string(idempotency_support_name(*command.idempotency));
+    }
     if (command.destructive) {
         meta["destructive"] = true;
     }
@@ -125,10 +128,16 @@ std::optional<Json> command_tool_meta(const CommandDefinition& command) {
 }
 
 std::optional<Json> command_tool_annotations(const CommandDefinition& command) {
+    // A declared `natural` is the only source of `idempotentHint` (spec/idempotency.md, D2).
+    const bool idempotent = command.idempotency == IdempotencySupport::natural;
     if (!command.mutation) {
-        return std::nullopt;
+        return idempotent ? std::optional<Json>(Json{{"idempotentHint", true}}) : std::nullopt;
     }
-    return Json{{"readOnlyHint", false}, {"destructiveHint", command.destructive}};
+    Json annotations{{"readOnlyHint", false}, {"destructiveHint", command.destructive}};
+    if (idempotent) {
+        annotations["idempotentHint"] = true;
+    }
+    return annotations;
 }
 
 Json command_to_mcp_tool(const CommandDefinition& command) {
@@ -206,6 +215,9 @@ Json to_json(const CommandDefinition& command) {
         out["tags"] = command.tags;
     }
     out["mutation"] = command.mutation;
+    if (command.idempotency) {
+        out["idempotency"] = std::string(idempotency_support_name(*command.idempotency));
+    }
     if (command.execution_time) {
         out["executionTime"] = std::string(execution_time_name(*command.execution_time));
     }

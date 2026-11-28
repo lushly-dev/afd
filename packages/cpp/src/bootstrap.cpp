@@ -102,6 +102,9 @@ Json help_entry(const CommandDefinition& command, bool full) {
             info["tags"] = command.tags;
         }
         info["mutation"] = command.mutation;
+        if (command.idempotency) {
+            info["idempotency"] = std::string(idempotency_support_name(*command.idempotency));
+        }
         if (command.destructive) {
             info["destructive"] = true;
         }

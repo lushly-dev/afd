@@ -108,13 +108,18 @@
 			"evidence": ["packages/cpp/include/afd/mcp.hpp", "packages/cpp/tests/mcp_tools_test.cpp"]
 		},
 		"command.idempotency": {
-			"status": "planned",
-			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"status": "yes",
+			"note": ": `_meta.idempotency`, grouped actions, `afd-detail`, `afd-help` (`full`); the todo backend declares its nine mutations",
 			"views": {
-				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+				"status": ""
 			},
-			"issue": "#2676",
-			"evidence": ["packages/cpp/tests/idempotency_vectors_test.cpp"]
+			"evidence": [
+				"packages/cpp/include/afd/command.hpp",
+				"packages/cpp/src/mcp.cpp",
+				"packages/cpp/src/bootstrap.cpp",
+				"packages/cpp/tests/idempotency_vectors_test.cpp",
+				"packages/cpp/tests/idempotency_test.cpp"
+			]
 		},
 		"single.dispatch-order": {
 			"status": "yes",
@@ -383,13 +388,19 @@
 			]
 		},
 		"middleware.idempotency-step": {
-			"status": "planned",
-			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"status": "yes",
+			"note": ": `CommandRegistryOptions::idempotency` (`store`, `ttl_ms`, `lease_ms`); the engine waits for the handler, so its result is settled before the caller gets `TIMEOUT` (S7, `waits`)",
 			"views": {
-				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+				"status": ""
 			},
-			"issue": "#2676",
-			"evidence": ["packages/cpp/tests/idempotency_vectors_test.cpp"]
+			"evidence": [
+				"packages/cpp/include/afd/idempotency.hpp",
+				"packages/cpp/src/idempotency.cpp",
+				"packages/cpp/src/registry.cpp",
+				"packages/cpp/src/middleware.cpp",
+				"packages/cpp/tests/idempotency_vectors_test.cpp",
+				"packages/cpp/tests/idempotency_test.cpp"
+			]
 		},
 		"middleware.up-front-approval": {
 			"status": "yes",
@@ -856,13 +867,18 @@
 			]
 		},
 		"single.idempotency-key": {
-			"status": "planned",
-			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"status": "yes",
+			"note": ": `CommandContext::idempotency_key` in process and through `DirectClient`, `_meta` and the meta-tools' `meta` argument on `afd::mcp_stdio`; no CLI",
 			"views": {
-				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+				"status": ""
 			},
-			"issue": "#2676",
-			"evidence": ["packages/cpp/tests/idempotency_vectors_test.cpp"]
+			"evidence": [
+				"packages/cpp/src/idempotency.cpp",
+				"packages/cpp/src/registry.cpp",
+				"packages/cpp/src/mcp_stdio/server.cpp",
+				"packages/cpp/src/journal.cpp",
+				"packages/cpp/tests/idempotency_vectors_test.cpp"
+			]
 		}
 	}
 }

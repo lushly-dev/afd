@@ -9,6 +9,7 @@
 #include "afd/context_fields.hpp"
 #include "afd/execution.hpp"
 #include "afd/expected.hpp"
+#include "afd/idempotency.hpp"
 #include "afd/json.hpp"
 #include "afd/pipeline.hpp"
 #include "afd/result.hpp"
@@ -31,6 +32,9 @@ namespace afd {
 
 struct JournalEntry;
 struct ReplayJournalOptions;
+namespace detail {
+struct PreparedIdempotencyCall;
+} // namespace detail
 struct ReplayReport;
 class CommandRegistry;
 
@@ -98,6 +102,17 @@ struct CommandRegistryOptions {
     /// `ApprovalMiddlewareOptions::random_bytes`, which returns nothing, it returns a `bool`, so
     /// one generator serving both needs a small adapter for one of them.
     std::function<bool(std::uint8_t* out, std::size_t size)> random_bytes;
+    /// The engine's idempotency step (spec/idempotency.md, S1 to S13). Unset: none, and every call
+    /// runs its handler. Set, a call that carries a key (`CommandContext::idempotency_key`) to a
+    /// command declaring `IdempotencySupport::keyed` is answered from `store` when it repeats a
+    /// call with the same key, input and declared context fields from the same actor: the stored
+    /// result with `metadata.idempotentReplay: true`, or `IDEMPOTENCY_KEY_REUSED`,
+    /// `IDEMPOTENCY_IN_PROGRESS` or `OUTCOME_UNKNOWN`. It runs after the approval admission check
+    /// and immediately before the handler, so a repeat passes every check the first call did. It
+    /// reads `clock`'s wall time, never the call's. `create` refuses options
+    /// `check_idempotency_options` refuses. A store the default leaves in memory is this process's
+    /// alone (S13).
+    std::optional<IdempotencyOptions> idempotency;
 };
 
 /// How `CommandRegistry::list_by_tags` matches a command's tags.
@@ -166,6 +181,10 @@ public:
     [[nodiscard]] std::size_t max_validation_issues() const noexcept {
         return options_.max_validation_issues;
     }
+    /// The idempotency step's options, its default store filled in, or unset without the step.
+    [[nodiscard]] const std::optional<IdempotencyOptions>& idempotency() const noexcept {
+        return options_.idempotency;
+    }
 
     /// Executes one command, in the TypeScript engine's order:
     ///
@@ -223,7 +242,9 @@ private:
     [[nodiscard]] CommandResult run_chain(const RegisteredCommand& command, const Json& input,
                                           CommandContext& context,
                                           detail::ApprovalAdmission& admission,
-                                          bool check_output_budget) const;
+                                          bool check_output_budget,
+                                          const detail::PreparedIdempotencyCall* step_call,
+                                          detail::IdempotencyNote* note) const;
     void report_error(std::string_view message) const;
 
     CommandRegistryOptions options_;

@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "detail/exceptions.hpp"
+#include "detail/idempotency.hpp"
 #include "detail/json_io.hpp"
 #include "detail/random_unit.hpp"
 #include "detail/utf8.hpp"
@@ -993,6 +994,9 @@ PipelineResult execute_pipeline(const Json& raw_request, const CommandExecutor& 
             step_context.trace_id = context.trace_id && !context.trace_id->empty()
                                         ? *context.trace_id
                                         : pipeline_id + "-step-" + std::to_string(i);
+            // Each step runs under the key derived from the request's (spec/idempotency.md, K4).
+            detail::derive_item_idempotency_key(context, step_context,
+                                                IdempotencyRequestKind::pipeline, i);
 #if AFD_HAS_EXCEPTIONS
             try {
                 result = execute(step.command, input, step_context);

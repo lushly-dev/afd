@@ -78,6 +78,9 @@ struct ApprovalAdmission {
     /// takes it after the chain and fails the call as for a thrown middleware error, whatever a
     /// link outside the step returned.
     std::optional<std::string> hook_refusal;
+    /// Whether the call carries an idempotency key the retry middleware may count (R1). Set by
+    /// `CommandRegistry::execute` before the chain runs, and never changed after.
+    bool carries_key = false;
 };
 
 /// Records, for the call of `context`, that an approval hook refused it (`message`). A no-op for a
@@ -95,12 +98,20 @@ std::optional<std::string> take_hook_refusal(ApprovalAdmission& record);
 /// `ApprovalAdmission::chain_begin`). False for a context the registry did not record.
 bool is_registry_next(const CommandContext& context, const Next& next);
 
-/// The `mutation` declaration of the command the registry runs for this call, for the retry
-/// middleware, read as the journal reads `secret` (journal_replay.cpp, `live_secret`): unset
-/// outside the registry's execution, for a record naming another command, and for a `next` the
-/// registry did not build.
-std::optional<bool> live_mutation(const CommandContext& context, std::string_view name,
-                                  const Next& next);
+/// What the retry middleware decides a repeat from (spec/idempotency.md, R1): the running
+/// command's `mutation` and `idempotency`, and whether the call carries a key.
+struct RepeatDeclaration {
+    bool mutation = false;
+    std::optional<IdempotencySupport> idempotency;
+    bool carries_key = false;
+};
+
+/// The declaration of the command the registry runs for this call, for the retry middleware, read
+/// as the journal reads `secret` (journal_replay.cpp, `live_secret`): unset outside the
+/// registry's execution, for a record naming another command, and for a `next` the registry did
+/// not build.
+std::optional<RepeatDeclaration> live_repeat_declaration(const CommandContext& context,
+                                                         std::string_view name, const Next& next);
 
 /// Marks `inner` as the registry's for as long as it lives, when `outer` is: `compose_middleware`
 /// builds continuations of its own for the parts it composes, and a part the registry reached

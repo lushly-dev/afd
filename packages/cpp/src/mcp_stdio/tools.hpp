@@ -61,4 +61,11 @@ CommandResult detail(const std::vector<const Listed*>& commands, const Json& arg
 std::optional<std::string> first_class_fault(const CommandRegistry& registry,
                                              const StdioServerOptions& options);
 
+/// Moves a meta-tool's `meta` argument into `meta`, the request's `_meta`: `dev.afd/context`,
+/// `dev.afd/outputBudget` and `dev.afd/idempotencyKey`, the keys `afd::mcp_stdio` reads from
+/// `_meta` that a client may be unable to set (TypeScript's `liftMetaArgument`). Other keys are
+/// dropped, as undeclared `_meta` keys are. A failure when `meta` is not an object, or disagrees
+/// with `_meta`.
+std::optional<CommandResult> lift_meta_argument(Json& params, Json& meta);
+
 } // namespace afd::mcp::surface

@@ -8,6 +8,7 @@
 #include "detail/caller_allow.hpp"
 #include "detail/direct_approval.hpp"
 #include "detail/exceptions.hpp"
+#include "detail/idempotency.hpp"
 #include "detail/json_io.hpp"
 #include "detail/output_budget.hpp"
 #include "detail/random_unit.hpp"
@@ -175,6 +176,10 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
         context.cancellation = deadline->token();
         context.deadline_armed = true;
     }
+    // Where the registry notes that the idempotency step reserved the key, for this deadline's
+    // TIMEOUT (spec/idempotency.md, R3).
+    const auto note = std::make_shared<detail::IdempotencyNote>();
+    context.idempotency_note = note;
 
     // 5. Client middleware around the registry.
     const std::string command_name(name);
@@ -194,12 +199,14 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
         result = chain.front()();
     } catch (const std::exception& error) {
         if (deadline && deadline->token().deadline_passed()) {
-            return detail::command_timed_out(command_name, reported_timeout_ms);
+            return detail::command_timed_out(command_name, reported_timeout_ms,
+                                             note->step_acted.load());
         }
         return execution_failure(error.what());
     } catch (...) {
         if (deadline && deadline->token().deadline_passed()) {
-            return detail::command_timed_out(command_name, reported_timeout_ms);
+            return detail::command_timed_out(command_name, reported_timeout_ms,
+                                             note->step_acted.load());
         }
         return execution_failure("unknown exception");
     }
@@ -262,7 +269,8 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
 
     // Only this call's own deadline is a TIMEOUT; a cancelled caller gets the handler's result.
     if (deadline && deadline->token().deadline_passed()) {
-        return detail::command_timed_out(command_name, reported_timeout_ms);
+        return detail::command_timed_out(command_name, reported_timeout_ms,
+                                         note->step_acted.load());
     }
     return result;
 }

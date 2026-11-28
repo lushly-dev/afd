@@ -60,6 +60,10 @@ struct JournalRecord {
     /// When the command started: ISO 8601 from `context.clock`'s wall time.
     std::string timestamp;
     std::optional<std::string> trace_id;
+    /// The call's idempotency key (spec/idempotency.md, "The journal"), a derived one as derived.
+    /// Hashed into `context_digest` as a member. Replay restores it as the engine's own key, so
+    /// K2 does not refuse a derived one. Written on the wire as `idempotencyKey`, after `traceId`.
+    std::optional<std::string> idempotency_key;
     std::string command;
     /// The validated input the handler received.
     Json input = Json::object();

@@ -294,8 +294,8 @@ Emitted by a registry for a call with the `apps` interface; see
 
 Emitted by the engine's idempotency step ([idempotency](./idempotency.md#errors)) for a call that
 carries a key to a `keyed` command, in place of running the handler. Every language defines the
-three constants; TypeScript's engine sends them so far
-([#2676](https://github.com/lushly-dev/afd/issues/2676) for the others).
+three constants; TypeScript's and C++'s engines send them so far (Python [#2955](https://github.com/lushly-dev/afd/issues/2955) and Rust
+[#2956](https://github.com/lushly-dev/afd/issues/2956) for the others).
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
