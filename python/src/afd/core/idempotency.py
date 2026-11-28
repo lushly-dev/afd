@@ -1,8 +1,9 @@
 """Idempotency keys (``spec/idempotency.md``): what a command declares about repeats, the key a
 caller sends, its form (K2) and the keys a batch or pipeline derives from it (K4).
 
-These are the shared definitions. Python's engine does not yet validate or deliver keys, and has
-no idempotency step (https://github.com/lushly-dev/afd/issues/2676).
+These are the shared definitions. The engine decides a call's key with
+:mod:`afd.core.idempotency_keys`, and the server's idempotency step is
+:mod:`afd.server.idempotency_step`.
 """
 
 from __future__ import annotations

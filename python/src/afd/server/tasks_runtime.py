@@ -20,6 +20,7 @@ from afd.core.actor import Actor
 from afd.core.clock import Clock, system_clock
 from afd.core.commands import CommandContext, CommandDefinition
 from afd.core.errors import CommandError, ErrorCodes, Recovery
+from afd.core.idempotency_keys import idempotency_fields
 from afd.core.result import failure
 from afd.core.similarity import truncate_name
 from afd.server.approval_relay import bind_approval_relay
@@ -673,6 +674,9 @@ class TaskRuntime:
                 signal=running.cancel_event,
                 _output_budget_ask=getattr(context, "_output_budget_ask", None),
                 _scope_view=task_view,
+                # The handler still gets the call's key (K3), but nothing acts on it: neither
+                # the idempotency step nor the retry middleware (spec/idempotency.md, S11).
+                **{**idempotency_fields(context), "_task_run": True},
             )
             token_deadline_ms = (
                 expires_at_seconds * 1000 if expires_at_seconds is not None else None

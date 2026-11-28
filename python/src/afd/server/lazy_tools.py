@@ -309,6 +309,7 @@ def execute_detail(
             # Empty lists are omitted (spec/command-metadata.md, "Reporting rules").
             "tags": list(command.tags) if command.tags else None,
             "mutation": command.mutation,
+            "idempotency": command.idempotency,
             "executionTime": command.execution_time,
             "errors": list(command.errors) if command.errors else None,
             "inputSchema": tool["inputSchema"],

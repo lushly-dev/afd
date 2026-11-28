@@ -35,7 +35,9 @@ from afd._client_errors import (
     _outcome_unknown_result,
     _parse_command_result,
 )
-from afd.core.result import CommandResult, success
+from afd.core.errors import CommandError
+from afd.core.idempotency import AFD_IDEMPOTENCY_KEY_META_KEY
+from afd.core.result import CommandResult, failure, success
 from afd.transports._mcp_protocol import _HttpBasedTransport
 from afd.transports.base import (
     JsonRpcError,
@@ -206,6 +208,11 @@ class ClientStatus:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _idempotency_meta(key: str | None) -> dict[str, Any] | None:
+    """The request ``_meta`` that carries ``key`` (``spec/idempotency.md``, K1), or ``None``."""
+    return None if key is None else {AFD_IDEMPOTENCY_KEY_META_KEY: key}
+
+
 class McpClient:
     """High-level MCP client for consuming remote MCP servers.
 
@@ -372,6 +379,7 @@ class McpClient:
         timeout: float | None = None,
         cancel: asyncio.Event | None = None,
         on_task_progress: TaskProgressCallback | None = None,
+        idempotency_key: str | None = None,
     ) -> CommandResult:
         """Call a command and return a ``CommandResult``.
 
@@ -402,11 +410,31 @@ class McpClient:
             cancel: Optional ``asyncio.Event`` to cancel a running task.
             on_task_progress: Optional callback invoked when a task's status or
                 ``status_message`` changes.
+            idempotency_key: The call's idempotency key (``spec/idempotency.md``, K1), sent
+                in ``_meta["dev.afd/idempotencyKey"]``. A server with the idempotency step
+                answers a repeat of a ``keyed`` command with the same key and input from its
+                store. Send the same key when you repeat a call whose outcome you do not know.
 
         Returns:
             CommandResult (success or failure).
         """
         self._require_connected()
+        if idempotency_key is not None:
+            try:
+                self._meta_kwargs(idempotency_key)
+            except TypeError as exc:
+                # Refused before dispatch, so this is no lost answer (OUTCOME_UNKNOWN).
+                return failure(
+                    CommandError(
+                        code="UNSUPPORTED_OPTION",
+                        message=str(exc),
+                        suggestion=(
+                            "Nothing was sent. Use a transport whose call_tool takes meta (every "
+                            "built-in one does), or call without an idempotency key."
+                        ),
+                        retryable=False,
+                    )
+                )
         # Capture read-only metadata before dispatch so a concurrent tools/list
         # refresh or reconnect cannot flip an in-flight call's classification.
         # If Streamable HTTP recovers from HEADER_MISMATCH by re-listing and
@@ -431,6 +459,7 @@ class McpClient:
                 timeout=timeout,
                 cancel=cancel,
                 on_task_progress=on_task_progress,
+                idempotency_key=idempotency_key,
             )
 
             # A CommandResult-shaped dict keeps every field it carries
@@ -476,6 +505,7 @@ class McpClient:
         timeout: float | None = None,
         cancel: asyncio.Event | None = None,
         on_task_progress: TaskProgressCallback | None = None,
+        idempotency_key: str | None = None,
     ) -> Any:
         """Call a tool and return the raw result (no CommandResult wrapping).
 
@@ -488,6 +518,8 @@ class McpClient:
             timeout: Optional total timeout in seconds.
             cancel: Optional cancellation event for polled tasks.
             on_task_progress: Optional progress callback for polled tasks.
+            idempotency_key: The call's idempotency key, sent in
+                ``_meta["dev.afd/idempotencyKey"]`` (as for :meth:`call`).
 
         Returns:
             Raw tool result.
@@ -512,7 +544,13 @@ class McpClient:
 
         relist_token = _ON_TOOL_RELISTED.set(_on_tool_relisted)
         try:
-            raw = await self._request_with_timeout("call_tool", name, args or {}, timeout=timeout)
+            raw = await self._request_with_timeout(
+                "call_tool",
+                name,
+                args or {},
+                timeout=timeout,
+                meta=_idempotency_meta(idempotency_key),
+            )
         finally:
             _ON_TOOL_RELISTED.reset(relist_token)
         if isinstance(raw, _TaskSeed) and self._config.tasks:
@@ -739,12 +777,16 @@ class McpClient:
         self,
         commands: Sequence[dict[str, Any]],
         options: dict[str, Any] | None = None,
+        *,
+        idempotency_key: str | None = None,
     ) -> Any:
         """Execute a batch of commands via the ``afd-batch`` tool.
 
         Args:
             commands: List of ``{"name": ..., "input": ...}`` dicts.
             options: Batch options (e.g., ``{"stopOnError": True}``).
+            idempotency_key: The request's idempotency key: the item at index ``i`` runs
+                under ``<key>:<i>`` (``spec/idempotency.md``, K4).
 
         Returns:
             Batch result from the server.
@@ -756,37 +798,43 @@ class McpClient:
             if "command" not in payload and "name" in payload:
                 payload["command"] = payload.pop("name")
             normalized_commands.append(payload)
-        return await self._request(
+        return await self._request_kw(
             "call_tool",
             "afd-batch",
             {
                 "commands": normalized_commands,
                 "options": options or {},
             },
+            **self._meta_kwargs(idempotency_key),
         )
 
     async def pipe(
         self,
         steps: Sequence[dict[str, Any]],
         options: dict[str, Any] | None = None,
+        *,
+        idempotency_key: str | None = None,
     ) -> Any:
         """Execute a pipeline via the ``afd-pipe`` tool.
 
         Args:
             steps: Pipeline steps with variable references.
             options: Pipeline options.
+            idempotency_key: The request's idempotency key: the step at index ``i`` runs
+                under ``<key>:step:<i>`` (``spec/idempotency.md``, K4).
 
         Returns:
             Pipeline result from the server.
         """
         self._require_connected()
-        return await self._request(
+        return await self._request_kw(
             "call_tool",
             "afd-pipe",
             {
                 "steps": list(steps),
                 "options": options or {},
             },
+            **self._meta_kwargs(idempotency_key),
         )
 
     # ── Streaming ─────────────────────────────────────────────────────────
@@ -951,19 +999,42 @@ class McpClient:
         """Report lost connections without replaying a possibly executed mutation."""
         return await self._request_kw(method, *args)
 
+    def _meta_kwargs(self, idempotency_key: str | None) -> dict[str, Any]:
+        """``{"meta": ...}`` for a call that carries an idempotency key, else ``{}``.
+
+        Raises:
+            TypeError: When the transport's ``call_tool`` takes no ``meta``, so it could not send
+                the key. Nothing was sent.
+        """
+        meta = _idempotency_meta(idempotency_key)
+        if meta is None:
+            return {}
+        fn = getattr(self._transport, "call_tool", None)
+        if fn is None or not _accepts_keyword(fn, "meta"):
+            raise TypeError(
+                "This transport does not send request _meta, so it cannot carry an idempotency key"
+            )
+        return {"meta": meta}
+
     async def _request_with_timeout(
-        self, method: str, *args: Any, timeout: float | None = None
+        self,
+        method: str,
+        *args: Any,
+        timeout: float | None = None,
+        meta: dict[str, Any] | None = None,
     ) -> Any:
-        """Invoke a transport method, enforcing ``timeout`` even on transports that omit it."""
+        """Invoke a transport method, enforcing ``timeout`` even on transports that omit it,
+        with the request ``_meta`` when given."""
         transport = self._transport
         fn = getattr(transport, method, None)
         if fn is None:
             raise TransportError(f"Transport does not support '{method}'")
+        extra = self._meta_kwargs(meta[AFD_IDEMPOTENCY_KEY_META_KEY]) if meta else {}
         if timeout is None:
-            return await self._request_kw(method, *args)
+            return await self._request_kw(method, *args, **extra)
         if _accepts_keyword(fn, "timeout"):
-            return await self._request_kw(method, *args, timeout=timeout)
-        return await asyncio.wait_for(self._request_kw(method, *args), timeout=timeout)
+            return await self._request_kw(method, *args, timeout=timeout, **extra)
+        return await asyncio.wait_for(self._request_kw(method, *args, **extra), timeout=timeout)
 
     async def _request_kw(self, method: str, *args: Any, **kwargs: Any) -> Any:
         """Invoke a transport method with optional keyword arguments."""

@@ -297,6 +297,7 @@ class StreamableHttpTransport(SseTransport):
         arguments: dict[str, Any],
         *,
         timeout: float | None = None,
+        meta: dict[str, Any] | None = None,
     ) -> Any:
         effective_timeout = self._timeout if timeout is None else timeout
         if self._on_elicitation is not None:
@@ -304,7 +305,7 @@ class StreamableHttpTransport(SseTransport):
             token = _CAPTURED_TASK.set(slot)
             try:
                 payload = await super()._call_tool_payload(
-                    session, name, arguments, timeout=effective_timeout
+                    session, name, arguments, timeout=effective_timeout, meta=meta
                 )
             finally:
                 _CAPTURED_TASK.reset(token)
@@ -326,6 +327,7 @@ class StreamableHttpTransport(SseTransport):
                 read_timeout_seconds=float(effective_timeout),
                 allow_input_required=True,
                 allow_claimed=self._tasks,
+                meta=dict(meta) if meta else None,
             )
 
         try:

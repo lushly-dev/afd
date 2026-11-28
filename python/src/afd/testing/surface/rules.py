@@ -598,3 +598,32 @@ def check_missing_output_schema(commands: list[SurfaceCommand]) -> list[SurfaceF
                 )
             )
     return findings
+
+
+# ---------------------------------------------------------------------------
+# Rule 14: Missing Idempotency
+# ---------------------------------------------------------------------------
+
+
+def check_missing_idempotency(commands: list[SurfaceCommand]) -> list[SurfaceFinding]:
+    """A command that declares ``mutation: true`` and no ``idempotency``
+    (``spec/idempotency.md``, D4): no client or retry step may repeat it, so a caller that lost
+    its answer cannot safely ask again."""
+    return [
+        SurfaceFinding(
+            rule="missing-idempotency",
+            severity="info",
+            message=(
+                f'Command "{cmd.name}" declares mutation: true and no idempotency — no client '
+                "or retry step may repeat it"
+            ),
+            commands=[cmd.name],
+            suggestion=(
+                "Declare idempotency='natural' when repeating a call leaves the same state (a "
+                "set, a delete by id), or 'keyed' when the handler or the server's idempotency "
+                "step answers a repeat that carries the same key."
+            ),
+        )
+        for cmd in commands
+        if cmd.mutation is True and cmd.idempotency is None
+    ]

@@ -11,11 +11,11 @@ key, what a command declares about repeats, an optional engine step that answers
 store, and the rule that keeps a retry from repeating a change nobody declared safe.
 
 Proposal and status: [`docs/features/active/idempotency-keys/`](../docs/features/active/idempotency-keys/idempotency-keys.proposal.md).
-TypeScript ([#2675](https://github.com/lushly-dev/afd/issues/2675)), Rust
+TypeScript ([#2675](https://github.com/lushly-dev/afd/issues/2675)), Python
+([#2955](https://github.com/lushly-dev/afd/issues/2955)), Rust
 ([#2956](https://github.com/lushly-dev/afd/issues/2956)) and C++
-([#2957](https://github.com/lushly-dev/afd/issues/2957)) implement all of it. Python is listed in
-the `gaps` of [`vectors/idempotency.json`](./vectors/idempotency.json), and [Status](#status)
-says what each does.
+([#2957](https://github.com/lushly-dev/afd/issues/2957)) implement all of it, and
+[Status](#status) says what each does.
 
 Every rule here is normative. **MUST**, **MUST NOT**, **SHOULD** and **MAY** are used as in
 RFC 2119.
@@ -262,9 +262,9 @@ result depends on state outside the journal.
 <!-- generated:capabilities:spec.idempotency.status:start -->
 |  | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| The `idempotency` field and `idempotentHint` | Yes | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Yes | Yes |
-| The key: delivery, validation, derived keys, the journal member | Yes | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Yes | Yes |
-| The engine's step, the retry rule and the `TIMEOUT` recovery | Yes | Planned ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Yes | Yes |
+| The `idempotency` field and `idempotentHint` | Yes | Yes | Yes | Yes |
+| The key: delivery, validation, derived keys, the journal member | Yes | Yes | Yes | Yes |
+| The engine's step, the retry rule and the `TIMEOUT` recovery | Yes | Yes | Yes | Yes |
 <!-- generated:capabilities:spec.idempotency.status:end -->
 
 [`vectors/idempotency.json`](./vectors/idempotency.json) pins the rules its sections name. It
@@ -272,4 +272,4 @@ leaves to each language's own tests the surfaces of D3 beyond the tool's `_meta`
 rule against HTTP headers, the store's interface (S12), S13 and R4. The retry middleware's first half is implemented in all four languages: it does not repeat a
 command with `mutation: true` without the host's `retryMutations` option
 ([#2673](https://github.com/lushly-dev/afd/issues/2673)). R1's whole order, `natural` and `keyed`
-included, is TypeScript's, Rust's and C++'s so far.
+included, is every language's.

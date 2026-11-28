@@ -39,6 +39,8 @@ class MockCall:
     tool_name: str
     arguments: dict[str, Any]
     result: Any
+    meta: dict[str, Any] | None = None
+    """The request ``_meta`` the call sent, such as its idempotency key."""
 
 
 class MockTransport:
@@ -144,8 +146,9 @@ class MockTransport:
         arguments: dict[str, Any] | None = None,
         *,
         timeout: float | None = None,
+        meta: dict[str, Any] | None = None,
     ) -> Any:
-        """Call a tool and record the call.
+        """Call a tool and record the call, with the request ``_meta`` it sent.
 
         If a mock response is registered, it's returned.
         If a handler is registered, it's called.
@@ -163,13 +166,7 @@ class MockTransport:
         # Check for mock response first
         if name in self._mock_responses:
             result = self._mock_responses[name]
-            self._calls.append(
-                MockCall(
-                    tool_name=name,
-                    arguments=args,
-                    result=result,
-                )
-            )
+            self._calls.append(MockCall(tool_name=name, arguments=args, result=result, meta=meta))
             return result
 
         # Check for registered handler
@@ -179,13 +176,7 @@ class MockTransport:
                 result = await asyncio.wait_for(handler(args), timeout=timeout)
             else:
                 result = await handler(args)
-            self._calls.append(
-                MockCall(
-                    tool_name=name,
-                    arguments=args,
-                    result=result,
-                )
-            )
+            self._calls.append(MockCall(tool_name=name, arguments=args, result=result, meta=meta))
             return result
 
         raise ToolNotFoundError(name)

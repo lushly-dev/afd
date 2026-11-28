@@ -250,8 +250,9 @@ class SseTransport(_HttpBasedTransport):
         arguments: dict[str, Any] | None = None,
         *,
         timeout: float | None = None,
+        meta: dict[str, Any] | None = None,
     ) -> Any:
-        """Call a tool through the live MCP session."""
+        """Call a tool through the live MCP session, with ``meta`` as the request's ``_meta``."""
         if self._session is None:
             raise RuntimeError("Transport not connected. Call connect() first.")
 
@@ -259,7 +260,9 @@ class SseTransport(_HttpBasedTransport):
         effective_timeout = self._timeout if timeout is None else timeout
         try:
             payload = await self._bounded(
-                self._call_tool_payload(session, name, arguments or {}, timeout=effective_timeout),
+                self._call_tool_payload(
+                    session, name, arguments or {}, timeout=effective_timeout, meta=meta
+                ),
                 timeout=effective_timeout,
             )
             if isinstance(payload, _TaskSeed):
@@ -276,12 +279,18 @@ class SseTransport(_HttpBasedTransport):
         arguments: dict[str, Any],
         *,
         timeout: float | None = None,
+        meta: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Call the tool and return its result as wire-format JSON."""
         effective_timeout = self._timeout if timeout is None else timeout
-        result = await session.call_tool(
-            name, arguments, read_timeout_seconds=float(effective_timeout)
-        )
+        if meta:
+            result = await session.call_tool(
+                name, arguments, read_timeout_seconds=float(effective_timeout), meta=dict(meta)
+            )
+        else:
+            result = await session.call_tool(
+                name, arguments, read_timeout_seconds=float(effective_timeout)
+            )
         return result.model_dump(by_alias=True, mode="json", exclude_none=True)
 
     async def list_tools(self) -> list[ToolInfo]:

@@ -50,7 +50,7 @@ const confirmNames = z
 const metaArgument = z.unknown().optional().meta({
 	type: 'object',
 	description:
-		"Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and the server's declared context fields' _meta keys, applied as if sent in _meta",
+		"Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget, dev.afd/idempotencyKey and the server's declared context fields' _meta keys, applied as if sent in _meta",
 });
 
 export const callArgsSchema = z.object({

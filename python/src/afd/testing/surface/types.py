@@ -24,6 +24,7 @@ SurfaceRule = Literal[
     "unresolved-prerequisite",
     "circular-prerequisite",
     "missing-output-schema",
+    "missing-idempotency",
 ]
 
 
@@ -112,6 +113,10 @@ class SurfaceCommand:
     output_json_schema: dict[str, Any] | None = None
     requires: list[str] | None = None
     contexts: list[str] | None = None
+    mutation: bool | None = None
+    """Whether the command declares ``mutation``, or ``None`` when the source does not say."""
+    idempotency: str | None = None
+    """What it declares about repeats (``spec/idempotency.md``, D1): ``natural`` or ``keyed``."""
 
 
 @dataclass

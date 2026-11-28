@@ -312,7 +312,7 @@ class ErrorCodes:
     # App calls (spec/command-metadata.md, "App-to-app calls")
     CALL_NOT_GRANTED = "CALL_NOT_GRANTED"
 
-    # Idempotency keys (spec/idempotency.md, "Errors"); no Python engine sends them yet (#2676)
+    # Idempotency keys (spec/idempotency.md, "Errors"), sent by the idempotency step
     IDEMPOTENCY_KEY_REUSED = "IDEMPOTENCY_KEY_REUSED"
     IDEMPOTENCY_IN_PROGRESS = "IDEMPOTENCY_IN_PROGRESS"
     OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"

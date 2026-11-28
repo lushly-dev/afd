@@ -4,10 +4,20 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 from collections.abc import Callable
 from typing import Any
 
-from afd import CommandResult, Warning, success
+from afd import (
+    AFD_IDEMPOTENCY_KEY_META_KEY,
+    CommandResult,
+    Recovery,
+    Warning,
+    error,
+    success,
+    system_clock,
+)
 from afd.server import define_command
 
 from todo_backend.commands import EXAMPLE_ID
@@ -27,6 +37,9 @@ from todo_backend.store import Store
 
 OTHER_ID = "todo-1700000000000-def5678"
 
+ANSWER_TTL_MS = 86_400_000
+"""How long a keyed batch's answer is kept: a day, as the server's idempotency step keeps one."""
+
 
 def _summary(total: int, succeeded: int, failed: int) -> dict[str, int]:
     return {"total": total, "successCount": succeeded, "failureCount": failed}
@@ -34,6 +47,12 @@ def _summary(total: int, succeeded: int, failed: int) -> dict[str, int]:
 
 def batch_commands(store: Store) -> list[Callable[..., Any]]:
     """todo-create-batch, todo-delete-batch, todo-toggle-batch and todo-restore."""
+    # The answers of keyed batches, kept for this store and this process only. A store that
+    # persists todos across restarts would commit the key with the todos in one transaction
+    # instead, which is what lets a handler promise a batch is created once
+    # (spec/idempotency.md, "Two tiers"); this example's promise ends with the process, as the
+    # server's default idempotency store's does (S13).
+    answers: dict[str, tuple[str, asyncio.Future[Any], float]] = {}
 
     @define_command(
         name="todo-create-batch",
@@ -44,6 +63,7 @@ def batch_commands(store: Store) -> list[Callable[..., Any]]:
         output_schema=CreateBatchOutput,
         tags=["todo", "create", "write", "batch"],
         mutation=True,
+        idempotency="keyed",
         undoable=True,
         approval="not-required",
         task="optional",
@@ -65,6 +85,56 @@ def batch_commands(store: Store) -> list[Callable[..., Any]]:
     async def create_batch(
         input: BatchCreateInput, context: Any = None
     ) -> CommandResult[dict[str, Any]]:
+        # Keyed in its handler, not by the server's idempotency step: it may run as an MCP
+        # task, on which the step does not act (spec/idempotency.md, D5 and S11).
+        key = getattr(context, "idempotency_key", None)
+        if key is None:
+            return await create_all(input, context)
+        clock = getattr(context, "clock", None) or system_clock
+        now = clock.now()
+        for held_scope in [s for s, answer in answers.items() if now > answer[2]]:
+            del answers[held_scope]
+        # The key's scope is the caller (its kind, id and whom it acts for) and the key (K5).
+        actor = getattr(context, "actor", None)
+        scope = json.dumps(
+            [
+                getattr(actor, "kind", None),
+                getattr(actor, "id", None),
+                getattr(actor, "on_behalf_of", None),
+                key,
+            ]
+        )
+        digest = json.dumps(input.model_dump(mode="json"), sort_keys=True)
+        held = answers.get(scope)
+        if held is not None:
+            if held[0] != digest:
+                return error(
+                    "IDEMPOTENCY_KEY_REUSED",
+                    "This idempotency key is already held for a batch with other todos",
+                    suggestion=(
+                        "Use a new idempotency key for a different batch. Reuse a key only to "
+                        "repeat the same batch."
+                    ),
+                    retryable=False,
+                    recovery=Recovery(kind="stop"),
+                    details={"meta": AFD_IDEMPOTENCY_KEY_META_KEY},
+                )
+            return await asyncio.shield(held[1])
+        # Kept before it settles, so a repeat that arrives while it runs waits for the same
+        # answer; dropped if it fails, so a repeat after a failure runs again.
+        running = asyncio.ensure_future(create_all(input, context))
+        answers[scope] = (digest, running, now + ANSWER_TTL_MS)
+
+        def drop_on_failure(done: asyncio.Future[Any]) -> None:
+            failed = done.cancelled() or done.exception() is not None or not done.result().success
+            if failed and answers.get(scope, (None, None))[1] is done:
+                del answers[scope]
+
+        running.add_done_callback(drop_on_failure)
+        return await asyncio.shield(running)
+
+    async def create_all(input: BatchCreateInput, context: Any) -> CommandResult[dict[str, Any]]:
+        """Create every todo of the batch."""
         stamp = stamp_from(context)
         succeeded: list[Todo] = []
         failed: list[dict[str, Any]] = []
@@ -131,6 +201,7 @@ def batch_commands(store: Store) -> list[Callable[..., Any]]:
         output_schema=DeleteBatchOutput,
         tags=["todo", "delete", "write", "batch", "destructive"],
         mutation=True,
+        idempotency="natural",
         destructive=True,
         undoable=True,
         # It can be undone, so it is not held for approval
@@ -219,6 +290,7 @@ def batch_commands(store: Store) -> list[Callable[..., Any]]:
         tags=["todo", "toggle", "write", "batch"],
         requires=["todo-list"],
         mutation=True,
+        idempotency="keyed",
         undoable=True,
         approval="not-required",
         version="1.0.0",
@@ -346,6 +418,7 @@ def batch_commands(store: Store) -> list[Callable[..., Any]]:
         output_schema=RestoreOutput,
         tags=["todo", "restore", "write", "batch", "undo"],
         mutation=True,
+        idempotency="natural",
         undoable=True,
         approval="not-required",
         version="1.0.0",

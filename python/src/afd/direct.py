@@ -53,7 +53,12 @@ from afd.core.command_execution import (
     execute_stream as _execute_core_stream,
 )
 from afd.core.commands import CommandDefinition as _CoreCommandDefinition
-from afd.core.commands import CommandMiddleware, call_not_granted, declared_secret
+from afd.core.commands import (
+    CommandMiddleware,
+    call_not_granted,
+    declared_secret,
+    validate_idempotency,
+)
 from afd.core.direct_allow import _bind_allow, _direct_allows, _is_allowed, _not_allowed
 from afd.core.direct_approval import (
     DirectApprovalRequest,
@@ -62,6 +67,8 @@ from afd.core.direct_approval import (
 )
 from afd.core.dispatch_id import DispatchIdCarrier
 from afd.core.errors import CommandError, Recovery, not_found_error, validation_error
+from afd.core.idempotency import IdempotencySupport
+from afd.core.idempotency_keys import resolve_idempotency_key
 from afd.core.output_budget import ask_validation_failure, normalize_ask_option, parse_ask
 
 # Importable from afd.direct before DirectClient.pipe's runner moved to afd.direct_pipeline.
@@ -131,12 +138,17 @@ class DirectContext(DispatchIdCarrier):
     cancel: asyncio.Event | None = None
     signal: asyncio.Event | None = None
     output_budget: int | None = None
+    idempotency_key: str | None = None
     _direct_approval: Any = field(default=None, repr=False, compare=False)
     _direct_allow: Any = field(default=None, repr=False, compare=False)
     _server_signal: asyncio.Event | None = field(default=None, repr=False, compare=False)
     _server_signal_fields: tuple[str, ...] = field(default=(), repr=False, compare=False)
     _output_budget_ask: Any = field(default=None, repr=False, compare=False)
     _skip_output_budget: bool = field(default=False, repr=False, compare=False)
+    _idempotency_key_engine: str | None = field(default=None, repr=False, compare=False)
+    _idempotency_key_delivered: str | None = field(default=None, repr=False, compare=False)
+    _idempotency_caller: Any = field(default=None, repr=False, compare=False)
+    _task_run: bool = field(default=False, repr=False, compare=False)
 
     def is_cancelled(self) -> bool:
         """Whether cooperative cancellation has been signalled on this context."""
@@ -229,6 +241,9 @@ class DirectCallContext:
     """Ignored on public calls; configure on_approval_needed to approve."""
     output_budget: int | None = None
     """Per-call output budget ask in bytes (spec/output-budgets.md, B2)."""
+    idempotency_key: str | None = None
+    """The call's idempotency key (``spec/idempotency.md``, K1): 1 to 200 of
+    ``A-Z a-z 0-9 . _ ~ -``. The engine checks its form and delivers it to the handler."""
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -355,6 +370,27 @@ class RegisteredCommand:
     parameters: list[DirectCommandParameter] = field(default_factory=list)
     secret: bool = False
     """Whether the command takes or returns a secret: a journal records it only with ``redact``."""
+    idempotency: IdempotencySupport | None = None
+    """What the command declares about repeating a call (``spec/idempotency.md``, D1)."""
+
+
+def _call_key(context: Any, derived: str | None) -> dict[str, Any]:
+    """The idempotency key a DirectClient call runs under (``spec/idempotency.md``, K1 to K6):
+    a pipeline step's derived key, as the engine's (K4); else the call context's, decided as the
+    engine decides it, so a handler that passes its own context on starts its nested call
+    without the key it was given (K6), and a key the engine set stays the engine's."""
+    if derived is not None:
+        return {"idempotency_key": derived, "_idempotency_key_engine": derived}
+    key = resolve_idempotency_key(context)
+    if key.kind == "none":
+        return {}
+    if key.kind == "invalid":
+        # As sent, so the engine refuses it (K2).
+        return {"idempotency_key": getattr(context, "idempotency_key", None)}
+    return {
+        "idempotency_key": key.key,
+        "_idempotency_key_engine": key.key if key.set_by_engine else None,
+    }
 
 
 def _takes_context(handler: Callable) -> bool:
@@ -405,6 +441,7 @@ class SimpleRegistry:
         middleware: Sequence[CommandMiddleware] | None = None,
         max_batch_size: int = DEFAULT_MAX_BATCH_SIZE,
         max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM,
+        idempotency: Any = None,
     ):
         """
         Args:
@@ -414,7 +451,12 @@ class SimpleRegistry:
             middleware: Optional middleware wrapping each command execution.
             max_batch_size: Maximum commands accepted in one batch (default: 500).
             max_batch_parallelism: Maximum batch parallelism (default: 16).
+            idempotency: The idempotency step (``afd.server.create_idempotency_step``), for
+                commands registered with ``idempotency="keyed"`` (``spec/idempotency.md``).
         """
+        from afd.core.commands import _checked_step
+
+        self._idempotency = _checked_step(idempotency)
         self._commands: dict[str, RegisteredCommand] = {}
         self._definitions: dict[str, _CoreCommandDefinition] = {}
         self._dev_mode = dev_mode
@@ -441,6 +483,7 @@ class SimpleRegistry:
             description=registered.description,
             handler=adapted,
             secret=registered.secret,
+            idempotency=registered.idempotency,
         )
 
     async def _validate_kwargs(
@@ -492,6 +535,7 @@ class SimpleRegistry:
         parameters: list[DirectCommandParameter] | None = None,
         *,
         secret: bool = False,
+        idempotency: IdempotencySupport | None = None,
     ) -> Callable:
         """Decorator to register a command.
 
@@ -501,10 +545,19 @@ class SimpleRegistry:
             parameters: Parameter definitions for validation
             secret: Whether the command takes or returns a secret (also read from a
                 ``define_command`` decoration): a journal records it only with ``redact``.
+            idempotency: ``"natural"`` or ``"keyed"`` (``spec/idempotency.md``, D1), for the
+                retry middleware and the idempotency step.
         """
 
         def decorator(func: Callable) -> Callable:
-            self.register(name, func, description=description, parameters=parameters, secret=secret)
+            self.register(
+                name,
+                func,
+                description=description,
+                parameters=parameters,
+                secret=secret,
+                idempotency=idempotency,
+            )
             return func
 
         return decorator
@@ -517,14 +570,17 @@ class SimpleRegistry:
         parameters: list[DirectCommandParameter] | None = None,
         *,
         secret: bool = False,
+        idempotency: IdempotencySupport | None = None,
     ) -> None:
-        """Register a command imperatively (``secret`` as for :meth:`command`)."""
+        """Register a command imperatively (``secret`` and ``idempotency`` as for
+        :meth:`command`)."""
         registered = RegisteredCommand(
             name=name,
             description=description or handler.__doc__ or "",
             handler=handler,
             parameters=parameters or [],
             secret=declared_secret(name, handler, secret),
+            idempotency=validate_idempotency(name, idempotency),
         )
         self._commands[name] = registered
         self._definitions[name] = self._build_definition(registered)
@@ -550,6 +606,7 @@ class SimpleRegistry:
             stamp_metadata=False,
             not_found_builder=lambda n, _: failure(not_found_error("Command", n)),
             validate_input=self._validate_kwargs,
+            idempotency=self._idempotency,
         )
         return await execute_command(
             name,
@@ -699,13 +756,15 @@ class DirectClient:
         context: DirectCallContext | None = None,
         *,
         output_budget: Any = None,
+        _derived_idempotency_key: str | None = None,
     ) -> CommandResult:
         """Execute a command with zero transport overhead.
 
         Args:
             name: Command name
             args: Command arguments
-            context: Optional call context for tracing
+            context: Optional call context: tracing, the actor, the deadline and the call's
+                ``idempotency_key`` (``spec/idempotency.md``, K1)
 
         Returns:
             CommandResult from the command handler
@@ -777,6 +836,7 @@ class DirectClient:
             random=(context.random if context else None) or self.options.random,
             approval=None,
             _output_budget_ask=raw_ask,
+            **_call_key(context, _derived_idempotency_key),
         )
 
         # The exchange survives context copies, but credentials never enter public contexts.
@@ -1042,8 +1102,14 @@ class DirectClient:
                 total_duration_ms=(time.perf_counter() - start_time) * 1000,
             )
 
-        async def call(command: str, args: dict[str, Any] | None) -> Any:
-            return await self.call(command, args, context, output_budget=output_budget)
+        async def call(command: str, args: dict[str, Any] | None, derived: str | None) -> Any:
+            return await self.call(
+                command,
+                args,
+                context,
+                output_budget=output_budget,
+                _derived_idempotency_key=derived,
+            )
 
         return await run_direct_pipeline(
             steps,
@@ -1052,6 +1118,8 @@ class DirectClient:
             debug=self._debug,
             trace_id=trace_id,
             start_time=start_time,
+            # The pipeline's base key, decided as a call's is (K6): none when it was delivered.
+            idempotency_key=_call_key(context, None).get("idempotency_key"),
         )
 
 

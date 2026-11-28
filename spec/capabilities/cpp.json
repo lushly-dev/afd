@@ -716,7 +716,7 @@
 		},
 		"mcp.meta-argument": {
 			"status": "partial",
-			"note": "`dev.afd/context` and `dev.afd/outputBudget`; `afd::mcp_stdio` reads no declared context fields from `_meta`",
+			"note": "`dev.afd/context`, `dev.afd/outputBudget` and `dev.afd/idempotencyKey`; `afd::mcp_stdio` reads no declared context fields from `_meta`",
 			"evidence": ["packages/cpp/tests/mcp_stdio_test.cpp"]
 		},
 		"mcp.bootstrap": {

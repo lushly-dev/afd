@@ -28,6 +28,7 @@ from afd.core.actor import Actor
 from afd.core.clock import Clock, system_clock
 from afd.core.commands import CommandContext, CommandDefinition
 from afd.core.errors import CommandError, ErrorCodes, Recovery
+from afd.core.idempotency_keys import idempotency_fields
 from afd.core.schema_validation import DEFAULT_MAX_VALIDATION_ISSUES, SchemaValidationError
 from afd.server.approval import _actor_json, _b64url, _canonical_json, _plain_input, _utf8
 from afd.server.auth_rules import Credentials
@@ -1073,6 +1074,7 @@ class HumanRelayGate:
             credentials=credentials,
             output_budget=call_context.output_budget,
             _output_budget_ask=call_context._output_budget_ask,
+            **idempotency_fields(call_context),
             _scope_view=call_context._scope_view,
         )
         if self._context_fields:
@@ -1141,6 +1143,7 @@ class HumanRelayGate:
                 output_budget=call_context.output_budget,
                 _output_budget_ask=call_context._output_budget_ask,
                 _scope_view=call_context._scope_view,
+                **idempotency_fields(call_context),
             )
             if self._context_fields:
                 replaced = [f for f in self._context_fields if f.name in approved_extra]

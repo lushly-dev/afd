@@ -201,7 +201,9 @@ class TestValidateCommandSurface:
         result = validate_command_surface(commands)
         assert "similar-descriptions" in result.summary.rules_evaluated
         assert "naming-convention" in result.summary.rules_evaluated
-        assert len(result.summary.rules_evaluated) == 12
+        # 13 with missing-idempotency (spec/idempotency.md, D4).
+        assert len(result.summary.rules_evaluated) == 13
+        assert "missing-idempotency" in result.summary.rules_evaluated
 
     def test_duration_ms_set(self):
         """duration_ms should be a non-negative number."""

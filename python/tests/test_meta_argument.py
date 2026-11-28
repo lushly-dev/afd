@@ -55,10 +55,15 @@ def test_keys_are_the_context_key_and_the_declared_fields():
     assert meta_argument_keys(FIELDS) == {
         "dev.afd/context",
         "dev.afd/outputBudget",
+        "dev.afd/idempotencyKey",
         "dev.example/scope",
         "dev.example/locale",
     }
-    assert meta_argument_keys(None) == {"dev.afd/context", "dev.afd/outputBudget"}
+    assert meta_argument_keys(None) == {
+        "dev.afd/context",
+        "dev.afd/outputBudget",
+        "dev.afd/idempotencyKey",
+    }
 
 
 def test_other_tools_and_calls_without_meta_are_unchanged():

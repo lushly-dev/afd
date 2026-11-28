@@ -218,7 +218,9 @@ class TestOptionToggles:
             _cmd("user-create", "Creates a new user account in the system", category="users"),
         ]
         result = validate_command_surface(commands)
-        assert len(result.summary.rules_evaluated) == 12
+        # 13 with missing-idempotency (spec/idempotency.md, D4).
+        assert len(result.summary.rules_evaluated) == 13
+        assert "missing-idempotency" in result.summary.rules_evaluated
 
     def test_configured_contexts_enable_missing_context_rule(self):
         commands = [_cmd("user-create", "Creates a new user account in the system")]

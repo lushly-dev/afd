@@ -27,13 +27,7 @@ NOT_HERE = {
     ),
 }
 
-NOT_YET = {
-    "10-know-before-repeating.scenario.yaml": (
-        "Job 10 (know-before-repeating, job 4 of the idempotency keys proposal) reads each "
-        "command's idempotency in afd-help, which Python's afd does not report yet "
-        "(https://github.com/lushly-dev/afd/issues/2676)"
-    ),
-}
+NOT_YET: dict[str, str] = {}
 """Jobs expected to fail here until Python implements what they check; strict, so each fails
 once it passes and the entry must go."""
 

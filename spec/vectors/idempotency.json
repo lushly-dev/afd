@@ -1,8 +1,6 @@
 {
 	"description": "Idempotency keys (spec/idempotency.md): what a command declares (D1, D2), the key (K1 to K6), the engine's step (S1 to S11, S13), retrying (R1 to R3) and the journal. Specification-authored. A language listed in `gaps` loads this file, checks that it is still listed, and skips every case with its issue as the reason; TypeScript runs every case.",
-	"gaps": {
-		"python": "https://github.com/lushly-dev/afd/issues/2676"
-	},
+	"gaps": {},
 	"metaKey": "dev.afd/idempotencyKey",
 	"declaration": {
 		"cases": [

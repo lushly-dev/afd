@@ -22,6 +22,7 @@ from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY
 from afd.server.context_fields import ContextField
 from afd.server.context_hook import ContextHook
 from afd.server.human_relay import HumanRelay
+from afd.server.idempotency_step import IdempotencyOptions
 from afd.server.instance_state import ServerInstances
 from afd.server.middleware import CommandMiddleware
 from afd.server.resources import ResourcesOption
@@ -149,6 +150,9 @@ class ServerConfig:
     """Which MCP callers are approvers (``spec/approvals.md``, "Approval evidence from an
     approver client"): clients the server trusts to show a person a held call and carry their
     decision back in ``_meta["dev.afd/approval"]``. Only an explicit ``True`` makes one."""
+    idempotency: IdempotencyOptions | None = None
+    """The engine's idempotency step (``spec/idempotency.md``, S1 to S13): answers a repeat of a
+    call to an ``idempotency="keyed"`` command that carries the same key from its store."""
 
 
 def default_instructions(

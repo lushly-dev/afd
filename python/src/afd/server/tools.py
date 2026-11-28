@@ -42,7 +42,7 @@ CallToolSchema: dict[str, Any] = {
             },
             "meta": {
                 "type": "object",
-                "description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and the server's declared context fields' _meta keys, applied as if sent in _meta",
+                "description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget, dev.afd/idempotencyKey and the server's declared context fields' _meta keys, applied as if sent in _meta",
             },
         },
         "required": ["command"],
@@ -103,7 +103,7 @@ BatchToolSchema: dict[str, Any] = {
             },
             "meta": {
                 "type": "object",
-                "description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and the server's declared context fields' _meta keys, applied as if sent in _meta",
+                "description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget, dev.afd/idempotencyKey and the server's declared context fields' _meta keys, applied as if sent in _meta",
             },
         },
         "required": ["commands"],
@@ -169,7 +169,7 @@ PipeToolSchema: dict[str, Any] = {
             },
             "meta": {
                 "type": "object",
-                "description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and the server's declared context fields' _meta keys, applied as if sent in _meta",
+                "description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget, dev.afd/idempotencyKey and the server's declared context fields' _meta keys, applied as if sent in _meta",
             },
         },
         "required": ["steps"],
@@ -205,7 +205,7 @@ DiscoverToolSchema: dict[str, Any] = {
             "offset": {"description": "Results to skip for pagination", "type": "number"},
             "meta": {
                 "type": "object",
-                "description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and the server's declared context fields' _meta keys, applied as if sent in _meta",
+                "description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget, dev.afd/idempotencyKey and the server's declared context fields' _meta keys, applied as if sent in _meta",
             },
         },
     },
@@ -224,7 +224,7 @@ DetailToolSchema: dict[str, Any] = {
             },
             "meta": {
                 "type": "object",
-                "description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and the server's declared context fields' _meta keys, applied as if sent in _meta",
+                "description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget, dev.afd/idempotencyKey and the server's declared context fields' _meta keys, applied as if sent in _meta",
             },
         },
         "required": ["command"],

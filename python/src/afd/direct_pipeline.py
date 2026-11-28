@@ -19,7 +19,9 @@ from typing import Any
 
 from pydantic import ValidationError as PydanticValidationError
 
+from afd.core.commands import CommandContext as CoreCommandContext
 from afd.core.errors import CommandError
+from afd.core.idempotency_keys import resolve_idempotency_key
 from afd.core.pipeline import (
     PipelineContext as _PipelineContext,
 )
@@ -97,12 +99,16 @@ async def run_direct_pipeline(
     steps: list[DirectPipelineStep | dict[str, Any]],
     input: dict[str, Any] | None,
     *,
-    call: Callable[[str, dict[str, Any] | None], Awaitable[Any]],
+    call: Callable[[str, dict[str, Any] | None, str | None], Awaitable[Any]],
     debug: Callable[[str], None],
     trace_id: str,
     start_time: float,
+    idempotency_key: Any = None,
 ) -> DirectPipelineResult:
-    """Run ``steps`` through :func:`afd.core.pipeline.execute_pipeline` and adapt the result."""
+    """Run ``steps`` through :func:`afd.core.pipeline.execute_pipeline` and adapt the result.
+
+    ``call`` gets each step's command, input and the idempotency key the step runs under, derived
+    from ``idempotency_key`` (``spec/idempotency.md``, K4), or ``None`` for the call's own."""
     debug(f"[{trace_id}] Starting pipeline with {len(steps)} steps")
 
     normalized_steps: list[DirectPipelineStep] = []
@@ -176,12 +182,18 @@ async def run_direct_pipeline(
     raw_results: dict[int, CommandResult[Any]] = {}
     request = _PipelineRequest.model_construct(steps=core_steps, input=input)
 
-    async def step_executor(command: str, payload: dict[str, Any] | None) -> Any:
-        return await call(command, payload)
+    async def step_executor(command: str, payload: dict[str, Any] | None, step: Any) -> Any:
+        derived = resolve_idempotency_key(step)
+        return await call(
+            command,
+            payload,
+            derived.key if derived.kind == "key" and derived.set_by_engine else None,
+        )
 
     pipeline_result = await execute_pipeline(
         request,
         step_executor,
+        CoreCommandContext(idempotency_key=idempotency_key),
         dev_mode=False,
         _when_overrides=when_overrides or None,
         _raw_results=raw_results,

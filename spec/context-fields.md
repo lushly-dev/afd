@@ -37,7 +37,7 @@ context's own fields and the keys their routers set).
 ([dispatch](./dispatch.md#the-dispatch-id)). An implementation refuses a declaration of it from
 the release in which it sets the id. `idempotencyKey` is reserved in the same way, for the key a
 caller sends in `_meta["dev.afd/idempotencyKey"]` ([idempotency](./idempotency.md#the-key)):
-TypeScript and Rust refuse it now, and the other languages with their implementation.
+Every language refuses it (Python as `idempotency_key` and `idempotencyKey`).
 
 A field whose value is absent or `null` has no value: it is not validated or journaled, and it
 fails a required field.
@@ -95,10 +95,9 @@ cannot set `_meta` (#466, recorded in [`command-metadata.md`](./command-metadata
 
 - Its keys are `dev.afd/context`, `dev.afd/outputBudget` (an output-budget ask,
   [B2](./output-budgets.md#b2-the-ask)) and the declared fields' `_meta` keys.
-  `dev.afd/idempotencyKey` joins them in each language that implements
-  [idempotency keys](./idempotency.md#the-key) (TypeScript, Rust and C++ so far). The `meta` argument's
-  description in [`meta-tools.json`](./meta-tools.json), which every server lists, gains it once
-  every language accepts it (Python [#2955](https://github.com/lushly-dev/afd/issues/2955)). Other keys are
+  `dev.afd/idempotencyKey` joins them in every language
+  ([idempotency keys](./idempotency.md#the-key)). The `meta` argument's description in
+  [`meta-tools.json`](./meta-tools.json), which every server lists, names it. Other keys are
   dropped, as undeclared `_meta` keys are. `null`, for `meta` or for a value in either place, is no
   value.
 - The server removes `meta` from the arguments and applies its keys as if the request had sent

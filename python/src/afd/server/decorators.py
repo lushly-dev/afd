@@ -49,11 +49,13 @@ from afd.core.commands import (
     TaskSupport,
     validate_command_scopes,
     validate_confirmation_mode,
+    validate_idempotency,
     validate_secret,
     validate_task_declaration,
     warn_invalid_command_name,
 )
 from afd.core.dispatch_id import handler_call, own_entry
+from afd.core.idempotency import IdempotencySupport
 from afd.core.meta_keys import assert_advertised_input_schema, assert_tool_meta
 from afd.core.output_budget import OutputBudget, validate_output_budget_declaration
 from afd.core.result import CommandResult
@@ -107,6 +109,7 @@ class CommandMetadata:
     scopes: list[str] = field(default_factory=list)
     confirmation_mode: CommandConfirmationMode | None = None
     secret: bool = False
+    idempotency: IdempotencySupport | None = None
 
 
 def define_command(
@@ -138,6 +141,7 @@ def define_command(
     scopes: Sequence[str] | None = None,
     confirmation_mode: CommandConfirmationMode | None = None,
     secret: bool = False,
+    idempotency: IdempotencySupport | None = None,
     _stacklevel: int = 2,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator to define a command with metadata.
@@ -175,6 +179,12 @@ def define_command(
             issued token). A journal never records a call to it unless the recorder was
             given ``redact``, whatever its ``filter`` says (``spec/journal.md``). A value
             that is not a boolean raises ``TypeError``.
+        idempotency: What the command declares about repeating a call
+            (``spec/idempotency.md``, D1 to D5): ``"natural"`` when a repeat leaves the same
+            state as one call (reported as the MCP annotation ``idempotentHint``), ``"keyed"``
+            when a repeat with the same idempotency key and input is safe because the handler
+            or the server's idempotency step answers it. Reported as ``_meta.idempotency``,
+            by ``afd-detail`` and by ``afd-help`` (full). Another value raises ``ValueError``.
 
     Returns:
         Decorator function that wraps the handler.
@@ -205,6 +215,7 @@ def define_command(
             "use 'required', 'not-required' or a function"
         )
     validate_secret(name, secret)
+    validate_idempotency(name, idempotency)
     normalized_confirmation_mode = validate_confirmation_mode(name, confirmation_mode)
     validate_task_declaration(
         name,
@@ -261,6 +272,7 @@ def define_command(
             output_budget=normalized_output_budget,
             confirmation_mode=normalized_confirmation_mode,
             secret=secret,
+            idempotency=idempotency,
         )
         func.__afd_command__ = cmd_metadata  # type: ignore[attr-defined]
 
@@ -516,6 +528,7 @@ def command_to_definition(func: Callable[..., Any]) -> CommandDefinition | None:
         output_budget=metadata.output_budget,
         confirmation_mode=metadata.confirmation_mode,
         secret=metadata.secret,
+        idempotency=metadata.idempotency,
     )
 
 

@@ -167,19 +167,17 @@ class _HttpBasedTransport:
         arguments: dict[str, Any] | None = None,
         *,
         timeout: float | None = None,
+        meta: dict[str, Any] | None = None,
     ) -> Any:
-        """Call a tool via the MCP ``tools/call`` method.
+        """Call a tool via the MCP ``tools/call`` method, with ``meta`` as the request's
+        ``_meta`` when given.
 
         Returns the extracted text content (parsed as JSON when possible).
         """
-        result = await self._send_request(
-            "tools/call",
-            {
-                "name": name,
-                "arguments": arguments or {},
-            },
-            timeout=timeout,
-        )
+        params: dict[str, Any] = {"name": name, "arguments": arguments or {}}
+        if meta:
+            params["_meta"] = dict(meta)
+        result = await self._send_request("tools/call", params, timeout=timeout)
         return self._extract_content(result)
 
     async def list_tools(self) -> list[ToolInfo]:

@@ -349,6 +349,8 @@ async def run_context_hook(
             approval=raw.approval,
             credentials=credentials,
             _output_budget_ask=hook_budget_ask,
+            # The host's own key wins over one from _meta (spec/idempotency.md, K1).
+            idempotency_key=raw.idempotency_key,
         )
         normalized = with_context_defaults(clean, effective_defaults)
         actor_at_start = copy.copy(normalized.actor)

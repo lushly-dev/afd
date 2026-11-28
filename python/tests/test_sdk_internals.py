@@ -22,6 +22,7 @@ from afd.server import create_server  # noqa: E402
 from afd.server.sdk_internals import (  # noqa: E402
     GET_CAPABILITIES,
     LOWLEVEL_SERVER,
+    READ_STREAM_CONTEXT,
     REQUEST_HANDLERS,
     REQUEST_STATE_BOUNDARY,
     SDK_INTERNALS,
@@ -139,6 +140,40 @@ async def test_session_connection_identifies_a_2025_connection():
         )
     assert sessions[0]._connection is sessions[1]._connection, SESSION_CONNECTION.failure(
         "two requests on one connection had different _connection objects"
+    )
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_read_stream_context_tags_each_connection(mode):
+    from mcp.client._memory import InMemoryTransport
+
+    from afd.server.idempotency_lane import CURRENT_CONNECTION as _CURRENT_CONNECTION
+
+    seen: list[Any] = []
+
+    async def capture(ctx: Any, call_next: Any) -> Any:
+        if getattr(ctx, "method", None) == "tools/call":
+            seen.append(_CURRENT_CONNECTION.get())
+        return await call_next(ctx)
+
+    sdk = _server()._create_mcp_server()
+    sdk.middleware.insert(0, capture)
+    async with (
+        Client(InMemoryTransport(sdk), mode=mode) as first,
+        Client(InMemoryTransport(sdk), mode=mode) as second,
+    ):
+        await first.call_tool("echo-say", {"text": "one"})
+        await first.call_tool("echo-say", {"text": "two"})
+        await second.call_tool("echo-say", {"text": "three"})
+    assert len(seen) == 3
+    assert seen[0] is not None, READ_STREAM_CONTEXT.failure(
+        "a request's handler did not run in the context of its connection's read stream"
+    )
+    assert seen[0] is seen[1], READ_STREAM_CONTEXT.failure(
+        "two requests on one connection saw different connection objects"
+    )
+    assert seen[2] is not seen[0], READ_STREAM_CONTEXT.failure(
+        "two connections saw the same connection object"
     )
 
 

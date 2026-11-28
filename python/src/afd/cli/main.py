@@ -422,6 +422,14 @@ async def _terminal_yes(prompt: str) -> bool:
 @click.option(
     "--timeout", type=click.FloatRange(min=0, min_open=True), help="Total in-process deadline in ms"
 )
+@click.option(
+    "--idempotency-key",
+    "idempotency_key",
+    help=(
+        "The call's idempotency key (1 to 200 of A-Z a-z 0-9 . _ ~ -): repeat a call with the "
+        "same key and input and a server with the idempotency step answers it from the first"
+    ),
+)
 @_headers_option
 @click.pass_context
 def call(
@@ -432,6 +440,7 @@ def call(
     module_path: Path | None,
     approve: bool,
     timeout: float | None,
+    idempotency_key: str | None,
     headers: tuple[str, ...],
 ) -> None:
     """
@@ -449,8 +458,10 @@ def call(
         afd call user.create '{"name": "Alice", "email": "alice@example.com"}'
         afd call user.create 'name="Alice Smith" email=alice@example.com'
         afd call doc.get id=123 -H "Authorization: Bearer $TOKEN"
+        afd call order-place sku=a --idempotency-key order-2026-11-27-1
     """
     from afd.cli.args import describe_args_error, parse_tool_args
+    from afd.core.idempotency import AFD_IDEMPOTENCY_KEY_META_KEY, is_idempotency_key
 
     json_output = ctx.obj.get("json_output", False)
 
@@ -470,6 +481,10 @@ def call(
         )
     if timeout is not None and not math.isfinite(timeout):
         raise click.UsageError("--timeout must be finite")
+    if idempotency_key is not None and not is_idempotency_key(idempotency_key):
+        raise click.UsageError(
+            "--idempotency-key must be 1 to 200 characters, each one of A-Z a-z 0-9 . _ ~ -"
+        )
     request_headers = _resolve_headers(headers) if module_path is None else {}
 
     async def _call_module() -> None:
@@ -504,7 +519,11 @@ def call(
                 return await _terminal_approval()
 
             client = DirectClient(registry, DirectClientOptions(on_approval_needed=decide))
-            result = await client.call(tool, parsed_args, DirectCallContext(timeout=timeout))
+            result = await client.call(
+                tool,
+                parsed_args,
+                DirectCallContext(timeout=timeout, idempotency_key=idempotency_key),
+            )
             print_result(result, json_output=json_output)
         finally:
             if sys.modules.get(spec.name) is module:
@@ -516,7 +535,14 @@ def call(
         )
         try:
             await transport.connect()
-            result = await transport.call_tool(tool, parsed_args)
+            if idempotency_key is None:
+                result = await transport.call_tool(tool, parsed_args)
+            else:
+                # Every built-in transport sends `meta` as the request's `_meta` (K1).
+                keyed: Any = transport
+                result = await keyed.call_tool(
+                    tool, parsed_args, meta={AFD_IDEMPOTENCY_KEY_META_KEY: idempotency_key}
+                )
             print_result(result, json_output=json_output)
         finally:
             await transport.disconnect()
@@ -1080,6 +1106,8 @@ async def _load_surface_commands(
                     "outputJsonSchema": (schema.get("output_schema") or schema.get("outputSchema")),
                     "requires": item.get("requires"),
                     "contexts": item.get("contexts"),
+                    "mutation": item.get("mutation"),
+                    "idempotency": item.get("idempotency"),
                 }
             )
         return commands, configured_contexts, []

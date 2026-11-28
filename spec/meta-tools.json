@@ -21,7 +21,7 @@
 				},
 				"meta": {
 					"type": "object",
-					"description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and the server's declared context fields' _meta keys, applied as if sent in _meta"
+					"description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget, dev.afd/idempotencyKey and the server's declared context fields' _meta keys, applied as if sent in _meta"
 				}
 			},
 			"required": ["command"]
@@ -86,7 +86,7 @@
 				},
 				"meta": {
 					"type": "object",
-					"description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and the server's declared context fields' _meta keys, applied as if sent in _meta"
+					"description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget, dev.afd/idempotencyKey and the server's declared context fields' _meta keys, applied as if sent in _meta"
 				}
 			},
 			"required": ["commands"]
@@ -160,7 +160,7 @@
 				},
 				"meta": {
 					"type": "object",
-					"description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and the server's declared context fields' _meta keys, applied as if sent in _meta"
+					"description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget, dev.afd/idempotencyKey and the server's declared context fields' _meta keys, applied as if sent in _meta"
 				}
 			},
 			"required": ["steps"]
@@ -214,7 +214,7 @@
 				},
 				"meta": {
 					"type": "object",
-					"description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and the server's declared context fields' _meta keys, applied as if sent in _meta"
+					"description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget, dev.afd/idempotencyKey and the server's declared context fields' _meta keys, applied as if sent in _meta"
 				}
 			}
 		}
@@ -242,7 +242,7 @@
 				},
 				"meta": {
 					"type": "object",
-					"description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and the server's declared context fields' _meta keys, applied as if sent in _meta"
+					"description": "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget, dev.afd/idempotencyKey and the server's declared context fields' _meta keys, applied as if sent in _meta"
 				}
 			},
 			"required": ["command"]

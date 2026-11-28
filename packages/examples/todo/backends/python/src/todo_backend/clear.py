@@ -74,6 +74,7 @@ def clear_command(store: Store, *, held: bool = True) -> Callable[..., Any]:
         output_schema=ClearOutput,
         tags=["todo", "clear", "write", "batch", "destructive"],
         mutation=True,
+        idempotency="natural",
         destructive=True,
         # Enforced when the server runs with CONFIRMATIONS=enforce (spec/confirmation-cases.json).
         confirm_prompt="Delete these todos? This cannot be undone.",

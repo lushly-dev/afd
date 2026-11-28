@@ -5,7 +5,9 @@ from __future__ import annotations
 import copy
 import time
 import uuid
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -17,7 +19,13 @@ from afd.core.batch import (
     create_failed_batch_result,
 )
 from afd.core.commands import CommandContext, CommandDefinition
-from afd.core.errors import Recovery
+from afd.core.errors import CommandError, Recovery
+from afd.core.idempotency import invalid_idempotency_key_error
+from afd.core.idempotency_keys import (
+    has_idempotency_key_state,
+    idempotency_fields,
+    resolve_idempotency_key,
+)
 from afd.core.output_budget import current_output_budget_ask
 from afd.core.pipeline import create_pipeline_failure
 from afd.core.result import CommandResult, error
@@ -50,6 +58,12 @@ from afd.server.confirmations import (
 from afd.server.context_fields import current_context_field_values
 from afd.server.context_hook import copy_extra, current_hook_outcome
 from afd.server.human_relay import HumanRelayGate, host_verified_unrelayable
+from afd.server.idempotency_step import (
+    IdempotencyCaller,
+    IdempotencyStep,
+    bind_request_idempotency_key,
+    peek_request_idempotency_key,
+)
 from afd.server.lazy_tools import (
     command_not_found,
     execute_detail,
@@ -90,6 +104,10 @@ class ToolRouterDeps:
     # Batch execution limits enforced before confirmations/approvals (spec/execution-controls.md).
     max_batch_size: int = DEFAULT_MAX_BATCH_SIZE
     max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM
+    # The idempotency step (spec/idempotency.md), and who the lane says the caller is (S3), from
+    # the caller's own actor (a context hook's) and credentials.
+    idempotency: IdempotencyStep | None = None
+    idempotency_caller: Callable[[Any, Any], IdempotencyCaller | None] | None = None
 
 
 NOT_IN_CONTEXT_SUGGESTION = (
@@ -175,6 +193,19 @@ def _index_by_name(commands: list[CommandDefinition]) -> dict[str, CommandDefini
     return index
 
 
+_ROUTE_KEY: ContextVar[Any] = ContextVar("afd_route_idempotency_key", default=None)
+"""The request's raw idempotency key, as the route that is building a call's context read it."""
+
+
+@contextmanager
+def _bind_route_key(key: Any) -> Iterator[None]:
+    token = _ROUTE_KEY.set(key)
+    try:
+        yield
+    finally:
+        _ROUTE_KEY.reset(token)
+
+
 def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
     """Create a router that dispatches built-in, grouped, or direct MCP tools.
 
@@ -191,6 +222,23 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
     if deps.tool_strategy == "grouped":
         for command in deps.commands:
             commands_by_group.setdefault(get_group(command) or "general", []).append(command)
+
+    def key_values(
+        source: Any, own_actor: Any, credentials: Any, request_key: Any
+    ) -> dict[str, Any]:
+        """The idempotency key a call's context carries (K1): the host's own (an in-process
+        caller's, or the context hook's), marks included, else the one from the request's
+        ``_meta``; who the lane says the caller is (S3); and whether this is a task run."""
+        values: dict[str, Any] = {"idempotency_key": request_key}
+        if source is not None and has_idempotency_key_state(source):
+            values = idempotency_fields(source)
+        values["_idempotency_caller"] = (
+            deps.idempotency_caller(own_actor, credentials)
+            if deps.idempotency_caller is not None
+            else None
+        )
+        values["_task_run"] = getattr(source, "_task_run", False) is True
+        return values
 
     def mcp_context(
         prefix: str,
@@ -219,6 +267,7 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
         default_actor = (
             credentials_actor(admitted) if admitted is not None else (deps.actor or _MCP_ACTOR)
         )
+        request_key = _ROUTE_KEY.get()
         if caller_context is not None:
             caller_budget = (
                 current_output_budget_ask()
@@ -246,6 +295,7 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
                 cancel=caller_context.cancel,
                 _output_budget_ask=caller_budget,
                 _scope_view=view,
+                **key_values(caller_context, caller_context.actor, admitted, request_key),
             )
         outcome = current_hook_outcome()
         hook_ctx = outcome.context if outcome is not None else None
@@ -277,6 +327,7 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
                 credentials=admitted,
                 _output_budget_ask=budget_ask,
                 _scope_view=view,
+                **key_values(hook_ctx, hook_ctx.actor, admitted, request_key),
             )
             if approver_call is not None:
                 bind_approver(ctx, approver_call)
@@ -293,6 +344,7 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
             credentials=admitted,
             _output_budget_ask=current_output_budget_ask(),
             _scope_view=view,
+            **key_values(None, None, admitted, request_key),
         )
         if approver_call is not None:
             bind_approver(ctx, approver_call)
@@ -412,9 +464,53 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
             return refused(up_front.refusal)
         return result
 
+    def idempotency_refusal(
+        steps: Sequence[str],
+        active_context: str | None,
+        view: ScopeView | None,
+        caller_context: CommandContext | None,
+        by_name: dict[str, CommandDefinition],
+    ) -> CommandError | None:
+        """The refusal of a call's idempotency key before confirmation, or ``None``: K2's form,
+        and S3 for a step that names a ``keyed`` command on a server with the idempotency step.
+        Credentials the step cannot bind are raised to the lane, which answers an internal
+        error naming no one."""
+        probe = mcp_context("probe", active_context, view, caller_context)
+        # Decided as the engine decides it: a key the outer handler was given is none (K6), and
+        # a derived or restored one is the engine's.
+        key = resolve_idempotency_key(probe)
+        if key.kind == "none":
+            return None
+        if key.kind == "invalid":
+            return invalid_idempotency_key_error()
+        step = deps.idempotency
+        if step is None or not any(
+            getattr(by_name.get(name), "idempotency", None) == "keyed" for name in steps
+        ):
+            return None
+        decided = step.principal(probe)
+        if decided.kind == "refused":
+            return decided.error
+        if decided.kind == "internal":
+            from afd.server.tasks_runtime import _internal_rpc_error
+
+            raise _internal_rpc_error()
+        return None
+
     async def route_tool_call(
         tool_name: str, args: Any, caller_context: CommandContext | None = None
     ) -> Any:
+        # The request's idempotency key is read once, here, for the call this route builds, and
+        # unbound for the rest of the route: a command its middleware or handler runs during
+        # the call starts without it (K6). The binding returns when the route ends, so a round
+        # the lane runs again (an approval asked in band) reads it again.
+        with (
+            _bind_route_key(peek_request_idempotency_key()),
+            bind_request_idempotency_key(None),
+        ):
+            return await route(tool_name, args, caller_context)
+
+    async def route(tool_name: str, args: Any, caller_context: CommandContext | None = None) -> Any:
         # App-to-app calls (spec/command-metadata.md, "App-to-app calls") are never routed
         # through MCP tools or meta-tools, and must not be overwritten with interface="mcp".
         refused = refuse_apps_tool_call(tool_name, caller_context)
@@ -469,6 +565,11 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
                 return not_in_context(command, active_context, view)
 
             command_input = payload.get("input", {})
+            key_refused = idempotency_refusal(
+                [command_name], active_context, view, caller_context, known_by_name
+            )
+            if key_refused is not None:
+                return command_failure(key_refused)
             if getattr(command, "confirmation_mode", None) == "host-verified":
                 ctx = mcp_context("afd-call", active_context, view, caller_context)
                 return await dispatch_host_verified(command, command_input, ctx)
@@ -539,6 +640,15 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
             hv_refused = refuse_host_verified_steps(batch_steps, known_by_name)
             if hv_refused is not None:
                 return create_failed_batch_result(hv_refused)
+            key_refused = idempotency_refusal(
+                [step.command for step in batch_steps],
+                active_context,
+                view,
+                caller_context,
+                known_by_name,
+            )
+            if key_refused is not None:
+                return create_failed_batch_result(key_refused)
             refused = await unconfirmed(
                 batch_steps,
                 named_acknowledgement(args.get("confirm") if isinstance(args, dict) else None),
@@ -570,6 +680,15 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
             hv_refused = refuse_host_verified_steps(pipe_steps, known_by_name)
             if hv_refused is not None:
                 return create_pipeline_failure(hv_refused)
+            key_refused = idempotency_refusal(
+                [step.command for step in pipe_steps],
+                active_context,
+                view,
+                caller_context,
+                known_by_name,
+            )
+            if key_refused is not None:
+                return create_pipeline_failure(key_refused)
             refused = await unconfirmed(
                 pipe_steps,
                 named_acknowledgement(args.get("confirm") if isinstance(args, dict) else None),
@@ -638,6 +757,11 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
             if selection.kind == "command" and selection.command is not None:
                 command = selection.command
                 params = payload.get("params", {})
+                key_refused = idempotency_refusal(
+                    [command.name], active_context, view, caller_context, known_by_name
+                )
+                if key_refused is not None:
+                    return command_failure(key_refused)
                 if getattr(command, "confirmation_mode", None) == "host-verified":
                     ctx = mcp_context("trace", active_context, view, caller_context)
                     return await dispatch_host_verified(command, params, ctx)
@@ -668,6 +792,12 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
         # the command validates its input, unless the command's own schema declares it.
         # Host-verified commands never advertise or accept `confirm`.
         command_input = {} if args is None else args
+        if command is not None:
+            key_refused = idempotency_refusal(
+                [command.name], active_context, view, caller_context, known_by_name
+            )
+            if key_refused is not None:
+                return command_failure(key_refused)
         if command is not None and getattr(command, "confirmation_mode", None) == "host-verified":
             ctx = mcp_context("trace", active_context, view, caller_context)
             return await dispatch_host_verified(command, command_input, ctx)

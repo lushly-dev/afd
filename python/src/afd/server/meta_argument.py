@@ -3,10 +3,10 @@ tool surface (#466)"; ``spec/context-fields.md``, "Clients that cannot set ``_me
 
 ``afd-call``, ``afd-batch``, ``afd-pipe``, ``afd-discover`` and ``afd-detail`` take an optional
 ``meta`` object for clients that cannot set ``_meta``. Its keys are ``dev.afd/context``,
-``dev.afd/outputBudget`` and the declared context fields' ``_meta`` keys, and the server applies
-them as if the request had sent them in ``_meta``, before it reads ``_meta``. Other keys are
-dropped, as undeclared ``_meta`` keys are. A key sent both ways must agree, or the call fails with
-``VALIDATION_ERROR``.
+``dev.afd/outputBudget``, ``dev.afd/idempotencyKey`` and the declared context fields' ``_meta``
+keys, and the server applies them as if the request had sent them in ``_meta``, before it reads
+``_meta``. Other keys are dropped, as undeclared ``_meta`` keys are. A key sent both ways must
+agree, or the call fails with ``VALIDATION_ERROR``.
 
 Mirrors ``packages/server/src/meta-argument.ts``.
 """
@@ -19,6 +19,7 @@ from typing import Any
 
 from afd.core.builtin_names import AFD_META_TOOL_NAMES
 from afd.core.errors import CommandError
+from afd.core.idempotency import AFD_IDEMPOTENCY_KEY_META_KEY
 from afd.core.output_budget import AFD_OUTPUT_BUDGET_META_KEY
 from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY
 from afd.server.context_fields import ContextField
@@ -31,7 +32,8 @@ __all__ = [
 ]
 
 META_ARGUMENT_DESCRIPTION = (
-    "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and "
+    "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget, "
+    "dev.afd/idempotencyKey and "
     "the server's declared context fields' _meta keys, applied as if sent in _meta"
 )
 """The description of the ``meta`` property in each meta-tool's input schema."""
@@ -43,6 +45,7 @@ def meta_argument_keys(fields: Sequence[ContextField] | None) -> frozenset[str]:
         [
             AFD_CONTEXT_META_KEY,
             AFD_OUTPUT_BUDGET_META_KEY,
+            AFD_IDEMPOTENCY_KEY_META_KEY,
             *(field.meta for field in fields or ()),
         ]
     )

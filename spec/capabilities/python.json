@@ -94,13 +94,17 @@
 			"evidence": ["python/src/afd/server/tools.py", "python/tests/test_mcp_server_tools.py"]
 		},
 		"command.idempotency": {
-			"status": "planned",
-			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"status": "yes",
+			"note": ": `_meta.idempotency`, `afd-detail`, `afd-help` (`full`); `afd validate --surface` notes an undeclared mutation",
 			"views": {
-				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+				"status": ""
 			},
-			"issue": "#2676",
-			"evidence": ["python/tests/test_idempotency_vectors.py"]
+			"evidence": [
+				"python/src/afd/core/commands.py",
+				"python/src/afd/testing/surface/rules.py",
+				"python/tests/test_idempotency_vectors.py",
+				"python/tests/test_idempotency_engine.py"
+			]
 		},
 		"single.dispatch-order": {
 			"status": "partial",
@@ -354,13 +358,18 @@
 			]
 		},
 		"middleware.idempotency-step": {
-			"status": "planned",
-			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"status": "yes",
+			"note": ": `idempotency=IdempotencyOptions(store, ttl_ms, lease_ms)` on the MCP server, `create_idempotency_step` for a core or simple registry; the engine cancels the handler at the deadline (S7, `cancels`)",
 			"views": {
-				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+				"status": ""
 			},
-			"issue": "#2676",
-			"evidence": ["python/tests/test_idempotency_vectors.py"]
+			"evidence": [
+				"python/src/afd/server/idempotency_step.py",
+				"python/src/afd/server/idempotency_store.py",
+				"python/src/afd/server/middleware.py",
+				"python/tests/test_idempotency_vectors.py",
+				"python/tests/test_idempotency_engine.py"
+			]
 		},
 		"middleware.up-front-approval": {
 			"status": "yes",
@@ -848,13 +857,18 @@
 			]
 		},
 		"single.idempotency-key": {
-			"status": "planned",
-			"note": "([#2676](https://github.com/lushly-dev/afd/issues/2676))",
+			"status": "yes",
+			"note": ": `afd call --idempotency-key`, `DirectCallContext`'s and `McpClient`'s `idempotency_key`",
 			"views": {
-				"status": "([#2676](https://github.com/lushly-dev/afd/issues/2676))"
+				"status": ""
 			},
-			"issue": "#2676",
-			"evidence": ["python/tests/test_idempotency_vectors.py"]
+			"evidence": [
+				"python/src/afd/core/idempotency_keys.py",
+				"python/src/afd/core/single_executor.py",
+				"python/src/afd/server/tool_router.py",
+				"python/src/afd/server/journal.py",
+				"python/tests/test_idempotency_vectors.py"
+			]
 		}
 	}
 }
