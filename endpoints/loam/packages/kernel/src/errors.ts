@@ -162,6 +162,8 @@ export type LoamKernelErrorCode =
 	// for this person, and a principal-gated kernel built for a `local` deployment.
 	| 'AGENT_NOT_CONNECTED'
 	| 'AGENT_DISCONNECTED_BY_OWNER'
+	// #2784: a connected agent's access changed between its person's read and their write.
+	| 'AGENT_ACCESS_CHANGED'
 	| 'IDENTITY_MODE_INVALID'
 	// Phase 5's copilot (its section 14).
 	| 'COPILOT_PROVIDER_MISSING'

@@ -135,10 +135,14 @@ function loamAccount(authBase: string): LoamAccountAccessV1 {
 		},
 		invitations: async () =>
 			((await request('/loam/invitations')) as { invitations: never[] }).invitations,
-		// The workspace's connected agents, and the person's disconnect and an owner's removal (5.3, 9.2; step 7).
+		// The workspace's connected agents, and the person's disconnect and narrowing and an owner's removal (5.3, 9.2;
+		// step 7, #2784).
 		agents: async () => ((await request('/loam/connected-agents')) as { agents: never[] }).agents,
 		async disconnectAgent(agent) {
 			await request('/loam/connected-agents/disconnect', { agent });
+		},
+		async updateAgent(agent, access, previous) {
+			await request('/loam/connected-agents/update', { agent, access, previous });
 		},
 		async removeAgent(agent, forget) {
 			await request('/loam/connected-agents/remove', { agent, forget });

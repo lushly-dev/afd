@@ -300,6 +300,8 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 	): AgentMemberRowV1 {
 		const person = personOf(context);
 		const listed = agent.access.projects;
+		// Another person's connected agent, read in a browser, names none of its projects, only their count (#2784).
+		const withheld = (agent as { withheldProjects?: number }).withheldProjects ?? 0;
 		const seen =
 			listed === 'sponsor'
 				? listed
@@ -312,6 +314,7 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 						owner &&
 						sponsor !== undefined &&
 						listed !== 'sponsor' &&
+						withheld === 0 &&
 						listed.some((id) => !mayEnter(roles, agent.sponsor, id));
 					return {
 						sponsorName: sponsor?.name ?? null,
@@ -328,7 +331,8 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 			...(read ? { sponsorName: read.sponsorName } : {}),
 			installedBy: agent.installedBy,
 			access: { workspace: agent.access.workspace, projects: seen },
-			hiddenProjects: listed === 'sponsor' ? 0 : listed.length - (seen as string[]).length,
+			hiddenProjects:
+				listed === 'sponsor' ? 0 : listed.length - (seen as string[]).length + withheld,
 			...(agent.guidance !== undefined && (owner || agent.sponsor === person)
 				? { guidance: agent.guidance }
 				: {}),

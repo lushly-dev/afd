@@ -60,8 +60,8 @@ const DEPLOYER_KEYS = [
 /**
  * Five named exemptions, each one path on the commands named. The first (phase 3 specification, Status, step 6,
  * deviation 13, kept by the coordinator on 2026-11-15): an agent member's `access.projects` (8.1) names the projects it
- * may act in, in the `agent-member` table,
- * never a projection entry's `projects`. Only that path, only on the two commands that take it; every other key, and
+ * may act in, in the `agent-member` table, and a connected agent's (#2784) in the provider's `loam_connected_agent`,
+ * never a projection entry's `projects`. Only that path, only on the three commands that take it; every other key, and
  * `projects` anywhere else in their input, is still scanned. Phase 4's step 3 adds `popover-open`'s menu item
  * `command`, a command's name (its 6.4), kept by the coordinator on 2026-11-18 (that step's record, R-a); its step 8
  * adds `autonomy-get`'s and `autonomy-set`'s `command`, a registered command's name (its 4.1); its step 5 adds
@@ -159,12 +159,22 @@ function exempted(name: string, schema: unknown): unknown {
 			delete branch.properties?.items?.items?.properties?.command;
 		return copy;
 	}
-	if (name !== 'agent-member-add' && name !== 'agent-member-update') return schema;
-	type Branch = { properties?: { access?: { properties?: Record<string, unknown> } } };
+	// #2784's `account-agent-update` takes the same path for a connected agent (9.2), in the provider's table.
+	if (
+		name !== 'agent-member-add' &&
+		name !== 'agent-member-update' &&
+		name !== 'account-agent-update'
+	)
+		return schema;
+	type Access = { properties?: Record<string, unknown> };
+	type Branch = { properties?: { access?: Access; expected?: Access } };
 	const copy = structuredClone(schema) as Branch & { oneOf?: Branch[] };
-	// `-add`'s input is a `oneOf` of an undo and the new record's fields; `-update`'s a plain object.
-	for (const branch of [copy, ...(copy.oneOf ?? [])])
+	// `-add`'s input is a `oneOf` of an undo and the new record's fields; `-update`'s a plain object. The connected
+	// agent's `expected` (#2784) is the same access, the one its caller last saw, so its `projects` is exempt too.
+	for (const branch of [copy, ...(copy.oneOf ?? [])]) {
 		delete branch.properties?.access?.properties?.projects;
+		delete branch.properties?.expected?.properties?.projects;
+	}
 	return copy;
 }
 

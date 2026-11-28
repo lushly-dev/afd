@@ -15,7 +15,10 @@ import type { LoamKernelErrorCode } from '../errors.js';
 import type { AccessActorV1, MemberRoleV1, MembershipV1 } from '../scope/access.js';
 import type { DocumentKit } from '../scope/command-kit.js';
 import type { AgentMemberV1 } from '../scope/records.js';
-import type { AgentMemberRowV1 } from './agent-members.js';
+import {
+	AGENT_PROJECTS_MAX as AGENT_ACCESS_PROJECTS_MAX,
+	type AgentMemberRowV1,
+} from './agent-members.js';
 import type { PersonaPresentationV1 } from './persona.js';
 
 /** How a person could restore their own access (5.7; D97). */
@@ -59,8 +62,17 @@ export interface OwnConnectedAgentV1 {
 	clientHost: string;
 	scopes: string[];
 	connectedAt: string;
+	/** Where it may act (9.2): `{ workspace: true, projects: 'sponsor' }` unless its person narrowed it. */
+	access: AgentMemberV1['access'];
 	status: 'active' | 'suspended';
 	suspended?: AgentMemberV1['suspended'];
+}
+
+/** `account-agent-update`'s answer: the access written, and the one before it, which its undo restores. */
+export interface OwnAgentAccessV1 {
+	agent: string;
+	access: AgentMemberV1['access'];
+	previous: AgentMemberV1['access'];
 }
 
 /** An invitation as the invitee sees it (5.3). */
@@ -101,12 +113,29 @@ export interface LoamAccountAccessV1 {
 	agents?(): Promise<ConnectedAgentV1[]>;
 	/** The person's own connected agent disconnected (5.3): its record, consent and refresh tokens gone. */
 	disconnectAgent?(agent: string): Promise<void>;
+	/**
+	 * The person's own connected agent's access written (9.2, #2784), only while it is still `previous`, the access the
+	 * kernel read (`AGENT_ACCESS_CHANGED` otherwise): no token is revoked, and its next request reads the new record
+	 * (9.5). The kernel has checked each project, so the provider checks the shape, the sponsor and the record alone.
+	 */
+	updateAgent?(
+		agent: string,
+		access: AgentMemberV1['access'],
+		previous: AgentMemberV1['access']
+	): Promise<void>;
 	/** An owner's removal of a connected agent (9.2): kept `suspended: 'owner'`, or deleted with `forget`. */
 	removeAgent?(agent: string, forget: boolean): Promise<void>;
 }
 
-/** A connected agent as the provider answers it (9.2): `AgentMemberV1` with `kind: 'connected'`, and its scopes. */
-export type ConnectedAgentV1 = AgentMemberV1 & { kind: 'connected'; scopes: string[] };
+/**
+ * A connected agent as the provider answers it (9.2): `AgentMemberV1` with `kind: 'connected'`, and its scopes. Another
+ * person's names none of its projects, only how many it withholds (#2784).
+ */
+export type ConnectedAgentV1 = AgentMemberV1 & {
+	kind: 'connected';
+	scopes: string[];
+	withheldProjects?: number;
+};
 
 /**
  * An adapter with Loam's account capability, as the web host's is in `provider` mode; or, on the server, with
@@ -142,6 +171,7 @@ export const MEMBER_PROVIDER_COMMANDS: readonly string[] = Object.freeze([
 	'account-invitation-reject',
 	'account-agent-list',
 	'account-agent-disconnect',
+	'account-agent-update',
 	'member-list',
 	'member-invite',
 	'member-invitation-list',
@@ -198,12 +228,17 @@ const SUGGESTIONS: Readonly<Partial<Record<LoamKernelErrorCode, string>>> = {
 export interface MemberCommandsDeps {
 	auth: LoamAuthAdapter;
 	identity?: IdentityV1 | undefined;
-	kit: Pick<DocumentKit, 'define' | 'success' | 'z' | 'kernelFailure'> & {
+	kit: Pick<DocumentKit, 'define' | 'success' | 'z' | 'kernelFailure' | 'projectNotFound'> & {
 		personKey(actor: AccessActorV1): string | undefined;
 		isOwner(membership: MembershipV1, person: string | undefined): boolean;
 	};
 	/** The membership a decision for the call reads: on the server, its principal's alone (9.5). */
 	membership(context: CommandContext): MembershipV1;
+	/**
+	 * A project's id, by its id or slug, when the call's person may enter it (3.3, steps 1 to 3 for a person); else
+	 * undefined, alike for one that does not exist and one they may not enter. Absent: none resolves.
+	 */
+	enterable?(ref: string, context: CommandContext): string | undefined;
 	/** A principal-gated kernel's (9.5): the account is read only by the call's person, through `accountFor`. */
 	gated?: boolean;
 	/**
@@ -844,6 +879,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 		clientHost: agent.client?.host ?? '',
 		scopes: agent.scopes,
 		connectedAt: new Date(agent.createdAt).toISOString(),
+		access: agent.access,
 		status: agent.status === 'active' ? 'active' : 'suspended',
 		...(agent.suspended ? { suspended: agent.suspended } : {}),
 	});
@@ -854,6 +890,20 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 		if (!read || person === undefined) return [];
 		return (await read()).filter((agent) => agent.sponsor === person);
 	};
+	/** Any id but one of the person's own: one answer for every other, naming nothing of anyone else's (5.3). */
+	const noOwnAgent = () =>
+		kit.kernelFailure(
+			'AGENT_MEMBER_NOT_FOUND',
+			'You have no connected agent with this id',
+			'List yours with account-agent-list'
+		);
+	/** An owner's removal stands until an owner lifts it (9.2): its sponsor neither clears nor changes it. */
+	const removedByOwner = () =>
+		kit.kernelFailure(
+			'AGENT_DISCONNECTED_BY_OWNER',
+			'An owner removed this agent; it stays removed until an owner allows it again',
+			'Ask an owner of the workspace to allow it again'
+		);
 
 	const agentList = kit.define<typeof empty, { agents: OwnConnectedAgentV1[] }>({
 		name: 'account-agent-list',
@@ -897,24 +947,121 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 			try {
 				// Only the person's own: any other id answers as a missing one, naming nothing of anyone else's (5.3).
 				const own = (await ownAgents(context)).find((agent) => agent.id === input.agent);
-				if (!own) {
-					return kit.kernelFailure(
-						'AGENT_MEMBER_NOT_FOUND',
-						'You have no connected agent with this id',
-						'List yours with account-agent-list'
-					);
-				}
+				if (!own) return noOwnAgent();
 				// An owner's removal stands until an owner lifts it (9.2): its sponsor cannot clear it by disconnecting.
-				if (own.status === 'suspended' && own.suspended === 'owner') {
-					return kit.kernelFailure(
-						'AGENT_DISCONNECTED_BY_OWNER',
-						'An owner removed this agent; it stays removed until an owner allows it again',
-						'Ask an owner of the workspace to allow it again'
-					);
-				}
+				if (own.status === 'suspended' && own.suspended === 'owner') return removedByOwner();
 				await held.disconnectAgent(input.agent);
 				return kit.success({ disconnected: true as const });
 			} catch (cause) {
+				return refusal(cause);
+			}
+		},
+	});
+
+	const PROJECT_REF_JSON: JsonSchema = { type: 'string', minLength: 1, maxLength: 256 };
+	const accessInput = () =>
+		z.strictObject({
+			workspace: z.boolean(),
+			projects: z.union([
+				z
+					.array(z.string().check(z.minLength(1), z.maxLength(256)))
+					.check(z.maxLength(AGENT_ACCESS_PROJECTS_MAX)),
+				z.enum(['sponsor']),
+			]),
+		});
+	const ACCESS_JSON = {
+		type: 'object',
+		properties: {
+			workspace: { type: 'boolean' },
+			projects: {
+				anyOf: [
+					{ type: 'array', items: PROJECT_REF_JSON, maxItems: AGENT_ACCESS_PROJECTS_MAX },
+					{ type: 'string', enum: ['sponsor'] },
+				],
+			},
+		},
+		required: ['workspace', 'projects'],
+		additionalProperties: false,
+	};
+	const agentUpdateInput = z.strictObject({
+		agent: id,
+		access: accessInput(),
+		// The access the caller last saw, by project id: a record changed since is refused, so an undo, which carries the
+		// access its change wrote, never restores more than what it replaced (#2784's re-check).
+		expected: z.optional(accessInput()),
+	});
+	/** Two accesses alike: the same flag and the same projects, in any order. */
+	const sameAccess = (a: AgentMemberV1['access'], b: AgentMemberV1['access']): boolean => {
+		if (a.workspace !== b.workspace) return false;
+		if (a.projects === 'sponsor' || b.projects === 'sponsor') return a.projects === b.projects;
+		const held = new Set(a.projects);
+		return held.size === new Set(b.projects).size && b.projects.every((each) => held.has(each));
+	};
+	const accessChanged = () =>
+		kit.kernelFailure(
+			'AGENT_ACCESS_CHANGED',
+			"This agent's access changed since it was read",
+			'List yours again with account-agent-list, then choose its access again'
+		);
+	const agentUpdate = kit.define<typeof agentUpdateInput, OwnAgentAccessV1>({
+		name: 'account-agent-update',
+		title: "Change a connected agent's access",
+		description:
+			'Narrow or widen where an external agent you connected may act: every project you may open (projects "sponsor") or only the ones you name, and whether it may act at workspace level. It never acts beyond your own access. Give `expected`, the access you last saw, to refuse a change made since',
+		category: 'account',
+		mutation: true,
+		undoable: true,
+		executionTime: 'fast',
+		input: agentUpdateInput,
+		jsonSchema: {
+			type: 'object',
+			properties: {
+				agent: ID_JSON,
+				access: ACCESS_JSON,
+				expected: ACCESS_JSON,
+			},
+			required: ['agent', 'access'],
+			additionalProperties: false,
+		} as unknown as JsonSchema,
+		async handler(input, context) {
+			const held = account(context);
+			if (!held?.updateAgent) return noProvider();
+			try {
+				// Only the person's own, as `-disconnect` (5.3); one an owner removed stays as the owner left it (9.2).
+				const own = (await ownAgents(context)).find((agent) => agent.id === input.agent);
+				if (!own) return noOwnAgent();
+				if (own.status === 'suspended' && own.suspended === 'owner') return removedByOwner();
+				if (input.expected && !sameAccess(input.expected, own.access)) return accessChanged();
+				let access: AgentMemberV1['access'];
+				if (input.access.projects === 'sponsor') {
+					access = { workspace: input.access.workspace, projects: 'sponsor' };
+				} else {
+					// Each by id or slug, kept as its id, once. One the person may not enter answers phase 2's
+					// `PROJECT_NOT_FOUND`, the same bytes as one that does not exist, so it names nothing they cannot see.
+					const ids: string[] = [];
+					for (const ref of input.access.projects) {
+						const found = deps.enterable?.(ref, context);
+						if (found === undefined) return kit.projectNotFound();
+						if (!ids.includes(found)) ids.push(found);
+					}
+					access = { workspace: input.access.workspace, projects: ids };
+				}
+				await held.updateAgent(input.agent, access, own.access);
+				return kit.success(
+					{ agent: input.agent, access, previous: own.access },
+					{
+						undoCommand: 'account-agent-update',
+						undoArgs: { agent: input.agent, access: own.access, expected: access },
+					}
+				);
+			} catch (cause) {
+				// The provider's own refusals, for a record that changed since the list (a race): as the kernel's own.
+				const code = (cause as { code?: unknown } | null)?.code;
+				if (code === 'AGENT_MEMBER_NOT_FOUND' || code === 'AGENT_MEMBER_SPONSOR_ONLY')
+					return noOwnAgent();
+				if (code === 'AGENT_DISCONNECTED_BY_OWNER') return removedByOwner();
+				// Changed since the list (another tab, or an undo of a change already replaced): nothing is written.
+				if (code === 'AGENT_ACCESS_CHANGED') return accessChanged();
 				return refusal(cause);
 			}
 		},
@@ -929,6 +1076,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 			invitationReject,
 			agentList,
 			agentDisconnect,
+			agentUpdate,
 			memberList,
 			memberInvite,
 			pendingList,

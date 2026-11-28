@@ -774,7 +774,7 @@ export const CEILINGS = Object.freeze({
 	// `main` at `8b3123580` plus #2648; set to 161,500.
 	// Raised under D115 by #2652 (#1743: afd-server's host-state token and one admission pipeline): measured 161,182
 	// on `main` at `5ade6c0f4`, 161,304 with #2648 merged (`main` at `e0dbde691`); set to 161,600.
-	kernelMinified: 168_800, // D115: #2675's idempotency keys through the direct registry (164,943, 7f994c7e4); #2786's sign-on URL cut, 165,516; #2890's per-dispatch journal sources (168,380 with #2786 merged, 5d9fcf79f; #2727's nested reads and recorded commands, 165,353 before #2786).
+	kernelMinified: 169_100, // D115: #2675's idempotency keys through the direct registry (164,943, 7f994c7e4); #2786's sign-on URL cut, 165,516; #2890's per-dispatch journal sources (168,380 with #2786 merged, 5d9fcf79f; #2727's nested reads and recorded commands, 165,353 before #2786); #2784's command name in the shell's list, 168,789 to 168,810 (`main` at `f166dd38f`).
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -805,7 +805,7 @@ export const CEILINGS = Object.freeze({
 	// measured 139,141 against `main` at `804e17cc`; set to 139,700 under D115.
 	// #2107 (moved `journal-provenance.ts` and `redactWrapped` from first paint into `late/journal-wrappers.ts`):
 	// measured 144,170 against `main` at `bd30d790b` (+4,850 moved from first paint); set to 144,700 under D115.
-	lateMinified: 173_100, // D115: 150,050 (5ade6c0f4); step 10's 9.1 to 150,062, its 9.2 to 163,695, its 9.3 to 171,015; its mounted-ui slot (#2719), 171,002 to 172,785.
+	lateMinified: 173_600, // D115: 150,050 (5ade6c0f4); step 10's 9.1 to 150,062, its 9.2 to 163,695, its 9.3 to 171,015; its mounted-ui slot (#2719), 171,002 to 172,785; #2784 (`account-agent-update`'s projects, against `main` at `2462564f`), 173,078 to 173,273.
 	// #2117 (`recordOrder` calls in `documents.ts`): measured 13,584 against `main` at `804e17cc`; set to 13,800 under D115.
 	lateDocumentsMinified: 13_800,
 	// Bug batch #2113: 17,514 (`closeApp` across persisted scopes with R14 dirty re-check, `document-open` gated refusal, `isTypeGated`, `Editors.projects()`); set to 18,000 under D115.
@@ -815,7 +815,7 @@ export const CEILINGS = Object.freeze({
 	// After its review's fixes, 65,750 (an owner's removal kept, provider failures mapped); set to 66,300.
 	// Phase 6's step 5, against `main` at `01d92259`: 65,829 to 66,629 (+800): `member-leave` and its refusals, and the
 	// agent members' roster per call on the server; set to 67,000 under D115.
-	lateIdentityMinified: 67_000,
+	lateIdentityMinified: 69_500, // D115: #2784 (`account-agent-update` and its refusals, against `main` at `2462564f`), 66,707 to 69,168.
 	// Phase 5's step 4 merged on phase 6's step 5 and #1936, the combined build: 34,722; set to 35,500 under D115.
 	// Phase 5's step 6 (units, 7.3), with `main` at `fa8ab4a5` merged in: 40,034 (+5,312: the unit's reading and its
 	// refusals, the submit and its mode, the composer's hand-off and taint's leaving a unit out); set to 40,500 under D115.
@@ -861,7 +861,7 @@ export const CEILINGS = Object.freeze({
 	// review's fixes and re-check 39,283 (+7,448 in all): each tab named by `ownerTitle` (its own `owner-title` chunk, with
 	// `shell-name`), the app's settings delivered through `surface-calls` (1,700, shared with `surfaces`), the change of
 	// person and main's gate, the view's teardown and the wait for the app surfaces; set to 39,900 under D115.
-	accountMinified: 41_000, // D115: phase 5 step 10's 9.2 (the SDK's events): 40,241 to 40,951.
+	accountMinified: 45_000, // D115: phase 5 step 10's 9.2 (the SDK's events): 40,241 to 40,951; #2784 (the agents tab's access dialog, against `main` at `2462564f`), 40,951 to 44,407; 44,467 with `main` at `f166dd38f` merged; 44,621 with the refused-save focus fix.
 	// Raised under D115 by #862 (`__vite__mapDeps` table emitted in `url-sync` once `vite/preload-helper` lives in the
 	// single `$initial` `index` chunk): measured 6,601 against `main` at `bd374912`; set to 6,900.
 	urlMinified: 6_900,

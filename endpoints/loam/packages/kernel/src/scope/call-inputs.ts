@@ -105,6 +105,10 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	// Step 7's connected agents (5.3): the person's own, from the provider's table.
 	'account-agent-list': {},
 	'account-agent-disconnect': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
+	'account-agent-update': {
+		agent: 'agt_aaaaaaaaaaaaaaaaaaaa',
+		access: { workspace: true, projects: 'sponsor' },
+	},
 	'member-list': {},
 	'member-invite': { email: 'new@example.com', role: 'member' },
 	'member-invitation-list': {},

@@ -91,6 +91,9 @@ export function serverAccountAccess(
 		async disconnectAgent() {
 			throw humanOnly();
 		},
+		async updateAgent() {
+			throw humanOnly();
+		},
 		async removeAgent() {
 			throw humanOnly();
 		},

@@ -58,6 +58,22 @@ export function readWhoami(raw: unknown): WhoamiV1 {
 }
 
 /**
+ * Every method of Loam's account capability, typed against it, so one added there is forwarded here too: one left out
+ * reaches no kernel, as step 7's connected agents did until #2784 (the agents tab listed none in a browser, and its
+ * Disconnect and an owner's removal answered as no provider).
+ */
+const ACCOUNT_METHODS: Readonly<Record<keyof LoamAccountAccessV1, true>> = {
+	get: true,
+	update: true,
+	members: true,
+	invitations: true,
+	agents: true,
+	disconnectAgent: true,
+	updateAgent: true,
+	removeAgent: true,
+};
+
+/**
  * The adapter first paint holds: the probe's state, until `load()` brings the real one, to which every listener
  * and call then moves. Sign-in, sign-out, a refresh and the capabilities wait for it.
  */
@@ -117,7 +133,7 @@ export class DeferredAuthAdapter implements AuthAdapter {
 			'acceptInvitation',
 			'rejectInvitation',
 		]);
-		this.account = later('account', ['get', 'update', 'members', 'invitations']);
+		this.account = later('account', Object.keys(ACCOUNT_METHODS));
 	}
 
 	/** The real adapter, loaded once; its state reaches this one's listeners from then on. */

@@ -105,11 +105,13 @@ describe('P3-E5: an agent member has no account at the provider (8.1)', () => {
 	const LOAM_ROUTES = [
 		'/loam/account',
 		'/loam/binding',
-		// Step 7's connected agents (9.2): a list, a person's disconnect and an owner's removal. None registers a
-		// credential or a session, and none makes an agent a user; the consent page's approval makes the record.
+		// Step 7's connected agents (9.2): a list, a person's disconnect and an owner's removal, and the person's change of
+		// its access (#2784). None registers a credential or a session, and none makes an agent a user; the consent
+		// page's approval makes the record.
 		'/loam/connected-agents',
 		'/loam/connected-agents/disconnect',
 		'/loam/connected-agents/remove',
+		'/loam/connected-agents/update',
 		'/loam/invitations',
 		'/loam/join/check',
 		'/loam/join/name',

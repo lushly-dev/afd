@@ -259,6 +259,7 @@ const ACCOUNT_ANSWERS: Record<string, unknown> = {
 				clientHost: '',
 				scopes: ['loam:read', 'loam:write'],
 				connectedAt: '2026-11-21T09:00:00.000Z',
+				access: { workspace: true, projects: 'sponsor' },
 				status: 'active',
 			},
 		],

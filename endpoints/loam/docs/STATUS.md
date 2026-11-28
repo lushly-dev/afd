@@ -291,6 +291,8 @@ status changes.
 | 2026-11-21 | Phase 3 step 7 | Seven rows dated 2026-11-21 in the [specification's follow-ups](phases/3-identity/spec.md#follow-ups), from the step and its review: three open, four closed in the specification. Rechecked 2026-11-23 ([the row as it stood](STATUS.archive-2026-11-follow-ups.md#follow-up-rows-as-they-stood-on-2026-11-23)) | Open |
 | 2026-11-22 | Phase 3 step 9 | A journaled single sign-on result keeps the authorize URL with its `state`, in the [specification's follow-ups](phases/3-identity/spec.md#follow-ups) | Open |
 | 2026-11-26 | Phase 3 step 10, the exit | The rows of 2026-11-21 "Seven rows dated 2026-11-21" and 2026-11-22 "A journaled single sign-on result": every open row of the [specification's follow-ups](phases/3-identity/spec.md#follow-ups) filed at the exit as #2771 to #2786, sub-issues of #1541; the agent-member table's row closed by phase 6's step 5 | Filed |
+| 2026-11-28 | #2784 | The row of 2026-11-21 "A connected agent's person narrowing its access", filed as #2784: closed in the specification by `account-agent-update` and the agents tab's Change access ([its session](sessions/2026-11-28-t3-loam-connected-agent-access.md)) | Closed |
+| 2026-11-28 | #2784's review | In a browser, an owner sees another person's narrowed connected agent's projects only as a count, in the [specification's follow-ups](phases/3-identity/spec.md#follow-ups) | Open |
 
 ### Follow-ups: phase 4, settings, experiments, notifications, overlays
 

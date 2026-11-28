@@ -552,6 +552,267 @@ describe("P3-E8: the right token runs as the connected agent, for the token's pe
 	});
 });
 
+/**
+ * #2784's job (`docs/phases/3-identity/scenarios/narrow-connected-agent.scenario.yaml`): the person narrows their own
+ * connected agent with `account-agent-update` in their own kernel, a browser's, whose account capability is the
+ * provider's routes by their session, as the web host's is; the agent's next MCP call is decided on the new record.
+ */
+describe('#2784: a person narrows their connected agent, and its next call reads the new record (9.2, 9.5)', () => {
+	let bea: Awaited<ReturnType<typeof connect>>;
+	let beaAgent: string;
+	let browser: KernelParts;
+	const ATLAS = { workspace: 'personal', project: 'prj_atlas' };
+	const record = () =>
+		database
+			.prepare('SELECT * FROM loam_connected_agent WHERE agentId = ?')
+			.get(beaAgent) as Record<string, unknown>;
+
+	beforeAll(async () => {
+		bea = await connect((await token('bea@example.com')).access as string);
+		beaAgent = (
+			database
+				.prepare('SELECT agentId FROM loam_connected_agent WHERE sponsor = ?')
+				.get(people['bea@example.com'] as string) as { agentId: string }
+		).agentId;
+		const page = await as('bea@example.com');
+		const request = async (path: string, body?: unknown): Promise<never> => {
+			const answer = await page.call(path, body === undefined ? {} : { body });
+			if (answer.status !== 200) {
+				const { code, message } = (answer.body ?? {}) as { code?: string; message?: string };
+				throw Object.assign(new Error(message ?? path), { code, status: answer.status });
+			}
+			return answer.body as never;
+		};
+		// Bea's own kernel: her session's person, the provider reached by her session (the web host's `loamAccount`).
+		const auth = new MockAuthAdapter();
+		await auth.signIn({ method: 'credentials', email: 'bea@example.com', password: 'x' } as never);
+		const session = auth.getSession.bind(auth);
+		auth.getSession = () => {
+			const state = session();
+			return state.status === 'authenticated'
+				? { ...state, user: { ...state.user, id: people['bea@example.com'] as string } }
+				: state;
+		};
+		Object.assign(auth, {
+			account: {
+				get: () => request('/loam/account'),
+				update: () => request('/update-user'),
+				members: () => request('/loam/members'),
+				invitations: async () =>
+					((await request('/loam/invitations')) as { invitations: never[] }).invitations,
+				agents: async () =>
+					((await request('/loam/connected-agents')) as { agents: never[] }).agents,
+				updateAgent: async (agent: string, access: unknown) => {
+					await request('/loam/connected-agents/update', { agent, access });
+				},
+			},
+		});
+		const own = new MemoryAdapter();
+		await seedProjects(own, (await store.list('project')).data as never);
+		browser = await createKernelParts({
+			store: own,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth,
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock: createSteppingClock(),
+			random: createSeededRandom('p3-e8-browser'),
+			deployment: scopedDeployment(),
+			ports: scopedPorts(),
+			identity: { mode: 'provider', organization: 'acme', path: 'api/auth', methods: ['passkey'] },
+			membership: {
+				mode: 'provider',
+				members: new Map([[people['bea@example.com'] as string, 'member']]),
+				digest: 'x',
+			},
+		});
+	});
+	afterAll(async () => {
+		await bea?.transport.disconnect();
+		await browser?.kernel.dispose();
+	});
+
+	it('#2784: narrowed to Atlas, its call in Citadel is refused; widened again, it is allowed, on the same token', async () => {
+		const listed = await browser.kernel.call<{ agents: { agent: string; access: unknown }[] }>(
+			'account-agent-list'
+		);
+		expect(listed.data?.agents).toEqual([
+			expect.objectContaining({
+				agent: beaAgent,
+				access: { workspace: true, projects: 'sponsor' },
+			}),
+		]);
+		expect((await bea.call('dual-where', {}, CITADEL)).success).toBe(true);
+
+		const narrowed = await browser.kernel.call('account-agent-update', {
+			agent: beaAgent,
+			access: { workspace: true, projects: ['atlas'] },
+		});
+		expect(narrowed.data).toEqual({
+			agent: beaAgent,
+			access: { workspace: true, projects: ['prj_atlas'] },
+			previous: { workspace: true, projects: 'sponsor' },
+		});
+		expect(JSON.parse(record().access as string)).toEqual({
+			workspace: true,
+			projects: ['prj_atlas'],
+		});
+		expect(record().updatedBy).toBe(people['bea@example.com']);
+		// No token was revoked: the same one works where the record allows, and is refused elsewhere as a missing project.
+		expect((await bea.call('dual-where', {}, ATLAS)).success).toBe(true);
+		expect((await bea.call('project-list')).success).toBe(true);
+		expect((await bea.call('dual-where', {}, CITADEL)).error?.code).toBe('PROJECT_NOT_FOUND');
+		// Another member's list names none of its projects, only how many: the provider cannot tell which they may see.
+		const others = (await (await as('eve@example.com')).call('/loam/connected-agents')).body as {
+			agents: { id: string; access: unknown; withheldProjects?: number }[];
+		};
+		expect(others.agents.find((each) => each.id === beaAgent)).toMatchObject({
+			access: { workspace: true, projects: [] },
+			withheldProjects: 1,
+		});
+		expect(JSON.stringify(others)).not.toContain('prj_atlas');
+		// Approving the same client again, on the consent page, keeps the narrowing: only its person widens it.
+		expect(
+			database
+				.prepare('DELETE FROM oauthConsent WHERE userId = ?')
+				.run(people['bea@example.com'] as string).changes
+		).toBe(1);
+		const again = await token('bea@example.com');
+		expect(again.consent.status).toBe(200);
+		expect(again.access).toBeTypeOf('string');
+		expect(JSON.parse(record().access as string)).toEqual({
+			workspace: true,
+			projects: ['prj_atlas'],
+		});
+		// An undo of a change already replaced (another tab's) is refused, never restoring more than it replaced.
+		const tabA = (await browser.kernel.call('account-agent-update', {
+			agent: beaAgent,
+			access: { workspace: true, projects: [] },
+		})) as { success: boolean; undoCommand?: string; undoArgs?: unknown };
+		expect(tabA.success).toBe(true);
+		const page = await as('bea@example.com');
+		const tabB = await page.call('/loam/connected-agents/update', {
+			body: {
+				agent: beaAgent,
+				access: { workspace: false, projects: [] },
+				previous: { workspace: true, projects: [] },
+			},
+		});
+		expect(tabB.status).toBe(200);
+		const undone = await browser.kernel.call(tabA.undoCommand as string, tabA.undoArgs);
+		expect(undone.error?.code).toBe('AGENT_ACCESS_CHANGED');
+		expect(JSON.parse(record().access as string)).toEqual({ workspace: false, projects: [] });
+		// Undone at once, with nothing in between, it restores what it replaced.
+		const tabC = (await browser.kernel.call('account-agent-update', {
+			agent: beaAgent,
+			access: { workspace: true, projects: 'sponsor' },
+		})) as { undoCommand?: string; undoArgs?: unknown };
+		expect((await browser.kernel.call(tabC.undoCommand as string, tabC.undoArgs)).success).toBe(
+			true
+		);
+		expect(JSON.parse(record().access as string)).toEqual({ workspace: false, projects: [] });
+		await browser.kernel.call('account-agent-update', {
+			agent: beaAgent,
+			access: { workspace: true, projects: 'sponsor' },
+		});
+		const replaced = await page.call('/loam/connected-agents/update', {
+			body: {
+				agent: beaAgent,
+				access: { workspace: false, projects: [] },
+				previous: { workspace: true, projects: ['prj_atlas'] },
+			},
+		});
+		expect([replaced.status, (replaced.body as { code?: string }).code]).toEqual([
+			409,
+			'AGENT_ACCESS_CHANGED',
+		]);
+		expect(JSON.parse(record().access as string)).toEqual({
+			workspace: true,
+			projects: 'sponsor',
+		});
+		await browser.kernel.call('account-agent-update', {
+			agent: beaAgent,
+			access: { workspace: true, projects: ['atlas'] },
+		});
+
+		const widened = await browser.kernel.call('account-agent-update', {
+			agent: beaAgent,
+			access: { workspace: true, projects: 'sponsor' },
+		});
+		expect(widened.success).toBe(true);
+		expect((await bea.call('dual-where', {}, CITADEL)).success).toBe(true);
+	});
+
+	it("#2784: the agent cannot reach the command, and the endpoint refuses another person's change and a malformed one", async () => {
+		const answer = await bea.call('account-agent-update', {
+			agent: beaAgent,
+			access: { workspace: true, projects: 'sponsor' },
+		});
+		expect(answer.error?.code).toBe('COMMAND_NOT_FOUND');
+		const held = record();
+		// No one who is no member learns whether an id is someone's agent: refused before the record is read.
+		const dee = await as('dee@example.com');
+		for (const agent of [beaAgent, 'agt_zzzzzzzzzzzzzzzzzzzz']) {
+			const outside = await dee.call('/loam/connected-agents/update', {
+				body: { agent, access: { workspace: true, projects: 'sponsor' } },
+			});
+			expect([outside.status, (outside.body as { code?: string }).code]).toEqual([
+				403,
+				'WORKSPACE_NOT_MEMBER',
+			]);
+		}
+		const eve = await as('eve@example.com');
+		const other = await eve.call('/loam/connected-agents/update', {
+			body: { agent: beaAgent, access: { workspace: false, projects: [] } },
+		});
+		expect([other.status, (other.body as { code?: string }).code]).toEqual([
+			403,
+			'AGENT_MEMBER_SPONSOR_ONLY',
+		]);
+		const page = await as('bea@example.com');
+		for (const access of [
+			undefined,
+			{ workspace: 'yes', projects: 'sponsor' },
+			{ workspace: true, projects: 'everything' },
+			{ workspace: true, projects: [''] },
+			{ workspace: true, projects: 'sponsor', more: true },
+			{ workspace: true, projects: Array.from({ length: 201 }, (_, at) => `prj_${at}`) },
+		]) {
+			const malformed = await page.call('/loam/connected-agents/update', {
+				body: { agent: beaAgent, access },
+			});
+			expect([malformed.status, (malformed.body as { code?: string }).code]).toEqual([
+				400,
+				'VALIDATION_ERROR',
+			]);
+		}
+		const missing = await page.call('/loam/connected-agents/update', {
+			body: { agent: 'agt_zzzzzzzzzzzzzzzzzzzz', access: { workspace: true, projects: [] } },
+		});
+		expect([missing.status, (missing.body as { code?: string }).code]).toEqual([
+			404,
+			'AGENT_MEMBER_NOT_FOUND',
+		]);
+		// The endpoint's write is conditional on the record as read: one that changed in between matches no row, which
+		// the adapter answers with null, so the endpoint reads again and refuses (an owner's removal in between stands).
+		const raced = await (
+			(await adapter()) as unknown as {
+				update(query: unknown): Promise<unknown>;
+			}
+		).update({
+			model: CONNECTED_AGENT_MODEL,
+			where: [
+				{ field: 'id', value: held.id },
+				{ field: 'access', value: '{"workspace":false,"projects":[]}' },
+			],
+			update: { access: '{"workspace":true,"projects":"sponsor"}' },
+		});
+		expect(raced).toBeNull();
+		expect(record()).toEqual(held);
+	});
+});
+
 describe("P3-E8: what Loam refuses after a valid token (9.2's steps 3 to 6)", () => {
 	it('P3-E8: a read-only token is refused a mutation with a 403', async () => {
 		const reader = await connect(

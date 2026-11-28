@@ -1089,13 +1089,152 @@ describe("P3-E8's kernel half: connected agents, from the provider's table (9.2,
 		const made = await provider();
 		const removeAgent = vi.fn(async () => {});
 		const disconnectAgent = vi.fn(async () => {});
+		const updateAgent = vi.fn(async (_agent: string, _access: AgentMemberV1['access']) => {});
 		Object.assign(made.account, {
 			agents: vi.fn(async () => [beaConnected(extra)]),
 			removeAgent,
 			disconnectAgent,
+			updateAgent,
 		});
-		return { ...made, removeAgent, disconnectAgent };
+		return { ...made, removeAgent, disconnectAgent, updateAgent };
 	}
+
+	it("#2784: `account-agent-update` narrows the person's own to projects they may enter, by id or slug, and widens it", async () => {
+		const made = await withConnected();
+		await signIn(made.kernel, 'bea@example.com');
+		const listed = await made.kernel.call<{ agents: { access: unknown }[] }>('account-agent-list');
+		expect(listed.data?.agents[0]?.access).toEqual({ workspace: true, projects: 'sponsor' });
+		const narrowed = await made.kernel.call('account-agent-update', {
+			agent: CONNECTED,
+			access: { workspace: false, projects: ['atlas', 'prj_atlas', DEN] },
+		});
+		expect(narrowed.success).toBe(true);
+		expect(narrowed.data).toEqual({
+			agent: CONNECTED,
+			access: { workspace: false, projects: [ATLAS, DEN] },
+			previous: { workspace: true, projects: 'sponsor' },
+		});
+		// Undoable through the access it had.
+		expect(narrowed).toMatchObject({
+			undoCommand: 'account-agent-update',
+			undoArgs: { agent: CONNECTED, access: { workspace: true, projects: 'sponsor' } },
+		});
+		// Written only while it is still the access read (#2784's review): `previous` travels with it.
+		expect(made.updateAgent).toHaveBeenLastCalledWith(
+			CONNECTED,
+			{ workspace: false, projects: [ATLAS, DEN] },
+			{ workspace: true, projects: 'sponsor' }
+		);
+		const widened = await made.kernel.call('account-agent-update', {
+			agent: CONNECTED,
+			access: { workspace: true, projects: 'sponsor' },
+		});
+		expect(widened.success).toBe(true);
+		expect(made.updateAgent).toHaveBeenLastCalledWith(
+			CONNECTED,
+			{ workspace: true, projects: 'sponsor' },
+			{ workspace: true, projects: 'sponsor' }
+		);
+		// Recorded (3.4): its whole effect is at the provider, so a replay answers it from its entry.
+		const entries = (await journalOf(made)).filter(
+			(entry) => entry.command === 'account-agent-update'
+		);
+		expect(entries.length).toBe(2);
+		for (const entry of entries) expect(entry.context?.replay).toBe('recorded');
+	});
+
+	it('#2784: a project the person may not enter answers the same `PROJECT_NOT_FOUND` as a missing one, and nothing is written', async () => {
+		const made = await withConnected();
+		await signIn(made.kernel, 'bea@example.com');
+		const update = async (projects: string[]) => {
+			const { success, error } = await made.kernel.call('account-agent-update', {
+				agent: CONNECTED,
+				access: { workspace: true, projects },
+			});
+			return { success, error };
+		};
+		const missing = await update(['nowhere']);
+		expect(missing.success).toBe(false);
+		expect(missing.error).toMatchObject({
+			code: 'PROJECT_NOT_FOUND',
+			suggestion: expect.stringContaining('project-list'),
+		});
+		// Citadel is restricted to someone else: refused byte for byte as a project that does not exist.
+		expect(await update(['citadel'])).toEqual(missing);
+		expect(await update([ATLAS, CITADEL])).toEqual(missing);
+		expect(made.updateAgent).not.toHaveBeenCalled();
+		// Cy may not enter Bea's Den either; but Cy has no agent of Bea's to name at all.
+		await switchTo(made.kernel, 'cy@example.com');
+		expect((await update([ATLAS])).error).toEqual(
+			(await made.kernel.call('account-agent-disconnect', { agent: CONNECTED })).error
+		);
+		expect(made.updateAgent).not.toHaveBeenCalled();
+	});
+
+	it("#2784: another person's narrowed agent, whose projects the provider withholds, counts them as hidden and warns of nothing", async () => {
+		const made = await withConnected({
+			access: { workspace: true, projects: [] },
+			withheldProjects: 2,
+		} as Partial<AgentMemberV1>);
+		await signIn(made.kernel, 'olu@example.com');
+		const listed = await made.kernel.call<{ agents: AgentMemberRowV1[] }>('agent-member-list');
+		expect(listed.data?.agents.find((agent) => agent.id === CONNECTED)).toMatchObject({
+			access: { workspace: true, projects: [] },
+			hiddenProjects: 2,
+			warnings: [],
+		});
+	});
+
+	it("#2784: another person's agent is not found, an owner's removal stands, and no agent changes any access", async () => {
+		const made = await withConnected();
+		await signIn(made.kernel, 'cy@example.com');
+		const input = { agent: CONNECTED, access: { workspace: true, projects: [ATLAS] } };
+		expect((await made.kernel.call('account-agent-update', input)).error?.code).toBe(
+			'AGENT_MEMBER_NOT_FOUND'
+		);
+		await switchTo(made.kernel, 'bea@example.com');
+		// A human command: an agent on the person's behalf is refused it, before the provider.
+		expect((await made.kernel.agent.call('account-agent-update', input)).error?.code).toBe(
+			'HUMAN_REQUIRED'
+		);
+		expect(made.updateAgent).not.toHaveBeenCalled();
+		// The provider's refusal of a record that changed since the list answers as the kernel's own.
+		made.updateAgent.mockRejectedValueOnce(
+			Object.assign(new Error('Only the person who connected it'), {
+				code: 'AGENT_MEMBER_SPONSOR_ONLY',
+			})
+		);
+		expect((await made.kernel.call('account-agent-update', input)).error?.code).toBe(
+			'AGENT_MEMBER_NOT_FOUND'
+		);
+		// Changed since the list (another tab, or an undo of a change already replaced): refused, with the way back.
+		made.updateAgent.mockRejectedValueOnce(
+			Object.assign(new Error('changed'), { code: 'AGENT_ACCESS_CHANGED', status: 409 })
+		);
+		expect((await made.kernel.call('account-agent-update', input)).error).toMatchObject({
+			code: 'AGENT_ACCESS_CHANGED',
+			suggestion: expect.stringContaining('account-agent-list'),
+		});
+		// The access the caller last saw, given as `expected` (the tab, an undo), no longer the record's: refused here.
+		const calls = made.updateAgent.mock.calls.length;
+		expect(
+			(
+				await made.kernel.call('account-agent-update', {
+					...input,
+					expected: { workspace: false, projects: [ATLAS] },
+				})
+			).error?.code
+		).toBe('AGENT_ACCESS_CHANGED');
+		expect(made.updateAgent.mock.calls.length).toBe(calls);
+		const removed = await withConnected({ status: 'suspended', suspended: 'owner' });
+		await signIn(removed.kernel, 'bea@example.com');
+		const refused = await removed.kernel.call('account-agent-update', input);
+		expect(refused.error).toMatchObject({
+			code: 'AGENT_DISCONNECTED_BY_OWNER',
+			suggestion: expect.stringContaining('owner'),
+		});
+		expect(removed.updateAgent).not.toHaveBeenCalled();
+	});
 
 	it('P3-E8: `agent-member-list` and `-get` show a connected agent beside the installed ones, filtered for the caller', async () => {
 		const made = await withConnected();
