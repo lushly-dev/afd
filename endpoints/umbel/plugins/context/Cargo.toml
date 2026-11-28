@@ -29,7 +29,7 @@ umbel-sdk = { path = "../../sdk" }
 [dev-dependencies]
 afd = { path = "../../../../packages/rust", default-features = false }
 # The bundle is validated against `context-bundle.v1.json`.
-jsonschema = { version = "0.61", default-features = false }
+jsonschema = { version = "0.63", default-features = false }
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 # The tests boot a host with the plugin and its grants, with no loader (so no wasmtime).
