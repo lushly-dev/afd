@@ -200,8 +200,34 @@ def test_an_unanswered_filing_with_a_parent_says_how_to_attach_what_it_finds(run
     assert result.error.code == "GITHUB_UNAVAILABLE" and result.error.retryable is False
     assert "issue-set" in result.error.suggestion and "parent 101" in result.error.suggestion
     assert "gh issue list" in result.error.suggestion
-    assert result.error.details == {"title": "Part one"}
+    assert result.error.details == {"title": "Part one", "search": 'in:title "Part one"'}
     assert attached == []  # The attach never ran.
+
+
+@pytest.mark.parametrize(
+    ("title", "phrase"),
+    [
+        ("Part one", 'in:title "Part one"'),
+        # A double quote, which GitHub's search cannot escape in a phrase, becomes a space.
+        ('It\'s $(touch x) `id` "done"', 'in:title "It\'s $(touch x) `id`  done "'),
+        ("Team’s release", 'in:title "Team’s release"'),
+        ("Part\nof it", 'in:title "Part of it"'),
+    ],
+)
+def test_an_unanswered_filing_s_title_is_never_in_a_command_line(run, monkeypatch, title, phrase):
+    """No quoting is safe in every shell an agent pastes into, so the search is a detail to pass
+    as one argument, and the suggestion holds no part of the title (#2907)."""
+    from botcore_factory.gateway.github import GitHubUnavailable
+
+    def lost(self, *args, **kwargs):
+        raise GitHubUnavailable("POST /repos/x answered 502")
+
+    monkeypatch.setattr(FakeGitHub, "create_issue", lost)
+    result = run()("foreman", "issue-create", repo=REPO, title=title, body="B")
+    assert result.error.details == {"title": title, "search": phrase}
+    suggestion = result.error.suggestion
+    assert f"gh issue list --repo {REPO} --state open --search" in suggestion
+    assert "details.search" in suggestion and title.split()[0] not in suggestion
 
 
 def test_merge_refuses_a_check_main_does_not_require(run):

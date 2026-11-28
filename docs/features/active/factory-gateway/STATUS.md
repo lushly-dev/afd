@@ -691,6 +691,42 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
     and a mocked App only. Watched failing: the new test's two cases without a key fail on
     `main`'s code.
   - **Open:** `random` serves it after the owner's update.
+- 2026-11-27: the unanswered filing's search is safe to paste
+  ([#2907](https://github.com/lushly-dev/afd/issues/2907)). The suggestion put the title raw
+  inside single quotes, so an apostrophe broke the command and a crafted title could run one;
+  it also matched the title's words anywhere and named no repository. The search
+  (`in:title "<title>"`, one phrase) is now `details.search`, and the suggestion says to pass it
+  as one argument to `gh issue list --repo <repo> --state open --search`; no part of the title
+  is in a command line. Windows PowerShell 5.1 still splits the phrase at its double quotes when
+  it passes the argument to `gh`, so the suggestion says to escape them there as `\"`.
+  `shlex.quote` was tried and dropped: it holds only in a POSIX shell, and
+  Windows PowerShell 5.1 split a quoted multi-word phrase and ended a string at a curly
+  apostrophe (both reviewers, and the CI bug-sweep session's reviewer, ran it). A double quote
+  or a line break in the title, which a search phrase cannot hold, becomes a space. The
+  proposal now says an attach without a `dedupe_key` is not retryable even when it never
+  reached GitHub, and G4's builds record that a gateway issue search replaces this `gh` read.
+  - **Checked** with `uv run --frozen pytest -q` in `botcore-factory`; the new test (a plain
+    title, one with an apostrophe, a command substitution and double quotes, and one with a
+    curly apostrophe) fails on `main`'s code.
+  - **Open:** `random` serves it after the owner's update.
+- 2026-11-27: the door check finds the other ways to write a branch
+  ([#2906](https://github.com/lushly-dev/afd/issues/2906)). `scripts/check-process.mjs` now
+  refuses GraphQL `updateRefs`, `deleteRef`, `createCommitOnBranch`, `mergeBranch` and
+  `updatePullRequestBranch`, and REST writes to `contents`, `git/commits`, `git/trees`,
+  `merge-upstream` and `branches/<name>/rename` (a name with a slash too), and the CLI's `gh pr update-branch` and
+  `gh repo sync <repo>`, which move or commit to a branch and so skip
+  `branch-push`'s owner-author check. `\bupdateRef\b` had not matched `updateRefs`, nor
+  `\bupdatePullRequest\b` `updatePullRequestBranch`. A quoted method (`-X 'GET'`) now reads as
+  that method, so a quoted `GET` with fields stays a read. Reads of contents, commits and a
+  branch's protection stay allowed. Kept as it was: a name anywhere after `gh api graphql` is
+  refused, so a search string naming a mutation is refused too, since narrowing it lost the
+  tested case of a mutation named in a comment beside `-f query=@file`.
+  - **Checked:** a plant of `updateRefs`, `deleteRef`, `createCommitOnBranch` and a `PUT`
+    to `contents` in `docs/operations/factory-gateway.md` passed before the change and was
+    named after it, then removed; the later names' test lines fail on the earlier patterns;
+    `node --test scripts/check-process.test.mjs` passes 22 of 22; Lushly's half at `cbb6dfdbc`
+    still passes (615 files read, 20 allowed), so no Lushly file makes these writes.
+  - **Open:** Lushly's copy follows with `pnpm process:sync` once this merges.
 
 ## Follow-ups not yet issues
 
