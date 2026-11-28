@@ -1,6 +1,6 @@
 # Phase 3 specification: identity
 
-Epic: [#1542](https://github.com/lushly-dev/afd/issues/1542). File new work for this area as its sub-issue.
+Epic: [#3082](https://github.com/lushly-dev/afd/issues/3082). File new work for this area as its sub-issue. The phase's own epic, [#1542](https://github.com/lushly-dev/afd/issues/1542), closed at the exit (2026-11-26); #3082 holds what came after.
 
 | Field | Value |
 | --- | --- |
