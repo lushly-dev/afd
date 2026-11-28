@@ -1,50 +1,62 @@
 {
 	"schemaVersion": 1,
-	"selectedUnits": ["fast-element", "violet-elements", "violet-npm"],
-	"inventoryHash": "44c4dfb5bb6c3228475ab0cb1ee10c02f03534c0f2ed52314f5b8918826ed801",
-	"sourceDigest": "1723a1db40fa3e28ac7e3ad40c8e4819720934965be7e1645bf1714345613fb1",
+	"selectedUnits": ["afd-npm"],
+	"inventoryHash": "36772ca4927bae4fe405b384b417951806ea0b1a6e9ea9c2e0be5c63e5657210",
+	"sourceDigest": "5eb56bc24879857de42779b8c71cf9581335318a89f556e9e05ec48cc723c085",
 	"distributions": [
 		{
-			"name": "@lushly-dev/fast-element",
-			"version": "3.1.4-preview.1",
-			"manifest": "foundations/fast-af/packages/element/packages/fast-element/package.json",
-			"manifestHash": "0cff793b2c4260a431cd85bf2a4cc852eb394018fb764c673f3bba220464fa0e"
+			"name": "@lushly-dev/afd-adapters",
+			"version": "3.0.0",
+			"manifest": "packages/adapters/package.json",
+			"manifestHash": "1276bdbde434e6c46449ee03dff6f2e641d87b1b776d06c0b61fd0726f45241b"
 		},
 		{
-			"name": "@lushly-dev/violet-elements",
-			"version": "0.2.0-preview.7",
-			"manifest": "foundations/fast-af/packages/violet-elements/package.json",
-			"manifestHash": "280c40a33b71c649ff3f74e80f4617bb6180d645d01c14e4fcb77235fb027ccb"
+			"name": "@lushly-dev/afd-auth",
+			"version": "3.0.0",
+			"manifest": "packages/auth/package.json",
+			"manifestHash": "453ff3c461ebd2035b32ab534f84ec853f963d4a06ba68c6f535fc86a9768d9b"
 		},
 		{
-			"name": "@lushly-dev/violet-core",
-			"version": "0.3.0-preview.7",
-			"manifest": "foundations/violet/packages/core/package.json",
-			"manifestHash": "cd51d9bf05b8dbc573e71d1e06083f90a8be812b6d3f0866abcacf63834d39ef"
+			"name": "@lushly-dev/afd-cli",
+			"version": "3.0.0",
+			"manifest": "packages/cli/package.json",
+			"manifestHash": "cd7d0e46e00ecb145506168cc92a8ea03a74d208243b148f6da321b6d41a3f14"
 		},
 		{
-			"name": "@lushly-dev/violet-runtime",
-			"version": "0.3.0-preview.7",
-			"manifest": "foundations/violet/packages/runtime/package.json",
-			"manifestHash": "b1f639b884805a6031e73ab696e7cc97f3d762cf7ef5251e3b85cf551287a6ea"
+			"name": "@lushly-dev/afd-client",
+			"version": "3.0.0",
+			"manifest": "packages/client/package.json",
+			"manifestHash": "49907f4f4d622500f528d04e87b5380d5475f9e4ef9d248de471f966f6b3df27"
 		},
 		{
-			"name": "@lushly-dev/violet-cli",
-			"version": "0.3.0-preview.7",
-			"manifest": "endpoints/violet-cli/package.json",
-			"manifestHash": "fa8619fff308727fddd060bbf1739afad9b41a4da544f713ac92e6c1920d5fa1"
+			"name": "@lushly-dev/afd-core",
+			"version": "3.0.0",
+			"manifest": "packages/core/package.json",
+			"manifestHash": "674110f9b3986cc37a0d615b0dae22944ad3ad4c8a247b4a613cd523c8b7e5b1"
 		},
 		{
-			"name": "@lushly-dev/violet-server",
-			"version": "0.3.0-preview.7",
-			"manifest": "endpoints/violet-server/package.json",
-			"manifestHash": "e7bde47a2172016445be669d36b5afedf5fa4c3098458614ee60b5eff2cf4f02"
+			"name": "@lushly-dev/local-db",
+			"version": "3.0.0",
+			"manifest": "packages/local-db/package.json",
+			"manifestHash": "732aff1744dee631b9ee25f688ee373b4c4003cd772d0947e1dd394b939b349e"
 		},
 		{
-			"name": "@lushly-dev/violet-afd",
-			"version": "0.3.0-preview.7",
-			"manifest": "integrations/violet-afd/package.json",
-			"manifestHash": "89c3be07358710a853f7f9d04a52b2bd6c0631dd87e9ad226987507cb13f8cbc"
+			"name": "@lushly-dev/afd-server",
+			"version": "3.0.0",
+			"manifest": "packages/server/package.json",
+			"manifestHash": "7dc8b1c78f757f0f612168ffa5215c3fb13189671d4b628fe3eaf34677560c39"
+		},
+		{
+			"name": "@lushly-dev/afd-testing",
+			"version": "3.0.0",
+			"manifest": "packages/testing/package.json",
+			"manifestHash": "f50d56a6b4ee3473ab6f9c0d2aa56af146999d0d21197d48001e21ba242c461a"
+		},
+		{
+			"name": "@lushly-dev/afd-view-state",
+			"version": "3.0.0",
+			"manifest": "packages/view-state/package.json",
+			"manifestHash": "d387a93d0ba00871ef80153c20796c5688847201fcf84b8624c93328f0cc7dc0"
 		}
 	]
 }
