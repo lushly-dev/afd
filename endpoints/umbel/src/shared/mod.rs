@@ -147,7 +147,10 @@ pub(crate) fn copy_before_migration(path: &Path, from: i64) -> rusqlite::Result<
             .map(drop)
     })
     .and_then(|()| {
-        fs::File::open(&partial)
+        // Opened to write: Windows refuses to flush a handle opened only to read.
+        fs::OpenOptions::new()
+            .write(true)
+            .open(&partial)
             .and_then(|file| file.sync_all())
             .and_then(|()| fs::hard_link(&partial, &copy))
             .map_err(refused)
