@@ -1462,6 +1462,43 @@ test("Milestone A: the committed minimums are a manual run's counts, one for eac
 	});
 });
 
+test('Milestone A: a minimums file holding placeholders fails the check, named, end to end (#2658)', () => {
+	const dir = mkdtempSync(join(tmpdir(), 'loam-exit-p5-'));
+	const written = join(dir, 'minimums.json');
+	try {
+		const { minimums, ...input } = p5();
+		// The fixture's counts, so only the placeholder can fail the run: listed, the milestone's key fails it.
+		writeFileSync(written, JSON.stringify({ placeholder: ['a'], minimums: { a: minimums } }));
+		const problem = `${written} holds placeholder counts, not a manual run's: set them from the runs' --print-minimums`;
+		assert.deepEqual(checkExit({ ...input, minimumsFiles: { '5-a': written } }).problems, [
+			problem,
+		]);
+		// `true` fails it too; another milestone's key, or none, does not.
+		writeFileSync(written, JSON.stringify({ placeholder: true, minimums: { a: minimums } }));
+		assert.deepEqual(checkExit({ ...input, minimumsFiles: { '5-a': written } }).problems, [
+			problem,
+		]);
+		writeFileSync(written, JSON.stringify({ placeholder: ['b'], minimums: { a: minimums } }));
+		assert.deepEqual(checkExit({ ...input, minimumsFiles: { '5-a': written } }).problems, []);
+		// The file's counts are read in the committed file's place, and a shortfall names that file.
+		writeFileSync(
+			written,
+			JSON.stringify({ minimums: { a: { ...minimums, A5: { kernelUnits: 9 } } } })
+		);
+		assert.deepEqual(checkExit({ ...input, minimumsFiles: { '5-a': written } }).problems, [
+			`P5-A5: 1 passing titles in Kernel units, fewer than the 9 ${written} records`,
+		]);
+		// Minimums given outright win over the file, as they win over the committed one.
+		writeFileSync(written, JSON.stringify({ placeholder: true, minimums: { a: {} } }));
+		assert.deepEqual(
+			checkExit({ ...input, minimums, minimumsFiles: { '5-a': written } }).problems,
+			[]
+		);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
+
 test('Milestone A: the arguments are three run ids with `--phase 5 --milestone a`, each flag at most once', () => {
 	assert.deepEqual(
 		parseArgs(['--phase', '5', '--milestone', 'a', '1', '2', '3', '--allow-rerun']),
