@@ -5519,10 +5519,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "e34870403fe28aed03fd3c6d533b995e2ba5c5b6a1513baff642f8860abdba56",
+      "current_import_sha256": "5638d05a9ca98f2fda6816b22f499611fdd1ec22e1563cfb467763af8e5f554b",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py; Add Health 1.0 trend measures producers to bloat-sweeper and gate-discipline skills (#1387)"
+      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py; Add Health 1.0 trend measures producers to bloat-sweeper and gate-discipline skills (#1387); Quarantine check reads a chain past runIf/skipIf (lushly-dev/afd#2927); config check reads passWithNoTests in shared and imported Vitest modules and added paths, refuses computed keys and false-led expressions (lushly-dev/afd#2942); Quarantine check reads a chain past runIf/skipIf (lushly-dev/afd#2927); config check reads passWithNoTests in shared and imported Vitest modules and added paths, refuses computed keys, assignments and false-led expressions (lushly-dev/afd#2942)"
     },
     {
       "path": "src/botcore/skills/gate-discipline/scripts/check-test-configs.mjs",
@@ -5530,10 +5530,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "1802e7fe9c69fc45eaf43f2c94b6c3efbb73fb7334e923180a1785a782e0858e",
+      "current_import_sha256": "6fec1d1f5b5a9a899e34e9597be94f6ac57ce52e06e88373a91fe1e3dbfdbf35",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Moved from AFD's scripts/check-test-configs.mjs (lushly-dev/afd#1405) and generalised for seeded repositories; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."
+      "import_reason": "Moved from AFD's scripts/check-test-configs.mjs (lushly-dev/afd#1405) and generalised for seeded repositories; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Quarantine check reads a chain past runIf/skipIf (lushly-dev/afd#2927); config check reads passWithNoTests in shared and imported Vitest modules and added paths, refuses computed keys and false-led expressions (lushly-dev/afd#2942); Quarantine check reads a chain past runIf/skipIf (lushly-dev/afd#2927); config check reads passWithNoTests in shared and imported Vitest modules and added paths, refuses computed keys, assignments and false-led expressions (lushly-dev/afd#2942)"
     },
     {
       "path": "src/botcore/skills/gate-discipline/scripts/check-test-discovery.mjs",
@@ -5552,10 +5552,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "8644e9ea393df046aa223788ee9c674036f0a6c230f50b0ce7b7976237dd21f7",
+      "current_import_sha256": "1bc610639406478f5900cd1aaf47a0521fe55a1fb954c8b41be615112a48d9e1",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."
+      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Quarantine check reads a chain past runIf/skipIf (lushly-dev/afd#2927); config check reads passWithNoTests in shared and imported Vitest modules and added paths, refuses computed keys and false-led expressions (lushly-dev/afd#2942); Quarantine check reads a chain past runIf/skipIf (lushly-dev/afd#2927); config check reads passWithNoTests in shared and imported Vitest modules and added paths, refuses computed keys, assignments and false-led expressions (lushly-dev/afd#2942)"
     },
     {
       "path": "src/botcore/skills/gate-discipline/scripts/discovery-parsers.mjs",
