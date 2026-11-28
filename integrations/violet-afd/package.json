@@ -58,7 +58,7 @@
 		"clean": "rm -rf dist *.tsbuildinfo"
 	},
 	"dependencies": {
-		"@lushly-dev/afd-core": "workspace:^2.2.0",
+		"@lushly-dev/afd-core": "workspace:^2.2.0 || ^3.0.0",
 		"@neondatabase/serverless": "^1.1.0",
 		"nanoid": "^6.0.2",
 		"ws": "^8.23.0",

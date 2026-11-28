@@ -37,8 +37,8 @@
 	"dependencies": {
 		"@lushly-dev/specimen": "workspace:^",
 		"@lushly-dev/specimen-afd": "workspace:^",
-		"@lushly-dev/afd-core": "workspace:^2.2.0",
-		"@lushly-dev/afd-server": "workspace:^2.2.0",
+		"@lushly-dev/afd-core": "workspace:^2.5.0 || ^3.0.0",
+		"@lushly-dev/afd-server": "workspace:^2.5.0 || ^3.0.0",
 		"zod": "^4.6.6"
 	},
 	"repository": {

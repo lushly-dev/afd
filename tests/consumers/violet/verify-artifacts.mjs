@@ -227,7 +227,7 @@ assert(
 	semver.satisfies(VERSION, CORE_PEER),
 	`the integration peer ${CORE_PEER} rejects core ${VERSION}`
 );
-assert.equal(afd.dependencies[AFD_CORE], '^2.2.0');
+assert.equal(afd.dependencies[AFD_CORE], '^2.2.0 || ^3.0.0');
 assert.deepEqual(Object.keys(afd.exports), ['.', './worker', './commands', './css', './types']);
 const cli = packedManifest(CLI);
 assert.deepEqual(cli.bin, { violet: './dist/bin.js' });
@@ -243,7 +243,7 @@ for (const manifest of [core, runtime, afd, cli, server]) {
 	assert(!JSON.stringify(manifest).includes('workspace:'), `${manifest.name} leaks workspace:`);
 }
 passed(
-	`packed manifests: core needs only zod and the dependency-free runtime (storage drivers optional), no AFD text in its files; integration peers core ${CORE_PEER} and depends on afd-core ^2.2.0; binaries preserved; all at ${VERSION}`
+	`packed manifests: core needs only zod and the dependency-free runtime (storage drivers optional), no AFD text in its files; integration peers core ${CORE_PEER} and depends on afd-core ^2.2.0 || ^3.0.0; binaries preserved; all at ${VERSION}`
 );
 
 // ---- Violet only: native core without optional drivers, and runtime ---------------------------
@@ -710,7 +710,7 @@ assert(isSuccess(success(1)));
 );
 run(sharedRoot, 'shared.mjs');
 passed(
-	`AFD ${packedManifest(AFD_CORE).version} in the consumer satisfies ^2.2.0: the integration shares the consumer's single afd-core`
+	`AFD ${packedManifest(AFD_CORE).version} in the consumer satisfies ^2.2.0 || ^3.0.0: the integration shares the consumer's single afd-core`
 );
 
 // ---- Integration incompatible and unavailable ----------------------------------------------------
