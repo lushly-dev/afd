@@ -52,6 +52,19 @@ const DEFAULT_MANIFEST = 'docs/features/active/factory-gateway/process.json';
 /** An allow entry's issue: one GitHub issue, by its URL. */
 const ISSUE_URL = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+$/u;
 
+/** The rest of a shell command: across backslash continuations, up to `;`, `&`, `|` or a backtick. */
+const COMMAND = '(?:\\\\\\n|[^\\n;&|`])*';
+/** A space on the same line, or a backslash continuation: never a bare line break. */
+const SPACE = '(?:[^\\S\\n]|\\\\\\n)';
+/** The space between two arguments. */
+const GAP = `${SPACE}+`;
+/** A method flag before its value: `-X GET`, `-XGET`, `-X=GET`, `--method GET`, `--method=GET`. */
+const METHOD = `${SPACE}(?:-X|--method\\b)${SPACE}*(?:=${SPACE}*)?`;
+/** A method flag, wherever its value is. */
+const METHOD_FLAG = `${SPACE}(?:-X|--method\\b)`;
+/** One argument, up to the end of the command. */
+const WORD = '[^\\s;&|`]+';
+
 /**
  * The GitHub writes the gateway serves, as text: the CLI's (`gh issue edit`, with `--repo`, any
  * spacing or backslash continuations), the REST API's writes (a write method, or fields without
@@ -59,16 +72,23 @@ const ISSUE_URL = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+$/u;
  * GraphQL mutations beside `mutation`, `gh api graphql` or `(input:`. A branch is written through
  * `branch-push` only, so the API ways to move, merge into, rename or commit to one that these
  * lists name (refs, commits, trees, contents, merges, merge-upstream, a rename) are writes too.
- * A method may be quoted (`-X 'GET'`).
+ * A method may be quoted (`-X 'GET'`, `-X \"POST\"` in a JSON string) or joined to its flag
+ * (`-X=POST`), and the last method flag is the one gh sends.
  */
 export const DOOR_PATTERNS = [
 	'\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+issue[\\s\\\\]+(?:edit|comment|create)\\b',
 	'\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+pr[\\s\\\\]+(?:create|merge|edit|ready|comment|update-branch)\\b',
 	// `gh repo sync` with a repository syncs that fork's branch on GitHub; without one it only
-	// updates the local clone.
-	'\\bgh[\\s\\\\]+repo[\\s\\\\]+sync\\b(?=(?:\\\\\\n|[^\\n;&|`])*\\s[\\w.-]+/[\\w.-]+)',
+	// updates the local clone. The repository is an argument that is no flag's value: `o/r`, a
+	// URL, a quoted value or a variable. `--source` names the repository synced from, which a
+	// local sync takes too.
+	`\\bgh[\\s\\\\]+repo[\\s\\\\]+sync\\b(?:${GAP}(?:-[bs](?:${GAP}|=)?|--(?:branch|source)(?:${GAP}|=))${WORD}|${GAP}(?!-[bs]|--(?:branch|source)(?![\\w-]))-[\\w-]+(?:=${WORD})?)*${GAP}(?:\\\\?["'$%]|[\\w.:@][\\w.:@-]*/)[^\\s;&|\`]*`,
 	'\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+variable[\\s\\\\]+set\\b',
-	'\\bgh[\\s\\\\]+api\\b(?!(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])["\']?[Gg][Ee][Tt]\\b)(?=(?:\\\\\\n|[^\\n;&|`])*/(?:issues|pulls|labels|comments|assignees|check-runs|statuses|variables|merges|git/refs|git/commits|git/trees|contents|merge-upstream|branches/\\S+?/rename)\\b)(?=(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])["\']?(?:[Pp][Oo][Ss][Tt]|[Pp][Aa][Tt][Cc][Hh]|[Pp][Uu][Tt]|[Dd][Ee][Ll][Ee][Tt][Ee])\\b|(?:\\\\\\n|[^\\n;&|`])*\\s(?:-[fF]|--field|--raw-field|--input)[\\s=])(?:\\\\\\n|[^\\n;&|`])*',
+	// gh takes the last method flag, so a call is a read only when that flag is `GET`. A `GET` that
+	// ends a field's quoted value (`-f body="use -X GET"`) is not a flag, so a whole call in quotes
+	// that ends in its `GET` (`"gh api ... -X GET"`) is refused: a loud miss, where the other way
+	// round would be a silent one.
+	`\\bgh[\\s\\\\]+api\\b(?!${COMMAND}${METHOD}(?<q>\\\\?["'])?[Gg][Ee][Tt]\\k<q>(?![^\\s;&|\`])(?!${COMMAND}${METHOD_FLAG}))(?=${COMMAND}/(?:issues|pulls|labels|comments|assignees|check-runs|statuses|variables|merges|git/refs|git/commits|git/trees|contents|merge-upstream|branches/\\S+?/rename)\\b)(?=${COMMAND}${METHOD}(?:\\\\?["'])?(?:[Pp][Oo][Ss][Tt]|[Pp][Aa][Tt][Cc][Hh]|[Pp][Uu][Tt]|[Dd][Ee][Ll][Ee][Tt][Ee])\\b|${COMMAND}${SPACE}(?:-[fF]|--field|--raw-field|--input)[\\s=])${COMMAND}`,
 	'(?:\\bmutation\\b|\\bgh[\\s\\\\]+api[\\s\\\\]+graphql\\b)(?:\\\\\\n|[^\\n])*\\b(?:enqueuePullRequest|dequeuePullRequest|enablePullRequestAutoMerge|disablePullRequestAutoMerge|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|clearLabelsFromLabelable|createRef|updateRef|updateRefs|deleteRef|createCommitOnBranch|mergeBranch|updatePullRequestBranch|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue|updateIssueIssueType|addSubIssue|removeSubIssue)\\b|\\b(?:enqueuePullRequest|dequeuePullRequest|enablePullRequestAutoMerge|disablePullRequestAutoMerge|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|clearLabelsFromLabelable|createRef|updateRef|updateRefs|deleteRef|createCommitOnBranch|mergeBranch|updatePullRequestBranch|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue|updateIssueIssueType|addSubIssue|removeSubIssue)\\s*\\(\\s*input\\s*:',
 ];
 
