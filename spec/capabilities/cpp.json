@@ -273,6 +273,11 @@
 				"packages/cpp/tests/journal_secret_test.cpp"
 			]
 		},
+		"single.journal-own-sources": {
+			"status": "yes",
+			"note": "`CommandRegistry::execute` takes the context by value and runs the chain synchronously; `compose_middleware` takes it by reference, so a chain composed by hand and run on one context from two threads would share it, a data race on every field that is unsupported",
+			"evidence": ["packages/cpp/include/afd/registry.hpp", "packages/cpp/src/journal_replay.cpp"]
+		},
 		"middleware.chain": {
 			"status": "yes",
 			"evidence": [

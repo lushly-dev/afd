@@ -183,6 +183,10 @@
 			"label": "`secret` commands in the journal ([`spec/journal.md`](../spec/journal.md)): a call to a command declaring `secret` is never recorded without `redact`, whatever `filter` says"
 		},
 		{
+			"id": "single.journal-own-sources",
+			"label": "A call's clock and random source are its own ([`spec/journal.md`](../spec/journal.md), [#2703](https://github.com/lushly-dev/afd/issues/2703)): recording a call or keeping it off tape never changes what a concurrent call on the same context reads"
+		},
+		{
 			"id": "middleware.chain",
 			"label": "Middleware chain"
 		},
@@ -621,6 +625,9 @@
 				},
 				{
 					"capability": "single.journal-secret"
+				},
+				{
+					"capability": "single.journal-own-sources"
 				},
 				{
 					"capability": "single.dispatch-id"

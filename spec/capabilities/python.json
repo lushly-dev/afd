@@ -252,6 +252,15 @@
 				"python/tests/test_journal_secret.py"
 			]
 		},
+		"single.journal-own-sources": {
+			"status": "yes",
+			"note": "`create_journal_middleware` and `run_off_tape` set a per-dispatch view in a context variable, so an engine sharing one context (Botcore's `CommandHost`) is covered; a read on a thread without context variables goes to the innermost step when the running steps are nested; beside siblings it reads the context's own source and marks the running recordings `truncated`",
+			"evidence": [
+				"python/src/afd/server/journal_view.py",
+				"python/src/afd/server/journal.py",
+				"python/tests/test_journal_secret.py"
+			]
+		},
 		"middleware.chain": {
 			"status": "yes",
 			"evidence": ["python/src/afd/server/middleware.py", "python/tests/test_middleware.py"]

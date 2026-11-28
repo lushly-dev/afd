@@ -389,7 +389,10 @@ An engine of its own that runs AFD middleware outside AFD's executor, such as Bo
 the context it passes down the chain, bind the continuation it hands the chain, and close it when
 the call ends (as a context manager it closes itself). `compose_middleware` passes the binding on.
 An engine whose own chain may hold no recorder runs a secret call through
-`afd.server.run_off_tape(context, next_fn)`, so it reads no recording parent's tape.
+`afd.server.run_off_tape(context, next_fn)`, so it reads no recording parent's tape. The recorder
+and `run_off_tape` set the clock and random source for their own dispatch only, so calls an engine
+runs concurrently on one context object each read their own (#2703). Move work that reads them to
+another thread with `asyncio.to_thread`, which carries the dispatch along.
 
 ```python
 from afd.core import open_dispatch

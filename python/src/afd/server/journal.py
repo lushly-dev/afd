@@ -55,6 +55,7 @@ from afd.core.result import CommandResult, coerce_command_result, execution_fail
 from afd.core.running_command import running_command_secret
 from afd.core.wire import to_wire
 from afd.server.context_fields import JOURNALED_CONTEXT_FIELDS
+from afd.server.journal_view import dispatch_source, run_with_sources
 
 __all__ = [
     "MAX_JOURNAL_CONTEXT_BYTES",
@@ -199,23 +200,23 @@ async def _off_tape(context: Any, next_fn: Callable[[], Awaitable[_T]]) -> _T:
     random source a recording parent wrapped, which would put the values that built the secret
     on the parent's tape. The tape of every recording layer around it is marked ``truncated``
     instead, so their replays say they cannot restore every value.
+
+    It reads and sets the sources of this dispatch only (:mod:`afd.server.journal_view`), so a
+    concurrent call on the same context object keeps its own (#2703).
     """
-    clock = getattr(context, "clock", None)
-    random = getattr(context, "random", None)
+    clock = dispatch_source(context, "clock")
+    random = dispatch_source(context, "random")
     tapes = [*_tapes(clock), *_tapes(random)]
-    if not tapes:
-        return await next_fn()
     for tape in tapes:
         tape.truncated = True
-    if clock is not None:
-        context.clock = _untaped(clock)
-    if random is not None:
-        context.random = _untaped_random(random)
-    try:
-        return await next_fn()
-    finally:
-        context.clock = clock
-        context.random = random
+    # Set even with no tape around it: the call then counts as running on the context, so a read
+    # on a thread without context variables is never given a sibling's recorder. A context that
+    # takes no attributes has no recorder to keep it from.
+    sources = {
+        "clock": _untaped(clock) if clock is not None else None,
+        "random": _untaped_random(random) if random is not None else None,
+    }
+    return await run_with_sources(context, sources, next_fn, required=bool(tapes))
 
 
 async def run_off_tape(context: Any, next_fn: Callable[[], Awaitable[_T]]) -> _T:
@@ -449,8 +450,9 @@ def create_journal_middleware(
         if not accept(command_name):
             return await next_fn()
 
-        clock: Clock = getattr(context, "clock", None) or system_clock
-        random: RandomSource = getattr(context, "random", None) or system_random
+        # The sources this dispatch reads, never another call's on the same context (#2703).
+        clock: Clock = dispatch_source(context, "clock") or system_clock
+        random: RandomSource = dispatch_source(context, "random") or system_random
         tape = JournalTape()
 
         def keep(values: list[float], value: float) -> None:
@@ -459,9 +461,12 @@ def create_journal_middleware(
             else:
                 tape.truncated = True
 
-        # The same context object reaches the handler, so swapping its sources records what it reads.
-        context.clock = _RecordingClock(clock, keep, tape)
-        context.random = _RecordingRandom(random, keep, tape)
+        # The same context object reaches the handler, so giving this dispatch recording sources on
+        # it records what the handler reads, and only this dispatch's reads.
+        recording = {
+            "clock": _RecordingClock(clock, keep, tape),
+            "random": _RecordingRandom(random, keep, tape),
+        }
 
         # This journal's own timing reads the clock under any outer journal's recorder.
         timing = _untaped(clock)
@@ -477,12 +482,11 @@ def create_journal_middleware(
         result: Any = None
         thrown: BaseException | None = None
         try:
-            result = await next_fn()
+            result = await run_with_sources(
+                context, recording, next_fn, missed=lambda: setattr(tape, "truncated", True)
+            )
         except Exception as exc:
             thrown = exc
-        finally:
-            context.clock = clock
-            context.random = random
         duration_ms = max(0, timing.now() - start)
 
         # What the server returns for a raise outside dev_mode, never the exception message.

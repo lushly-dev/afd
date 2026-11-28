@@ -89,7 +89,12 @@ the engine's `next` unchanged, or composes it with the binding's own middleware 
 declaration stays readable.
 A secret call left unrecorded inside a recorded call reads neither of the parent's taped sources,
 and the tape of every recording layer around it is marked `truncated`, so their replays cannot
-restore every value. The flag
+restore every value. Those sources are each call's own: recording a call, or keeping one off tape,
+never changes the clock or random source that a concurrent call on the same context object reads,
+so a secret call's values reach no sibling's tape. Where an implementation cannot tell whose read a
+value is (Python, on a thread that carries no context variables), the read takes neither call's
+sources and every recording running on the context is marked `truncated`.
+The flag
 covers the call itself: a value it returns that a later pipeline step or a calling handler passes
 on is that command's input, recorded unless it too is `secret` or redacted. The default `filter`
 also skips commands named `auth-*`, as before, and `filter` and `redact` handle the rest. When a secret is derived from `context.random`, the redaction must drop the tape too: its

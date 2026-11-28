@@ -272,6 +272,11 @@
 			"note": "`secret` on `CommandDefinition`/`defineCommand`; `createJournalMiddleware` reads it from the command the engine runs and passes `{ secret }` to `redact`",
 			"evidence": ["packages/server/src/journal.ts", "packages/server/src/journal.test.ts"]
 		},
+		"single.journal-own-sources": {
+			"status": "partial",
+			"note": "Every engine gives each dispatch its own context (`withContextDefaults`, the `DirectClient`'s call context); `offTape` and the recorder still swap sources on a context a hand-composed chain shares (#2890)",
+			"evidence": ["packages/core/src/actor.ts", "packages/server/src/journal.ts"]
+		},
 		"middleware.chain": {
 			"status": "yes",
 			"evidence": ["packages/server/src/middleware.ts"]

@@ -209,9 +209,10 @@ engine: it records other calls without `redact` and never records a secret one
 without it. A secret call runs off every recording tape around it
 (`afd.server.run_off_tape`), even with no journal in the host's chain, such as a
 secret command a handler calls inside a call an outer journal records
-(`spec/journal.md`). The isolation
+(`spec/journal.md`). With afd 0.14.0 the isolation
 assumes one call at a time on a context: calls running concurrently on one
-context object can still see each other's sources (#2703).
+context object can see each other's sources. Later releases give each call its
+own (#2703).
 `create_host_mcp_server` declares it on the AFD command it registers too. A handler reads the context with
 `botcore.context.current_call()` instead of taking the caller as an input.
 

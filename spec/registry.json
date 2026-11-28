@@ -301,7 +301,8 @@
 				"single.journal-replay",
 				"single.journal-range-last",
 				"single.journal-append-order",
-				"single.journal-secret"
+				"single.journal-secret",
+				"single.journal-own-sources"
 			]
 		},
 		{

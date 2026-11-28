@@ -745,3 +745,407 @@ async def test_retry_behind_open_dispatch_repeats_only_a_declared_non_mutation(
     with open_dispatch(context, secret=False, mutation=mutation) as dispatch:
         await chain("probe", {}, context, dispatch.bind(flaky))
     assert len(calls) == attempts
+
+
+# ── Concurrent calls on one context (#2703) ─────────────────────────────
+
+
+async def test_a_secret_call_beside_a_recorded_one_on_one_context_reaches_no_tape() -> None:
+    # The secret call starts first, so nothing is on tape yet; its sibling's recorder starts on the
+    # same context object while the secret handler is still running.
+    random = _CountingRandom()
+    sink = MemoryJournalSink()
+    execute = _own_engine(create_journal_middleware(sink))
+    context = CommandContext(random=random)
+    recording, minted = asyncio.Event(), asyncio.Event()
+
+    async def mint() -> Any:
+        await recording.wait()
+        token = f"T-{context.random.next()}"
+        minted.set()
+        return success({"token": token})
+
+    async def roll() -> Any:
+        recording.set()
+        await minted.wait()
+        return success({"value": context.random.next()})
+
+    await asyncio.gather(
+        execute("token-mint", {}, context, mint, secret=True),
+        execute("dice-roll", {}, context, roll, secret=False),
+    )
+    [entry] = await sink.read()
+    assert entry.command == "dice-roll"
+    assert entry.tape is not None
+    # Only the sibling's own read: the secret's 0.26 reached no tape.
+    assert entry.tape.random == [0.27]
+    assert not entry.tape.truncated
+    assert context.random is random
+
+
+async def test_a_secret_call_leaves_a_concurrent_siblings_tape_whole() -> None:
+    # The recorded call starts first; the secret call runs off tape while it is still recording.
+    random = _CountingRandom()
+    sink = MemoryJournalSink()
+    execute = _own_engine(create_journal_middleware(sink))
+    context = CommandContext(random=random)
+    started, minting, rolled = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+    async def roll() -> Any:
+        first = context.random.next()
+        started.set()
+        await minting.wait()
+        second = context.random.next()
+        rolled.set()
+        return success({"values": [first, second]})
+
+    async def mint() -> Any:
+        await started.wait()
+        minting.set()
+        await rolled.wait()
+        return success({"token": f"T-{context.random.next()}"})
+
+    await asyncio.gather(
+        execute("dice-roll", {}, context, roll, secret=False),
+        execute("token-mint", {}, context, mint, secret=True),
+    )
+    [entry] = await sink.read()
+    assert entry.command == "dice-roll"
+    assert entry.tape is not None
+    assert entry.tape.random == [0.26, 0.27]
+    assert not entry.tape.truncated
+    # Neither call leaves the other's source on the shared context.
+    assert context.random is random
+
+
+async def test_run_off_tape_beside_a_recorded_call_on_one_context_reaches_no_tape() -> None:
+    random = _CountingRandom()
+    sink = MemoryJournalSink()
+    execute = _own_engine(create_journal_middleware(sink))
+    context = CommandContext(random=random)
+    recording, minted = asyncio.Event(), asyncio.Event()
+
+    async def mint() -> Any:
+        await recording.wait()
+        token = f"T-{context.random.next()}"
+        minted.set()
+        return success({"token": token})
+
+    async def roll() -> Any:
+        recording.set()
+        await minted.wait()
+        return success({"value": context.random.next()})
+
+    await asyncio.gather(
+        run_off_tape(context, mint),
+        execute("dice-roll", {}, context, roll, secret=False),
+    )
+    [entry] = await sink.read()
+    assert entry.tape is not None
+    assert entry.tape.random == [0.27]
+    assert not entry.tape.truncated
+    assert context.random is random
+
+
+async def test_concurrent_nested_calls_in_a_recorded_parent_each_keep_their_own_sources() -> None:
+    # A handler running a secret call and a recorded one at once on its own context, as a Botcore
+    # handler does with current_call().
+    random = _CountingRandom()
+    sink = MemoryJournalSink()
+    execute = _own_engine(create_journal_middleware(sink))
+    context = CommandContext(random=random)
+    recording, minted = asyncio.Event(), asyncio.Event()
+
+    async def mint() -> Any:
+        await recording.wait()
+        token = f"T-{context.random.next()}"
+        minted.set()
+        return success({"token": token})
+
+    async def roll() -> Any:
+        recording.set()
+        await minted.wait()
+        return success({"value": context.random.next()})
+
+    async def open_session() -> Any:
+        await asyncio.gather(
+            execute("token-mint", {}, context, mint, secret=True),
+            execute("dice-roll", {}, context, roll, secret=False),
+        )
+        return success({"opened": True})
+
+    await execute("session-open", {}, context, open_session, secret=False)
+    roll_entry, session_entry = await sink.read()
+    assert (roll_entry.command, session_entry.command) == ("dice-roll", "session-open")
+    assert roll_entry.tape is not None and roll_entry.tape.random == [0.27]
+    # The parent's tape holds its child's read and says the secret one is missing.
+    assert session_entry.tape is not None and session_entry.tape.random == [0.27]
+    assert session_entry.tape.truncated is True
+    assert context.random is random
+
+
+async def test_a_recorded_handler_reading_on_a_worker_thread_stays_on_its_tape() -> None:
+    random = _CountingRandom()
+    sink = MemoryJournalSink()
+    execute = _own_engine(create_journal_middleware(sink))
+    context = CommandContext(random=random)
+
+    async def roll() -> Any:
+        return success({"value": await asyncio.to_thread(context.random.next)})
+
+    await execute("dice-roll", {}, context, roll, secret=False)
+    [entry] = await sink.read()
+    assert entry.tape is not None and entry.tape.random == [0.26]
+
+
+async def test_a_sibling_reads_its_own_source_and_its_attributes_while_a_call_records() -> None:
+    from afd.core.clock import fixed_clock, seeded_random
+
+    sink = MemoryJournalSink()
+    execute = _own_engine(create_journal_middleware(sink))
+    clock, random = fixed_clock(1000), seeded_random("s")
+    context = CommandContext(clock=clock, random=random)
+    recording, read = asyncio.Event(), asyncio.Event()
+    seen: dict[str, Any] = {}
+
+    async def roll() -> Any:
+        recording.set()
+        await read.wait()
+        return success({"at": context.clock.now()})
+
+    async def sibling() -> None:
+        await recording.wait()
+        # The recorded call's router stands on the context; this task reads the context's own.
+        context.clock.advance(5)
+        seen["seed"] = context.random.seed
+        seen["now"] = context.clock.now()
+        read.set()
+
+    await asyncio.gather(execute("dice-roll", {}, context, roll, secret=False), sibling())
+    [entry] = await sink.read()
+    assert seen == {"seed": "s", "now": 1005}
+    assert entry.tape is not None and entry.tape.clock == [1005]
+    assert context.clock is clock and context.random is random
+
+
+async def test_a_read_on_a_thread_without_the_dispatch_goes_to_the_only_call_running() -> None:
+    # loop.run_in_executor carries no context variables; with one call on the context, the read
+    # can only be that call's, so it stays on its tape.
+    random = _CountingRandom()
+    sink = MemoryJournalSink()
+    execute = _own_engine(create_journal_middleware(sink))
+    context = CommandContext(random=random)
+
+    async def roll() -> Any:
+        loop = asyncio.get_running_loop()
+        return success({"value": await loop.run_in_executor(None, context.random.next)})
+
+    await execute("dice-roll", {}, context, roll, secret=False)
+    [entry] = await sink.read()
+    assert entry.tape is not None and entry.tape.random == [0.26]
+    assert not entry.tape.truncated
+
+
+class _Draw(BaseModel):
+    pass
+
+
+async def test_a_chain_moved_to_a_thread_still_records_and_isolates_its_reads() -> None:
+    random = _CountingRandom()
+    sink = MemoryJournalSink()
+    server = create_server(
+        "s", random=random, middleware=[create_journal_middleware(sink), _in_a_thread]
+    )
+
+    @define_command(name="token-mint", description="Mint", input_schema=_Draw, secret=True)
+    async def token_mint(input: _Draw, context: Any) -> Any:
+        return success({"token": f"T-{context.random.next()}"})
+
+    @define_command(name="session-open", description="Open", input_schema=_Draw)
+    async def session_open(input: _Draw, context: Any) -> Any:
+        drawn = context.random.next()
+        await server.execute("token-mint", {}, context)
+        return success({"drawn": drawn})
+
+    server.register(token_mint)
+    server.register(session_open)
+    assert (await server.execute("session-open", {})).success
+    [entry] = await sink.read()
+    assert entry.command == "session-open"
+    assert entry.tape is not None and entry.tape.random == [0.26]
+    assert entry.tape.truncated is True
+    assert random.draws == 2
+
+
+async def test_a_secret_read_on_a_bare_thread_beside_a_recorded_call_reaches_no_tape() -> None:
+    random = _CountingRandom()
+    sink = MemoryJournalSink()
+    execute = _own_engine(create_journal_middleware(sink))
+    context = CommandContext(random=random)
+    recording, minted = asyncio.Event(), asyncio.Event()
+
+    async def mint() -> Any:
+        await recording.wait()
+        loop = asyncio.get_running_loop()
+        token = await loop.run_in_executor(None, context.random.next)
+        minted.set()
+        return success({"token": f"T-{token}"})
+
+    async def roll() -> Any:
+        recording.set()
+        await minted.wait()
+        return success({"value": context.random.next()})
+
+    await asyncio.gather(
+        execute("token-mint", {}, context, mint, secret=True),
+        execute("dice-roll", {}, context, roll, secret=False),
+    )
+    [entry] = await sink.read()
+    assert entry.tape is not None and entry.tape.random == [0.27]
+    # The bare thread's read could have been the sibling's, so its replay says so.
+    assert entry.tape.truncated is True
+
+
+async def test_a_sibling_with_no_source_still_takes_its_default_while_a_call_records() -> None:
+    from afd.core.actor import ContextDefaults, with_context_defaults
+    from afd.core.clock import fixed_clock
+
+    sink = MemoryJournalSink()
+    execute = _own_engine(create_journal_middleware(sink))
+    context = CommandContext()
+    recording, read = asyncio.Event(), asyncio.Event()
+    seen: list[float] = []
+
+    async def roll() -> Any:
+        recording.set()
+        await read.wait()
+        return success({})
+
+    async def sibling() -> None:
+        await recording.wait()
+        filled = with_context_defaults(context, ContextDefaults(clock=fixed_clock(42)))
+        seen.append(filled.clock.now())
+        read.set()
+
+    await asyncio.gather(execute("dice-roll", {}, context, roll, secret=False), sibling())
+    assert seen == [42]
+    assert context.clock is None
+
+
+async def test_a_copied_or_pickled_context_carries_sources_not_the_view() -> None:
+    import copy
+    import pickle
+
+    from afd.core.clock import fixed_clock, seeded_random
+
+    sink = MemoryJournalSink()
+    execute = _own_engine(create_journal_middleware(sink))
+    clock, random = fixed_clock(7), seeded_random("s")
+    context = CommandContext(clock=clock, random=random)
+    recording, copied = asyncio.Event(), asyncio.Event()
+    copies: list[CommandContext] = []
+
+    async def roll() -> Any:
+        copies.append(copy.deepcopy(context))
+        recording.set()
+        await copied.wait()
+        return success({})
+
+    async def sibling() -> None:
+        await recording.wait()
+        # The recorded call's routers stand on the context; a sibling copies its own sources.
+        copies.append(pickle.loads(pickle.dumps(context)))
+        copies.append(copy.deepcopy(context))
+        copied.set()
+
+    await asyncio.gather(execute("dice-roll", {}, context, roll, secret=False), sibling())
+    inside, pickled, deep = copies
+    # The recorded call's own copy reads what it read: the recording sources.
+    assert type(inside.clock).__name__ == "_RecordingClock" and inside.clock.now() == 7
+    for other in (pickled, deep):
+        assert type(other.clock) is type(clock) and other.clock.now() == 7
+        assert type(other.random) is type(random) and other.random.seed == "s"
+    assert context.clock is clock and context.random is random
+
+
+async def test_a_nested_recorded_call_reading_on_a_bare_thread_stays_on_both_tapes() -> None:
+    # Parent and child are two steps on one context, nested, not siblings: the read is the child's.
+    random = _CountingRandom()
+    sink = MemoryJournalSink()
+    server = create_server("s", random=random, middleware=[create_journal_middleware(sink)])
+
+    @define_command(name="dice-draw", description="Draw", input_schema=_Draw)
+    async def dice_draw(input: _Draw, context: Any) -> Any:
+        loop = asyncio.get_running_loop()
+        return success({"value": await loop.run_in_executor(None, context.random.next)})
+
+    @define_command(name="session-open", description="Open", input_schema=_Draw)
+    async def session_open(input: _Draw, context: Any) -> Any:
+        await server.execute("dice-draw", {}, context)
+        return success({"opened": True})
+
+    server.register(dice_draw)
+    server.register(session_open)
+    assert (await server.execute("session-open", {})).success
+    draw, session = await sink.read()
+    assert (draw.command, session.command) == ("dice-draw", "session-open")
+    for entry in (draw, session):
+        assert entry.tape is not None and entry.tape.random == [0.26]
+        assert not entry.tape.truncated
+
+
+@pytest.mark.parametrize("context", [None, object()])
+async def test_run_off_tape_runs_on_a_context_that_takes_no_attributes(context: Any) -> None:
+    assert (await run_off_tape(context, _roll)).data == {"value": 4}
+
+
+async def test_a_step_starting_on_a_bare_thread_is_never_taken_for_a_secret_calls_child() -> None:
+    # Both chains move to worker threads that carry no context variables; the recorded call's step
+    # starts there while the secret one runs, so it must count as a sibling, not as nested in it.
+    import threading
+
+    random = _CountingRandom()
+    sink = MemoryJournalSink()
+    execute = _own_engine(_in_a_thread, create_journal_middleware(sink))
+    context = CommandContext(random=random)
+    minting, rolling, minted = threading.Event(), threading.Event(), threading.Event()
+    drawn: list[float] = []
+
+    async def mint() -> Any:
+        minting.set()
+        rolling.wait(5)
+        drawn.append(await asyncio.get_running_loop().run_in_executor(None, context.random.next))
+        minted.set()
+        return success({})
+
+    async def roll() -> Any:
+        rolling.set()
+        minted.wait(5)
+        return success({"value": context.random.next()})
+
+    first = asyncio.ensure_future(execute("token-mint", {}, context, mint, secret=True))
+    await asyncio.to_thread(minting.wait, 5)
+    await asyncio.gather(first, execute("dice-roll", {}, context, roll, secret=False))
+    [entry] = await sink.read()
+    assert drawn == [0.26]
+    assert entry.tape is not None and 0.26 not in entry.tape.random
+    assert entry.tape.truncated is True
+
+
+async def test_run_off_tape_runs_on_a_frozen_context() -> None:
+    from dataclasses import dataclass
+
+    from pydantic import ConfigDict
+
+    @dataclass(frozen=True)
+    class FrozenDataclass:
+        clock: Any = None
+        random: Any = None
+
+    class FrozenModel(BaseModel):
+        model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+        clock: Any = None
+        random: Any = None
+
+    for context in (FrozenDataclass(), FrozenModel()):
+        assert (await run_off_tape(context, _roll)).data == {"value": 4}

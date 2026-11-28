@@ -287,3 +287,41 @@ async def test_a_journal_composed_inside_other_middleware_keeps_its_own_tape(tmp
     [entry] = await sink.read()
     assert entry.tape is not None and entry.tape.random == [0.26]
     assert entry.tape.truncated is not True
+
+
+async def test_a_secret_call_beside_a_recorded_one_on_one_context_reaches_no_tape(tmp_path):
+    # Two calls a surface runs at once on one context object (#2703): the secret call is off tape
+    # through the host's run_off_tape and the host's journal, while its sibling records.
+    import asyncio
+
+    random = _CountingRandom()
+    sink = MemoryJournalSink()
+    host = make_host(tmp_path, create_journal_middleware(sink))
+    recording, minted = asyncio.Event(), asyncio.Event()
+
+    async def token_mint():
+        """Mint a token from random values."""
+        await recording.wait()
+        token = f"T-{current_call().random.next()}"
+        minted.set()
+        return success({"token": token})
+
+    async def dice_draw():
+        """Draw a value."""
+        recording.set()
+        await minted.wait()
+        return success({"value": current_call().random.next()})
+
+    host.register("token-mint", token_mint, CommandPolicy(secret=True))
+    host.register("dice-draw", dice_draw, CommandPolicy())
+    context = CommandContext(random=random)
+    minting, drawing = await asyncio.gather(
+        host.execute("token-mint", {}, context), host.execute("dice-draw", {}, context)
+    )
+    assert minting.success and drawing.success
+    [entry] = await sink.read()
+    assert entry.command == "dice-draw"
+    assert entry.tape is not None
+    assert entry.tape.random == [0.27]
+    assert not entry.tape.truncated
+    assert context.random is random

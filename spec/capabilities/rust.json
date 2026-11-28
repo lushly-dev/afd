@@ -247,6 +247,11 @@
 				"packages/rust/src/journal/secret_tests.rs"
 			]
 		},
+		"single.journal-own-sources": {
+			"status": "yes",
+			"note": "`CommandRegistry::execute` owns a context per call, and middleware gets it by `&mut`, so no other call reads it",
+			"evidence": ["packages/rust/src/commands/execute.rs", "packages/rust/src/journal/recorder.rs"]
+		},
 		"middleware.chain": {
 			"status": "yes",
 			"evidence": ["packages/rust/src/commands.rs"]
