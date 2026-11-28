@@ -117,7 +117,8 @@ describe('the build accounting', () => {
 			bytes: report.categories.accessibility?.bytes,
 		});
 		expect(report.categories.shell?.budget).toBe(70_000);
-		expect(report.categories.interaction?.budget).toBe(615_000);
+		// Nor interaction support's, almost all third-party helpers (#2633).
+		expect(report.categories.interaction).toEqual({ bytes: report.categories.interaction?.bytes });
 		expect(report.total.tripwire).toBe(2_700_000);
 		expect(report.waste).toEqual([]);
 		const engine = report.modules.filter((module) => module.package?.name === 'axe-core');
@@ -143,6 +144,19 @@ describe('the build accounting', () => {
 				await readFile(join(dir, 'specimen-build.json'), 'utf8')
 			) as BuildReport;
 			expect(report.waste).toHaveLength(1);
+		} finally {
+			await bench.close();
+		}
+	}, 120_000);
+
+	it('fails a build whose preview loads interaction support with every case (#2633)', async () => {
+		const bench = await createSpecimenBench({
+			root: resolve(import.meta.dirname, '../fixtures/waste-interaction'),
+		});
+		try {
+			await expect(bench.build(join(scratch, 'waste-interaction'))).rejects.toThrow(
+				/eager-interaction: interaction support loads with every case, in assets\/interaction-support-.+\.js/
+			);
 		} finally {
 			await bench.close();
 		}

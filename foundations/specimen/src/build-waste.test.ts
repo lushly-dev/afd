@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	buildSizeDeltas,
+	formatBuildSizeDeltas,
 	inspectBuild,
 	moduleIdentity,
 	TOTAL_TRIPWIRE,
@@ -201,6 +202,30 @@ describe('the waste checks', () => {
 		]);
 	});
 
+	it('fail interaction support that loads with every case, and pass large lazy helper growth (#2633)', () => {
+		const helpers = (bytes: number) =>
+			chunk('assets/helpers.js', {
+				[`${modulesRoot}/node_modules/@testing-library/dom/dist/index.js`]: bytes,
+			});
+		const statically = chunk(
+			'assets/entry.js',
+			{ [`${roots.packageSource}/browser/index.js`]: 58_000 },
+			{ isEntry: true, imports: ['assets/helpers.js'] }
+		);
+		expect(inspect([statically, helpers(599_192)]).waste).toEqual([
+			"eager-interaction: interaction support loads with every case, in assets/helpers.js; import a play's helpers only from the stories that run one",
+		]);
+		const preview = `${roots.projectRoot}/.storybook/preview.ts`;
+		const fromPreview = [
+			entry(),
+			chunk('assets/preview.js', { [preview]: 150 }, { imports: ['assets/helpers.js'] }),
+			helpers(599_192),
+		];
+		expect(inspect(fromPreview, 1_327_581, [preview]).waste).toHaveLength(1);
+		// Twice what the old 615,000-byte ceiling allowed, loaded only by the cases with a play.
+		expect(inspect([entry(), helpers(1_230_000), lazyAxe()], 1_950_000).waste).toEqual([]);
+	});
+
 	it('ignore an accessibility module that renders no code', () => {
 		const shaken = chunk(
 			'assets/entry.js',
@@ -367,6 +392,44 @@ describe('size deltas between two builds', () => {
 				delta: 44_625,
 			},
 		]);
+	});
+
+	it('render the moves as Markdown for a reviewer, naming dependencies and own code (#2634)', () => {
+		const rows = buildSizeDeltas(
+			{ modules: [module('a.ts', 100), module('dep@1.0.0/x.js', 5_000, 'dep')] },
+			{
+				modules: [
+					module('a.ts', 140),
+					module('b|c.ts', 60),
+					module('new@1.0.0/y.js', 9_000, 'new'),
+				],
+			}
+		);
+		const text = formatBuildSizeDeltas(rows, { base: 'main @ abc1234', limit: 3 });
+		expect(text).toContain('Compared with main @ abc1234. Advisory: nothing fails on it.');
+		expect(text).toContain('| interaction | +4,100 |');
+		expect(text).toContain(
+			'| `new/y.js` | dependency new, new at 1.0.0 | interaction | 0 | 9,000 | +9,000 |'
+		);
+		expect(text).toContain(
+			'| `dep/x.js` | dependency dep, removed at 1.0.0 | interaction | 5,000 | 0 | −5,000 |'
+		);
+		// A pipe in an id is escaped, so it cannot end the cell.
+		const backslash = String.fromCharCode(92);
+		expect(text).toContain(
+			`| \`b${backslash}|c.ts\` | own code, new | interaction | 0 | 60 | +60 |`
+		);
+		expect(text).toContain('1 smaller move left out.');
+		expect(formatBuildSizeDeltas([])).toContain('No module changed size.');
+		const gone = buildSizeDeltas({ modules: [module('old.ts', 30)] }, { modules: [] });
+		expect(formatBuildSizeDeltas(gone)).toContain(
+			'| `old.ts` | own code, removed | interaction | 30 | 0 | −30 |'
+		);
+		// A backslash is escaped too, so one before a pipe cannot unescape it.
+		const slashed = buildSizeDeltas({}, { modules: [module(`d${backslash}|e.ts`, 5)] });
+		expect(formatBuildSizeDeltas(slashed)).toContain(
+			`| \`d${backslash}${backslash}${backslash}|e.ts\` | own code, new |`
+		);
 	});
 
 	it('read a report from before modules were listed as empty', () => {

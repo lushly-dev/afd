@@ -13,6 +13,7 @@ export {
 	type BuildModule,
 	type BuildSizeDelta,
 	buildSizeDeltas,
+	formatBuildSizeDeltas,
 	TOTAL_TRIPWIRE,
 } from './build-waste.js';
 export {
