@@ -226,7 +226,8 @@ export const STYLES = `
 	.note {
 		color: var(--violet-color-text-secondary);
 	}
-	.status:empty {
+	.status:empty,
+	.editor:empty {
 		display: none;
 	}
 	dialog {

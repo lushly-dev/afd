@@ -658,6 +658,16 @@ const IDENTITY_CAPTURES: [string, string[]][] = [
 		['table "Where you are signed in"', 'button "Sign out Safari on iOS"'],
 	],
 	[
+		'identity-account-personas',
+		[
+			'tab "Personas" [selected]',
+			'table "Your personas"',
+			'button "Use Default"',
+			'button "Remove Reviewer"',
+			'form "Make a persona"',
+		],
+	],
+	[
 		'identity-account-members',
 		['tab "Members" [selected]', 'Cy Park', 'Reviewer', 'Sponsored by Cy Park'],
 	],

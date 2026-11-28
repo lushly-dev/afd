@@ -12,6 +12,7 @@ import {
 	type DeploymentSite,
 	deploymentEntry,
 	deploymentFile,
+	focused,
 	journal,
 	kernelCall,
 	openApp,
@@ -305,5 +306,134 @@ describe('P3-E2: persona changes emphasis, never what anyone may do', () => {
 					?.textContent ?? ''
 		);
 		expect(bar).not.toContain('Reviewer');
+	});
+
+	it("P3-E2: the account section's personas tab makes, switches to, edits and removes a persona, each a command, and the active one is said in words", async () => {
+		const shell = await openShell(browser, site.root);
+		opened.push(shell);
+		const { page } = shell;
+		const section = page.locator('loam-shell').locator('loam-main loam-account-section');
+		const opening = (await kernelCall(page, 'section-open', {
+			section: 'account',
+			path: 'personas',
+		})) as { success: boolean };
+		expect(opening.success).toBe(true);
+		await expect.poll(() => section.getByRole('tab', { name: 'Personas' }).count()).toBe(1);
+		expect(await section.getByRole('tab', { name: 'Personas' }).getAttribute('aria-selected')).toBe(
+			'true'
+		);
+		expect(new URL(page.url()).pathname).toBe('/personal/~/account/personas');
+		const table = section.getByRole('table', { name: 'Your personas' });
+		await expect.poll(() => table.count()).toBe(1);
+		// `default` first, in use, with nothing to edit or remove.
+		const plain = table.getByRole('row', { name: /^Default/ });
+		expect(await plain.getByRole('cell', { name: 'In use' }).count()).toBe(1);
+		expect(await plain.getByRole('button').count()).toBe(0);
+		// Made from the form.
+		const form = section.getByRole('form', { name: 'Make a persona' });
+		await form.getByLabel('Title').fill('Reviewer');
+		await form.getByLabel('Name others see (optional)').fill('Bea R.');
+		await form.getByLabel('Pronouns (optional)').fill('she/her');
+		await form.getByRole('button', { name: 'Make persona' }).click();
+		const row = table.getByRole('row', { name: /^Reviewer/ });
+		await expect.poll(() => row.count()).toBe(1);
+		expect(await row.getByRole('cell', { name: 'Bea R. (she/her)' }).count()).toBe(1);
+		const listed = (await kernelCall(page, 'persona-list')) as {
+			data: { personas: { id: string; title: string }[]; active: string };
+		};
+		const made = listed.data.personas.find((persona) => persona.title === 'Reviewer') as {
+			id: string;
+		};
+		expect(listed.data.active).toBe('default');
+		// Switched to: the shell announces it, and the tab says which is in use.
+		await row.getByRole('button', { name: 'Use Reviewer' }).click();
+		await expect.poll(() => announcement(page)).toBe('Persona: Reviewer');
+		await expect.poll(() => row.getByRole('cell', { name: 'In use' }).count()).toBe(1);
+		expect(await plain.getByRole('cell', { name: 'In use' }).count()).toBe(0);
+		expect(await row.getByRole('button', { name: 'Use Reviewer' }).count()).toBe(0);
+		// Edited: the title and how others see it.
+		await row.getByRole('button', { name: 'Edit Reviewer' }).click();
+		const edit = section.getByRole('form', { name: 'Edit Reviewer' });
+		await edit.getByLabel('Title').fill('Editor');
+		await edit.getByLabel('Pronouns (optional)').fill('');
+		await edit.getByRole('button', { name: 'Save persona' }).click();
+		const edited = table.getByRole('row', { name: /^Editor/ });
+		await expect.poll(() => edited.count()).toBe(1);
+		expect(await edited.getByRole('cell', { name: 'Bea R.', exact: true }).count()).toBe(1);
+		expect(await axe(page)).toEqual([]);
+		// Removed after the modal says what follows: the active one, so `default` is in use again.
+		await edited.getByRole('button', { name: 'Remove Editor' }).click();
+		const dialog = section.getByRole('dialog', { name: 'Remove Editor?' });
+		await expect.poll(() => dialog.count()).toBe(1);
+		expect(await dialog.textContent()).toContain('you go back to Default');
+		await dialog.getByRole('button', { name: 'Remove persona' }).click();
+		await expect.poll(() => edited.count()).toBe(0);
+		await expect.poll(() => plain.getByRole('cell', { name: 'In use' }).count()).toBe(1);
+		const after = (await kernelCall(page, 'persona-list')) as {
+			data: { personas: { id: string }[]; active: string };
+		};
+		expect(after.data.active).toBe('default');
+		expect(after.data.personas.map((persona) => persona.id)).not.toContain(made.id);
+		// Each change was the command it names, journaled as any other.
+		const commands = (await journal(page)).map((entry) => entry.command);
+		for (const name of ['persona-create', 'persona-set', 'persona-update', 'persona-remove'])
+			expect(commands, name).toContain(name);
+	});
+
+	it("P3-E2: the personas tab's edit keeps what its form does not show, and a switch made elsewhere shows in the open tab", async () => {
+		const shell = await openShell(browser, site.root);
+		opened.push(shell);
+		const { page } = shell;
+		const section = page.locator('loam-shell').locator('loam-main loam-account-section');
+		const made = (await kernelCall(page, 'persona-create', {
+			title: 'Focus',
+			presentation: { name: 'Bea F.', avatar: 'system/calendar' },
+			defaults: { density: 'compact' },
+			emphasis: { sections: ['projects'] },
+		})) as { data: { id: string } };
+		await kernelCall(page, 'section-open', { section: 'account', path: 'personas' });
+		const table = section.getByRole('table', { name: 'Your personas' });
+		const row = table.getByRole('row', { name: /^Focus/ });
+		await expect.poll(() => row.count()).toBe(1);
+		expect(await row.getByRole('cell', { name: 'Bea F. with an avatar' }).count()).toBe(1);
+		// A switch made elsewhere in the page (the account menu's, here its command) shows in the open tab.
+		await kernelCall(page, 'persona-set', { persona: made.data.id });
+		await expect.poll(() => row.getByRole('cell', { name: 'In use' }).count()).toBe(1);
+		// Cancel closes the editor and gives focus back to its Edit button.
+		await row.getByRole('button', { name: 'Edit Focus' }).click();
+		const edit = section.getByRole('form', { name: 'Edit Focus' });
+		await edit.getByRole('button', { name: 'Cancel' }).click();
+		await expect.poll(() => edit.count()).toBe(0);
+		expect((await focused(page)).label).toBe('Edit Focus');
+		// A title of spaces alone is refused in words, before any command.
+		await row.getByRole('button', { name: 'Edit Focus' }).click();
+		await edit.getByLabel('Title').fill('   ');
+		await edit.getByRole('button', { name: 'Save persona' }).click();
+		await expect
+			.poll(() => section.getByRole('status').textContent())
+			.toBe('Give the persona a title.');
+		// Saved with a new title: the avatar, defaults and emphasis it does not show are kept.
+		await edit.getByLabel('Title').fill('Deep work');
+		await edit.getByRole('button', { name: 'Save persona' }).click();
+		await expect.poll(() => table.getByRole('row', { name: /^Deep work/ }).count()).toBe(1);
+		const listed = (await kernelCall(page, 'persona-list')) as {
+			data: {
+				personas: {
+					id: string;
+					title: string;
+					presentation: unknown;
+					defaults: unknown;
+					emphasis: unknown;
+				}[];
+			};
+		};
+		expect(listed.data.personas.find((persona) => persona.id === made.data.id)).toMatchObject({
+			title: 'Deep work',
+			presentation: { name: 'Bea F.', avatar: 'system/calendar' },
+			defaults: { density: 'compact' },
+			emphasis: { sections: ['projects'] },
+		});
+		// Focus is back on the row the change was made in.
+		await expect.poll(async () => (await focused(page)).label).toBe('Deep work');
 	});
 });

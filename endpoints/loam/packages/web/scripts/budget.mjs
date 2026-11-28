@@ -861,7 +861,7 @@ export const CEILINGS = Object.freeze({
 	// review's fixes and re-check 39,283 (+7,448 in all): each tab named by `ownerTitle` (its own `owner-title` chunk, with
 	// `shell-name`), the app's settings delivered through `surface-calls` (1,700, shared with `surfaces`), the change of
 	// person and main's gate, the view's teardown and the wait for the app surfaces; set to 39,900 under D115.
-	accountMinified: 45_700, // D115: phase 5 step 10's 9.2 (the SDK's events): 40,241 to 40,951; #2784 (the agents tab's access dialog, against `main` at `2462564f`), 40,951 to 44,407; 44,467 with `main` at `f166dd38f` merged; 44,621 with the refused-save focus fix; #2781's Withdraw on the sponsor's row, 45,105 merged with acd726d0c.
+	accountMinified: 49_400, // D115: phase 5 step 10's 9.2 (the SDK's events): 40,241 to 40,951; #2784 (the agents tab's access dialog, against `main` at `2462564f`), 40,951 to 44,407; 44,467 with `main` at `f166dd38f` merged; 44,621 with the refused-save focus fix; #2781's Withdraw on the sponsor's row, 45,105 merged with acd726d0c; #2783's personas tab, 48,867 merged with 11ef07b83.
 	// Raised under D115 by #862 (`__vite__mapDeps` table emitted in `url-sync` once `vite/preload-helper` lives in the
 	// single `$initial` `index` chunk): measured 6,601 against `main` at `bd374912`; set to 6,900.
 	urlMinified: 6_900,

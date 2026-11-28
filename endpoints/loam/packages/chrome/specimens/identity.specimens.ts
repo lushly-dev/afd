@@ -287,6 +287,17 @@ const ACCOUNT_ANSWERS: Record<string, unknown> = {
 		] satisfies AgentMemberRowV1[],
 		total: 2,
 	},
+	'persona-list': {
+		personas: [
+			{ id: 'default', title: 'Default', presentation: {} },
+			{
+				id: 'per_reviewer00000000',
+				title: 'Reviewer',
+				presentation: { name: 'Bea O.', pronouns: 'she/her' },
+			},
+		],
+		active: 'per_reviewer00000000',
+	},
 	'member-invitation-list': { invitations: [] satisfies MemberInvitationV1[] },
 	'account-invitation-list': { invitations: [] satisfies OwnInvitationV1[] },
 	'project-list': { projects: [] },
@@ -305,7 +316,7 @@ const accountKernel = {
 
 /** The account section at one tab, over `accountKernel`, as an owner in `provider` mode. */
 function accountTab(
-	tab: 'profile' | 'passkeys' | 'sessions' | 'members' | 'agents',
+	tab: 'profile' | 'passkeys' | 'sessions' | 'personas' | 'members' | 'agents',
 	ready: string
 ) {
 	return page(async (target) => {
@@ -328,6 +339,8 @@ export const IdentityAccountProfile = accountTab('profile', 'Save name');
 export const IdentityAccountPasskeys = accountTab('passkeys', 'Laptop');
 /** Its sessions (4.6). */
 export const IdentityAccountSessions = accountTab('sessions', 'Safari on iOS');
+/** Its personas, `default` first and one in use (6.1, 6.3). */
+export const IdentityAccountPersonas = accountTab('personas', 'Make persona');
 /** Its members, with an agent member and its sponsor (7.2, 8.2), as an owner sees them. */
 export const IdentityAccountMembers = accountTab('members', 'Reviewer');
 /** Its connected agents (5.3). */

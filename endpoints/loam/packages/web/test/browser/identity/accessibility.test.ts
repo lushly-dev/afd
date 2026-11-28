@@ -27,7 +27,7 @@ const PASSWORD = 'correct horse battery staple';
 const REDIRECT = 'http://127.0.0.1:9/callback';
 const THEMES = ['light', 'dark', 'high-contrast'] as const;
 const DENSITIES = ['comfortable', 'compact'] as const;
-const TABS = ['profile', 'passkeys', 'sessions', 'members', 'agents'] as const;
+const TABS = ['profile', 'passkeys', 'sessions', 'personas', 'members', 'agents'] as const;
 
 let browser: Browser;
 let site: DeploymentSite;
@@ -146,6 +146,7 @@ const TAB_READY: Record<(typeof TABS)[number], string> = {
 	profile: 'Save name',
 	passkeys: 'Add a passkey',
 	sessions: 'Where you are signed in',
+	personas: 'Make persona',
 	members: 'Invite a person',
 	agents: 'Apps you connected over MCP act for you',
 };
