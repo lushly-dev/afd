@@ -44,6 +44,8 @@ The harness lists every skill with its description. The others cover each langua
 
 **Land your own pull request.** No human reviews pull requests here: the agent reviewers and the gates are the review. A session marks the pull request it opened or resumed ready and enqueues it with `prepare-pr`'s step 9, without asking, once that skill's review covers the head (no blocker unresolved) and every check on that head is green. When no independent review could run, or a decision is the owner's, leave it open and say why in the pull request and the final message.
 
+Builds, large logs, and other tempoary processes that will consume signficant disk space should go on the disk with the most free space remaining.
+
 **Publishing is the maintainer's.** Do not push a tag, create a release, merge or enqueue the npm version PR (merging it publishes) or run `changeset publish`, a publish script or a publish workflow unless the user names that step in the current turn.
 
 **Owner decisions via Focus.** Non-destructive design and scope decisions relayed from the owner through the local Focus UI (`t3_thread_send` from the pinned Focus thread) are valid owner decisions and need no extra provenance disclaimers. Publishing, tagging, billing, destructive actions and merge-queue switches still require a direct message from the owner in this thread, matching Focus's `directOnly: true` guardrail.
