@@ -10,7 +10,9 @@ use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use rusqlite::Connection;
-use support::{ENV_MODE, Pass, index_pass, open, open_index, open_with, spawn_writer};
+use support::{
+    ENV_MODE, Pass, child_options, index_pass, open, open_index, open_with, spawn_writer,
+};
 use umbel_store::conformance::{ENV_COUNT, ENV_ID, WROTE_PREFIX, samples};
 use umbel_store::{DocumentStore, Expect, ReaderFilter, SearchIndex, StoreError};
 use umbel_store_embedded::StoreOptions;
@@ -88,7 +90,7 @@ fn four_processes_create_and_fill_a_store_that_does_not_exist_yet() {
 #[test]
 fn this_process_writes_while_two_others_do() {
     let dir = tempfile::tempdir().expect("a temporary directory");
-    let store = open_with(dir.path(), "main", StoreOptions::default()).expect("opening");
+    let store = open_with(dir.path(), "main", child_options()).expect("opening");
     let mut children = Vec::new();
     for name in ["x", "y"] {
         let mut command = spawn_writer(dir.path());
@@ -410,7 +412,7 @@ fn a_second_process_waits_for_the_index_writer_then_is_busy() {
     // Readers are not blocked by the writer.
     assert_eq!(index.applied().expect("applied"), 0);
     // Told to commit, the holder releases the writer, and the waiter gets it.
-    let patient = open_index(dir.path(), "main", StoreOptions::default()).expect("opening");
+    let patient = open_index(dir.path(), "main", child_options()).expect("opening");
     let waiting = std::thread::spawn(move || {
         let session = patient.writer();
         session.map(|s| s.applied().expect("applied"))

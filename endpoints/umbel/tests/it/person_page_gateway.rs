@@ -144,10 +144,11 @@ fn write_person_tls(dir: &Path, ca: &TestCa, names: &[&str]) {
     chmod(&tls.join("key.pem"), 0o600);
 }
 
-/// A host's person listener, served on a listener the test bound, until dropped.
+/// A host's person listener, served on a listener the test bound, until dropped or stopped.
 struct PersonServed {
     address: SocketAddr,
     stop: Option<tokio::sync::oneshot::Sender<()>>,
+    task: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl PersonServed {
@@ -159,7 +160,7 @@ impl PersonServed {
         assert!(server.is_tls());
         let address = listener.local_addr().unwrap();
         let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
-        tokio::spawn(async move {
+        let task = tokio::spawn(async move {
             server
                 .serve(listener, async move {
                     let _ = stopped.await;
@@ -170,6 +171,20 @@ impl PersonServed {
         Self {
             address,
             stop: Some(stop),
+            task: Some(task),
+        }
+    }
+
+    /// Stop accepting and wait for the server task to finish so its socket is released.
+    async fn stop(mut self) {
+        if let Some(stop) = self.stop.take() {
+            let _ = stop.send(());
+        }
+        if let Some(task) = self.task.take() {
+            tokio::time::timeout(std::time::Duration::from_secs(15), task)
+                .await
+                .unwrap()
+                .unwrap();
         }
     }
 }
@@ -1902,9 +1917,10 @@ async fn the_doctor_checks_the_pages_own_listener() {
         message.contains("neither serves localhost nor holds a certificate for it"),
         "{message}"
     );
-    let port = gw.person.address.port();
-    let (kit, dir) = (gw.kit, gw.dir);
-    drop((gw.person, gw.served, gw.host));
+    let (kit, dir, person, served, host) = (gw.kit, gw.dir, gw.person, gw.served, gw.host);
+    person.stop().await;
+    served.stop().await;
+    drop(host);
 
     // Not running: unreachable warns.
     let (_, message) = person_check(dir.path(), &kit).await;
@@ -1917,7 +1933,15 @@ async fn the_doctor_checks_the_pages_own_listener() {
         let kit = &kit;
         let dir = &dir;
         async move {
-            let listener = TcpListener::bind(("127.0.0.1", port)).await.unwrap();
+            // Bind an ephemeral port each time and point `umbel.toml` at it so the test never
+            // races to re-bind a port another test or socket teardown still holds (#2787).
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let port = listener.local_addr().unwrap().port();
+            std::fs::write(
+                dir.path().join("umbel.toml"),
+                config(kit, &person_table(port), "", ""),
+            )
+            .unwrap();
             let task = impostor(listener, &certificate, &key, response);
             let found = person_check(dir.path(), kit).await;
             task.abort();

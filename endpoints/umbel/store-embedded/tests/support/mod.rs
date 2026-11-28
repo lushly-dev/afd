@@ -129,7 +129,7 @@ pub(crate) fn open_lane(
     space: &str,
     limits: umbel_store::lane::LaneLimits,
 ) -> Result<Arc<dyn DocumentStore>, StoreError> {
-    let store = SqliteStore::open(dir, space, StoreOptions::default())?.with_lane_limits(limits);
+    let store = SqliteStore::open(dir, space, child_options())?.with_lane_limits(limits);
     Ok(Arc::new(store))
 }
 

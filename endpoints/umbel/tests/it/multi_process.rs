@@ -24,7 +24,12 @@ fn sealed(dir: &Path) -> Host {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn two_hosts_interleave_two_hundred_mutations_without_a_gap() {
-    let dir = two_spaces();
+    // 200 concurrent writers plus a reader calling `event-list` all share `state/lock`; give
+    // the lock wait headroom for a loaded host so the test checks interleaving rather than the
+    // 10 s default (#2787). Timeout refusal itself is tested at 100 ms below.
+    let dir = workspace(
+        "config_version = 1\ndefault_space = \"main\"\n\n[journal]\nlock_timeout_ms = 120000\n\n[spaces.main]\n\n[spaces.second]\ntitle = \"Second\"\n",
+    );
     let hosts = [Arc::new(sealed(dir.path())), Arc::new(sealed(dir.path()))];
     let finished = Arc::new(AtomicBool::new(false));
 
@@ -220,7 +225,7 @@ fn two_hosts_opening_a_fresh_workspace_at_once_share_one_confirmation_key() {
 
 #[test]
 fn many_umbel_processes_append_to_one_journal_with_contiguous_seq() {
-    let dir = minimal();
+    let dir = workspace("config_version = 1\n[journal]\nlock_timeout_ms = 120000\n");
     // Create the workspace's state once so every process opens an existing layout.
     drop(HostBuilder::open(dir.path()).unwrap().seal().unwrap());
     let binary = env!("CARGO_BIN_EXE_umbel");
