@@ -164,3 +164,68 @@ impl Stdio {
         }
     }
 }
+
+/// A 2025 stdio connection whose client declares form elicitation and answers each
+/// `elicitation/create` with what `answer` returns for its params (it may wait first); returns the
+/// call's response and the questions asked.
+pub async fn legacy_call_with<F, Fut>(
+    server: McpServer,
+    params: Value,
+    mut answer: F,
+) -> (Value, Vec<Value>)
+where
+    F: FnMut(Value) -> Fut,
+    Fut: std::future::Future<Output = Value>,
+{
+    use rmcp::ServiceExt;
+    let (mut writer, server_reader) = tokio::io::duplex(1 << 20);
+    let (server_writer, client_reader) = tokio::io::duplex(1 << 20);
+    tokio::spawn(async move {
+        if let Ok(running) = server.serve((server_reader, server_writer)).await {
+            let _ = running.waiting().await;
+        }
+    });
+    let mut reader = BufReader::new(client_reader);
+    let send = |message: Value| format!("{message}\n");
+    let mut asked = Vec::new();
+    let initialize = json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": { "elicitation": { "form": {} } },
+        "clientInfo": { "name": "legacy", "version": "0" },
+    }});
+    writer.write_all(send(initialize).as_bytes()).await.unwrap();
+    let initialized = json!({ "jsonrpc": "2.0", "method": "notifications/initialized" });
+    writer
+        .write_all(send(initialized).as_bytes())
+        .await
+        .unwrap();
+    let call = json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": params });
+    writer.write_all(send(call).as_bytes()).await.unwrap();
+    loop {
+        let mut line = String::new();
+        assert!(reader.read_line(&mut line).await.unwrap() > 0);
+        let message: Value = serde_json::from_str(&line).unwrap();
+        if message["method"] == "elicitation/create" {
+            asked.push(message["params"].clone());
+            let result = answer(message["params"].clone()).await;
+            let reply = json!({ "jsonrpc": "2.0", "id": message["id"], "result": result });
+            writer.write_all(send(reply).as_bytes()).await.unwrap();
+        } else if message["id"] == 2 {
+            return (message, asked);
+        }
+    }
+}
+
+/// [`legacy_call_with`] answering with each of `answers` in turn, then cancelling.
+pub async fn legacy_call(
+    server: McpServer,
+    params: Value,
+    answers: Vec<Value>,
+) -> (Value, Vec<Value>) {
+    let mut answers = answers.into_iter();
+    legacy_call_with(server, params, move |_| {
+        let next = answers.next().unwrap_or(json!({ "action": "cancel" }));
+        async move { next }
+    })
+    .await
+}
