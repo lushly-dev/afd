@@ -215,3 +215,74 @@ async fn knowledge_index_as_a_task() {
     tokio::time::sleep(Duration::from_millis(200)).await;
     assert_eq!(held.applied().unwrap(), 0, "nothing was committed");
 }
+
+async fn call_as_task(client: &Client, token: &str, command: &str, input: Value) -> Value {
+    let created = rpc(
+        client,
+        token,
+        "tools/call",
+        json!({ "name": "afd-call", "arguments": { "command": command, "input": input } }),
+        true,
+    )
+    .await
+    .json()["result"]
+        .clone();
+    assert_eq!(created["resultType"], json!("task"), "{created}");
+    let id = created["taskId"].as_str().unwrap().to_owned();
+    settled(client, token, &id).await
+}
+
+/// #3010: what a task keeps holds no content and no input, read back through `tasks/get` and in
+/// the store's files.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_task_keeps_no_content_and_no_input() {
+    let kit = TestIdp::start().await.unwrap();
+    let clock = afd::fixed_clock(relay_kit::now_ms() / 1000 * 1000);
+    let token = token(&kit, &clock);
+    let space = workspace(&kit, &clock, true).await;
+
+    // `knowledge-refresh` runs `sources-sync`, whose result is labelled content: the pipeline's
+    // result carries the label, so the task keeps the host's failure that says it ran, not it.
+    let refreshed = call_as_task(
+        &space.client,
+        &token,
+        "knowledge-refresh",
+        json!({ "space": "alpha" }),
+    )
+    .await;
+    assert_eq!(refreshed["status"], json!("completed"), "{refreshed}");
+    let error = &refreshed["result"]["structuredContent"]["error"];
+    assert_eq!(error["code"], json!("INTERNAL_ERROR"), "{refreshed}");
+    assert!(
+        error["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("labelled as content")),
+        "{error}"
+    );
+
+    // A failure that names the call's input keeps its code, not its words.
+    let missing = call_as_task(
+        &space.client,
+        &token,
+        "sources-sync",
+        json!({ "space": "alpha", "collection": "canary-collection" }),
+    )
+    .await;
+    let error = &missing["result"]["structuredContent"]["error"];
+    assert_eq!(error["code"], json!("COLLECTION_NOT_FOUND"), "{missing}");
+    assert!(
+        !missing.to_string().contains("canary-collection"),
+        "{missing}"
+    );
+
+    // Nothing of either is in the store's files: not the collection asked for, and not the
+    // refresh's steps (its result's `steps`, whose sync step was content).
+    let shared = space.dir.path().join("state/shared");
+    let database = std::fs::read(shared.join("tasks.sqlite3")).unwrap();
+    let log = std::fs::read(shared.join("tasks.sqlite3-wal")).unwrap_or_default();
+    for (name, bytes) in [("tasks.sqlite3", database), ("tasks.sqlite3-wal", log)] {
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(!text.contains("canary-collection"), "{name}");
+        assert!(!text.contains("\"steps\""), "{name}");
+    }
+}
