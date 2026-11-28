@@ -318,6 +318,38 @@ describe('P3-E9: M6, a host admits the callers it vouches for', () => {
 		});
 		expect(seen).toEqual([]);
 	});
+
+	it('sends the same scopes hint from tools/list on either lane after routing (#2778)', async () => {
+		const { base } = await gateway(() => credentials({ scopes: [] }), {
+			check: false,
+			auth: { requiredScopes: ['todo:read'] },
+		});
+		const legacy = JSON.parse((await post(`${base}/message`, rpc('tools/list'))).text);
+		const modern = JSON.parse(
+			(
+				await post(
+					`${base}/mcp`,
+					rpc('tools/list', {
+						_meta: {
+							'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+							'io.modelcontextprotocol/clientInfo': { name: 'host-test', version: '1' },
+							'io.modelcontextprotocol/clientCapabilities': {},
+						},
+					}),
+					{ 'MCP-Protocol-Version': '2026-07-28', 'Mcp-Method': 'tools/list' }
+				)
+			).text
+		);
+		const hint = {
+			code: 'INSUFFICIENT_SCOPE',
+			scopes: ['todo:read'],
+			suggestion: expect.any(String),
+		};
+		expect(modern.error).toMatchObject({ code: -32600, data: hint });
+		expect(Object.keys(modern.error.data).sort()).toEqual(Object.keys(hint).sort());
+		// The whole error, its code and message too, is the modern lane's.
+		expect(legacy.error).toEqual(modern.error);
+	});
 });
 
 interface ChallengeCase {
