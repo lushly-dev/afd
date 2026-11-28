@@ -580,11 +580,9 @@ export class VioletDataGrid extends FASTElement {
     this.#hostAriaObserver ??= new MutationObserver(() => {
       this.hostAriaLabel = this.getAttribute("aria-label");
     });
-    this.#hostAriaObserver.observe(this, {
-      attributes: true,
-      attributeFilter: ["aria-label"],
-    });
+    this.#hostAriaObserver.observe(this, { attributes: true, attributeFilter: ["aria-label"] });
     this.ownerDocument.addEventListener("focusin", this.#handleFocusIntent, true);
+    this.shadowRoot?.addEventListener("focusin", this.#handleFocusIntent, true);
     this.ownerDocument.addEventListener("pointerdown", this.#handleFocusIntent, true);
     this.ownerDocument.addEventListener("pointerup", this.#handleEditorPointerEnd, true);
     this.ownerDocument.addEventListener("pointercancel", this.#handleEditorPointerEnd, true);
@@ -604,6 +602,7 @@ export class VioletDataGrid extends FASTElement {
     this.#hostAriaObserver?.disconnect();
     this.#hostAriaObserver = null;
     this.ownerDocument.removeEventListener("focusin", this.#handleFocusIntent, true);
+    this.shadowRoot?.removeEventListener("focusin", this.#handleFocusIntent, true);
     this.ownerDocument.removeEventListener("pointerdown", this.#handleFocusIntent, true);
     this.ownerDocument.removeEventListener("pointerup", this.#handleEditorPointerEnd, true);
     this.ownerDocument.removeEventListener("pointercancel", this.#handleEditorPointerEnd, true);
@@ -4201,10 +4200,9 @@ export class VioletDataGrid extends FASTElement {
   }
 
   readonly #handleFocusIntent = (event: Event): void => {
+    if (event.type === "focusin" && this.#parkingFocusOnScrollContainer && this.shadowRoot?.activeElement === this.getScrollContainer()) return;
     this.#focusGeneration += 1;
-    if (event.type === "focusin" && this.isGridCellElement(this.shadowRoot?.activeElement)) {
-      this.#gridCellFocusGeneration = this.#focusGeneration;
-    }
+    if (event.type === "focusin" && this.isGridCellElement(this.shadowRoot?.activeElement)) this.#gridCellFocusGeneration = this.#focusGeneration;
   };
 
   private interactionSnapshot(): VioletInteractionSnapshot {

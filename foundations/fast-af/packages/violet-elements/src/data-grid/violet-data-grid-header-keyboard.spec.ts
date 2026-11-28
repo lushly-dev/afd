@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import "./violet-data-grid.define";
@@ -573,14 +573,12 @@ describe("violet-data-grid role=grid and roving focus (#510)", () => {
     // Scroll row-0 out of the virtual window.
     scroll.scrollTop = 1_200;
     scroll.dispatchEvent(new Event("scroll"));
-    await nextFrame();
-    await nextFrame();
-    await nextFrame();
-
-    expect(grid.shadowRoot!.querySelector('td[data-row-id="row-0"]')).toBeNull();
-    expect(scroll.getAttribute("tabindex")).toBe("0");
-    // Focus is never left on a detached td.
-    expect(focused(grid)).toBe(scroll);
+    await vi.waitFor(() => {
+      expect(grid.shadowRoot!.querySelector('td[data-row-id="row-0"]')).toBeNull();
+      expect(scroll.getAttribute("tabindex")).toBe("0");
+      // Focus is never left on a detached td.
+      expect(focused(grid)).toBe(scroll);
+    });
 
     // Tab away and back into the grid: focusing .table-scroll scrolls row-0 back and focuses its td.
     (document.getElementById("before") as HTMLButtonElement).focus();
@@ -590,14 +588,12 @@ describe("violet-data-grid role=grid and roving focus (#510)", () => {
         break;
       }
     }
-    await nextFrame();
-    await nextFrame();
-    await nextFrame();
-
-    const restoredCell = cell(grid, "row-0", "name");
-    expect(focused(grid)).toBe(restoredCell);
-    expect(restoredCell.getAttribute("tabindex")).toBe("0");
-    expect(scroll.getAttribute("tabindex")).toBe("-1");
+    await vi.waitFor(() => {
+      const restoredCell = cell(grid, "row-0", "name");
+      expect(focused(grid)).toBe(restoredCell);
+      expect(restoredCell.getAttribute("tabindex")).toBe("0");
+      expect(scroll.getAttribute("tabindex")).toBe("-1");
+    });
   });
 
   it("leaves the grid on forward Tab from a column header or select-all header in cell mode", async () => {
@@ -827,38 +823,128 @@ describe("violet-data-grid role=grid and roving focus (#510)", () => {
     // Scroll row-0 out of the virtual window; the mounted body must still provide a Tab stop.
     scroll.scrollTop = 1_200;
     scroll.dispatchEvent(new Event("scroll"));
-    await nextFrame();
-    await nextFrame();
-    await nextFrame();
+    await vi.waitFor(() => {
+      expect(grid.shadowRoot!.querySelector('td[data-row-id="row-0"]')).toBeNull();
+      expect(
+        grid.shadowRoot!.querySelector('tbody violet-checkbox.selection-checkbox[tabindex="0"]'),
+      ).not.toBeNull();
+    });
 
-    expect(grid.shadowRoot!.querySelector('td[data-row-id="row-0"]')).toBeNull();
     const stopsAfterScroll = await tabStops(grid);
     expect(stopsAfterScroll).toHaveLength(3);
     expect(stopsAfterScroll[0]).toBe(headerTarget(grid, "name"));
     expect(stopsAfterScroll[1]?.matches("violet-checkbox.selection-checkbox")).toBe(true);
     expect(stopsAfterScroll[2]?.id).toBe("after");
 
-    // Ctrl+End from row-0 scrolls to the final row and focuses its mounted selection control.
+    // Ctrl+End from row-0 scrolls to the final row and focuses its mounted cell control.
     scroll.scrollTop = 0;
     scroll.dispatchEvent(new Event("scroll"));
-    await nextFrame();
-    await nextFrame();
+    const firstCheckbox = await vi.waitFor(() => {
+      const checkbox = grid.shadowRoot?.querySelector<HTMLElement>(
+        'td.selection-cell[data-selection-row-id="row-0"] violet-checkbox.selection-checkbox',
+      );
+      expect(checkbox).not.toBeNull();
+      return checkbox!;
+    });
+    firstCheckbox.focus();
+    await vi.waitFor(() => {
+      expect(focused(grid)).toBe(firstCheckbox);
+    });
+
+    await userEvent.keyboard("{Control>}{End}{/Control}");
+    await vi.waitFor(() => {
+      const lastCheckbox = grid.shadowRoot!.querySelector(
+        'td[data-row-id="row-59"][data-column-id="active"] violet-checkbox.cell-checkbox',
+      );
+      expect(lastCheckbox).not.toBeNull();
+      expect(focused(grid)).toBe(lastCheckbox);
+    });
+  });
+
+  it("retains pending row-mode Ctrl+End focus across a two-step virtual scroll unless focus moves elsewhere (#2960)", async () => {
+    const grid = await renderInteractiveGrid({
+      focusMode: "row",
+      selectionMode: "multiple",
+      rowCount: 60,
+      virtualize: true,
+      height: 160,
+    });
+    const scroll = scroller(grid);
     const firstCheckbox = selectionCell(grid, "row-0").querySelector<HTMLElement>(
       "violet-checkbox.selection-checkbox",
     )!;
     firstCheckbox.focus();
-    await nextFrame();
+    await vi.waitFor(() => {
+      expect(focused(grid)).toBe(firstCheckbox);
+    });
+
+    // Force a two-step scroll where row-0 unmounts (causing focus to park on .table-scroll)
+    // before row-59 mounts on a later frame, holding any intermediate reconcileScroll retargets.
+    const originalScrollTo = scroll.scrollTo.bind(scroll);
+    let mode: "end" | "home" | "holding" | "passthrough" = "end";
+    let heldTargetTop: number | null = null;
+    const releasePendingScroll = (): void => {
+      const finalTop = heldTargetTop;
+      expect(finalTop).not.toBeNull();
+      heldTargetTop = null;
+      mode = "passthrough";
+      originalScrollTo({ top: finalTop!, behavior: "auto" });
+    };
+    scroll.scrollTo = ((...args: unknown[]) => {
+      const options = args[0];
+      if (
+        mode !== "passthrough" &&
+        args.length === 1 &&
+        typeof options === "object" &&
+        options !== null &&
+        typeof (options as ScrollToOptions).top === "number"
+      ) {
+        const finalTop = (options as ScrollToOptions).top!;
+        heldTargetTop = finalTop;
+        if (mode === "end" || mode === "home") {
+          const intermediateTop = mode === "end" ? Math.floor(finalTop / 2) : 900;
+          mode = "holding";
+          originalScrollTo({ top: intermediateTop, behavior: "auto" });
+        }
+        return;
+      }
+      return (originalScrollTo as (...forwarded: unknown[]) => void)(...args);
+    }) as typeof scroll.scrollTo;
 
     await userEvent.keyboard("{Control>}{End}{/Control}");
-    await nextFrame();
-    await nextFrame();
-    await nextFrame();
-    await nextFrame();
+    await vi.waitFor(() => {
+      expect(grid.shadowRoot!.querySelector('td[data-row-id="row-0"]')).toBeNull();
+      expect(grid.shadowRoot!.querySelector('td[data-row-id="row-59"]')).toBeNull();
+      expect(focused(grid)).toBe(scroll);
+    });
 
-    const lastCheckbox = grid.shadowRoot!.querySelector(
-      'td[data-row-id="row-59"][data-column-id="active"] violet-checkbox.cell-checkbox',
-    );
-    expect(lastCheckbox).not.toBeNull();
-    expect(focused(grid)).toBe(lastCheckbox);
+    releasePendingScroll();
+    await vi.waitFor(() => {
+      const lastCheckbox = grid.shadowRoot!.querySelector(
+        'td[data-row-id="row-59"][data-column-id="active"] violet-checkbox.cell-checkbox',
+      );
+      expect(lastCheckbox).not.toBeNull();
+      expect(focused(grid)).toBe(lastCheckbox);
+    });
+
+    // Deliberate in-grid focus move while a multi-step Ctrl+Home scroll is in flight must cancel
+    // pending row-mode focus via #focusGeneration (document.activeElement stays on the grid host).
+    mode = "home";
+    await userEvent.keyboard("{Control>}{Home}{/Control}");
+    await vi.waitFor(() => {
+      expect(grid.shadowRoot!.querySelector('td[data-row-id="row-59"]')).toBeNull();
+      expect(grid.shadowRoot!.querySelector('td[data-row-id="row-0"]')).toBeNull();
+      expect(focused(grid)).toBe(scroll);
+    });
+
+    const nameHeader = headerTarget(grid, "name");
+    nameHeader.focus();
+    expect(focused(grid)).toBe(nameHeader);
+    releasePendingScroll();
+    await vi.waitFor(() => {
+      expect(grid.shadowRoot!.querySelector('td[data-row-id="row-0"]')).not.toBeNull();
+    });
+    await nextFrame();
+    expect(focused(grid)).toBe(nameHeader);
   });
 });
