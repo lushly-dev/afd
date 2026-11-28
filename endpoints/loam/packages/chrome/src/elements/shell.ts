@@ -312,9 +312,19 @@ export class LoamShell extends FASTElement {
 	journal: JournalReader | null = null;
 	/**
 	 * The copilot's panel, which loads into the panel part when it first opens (phase 5 specification, 3.2), with the
-	 * host's side it hears. Null: the panel part keeps its empty state.
+	 * host's side it hears. Null: the panel part keeps its empty state (or desktop empty-model CTA when set).
 	 */
-	copilot: { host?: import('../copilot/panel.js').CopilotPanelHostV1 } | null = null;
+	copilot: {
+		host?: import('../copilot/panel.js').CopilotPanelHostV1;
+		desktop?:
+			| boolean
+			| ((command: string, args: Record<string, unknown>) => Promise<unknown>)
+			| null
+			| undefined;
+		configure?: (() => void) | undefined;
+	} | null = null;
+	/** Optional reload hook for tests exercising `requestReload()` without navigating the test window. */
+	declare performReload?: (() => void) | undefined;
 	/** The page's answer to `popover-open`'s anchors, which the kernel was given (phase 4 specification, 6.3). */
 	overlayAnchors: import('@lushly-dev/loam-kernel').OverlayAnchors | null = null;
 	#copilot: Promise<void> | undefined;
@@ -834,18 +844,26 @@ export class LoamShell extends FASTElement {
 		if (presentation.panel !== 'closed') this.#openCopilot();
 	}
 
+	#copilotChunk() {
+		return import('../copilot/index.js');
+	}
+
 	/** The copilot's chunk, once, the first time the panel part opens: never in first paint (phase 5's 2). */
 	#openCopilot(): void {
 		const part = this.shadowRoot?.querySelector('loam-panel') as HTMLElement | null;
 		if (!this.copilot || this.#copilot || !this.kernel || !part) return;
-		const { kernel } = this;
-		const host = this.copilot.host;
-		this.#copilot = import('../copilot/index.js')
-			.then(({ mountCopilotPanel }) => mountCopilotPanel(part, { kernel, host }))
+		const { kernel, copilot } = this;
+		this.#copilot = this.#copilotChunk()
+			.then(({ mountCopilotPanel }) => mountCopilotPanel(part, { kernel, ...copilot }))
 			.then(
 				() => undefined,
 				(error: unknown) => reportError(error)
 			);
+	}
+
+	/** Safe reload guard called by desktop `setup_apply_reload` (phase 5 no-terminal amendment, 9.2 step 6). */
+	requestReload(): Promise<'reloaded' | 'prompted'> {
+		return this.#copilotChunk().then((m) => m.requestShellReload(this));
 	}
 
 	/** The panel's rendered height is capped at main's area less `panel.min`. */

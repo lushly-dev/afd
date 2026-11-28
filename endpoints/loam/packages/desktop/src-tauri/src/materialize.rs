@@ -336,6 +336,25 @@ struct Built {
     package: Package,
 }
 
+/// Validates that a D166 model key file path is `<data>/keys/<id>.key` or `<data>/keys/<id>.<8-hex>.key`.
+pub(crate) fn is_valid_model_key_file(data: &Path, id: &str, path: &Path) -> bool {
+    if path.parent() != Some(data.join("keys").as_path()) {
+        return false;
+    }
+    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+        return false;
+    };
+    if name == format!("{id}.key") {
+        return true;
+    }
+    let prefix = format!("{id}.");
+    name.strip_prefix(&prefix)
+        .and_then(|rest| rest.strip_suffix(".key"))
+        .is_some_and(|hex| {
+            hex.len() == 8 && hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+        })
+}
+
 /// Owner-only D166 per-token fallback file `<data>/keys/mount-<instance>.<tokenId>.key` so a crash
 /// between overwriting `mounts.json` and committing `desktop-state.json` during rotation or
 /// upgrade never loses the previously committed bearer token.
@@ -453,16 +472,15 @@ pub fn project_with_fallbacks(
     if !state.valid() {
         return Err(INVALID);
     }
-    // A key kept in a file is D166's fallback, `<app data>/keys/<id>.key`, and nowhere else: never inside a package
-    // the site copies, nor the site the swap replaces.
+    // A key kept in a file is D166's fallback, `<app data>/keys/<id>.key` (or `<id>.<8-hex>.key`
+    // during an atomic destination+key switch), and nowhere else: never inside a package the site
+    // copies, nor the site the swap replaces.
     let keys_valid = state
         .copilot
         .iter()
         .flat_map(|copilot| &copilot.providers)
         .all(|provider| match &provider.key {
-            Some(KeyRef::File(key)) => {
-                key.file == data.join("keys").join(format!("{}.key", provider.id))
-            }
+            Some(KeyRef::File(key)) => is_valid_model_key_file(data, &provider.id, &key.file),
             _ => true,
         });
     if !keys_valid {

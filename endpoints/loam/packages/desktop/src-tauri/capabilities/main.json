@@ -1,6 +1,6 @@
 {
 	"identifier": "main",
-	"description": "Loam's three mount commands, the copilot's two model commands and the inbound endpoint's reply, for the main webview only. No core or plugin permission (phase 6 specification, 10.2 and 10.8; phase 5 specification, 4.2).",
+	"description": "Loam's three mount commands, the copilot's two model commands, the inbound endpoint's reply, and the minimal setup_open trigger, for the main webview only. No core or plugin permission (phase 6 specification, 10.2 and 10.8; phase 5 specification, 4.2; no-terminal amendment, 3.1 and D165).",
 	"local": true,
 	"webviews": ["main"],
 	"permissions": [
@@ -9,6 +9,7 @@
 		"allow-mount-close",
 		"allow-model-send",
 		"allow-model-cancel",
-		"allow-inbound-reply"
+		"allow-inbound-reply",
+		"allow-setup-open"
 	]
 }

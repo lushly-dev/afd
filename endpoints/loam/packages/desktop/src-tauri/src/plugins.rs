@@ -322,6 +322,24 @@ impl PendingInstallStore {
     fn take(&self) -> Option<PendingInstall> {
         self.0.lock().expect("pending install lock").take()
     }
+
+    fn restore(&self, pending: PendingInstall) {
+        let mut guard = self.0.lock().expect("pending install lock");
+        if guard.is_none() {
+            *guard = Some(pending);
+        } else {
+            let _ = std::fs::remove_dir_all(&pending.staging_dir);
+        }
+    }
+}
+
+/// Shared archive-extension predicate used by both OS file-open sanitization and `plugins::inspect`.
+pub(crate) fn has_plugin_archive_extension(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+        return false;
+    };
+    name.to_ascii_lowercase()
+        .ends_with(PLUGIN_ARCHIVE_EXTENSION)
 }
 
 fn new_proposal_id() -> Result<String, PluginError> {
@@ -447,10 +465,7 @@ pub fn inspect(
         let _ = std::fs::remove_dir_all(dir);
     };
 
-    let is_archive = source
-        .file_name()
-        .and_then(|n| n.to_str())
-        .is_some_and(|n| n.ends_with(PLUGIN_ARCHIVE_EXTENSION))
+    let is_archive = has_plugin_archive_extension(source)
         && std::fs::symlink_metadata(source).is_ok_and(|m| m.is_file());
 
     let staged_res = if is_archive {
@@ -834,6 +849,7 @@ pub fn confirm(
         had_state_file: bool,
         stopped_previous: Option<(PluginManifest, InstalledPlugin, PathBuf)>,
         committed_state: DesktopState,
+        restore_staging_dir: Option<PathBuf>,
     }
 
     impl RollbackState<'_> {
@@ -867,7 +883,16 @@ pub fn confirm(
                 .pending_revocations
                 .iter()
                 .any(|r| r.binary_path.starts_with(&self.new_bundle_dir));
-            if !referenced_by_pending {
+            if let Some(restore_dir) = self.restore_staging_dir {
+                if let Some(parent) = restore_dir.parent() {
+                    let _ = ensure_dir_owner_only(parent);
+                }
+                if std::fs::rename(&self.new_bundle_dir, &restore_dir).is_err()
+                    && !referenced_by_pending
+                {
+                    let _ = std::fs::remove_dir_all(&self.new_bundle_dir);
+                }
+            } else if !referenced_by_pending {
                 let _ = std::fs::remove_dir_all(&self.new_bundle_dir);
             }
             let profile = Profile {
@@ -930,6 +955,7 @@ pub fn confirm(
         had_state_file,
         stopped_previous: None,
         committed_state: state.clone(),
+        restore_staging_dir: None,
     };
 
     // Step 3: post-consent `--version` build check (refuse `test-doubles`).
@@ -1052,7 +1078,18 @@ pub fn confirm(
                     used_file_fallback = paired.file_fallback;
                 }
                 Err(err) => {
+                    // D166 Linux keyring-less recovery: preserve the staged proposal so the user can
+                    // explicitly opt into owner-only file fallback (0600) with the same `proposalId`.
+                    let can_retry_fallback = err.code == PLUGIN_KEYCHAIN_UNAVAILABLE
+                        && !allow_file_fallback
+                        && host.keychain.allows_file_fallback;
+                    if can_retry_fallback {
+                        rb.restore_staging_dir = Some(pending.staging_dir.clone());
+                    }
                     rb.rollback();
+                    if can_retry_fallback && pending.staging_dir.is_dir() {
+                        store.restore(pending);
+                    }
                     return Err(err);
                 }
             }
@@ -1122,7 +1159,16 @@ pub fn confirm(
                 );
             }
             Err(err) => {
+                let can_retry_fallback = err.code == PLUGIN_KEYCHAIN_UNAVAILABLE
+                    && !allow_file_fallback
+                    && host.keychain.allows_file_fallback;
+                if can_retry_fallback {
+                    rb.restore_staging_dir = Some(pending.staging_dir.clone());
+                }
                 rb.rollback();
+                if can_retry_fallback && pending.staging_dir.is_dir() {
+                    store.restore(pending);
+                }
                 return Err(err);
             }
         }

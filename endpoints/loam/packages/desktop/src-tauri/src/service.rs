@@ -537,6 +537,27 @@ pub fn promote_pending(spec: &ServiceSpec<'_>) -> Result<bool, PluginError> {
     }
 }
 
+/// Returns the human-readable OS login service mechanism that installation will register on this
+/// machine, derived from the exact same runtime check used by `register_and_start` / `promote_pending`.
+pub fn active_service_mechanism() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        "LaunchAgent"
+    }
+    #[cfg(windows)]
+    {
+        "HKCU\\...\\Run"
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if systemd_user_active() {
+            "systemd --user"
+        } else {
+            "XDG Autostart"
+        }
+    }
+}
+
 /// Rolls back a pending service started in Phase 3 before `desktop-state.json` committed.
 pub fn rollback_pending(
     data: &Path,

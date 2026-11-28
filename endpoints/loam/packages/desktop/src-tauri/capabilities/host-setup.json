@@ -1,0 +1,21 @@
+{
+	"identifier": "host-setup",
+	"description": "Trusted host-setup window commands for no-terminal plugin install, pairing, model key setup, and safe shell reload, for the host-setup webview only. No main commands, no setup_open, and no core or plugin permission (phase 5 no-terminal amendment, 3.1, 3.3, and D165).",
+	"local": true,
+	"webviews": ["host-setup"],
+	"permissions": [
+		"allow-setup-state-get",
+		"allow-setup-plugin-pick",
+		"allow-setup-plugin-inspect-bundled",
+		"allow-setup-plugin-cancel",
+		"allow-setup-plugin-confirm",
+		"allow-setup-plugin-uninstall",
+		"allow-setup-plugin-retry-revocation",
+		"allow-setup-plugin-rotate-token",
+		"allow-setup-plugin-service-action",
+		"allow-setup-model-save",
+		"allow-setup-model-remove",
+		"allow-setup-model-set-default",
+		"allow-setup-apply-reload"
+	]
+}

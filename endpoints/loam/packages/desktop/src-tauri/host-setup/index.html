@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; frame-src 'none'; object-src 'none'; base-uri 'none'">
+  <title>Loam Setup</title>
+  <link rel="stylesheet" href="/setup.css">
+</head>
+<body>
+  <header class="setup-header">
+    <div class="setup-brand">
+      <h1>Loam Setup</h1>
+      <p class="setup-subtitle" id="mode-subtitle">Trusted desktop setup</p>
+    </div>
+    <div class="setup-controls">
+      <div class="tablist" role="tablist" aria-label="Setup sections">
+        <button id="tab-models" class="tab-btn" role="tab" type="button" aria-selected="false" aria-controls="panel-models" tabindex="-1">Copilot Models</button>
+        <button id="tab-plugins" class="tab-btn" role="tab" type="button" aria-selected="true" aria-controls="panel-plugins" tabindex="0">Plugins</button>
+      </div>
+      <div class="theme-control">
+        <label class="sr-only" for="theme-select">Appearance</label>
+        <select id="theme-select" class="select-compact" aria-label="Appearance">
+          <option value="system">Theme: System</option>
+          <option value="light">Theme: Light</option>
+          <option value="dark">Theme: Dark</option>
+          <option value="high-contrast">Theme: High Contrast</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <main class="setup-main">
+    <div id="status-banner" class="banner" role="status" aria-live="polite" hidden></div>
+
+    <section id="reload-banner" class="banner banner-info" aria-label="Reload required" hidden>
+      <div class="banner-body">
+        <strong class="banner-title">Changes ready to apply</strong>
+        <p class="banner-text">Reload Loam to load updated plugins or model providers in the main window.</p>
+      </div>
+      <div class="banner-actions">
+        <button id="btn-reload-now" class="btn btn-primary" type="button">Reload Loam now</button>
+        <button id="btn-reload-later" class="btn btn-secondary" type="button">Apply on next restart</button>
+      </div>
+    </section>
+
+    <section id="cli-banner" class="banner banner-warn" aria-label="CLI deployment notice" hidden>
+      <div class="banner-body">
+        <strong class="banner-title">CLI-managed deployment</strong>
+        <p class="banner-text">This profile was written by <code>loam deployment write --host desktop</code>. You can update or delete OS keychain API keys for existing providers here; plugin and deployment changes stay managed by the CLI.</p>
+      </div>
+    </section>
+
+    <section id="panel-models" class="tab-panel" role="tabpanel" aria-labelledby="tab-models" hidden>
+      <div class="panel-header">
+        <h2>Copilot Models</h2>
+        <p class="muted">Configure Anthropic, OpenAI, or an OpenAI-compatible local endpoint. API keys are saved directly to your OS keychain and never enter Loam's main shell.</p>
+      </div>
+
+      <section id="models-list" class="card-stack" aria-label="Configured model providers"></section>
+
+      <section id="model-form-card" class="card" aria-labelledby="model-form-heading">
+        <div class="card-header">
+          <h3 id="model-form-heading">Add Model Provider</h3>
+          <button id="btn-model-reset" class="btn btn-ghost" type="button" hidden>Cancel edit</button>
+        </div>
+        <form id="model-form" class="form-grid" novalidate>
+          <div class="field">
+            <label for="model-kind">Provider type</label>
+            <select id="model-kind" name="kind">
+              <option value="anthropic">Anthropic</option>
+              <option value="openai">OpenAI</option>
+              <option value="openai-compatible">OpenAI-compatible (local or custom)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="model-id">Provider ID</label>
+            <input id="model-id" name="id" type="text" autocomplete="off" spellcheck="false" placeholder="claude" required>
+            <span class="hint">Lowercase letters, digits, and hyphens (e.g. <code>claude</code>, <code>openai</code>, <code>local</code>).</span>
+          </div>
+          <div class="field">
+            <label for="model-name">Model ID</label>
+            <input id="model-name" name="model" type="text" autocomplete="off" spellcheck="false" placeholder="claude-sonnet-4-5" required>
+          </div>
+          <div class="field" id="model-endpoint-field" hidden>
+            <label for="model-endpoint">Endpoint URL</label>
+            <input id="model-endpoint" name="endpoint" type="url" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:11434/v1">
+            <span class="hint">Must be <code>https://</code> or loopback <code>http://127.0.0.1</code> / <code>http://[::1]</code>.</span>
+          </div>
+          <div class="field">
+            <label for="model-key">API key</label>
+            <input id="model-key" name="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste API key">
+            <span class="hint" id="model-key-hint">Stored directly in your OS keychain. Leave blank on local keyless endpoints or when keeping an unchanged key.</span>
+          </div>
+          <div class="field-inline" id="model-default-row">
+            <input id="model-default" name="setDefault" type="checkbox" checked>
+            <label for="model-default">Set as default copilot provider</label>
+          </div>
+          <div id="model-recovery-box" class="callout callout-warn" hidden></div>
+          <div class="form-actions">
+            <button id="btn-model-save" class="btn btn-primary" type="submit">Save &amp; verify</button>
+            <button id="btn-model-save-offline" class="btn btn-secondary" type="button" hidden>Save anyway (skip verification)</button>
+            <button id="btn-model-rebind" class="btn btn-secondary" type="button" hidden>Confirm rebind stored key</button>
+            <button id="btn-model-file-fallback" class="btn btn-secondary" type="button" hidden>Save to owner-only key file (0600)</button>
+          </div>
+        </form>
+      </section>
+    </section>
+
+    <section id="panel-plugins" class="tab-panel" role="tabpanel" aria-labelledby="tab-plugins">
+      <div class="panel-header">
+        <h2>Plugins</h2>
+        <p class="muted">Inspect and install verified <code>.loam-plugin</code> archives, folders, or bundled plugins without using a terminal.</p>
+      </div>
+
+      <div id="plugin-actions-bar" class="action-row">
+        <button id="btn-pick-file" class="btn btn-primary" type="button">Install from .loam-plugin file…</button>
+        <button id="btn-pick-folder" class="btn btn-secondary" type="button">Install from folder…</button>
+      </div>
+
+      <section id="proposal-section" class="card card-consent" aria-labelledby="proposal-heading" hidden>
+        <div class="card-header">
+          <div>
+            <span id="proposal-badge" class="badge badge-info">Install review</span>
+            <h3 id="proposal-heading">Review Plugin</h3>
+          </div>
+          <button id="btn-proposal-cancel-top" class="btn btn-ghost" type="button">Cancel</button>
+        </div>
+        <div id="proposal-body" class="consent-body"></div>
+        <div id="proposal-fallback-box" class="callout callout-warn" hidden></div>
+        <div class="form-actions">
+          <button id="btn-proposal-confirm" class="btn btn-primary" type="button">Confirm &amp; install</button>
+          <button id="btn-proposal-confirm-fallback" class="btn btn-secondary" type="button" hidden>Confirm with owner-only file fallback (0600)</button>
+          <button id="btn-proposal-cancel" class="btn btn-secondary" type="button">Cancel</button>
+        </div>
+      </section>
+
+      <section id="revocations-section" class="card card-warn" aria-labelledby="revocations-heading" hidden>
+        <h3 id="revocations-heading">Pending Token Revocations</h3>
+        <p class="muted">These tokens could not be revoked when their plugin was uninstalled or rotated. Retry once the engine binary is reachable.</p>
+        <div id="revocations-list" class="card-stack"></div>
+      </section>
+
+      <section id="bundled-section" class="section-block" aria-labelledby="bundled-heading" hidden>
+        <h3 id="bundled-heading">Bundled Plugins</h3>
+        <div id="bundled-list" class="card-stack"></div>
+      </section>
+
+      <section class="section-block" aria-labelledby="installed-heading">
+        <h3 id="installed-heading">Installed Plugins</h3>
+        <div id="installed-list" class="card-stack"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="/setup.js" defer></script>
+</body>
+</html>

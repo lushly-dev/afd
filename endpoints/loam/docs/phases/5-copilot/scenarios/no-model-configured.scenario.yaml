@@ -26,4 +26,4 @@ steps:
       success: false
       error:
         code: COPILOT_PROVIDER_MISSING
-        suggestion: { contains: loam.deployment.toml }
+        suggestion: { matches: 'loam\.deployment\.toml|Copilot Models' }

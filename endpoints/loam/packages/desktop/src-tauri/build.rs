@@ -52,12 +52,54 @@ fn compute_shell_build_id(dist: &Path, polyfill: &[u8]) -> String {
     hasher.update(polyfill);
     hasher.update(b"\n");
 
-    for meta in ["tauri.conf.json", "capabilities/main.json"] {
+    for meta in [
+        "tauri.conf.json",
+        "capabilities/main.json",
+        "capabilities/host-setup.json",
+    ] {
         let path = Path::new(meta);
         println!("cargo:rerun-if-changed={meta}");
         if let Ok(bytes) = std::fs::read(path) {
             hasher.update(b"meta:");
             hasher.update(meta.as_bytes());
+            hasher.update(b":");
+            hasher.update((bytes.len() as u64).to_le_bytes());
+            hasher.update(&bytes);
+            hasher.update(b"\n");
+        }
+    }
+
+    let host_setup_dir = Path::new("host-setup");
+    if host_setup_dir.is_dir() {
+        let mut setup_files = Vec::new();
+        collect_dist_files(host_setup_dir, host_setup_dir, &mut setup_files);
+        setup_files.sort_by(|a, b| a.0.cmp(&b.0));
+        for (rel, path) in setup_files {
+            if let Ok(bytes) = std::fs::read(&path) {
+                hasher.update(b"host-setup:");
+                hasher.update(rel.as_bytes());
+                hasher.update(b":");
+                hasher.update((bytes.len() as u64).to_le_bytes());
+                hasher.update(&bytes);
+                hasher.update(b"\n");
+            }
+        }
+    }
+
+    let fonts_dir = Path::new("../../theme/fonts");
+    for font in [
+        "inter-latin-400-normal.woff2",
+        "inter-latin-500-normal.woff2",
+        "inter-latin-600-normal.woff2",
+        "space-grotesk-latin-600-normal.woff2",
+        "ibm-plex-mono-latin-400-normal.woff2",
+        "ibm-plex-mono-latin-500-normal.woff2",
+    ] {
+        let path = fonts_dir.join(font);
+        println!("cargo:rerun-if-changed={}", path.display());
+        if let Ok(bytes) = std::fs::read(&path) {
+            hasher.update(b"font:");
+            hasher.update(font.as_bytes());
             hasher.update(b":");
             hasher.update((bytes.len() as u64).to_le_bytes());
             hasher.update(&bytes);
@@ -141,6 +183,20 @@ fn main() {
             "model_send",
             "model_cancel",
             "inbound_reply",
+            "setup_open",
+            "setup_state_get",
+            "setup_plugin_pick",
+            "setup_plugin_inspect_bundled",
+            "setup_plugin_cancel",
+            "setup_plugin_confirm",
+            "setup_plugin_uninstall",
+            "setup_plugin_retry_revocation",
+            "setup_plugin_rotate_token",
+            "setup_plugin_service_action",
+            "setup_model_save",
+            "setup_model_remove",
+            "setup_model_set_default",
+            "setup_apply_reload",
         ]),
     ))
     .expect("desktop build metadata");

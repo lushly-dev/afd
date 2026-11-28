@@ -110,6 +110,8 @@ const SESSION_ID = /^cps_[0-9a-f]{16}$/;
 
 /** What the copilot chunk needs from the kernel. */
 export interface CopilotDeps {
+	/** Custom suggestion getter when no provider is configured (desktop no-terminal amendment, 8.3). */
+	providerMissing?: (() => string | undefined) | undefined;
 	/** The workspace store: the person's sessions and turns, each carrying `person`. */
 	store: DataAdapter;
 	workspace: string;
@@ -1005,7 +1007,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				return fail(
 					'COPILOT_PROVIDER_MISSING',
 					'No model is configured for the copilot',
-					SUGGESTIONS.PROVIDER_MISSING
+					deps.providerMissing?.() ?? SUGGESTIONS.PROVIDER_MISSING
 				);
 			}
 			const provider = configured.find((entry) => entry.id === session.provider);

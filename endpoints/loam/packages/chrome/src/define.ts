@@ -116,7 +116,15 @@ export interface MountShellOptions {
 	 * The copilot's panel in the panel part, loaded when the part first opens, with the host's side it hears (phase 5
 	 * specification, 3.2). Absent: the panel part keeps its empty state.
 	 */
-	copilot?: { host?: import('./copilot/panel.js').CopilotPanelHostV1 };
+	copilot?: {
+		host?: import('./copilot/panel.js').CopilotPanelHostV1 | undefined;
+		desktop?:
+			| boolean
+			| ((command: string, args: Record<string, unknown>) => Promise<unknown>)
+			| null
+			| undefined;
+		configure?: (() => void) | undefined;
+	};
 	/** The object the kernel was given as `overlayAnchors`: the shell answers it once it renders (phase 4's 6.3). */
 	overlayAnchors?: import('@lushly-dev/loam-kernel').OverlayAnchors;
 }

@@ -35,6 +35,8 @@ import {
 export {
 	type CopilotPanelHostV1,
 	type CopilotPanelKernelV1,
+	DESKTOP_KEY_MISSING_NOTICE,
+	DESKTOP_NO_MODEL_NOTICE,
 	NO_MODEL_NOTICE,
 } from './conversation.js';
 
@@ -154,6 +156,7 @@ export class LoamCopilotPanel extends FASTElement {
 	declare unavailable: boolean;
 	kernel: CopilotPanelKernelV1 | null = null;
 	host: CopilotPanelHostV1 | null = null;
+	desktop = false;
 	#conversation: CopilotConversation | null = null;
 
 	constructor() {
@@ -171,17 +174,22 @@ export class LoamCopilotPanel extends FASTElement {
 
 	#ensure(): CopilotConversation | null {
 		if (!this.#conversation && this.kernel)
-			this.#conversation = new CopilotConversation(this.kernel, this.host, {
-				messages: (messages) => this.render(messages),
-				status: (status) => {
-					this.status = status;
-					if (status === 'ready') void this.refresh();
+			this.#conversation = new CopilotConversation(
+				this.kernel,
+				this.host,
+				{
+					messages: (messages) => this.render(messages),
+					status: (status) => {
+						this.status = status;
+						if (status === 'ready') void this.refresh();
+					},
+					notice: (text, unavailable) => {
+						this.notice = text;
+						if (unavailable !== undefined) this.unavailable = unavailable;
+					},
 				},
-				notice: (text, unavailable) => {
-					this.notice = text;
-					if (unavailable !== undefined) this.unavailable = unavailable;
-				},
-			});
+				{ desktop: this.desktop }
+			);
 		return this.#conversation;
 	}
 
