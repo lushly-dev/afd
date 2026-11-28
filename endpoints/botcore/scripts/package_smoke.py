@@ -109,6 +109,7 @@ def audit(artifacts: Path) -> list[dict]:
                 for script in ("sweep.mjs", "cognitive-complexity.mjs"):
                     assert f"botcore/skills/bloat-sweeper/scripts/{script}" in names
                 for script in (
+                    "check-portability.mjs",
                     "check-test-quarantine.mjs",
                     "check-test-configs.mjs",
                     "check-test-discovery.mjs",

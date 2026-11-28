@@ -1,0 +1,13 @@
+{
+	"$comment": "AFD's scope for scripts/check-portability.mjs (#2834): every file git lists, as the pre-commit hook scanned every staged file. alfred/ and python/ have their own tooling, packages/rust/ too; CMake writes machine paths into the C++ build trees.",
+	"exclude": [
+		"packages/rust/",
+		"packages/cpp/build/",
+		"packages/examples/todo/backends/cpp/build/"
+	],
+	"skipSegments": ["node_modules", "dist", "coverage", "target", ".git", "alfred", "python"],
+	"extensions": [".ts", ".tsx", ".js", ".mjs", ".cjs", ".json", ".md", ".yaml", ".yml"],
+	"markdown": "skip",
+	"localhostAllowed": ["vite.config.ts", "vitest.config.ts"],
+	"spawnSuggestion": "Use execTool or spawnTool from scripts/release/exec-tool.mjs; a call that already passes a Windows shell with fixed arguments takes a portability-ok comment."
+}

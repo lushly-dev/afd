@@ -7,7 +7,7 @@ description: >
   diff.
 metadata:
   source: botcore
-  version: 1.1.0
+  version: 1.2.0
   portable: true
 ---
 
@@ -103,8 +103,8 @@ every probe "fail" for the wrong reason.
 
 ## The scripts
 
-All six need only Node and git and print each finding with its file (and line where
-applicable). Wire the three checks into the gate CI runs; they read what `git ls-files`
+All seven need only Node and git and print each finding with its file (and line where
+applicable). Wire the four checks into the gate CI runs; they read what `git ls-files`
 lists, so ignored directories stay out. The three report scripts (`report-test-changes.mjs`,
 `report-test-counts.mjs` and `report-coverage-measures.mjs`) are for review and Health
 `schema_version = "1.0"` trend measures (`--measures-out <file>`, optional `--target <id>`),
@@ -204,6 +204,15 @@ Istanbul `coverage-summary.json`, Istanbul/Vitest `coverage-final.json`, Python 
 JSON and LCOV (`lcov.info`) via `--input [<unit>=]<path>` or `--scan`, failing on an empty
 input set unless `--allow-empty` is passed, and writes weighted totals plus per-unit coverage
 percentages with `--measures-out <file>`.
+
+**`scripts/check-portability.mjs`: no machine-specific paths, no shim spawns.** Fails on
+Windows drive and user-home paths and on a package manager started by bare name without a
+shell (`execFileSync('pnpm', ...)`, ENOENT on Windows), warns on hardcoded localhost URLs,
+and takes `// portability-ok: <reason>` on the line or the one before. The repository's scope
+(`include`, `exclude`, `skipSegments`, `extensions`, whether Markdown and comment lines are
+scanned, the localhost allowlist, the helper its spawn finding names) lives in
+`scripts/policy/portability.json` (`--config <path>` for another). A full scan that finds no
+file fails; a hook can pass its staged files.
 
 If a software factory or another agent loop may repair a failing branch, list the
 scripts and the register among the paths a repair may not edit, or the repair can pass

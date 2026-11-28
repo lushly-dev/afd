@@ -2,6 +2,12 @@
 	"version": 1,
 	"canonicalScripts": [
 		{
+			"source": "scripts/check-portability.mjs",
+			"targets": [
+				"endpoints/botcore/src/botcore/skills/gate-discipline/scripts/check-portability.mjs"
+			]
+		},
+		{
 			"source": "scripts/check-test-configs.mjs",
 			"targets": [
 				"endpoints/botcore/src/botcore/skills/gate-discipline/scripts/check-test-configs.mjs"
