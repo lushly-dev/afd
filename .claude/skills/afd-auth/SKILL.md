@@ -96,6 +96,7 @@ type SignInOutcome =
 
 **`useConvexAuthAdapter`** (`/react`): takes `useAuthActions`, `useConvexAuth`, `meQuery` (`() => useQuery(api.users.me)`) and `passwordProviderId` (default `'password'`, the stock `Password()` id).
 
+- It needs `@convex-dev/auth` below 2 (peer `>=0.0.95 <2`). Version 2 has no `useAuthActions().signIn`, only a hook per sign-in method, so do not install 2.x for it (#3006).
 - Credentials call `signIn(passwordProviderId, { email, password, flow: 'signIn' })`; a missing password is `INVALID_CREDENTIALS`. OAuth forwards `redirectTo` and rejects `scopes` with `PROVIDER_ERROR`: set them on the provider in `convex/auth.ts`.
 - `InvalidAccountId`, `InvalidSecret` and `Invalid credentials` map to `INVALID_CREDENTIALS`, fetch failures to `NETWORK_ERROR`, the rest to `PROVIDER_ERROR`; production Convex hides error text unless it is a `ConvexError`, so bad credentials there are `PROVIDER_ERROR`.
 - `loading` while `meQuery` returns `undefined`, `unauthenticated` on `null`. No `expiresAt`: Convex refreshes its JWT itself. The hook returns the same adapter on every render.

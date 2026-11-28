@@ -1758,7 +1758,7 @@ importers:
   packages/auth:
     dependencies:
       '@convex-dev/auth':
-        specifier: '>=0.0.95'
+        specifier: '>=0.0.95 <2'
         version: 0.0.96(@auth/core@0.41.3)(convex@1.32.0(react@19.3.1))(react@19.3.1)
       '@lushly-dev/afd-core':
         specifier: workspace:*
