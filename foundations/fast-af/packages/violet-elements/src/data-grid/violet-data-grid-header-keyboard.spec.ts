@@ -682,7 +682,9 @@ describe("violet-data-grid role=grid and roving focus (#510)", () => {
     columnHeader.dispatchEvent(headerForward);
     expect(headerForward.defaultPrevented).toBe(false);
     expect(activeCell.getAttribute("tabindex")).toBe("-1");
-    await nextFrame();
+    // The grid restores the stop in a timeout, which a frame need not outlast: WebKit runs the
+    // frame first once the window has focus (#2841). A later timeout runs after it.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(activeCell.getAttribute("tabindex")).toBe("0");
   });
 

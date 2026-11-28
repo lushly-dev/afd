@@ -107,6 +107,9 @@ export default defineConfig({
       },
     },
     include: ["src/**/*.spec.ts"],
+    // Gives the window focus before every test, so a spec's first focus() works whichever file ran
+    // before it (Firefox, #2841).
+    setupFiles: ["test/focus-window.ts"],
     browser: {
       enabled: true,
       // Never open a window on a developer desktop; the run reports results either way.
