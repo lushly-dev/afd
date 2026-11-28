@@ -176,9 +176,11 @@ Each issue's live state, dependencies and deferral reason live in [STATUS.md](ST
 
 ## Open decisions for the owner
 
-1. **May a finished Umbel task's result outlive its starting token?**
-   ([#2506](https://github.com/lushly-dev/afd/issues/2506), depends on `#2500`.) Today Umbel purges
-   finished results at token `exp` so no result outlives the authorization that produced it. Keeping
+1. **May a finished Umbel task's result outlive its starting token?** Decided by the owner on
+   2026-11-26: yes, for the same principal with a refreshed token, within the task's own `ttlMs`;
+   [`spec/tasks.md`](../../../../spec/tasks.md) says so.
+   ([#2506](https://github.com/lushly-dev/afd/issues/2506), depends on `#2500`.) Umbel still purges
+   finished results at token `exp`, until its follow-up, so no result outlives the authorization that produced it. Keeping
    finished results readable by the same principal with a refreshed token matches Claude Code's
    one-hour expectation but relaxes that rule.
 2. **Should an AFD task be allowed to ask a person (`input_required`)?**

@@ -1,0 +1,5 @@
+---
+"afd-spec": patch
+---
+
+Tasks (`spec/tasks.md`, the `tasks` profile): the token that starts a task bounds its run, not its result (#2506). A finished task, its `TASK_TOKEN_EXPIRED` failure included, is kept for its retention after the starting token expires, and its owner reads it with any later token that binds to the same principal until the task's own `ttlMs` ends. The owner check says the owner is a principal, not a token: the principal binding (authorization M8) holds no token and no expiry, so a refreshed token for the same actor, issuer, subject and client is the owner, and another client of the same person is not. Ending a task's `ttlMs` at the starting token's expiry, which a host could already choose (TypeScript `tokenExpiryGraceMs`, Python `token_expiry_grace_ms`, Rust `TaskOptions::with_ttl_capped_at_token_expiry`), is now described as a narrowing of that rule, with what it costs a client that polls after its token expired. No implementation changes: without the option each already behaves this way. Clarifying, so the `tasks` profile stays at 1.0 and the core `VERSION` stays.

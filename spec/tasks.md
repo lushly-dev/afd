@@ -59,10 +59,11 @@ with a fresh context carrying the call's actor, credentials and trace. A task's 
 (**post-completion retention**, `ttlMs` on `TaskOptions`, default one hour):
 - **Initial and finished `ttlMs`.** On `CreateTaskResult` and while `working`, the wire `ttlMs`
   (counted from `createdAt`, per SEP-2663) is `maxRunMs + retention` (two hours by default), capped
-  by any host token-expiry grace and the JSON safe-integer ceiling (`2^53 - 1`). Once the task
+  by the JSON safe-integer ceiling (`2^53 - 1`) and, on a host that narrows it, by the starting
+  token's expiry plus a grace (below). Once the task
   reaches a terminal status (`completed`, `failed` or `cancelled`) at `finishedAt`, its stored and
   reported `ttlMs` is tightened atomically to `min(maxRunMs, max(0, finishedAt - createdAt)) +
-  retention` (still capped by any token-expiry grace and never wider than the initial `ttlMs`), so
+  retention` (still capped as above and never wider than the initial `ttlMs`), so
   a task that finishes near its run budget stays readable for the full retention period after
   finishing and expires once `finishedAt + retention` passes without ever widening past its
   advertised TTL.
@@ -72,25 +73,42 @@ with a fresh context carrying the call's actor, credentials and trace. A task's 
   (before token expiry and before `ttlMs`), it completes with the failure `TIMEOUT` (retryable
   unless the command is a `mutation` whose handler started, whose suggestion then says to check its
   effect), kept for the retention period; a handler that had already returned before the run budget
-  stopped it keeps its result as long as the token and `ttlMs` still hold. When its `ttlMs` ends
-  the task is gone.
+  stopped it keeps its result if it returned before the token's `expiresAt`, until its `ttlMs`
+  ends. When its `ttlMs` ends the task is gone.
 - **Its result** is the `CallToolResult` an inline call would return, `structuredContent` included,
   with status `completed`; a failed `CommandResult` is `completed` with `isError: true`, as the
   extension says. `failed` is only for a JSON-RPC error. A task stopped by `tasks/cancel` is
   `cancelled`; a handler that had already returned when the cancel arrived keeps its result.
-- **The token bounds it.** A task never outlives the token that started it: when
+- **The token bounds the run, not the result** ([#2506](https://github.com/lushly-dev/afd/issues/2506),
+  decided 2026-11-26). A task never runs past the token that started it: when
   `credentials.expiresAt` passes while it is working, it is stopped and completes with the failure
   `TASK_TOKEN_EXPIRED` ([error codes](./error-codes.md#tasks-profile-tasks)): start it again with a new token.
   A task whose token expired before it could start completes the same way without running, and
   a result that arrives after `expiresAt` is not delivered. The failure is retryable unless the
-  command is a `mutation` whose handler started, since it may have made its change. A host may
-  also end the task's `ttlMs` there, or a grace after it.
+  command is a `mutation` whose handler started, since it may have made its change. A finished
+  task, its `TASK_TOKEN_EXPIRED` failure included, is kept for its retention whether or not the
+  starting token has expired, and its owner reads it with any later token that binds to the same
+  principal (the owner check below), a refreshed one included, until its own `ttlMs` ends. A
+  host may narrow this, ending the task's `ttlMs` at the starting token's expiry or a grace after
+  it, so that no result outlives the authorization that produced it by more than that grace (TypeScript
+  `tokenExpiryGraceMs`, Python `token_expiry_grace_ms`, Rust
+  `TaskOptions::with_ttl_capped_at_token_expiry`). A client that polls for a result after the
+  token it started with has expired then finds the task gone, sooner than the hour after
+  finishing that Claude Code expects a result to stay, so a host narrows it only when its trust
+  model needs that.
 - **Progress** updates `statusMessage` and `lastUpdatedAt`; no progress or log notification is sent
   for a task (the extension delivers none).
 
 **`tasks/get`, `tasks/update` and `tasks/cancel`.** Each request passes the same authorization as a
 `tools/call` ([M6, other methods](./authorization.md#other-methods)), and then the **owner check**:
-the store returns a task only when the caller's principal binding equals its owner. A task owned by
+the store returns a task only when the caller's principal binding equals its owner. The owner is a
+principal, not a token: the binding holds no token and no expiry
+([authorization, M8](./authorization.md#m8-the-principal-binding)), so a caller with a later
+token is the owner when its actor and its token's issuer, subject and client are the task's. A
+token another client of the same person holds is not. Nor, after a refresh, is a caller whose
+host context hook builds its actor from something a new token changes (a token id, an issue
+time, a session): a hook that should keep its callers' tasks across a refresh maps every token
+of one principal to the same actor, as the default actor (authorization M4) does. A task owned by
 anyone else, an expired task and an unknown id get the same answer, the extension's answer for an
 unknown task (`-32602`), so an id reveals nothing. The server checks the owner and the TTL again
 itself, whatever the store returned. On an authorized server the owner must also still hold what a
