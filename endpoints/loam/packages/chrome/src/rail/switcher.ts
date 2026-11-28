@@ -170,8 +170,6 @@ export class LoamProjectList extends FASTElement {
 	#open = false;
 	/** Its own choice is running: the change of scope it makes is not one to close on. */
 	#choosing = false;
-	/** When a press outside last closed it: the switcher's own press that did so does not reopen it. */
-	#closedAt = -Infinity;
 	/** It is closing itself: by Escape, a choice or a second press, so no press outside closed it. */
 	#hiding = false;
 	#watch = { handleChange: () => this.#markActive() };
@@ -188,11 +186,6 @@ export class LoamProjectList extends FASTElement {
 
 	get isOpen(): boolean {
 		return this.#open;
-	}
-
-	/** Closed by the press that is asking to toggle it, so it stays closed. */
-	get justClosed(): boolean {
-		return performance.now() - this.#closedAt < 300;
 	}
 
 	override connectedCallback(): void {
@@ -280,7 +273,6 @@ export class LoamProjectList extends FASTElement {
 		const hiding = this.#hiding;
 		this.#hiding = false;
 		this.#open = open;
-		if (!open && !hiding) this.#closedAt = performance.now();
 		if (this.switcher) this.switcher.expanded = open;
 		// Its tooltip closes: focus moves inside the switcher, which the rail's tooltip cannot hear.
 		if (open) {
@@ -390,7 +382,11 @@ observable(LoamProjectList.prototype, 'failure');
 let defined: Promise<void> | null = null;
 
 /** Open the switcher's list, or close it when it is open: its button's press, after the chunk loads. */
-export async function openSwitcher(shell: LoamShell, switcher: LoamProjectSwitcher): Promise<void> {
+export async function openSwitcher(
+	shell: LoamShell,
+	switcher: LoamProjectSwitcher,
+	closing = false
+): Promise<void> {
 	defined ??= FASTElement.define(LoamProjectList, {
 		name: 'loam-project-list',
 		template,
@@ -412,6 +408,8 @@ export async function openSwitcher(shell: LoamShell, switcher: LoamProjectSwitch
 		root.append(list);
 		await Updates.next();
 	}
+	// A pointer's press that began with the list open closed it, by focus or light dismiss, before the press: it
+	// stays closed (#2883).
 	if (list.isOpen) list.hide();
-	else if (!list.justClosed) await list.show();
+	else if (!closing) await list.show();
 }

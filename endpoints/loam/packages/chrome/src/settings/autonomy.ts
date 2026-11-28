@@ -87,6 +87,13 @@ function modeSelect(
 	return { box: el('label', { for: id }, label, select), select };
 }
 
+/** The add-rule form's choices not yet sent: its app, its command (empty for every command) and its mode. */
+interface AddDraft {
+	app?: string;
+	command?: string | undefined;
+	mode?: string;
+}
+
 export class LoamAutonomySection extends SettingsElement {
 	kernel: LoamKernel | null = null;
 	scope: PanelScope = { workspace: '' };
@@ -103,6 +110,8 @@ export class LoamAutonomySection extends SettingsElement {
 	#status = el('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
 	#body = el('div', { class: 'fields' });
 	#explained = el('div', { class: 'section', id: 'autonomy-explained' });
+	/** By scope and level, the add-rule form's choices not yet sent (#2843). */
+	#drafts = new Map<string, AddDraft>();
 	/** Approval health for the scope shown (phase 5 specification, 6.3), read beside the rules. */
 	#health = el('div', { class: 'section', id: 'autonomy-health' });
 
@@ -278,8 +287,14 @@ export class LoamAutonomySection extends SettingsElement {
 	}
 
 	/** Write, say how it went in words, and read again either way. */
-	async #set(input: Record<string, unknown>, scope: PanelScope, what: string): Promise<void> {
+	async #set(
+		input: Record<string, unknown>,
+		scope: PanelScope,
+		what: string,
+		saved?: () => void
+	): Promise<void> {
 		const done = await this.#call('autonomy-set', input, scope);
+		if (done.success) saved?.();
 		this.#status.textContent = done.success
 			? `${what} is saved.`
 			: `${what} was not saved. ${failed(done)}`;
@@ -382,14 +397,30 @@ export class LoamAutonomySection extends SettingsElement {
 		);
 	}
 
-	/** A new rule for an app, or one of its commands, at a level. */
+	/**
+	 * A new rule for an app, or one of its commands, at a level. Its choices are kept as a draft for this scope and
+	 * level, so a read again, as every change's event asks, draws the form with them, a person's half-made rule not
+	 * lost to another write, nor carried into another scope (#2843).
+	 */
 	#add(at: { level: string; project?: string }, off: boolean, scope: PanelScope): HTMLElement {
 		const prefix = `add-${at.level}`;
+		const key = JSON.stringify([this.scope, this.project?.id ?? null, at.level]);
+		const draft = this.#drafts.get(key) ?? {};
+		const keep = (change: AddDraft) =>
+			this.#drafts.set(key, { ...this.#drafts.get(key), ...change });
 		const app = el('select', { id: `${prefix}-app` }) as HTMLSelectElement;
 		app.append(...this.apps.map(({ instance, title }) => el('option', { value: instance }, title)));
 		if (this.#listed?.shellCommands) app.append(el('option', { value: 'shell' }, 'Shell'));
+		if (draft.app && [...app.options].some((option) => option.value === draft.app))
+			app.value = draft.app;
 		const command = el('select', { id: `${prefix}-command` }) as HTMLSelectElement;
-		const mode = modeSelect('Mode', `${prefix}-mode`, 'ask', 'Choose', off);
+		const mode = modeSelect(
+			'Mode',
+			`${prefix}-mode`,
+			draft.mode === undefined ? 'ask' : ((draft.mode || null) as Mode | null),
+			'Choose',
+			off
+		);
 		const fill = async () => {
 			const instance = app.value;
 			command.replaceChildren();
@@ -408,8 +439,18 @@ export class LoamAutonomySection extends SettingsElement {
 				el('option', { value: '' }, 'Every command'),
 				...choices.map(({ name, title }) => el('option', { value: name }, title ?? name))
 			);
+			// The draft's command, once its app's commands are listed; until then the select is empty and Add rule
+			// sends nothing, so a pending list never widens the rule to every command.
+			const wanted = this.#drafts.get(key);
+			if (wanted?.app === instance && choices.some(({ name }) => name === wanted.command))
+				command.value = wanted.command as string;
 		};
-		app.addEventListener('change', () => void fill());
+		app.addEventListener('change', () => {
+			keep({ app: app.value, command: undefined });
+			void fill();
+		});
+		command.addEventListener('change', () => keep({ app: app.value, command: command.value }));
+		mode.select.addEventListener('change', () => keep({ mode: mode.select.value }));
 		if (app.value) void fill();
 		for (const control of [app, command]) control.disabled = off;
 		const form = el(
@@ -423,6 +464,7 @@ export class LoamAutonomySection extends SettingsElement {
 				() => {
 					// Never sent when the caller may not set this level, whatever the button's state says.
 					if (off || !mode.select.value || command.selectedIndex < 0) return;
+					// Saved: the next form starts afresh; refused, it keeps the choices to change.
 					return this.#set(
 						{
 							...at,
@@ -431,7 +473,8 @@ export class LoamAutonomySection extends SettingsElement {
 							mode: mode.select.value,
 						},
 						scope,
-						'The new rule'
+						'The new rule',
+						() => this.#drafts.delete(key)
 					);
 				},
 				off ? { 'aria-disabled': 'true' } : {}

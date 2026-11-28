@@ -294,6 +294,198 @@ describe('journal-order (#1936)', () => {
 	});
 });
 
+describe('journal-order: a nested read (#2727)', () => {
+	/** A top-level call `outer` whose handler runs a nested call `inner` that reads `book`. */
+	async function nested(
+		order: ReturnType<typeof harness>['order'],
+		log: string[],
+		mutation: boolean,
+		during: () => Promise<void>
+	): Promise<void> {
+		const name = mutation ? 'book-sign' : 'document-export';
+		order.begin('outer', mutation, {}, false, name);
+		try {
+			await order.turn(name, {}, { traceId: 'outer' } as CommandContext, async () => {
+				if (mutation) order.store('outer', 'book').wrote();
+				order.begin('inner', false, { parent: 'outer' }, false, 'book-list');
+				try {
+					await during();
+					order.store('inner', 'book').read();
+				} finally {
+					order.end('inner');
+				}
+				return ok;
+			});
+			log.push('outer');
+			order.appended('outer');
+		} finally {
+			order.end('outer');
+		}
+	}
+
+	it('holds a top-level read whose nested call read after a write was issued until the write is journaled', async () => {
+		const { order, log, call } = harness();
+		let write: Promise<unknown> | undefined;
+		await nested(order, log, false, async () => {
+			write = call('w', {
+				mutation: true,
+				name: 'book-sign',
+				handler: async (store) => store.wrote(),
+				after: () => tick(10),
+			});
+			await tick();
+		});
+		await write;
+		expect(log).toEqual(['w', 'outer']);
+	});
+
+	it('holds a later write behind a top-level read whose nested call read first (WAR)', async () => {
+		const { order, log, call } = harness();
+		let write: Promise<unknown> | undefined;
+		order.begin('outer', false, {}, false, 'document-export');
+		const outer = (async () => {
+			try {
+				await order.turn(
+					'document-export',
+					{},
+					{ traceId: 'outer' } as CommandContext,
+					async () => {
+						order.begin('inner', false, { parent: 'outer' }, false, 'book-list');
+						order.store('inner', 'book').read();
+						order.end('inner');
+						write = call('w', {
+							mutation: true,
+							name: 'book-sign',
+							handler: async (store) => store.wrote(),
+						});
+						await tick(10);
+						return ok;
+					}
+				);
+				log.push('outer');
+				order.appended('outer');
+			} finally {
+				order.end('outer');
+			}
+		})();
+		await outer;
+		await write;
+		expect(log).toEqual(['outer', 'w']);
+	});
+
+	it('releases the top-level call’s reads when its nested call suspends, so a write during the wait is not held', async () => {
+		const { order, log, call } = harness();
+		let answer!: () => void;
+		const answered = new Promise<void>((resolve) => {
+			answer = resolve;
+		});
+		let suspendedNow!: () => void;
+		const waiting = new Promise<void>((resolve) => {
+			suspendedNow = resolve;
+		});
+		order.begin('outer', false, {}, false, 'document-export');
+		const outer = (async () => {
+			try {
+				await order.turn(
+					'document-export',
+					{},
+					{ traceId: 'outer' } as CommandContext,
+					async () => {
+						order.store('outer', 'book').read();
+						order.begin('inner', false, { parent: 'outer' }, false, 'probe-export');
+						try {
+							order.store('inner', 'book').read();
+							// A confirmation: it waits for a person.
+							order.suspend('inner');
+							suspendedNow();
+							await answered;
+						} finally {
+							order.end('inner');
+						}
+						return ok;
+					}
+				);
+				log.push('outer');
+				order.appended('outer');
+			} finally {
+				order.end('outer');
+			}
+		})();
+		await waiting;
+		await call('w', {
+			mutation: true,
+			name: 'book-sign',
+			handler: async (store) => store.wrote(),
+		});
+		expect(log).toEqual(['w']);
+		answer();
+		await outer;
+		expect(log).toEqual(['w', 'outer']);
+	});
+
+	it('never holds a write on a nested read under a call a replay answers from its record (project-summary-get)', async () => {
+		const order = createJournalOrder(
+			() => true,
+			() => false,
+			() => false,
+			(name) => name === 'project-summary-get'
+		);
+		const log: string[] = [];
+		let release!: () => void;
+		const held = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let read!: () => void;
+		const nestedRead = new Promise<void>((resolve) => {
+			read = resolve;
+		});
+		order.begin('outer', false, {}, false, 'project-summary-get');
+		const outer = (async () => {
+			try {
+				await order.turn(
+					'project-summary-get',
+					{},
+					{ traceId: 'outer' } as CommandContext,
+					async () => {
+						order.begin('inner', false, { parent: 'outer' }, false, 'tasks-summary');
+						order.store('inner', 'book').read();
+						order.end('inner');
+						read();
+						await held;
+						return ok;
+					}
+				);
+				log.push('outer');
+				order.appended('outer');
+			} finally {
+				order.end('outer');
+			}
+		})();
+		await nestedRead;
+		order.begin('w', true, {}, false, 'book-sign');
+		try {
+			await order.turn('book-sign', {}, { traceId: 'w' } as CommandContext, async () => {
+				order.store('w', 'book').wrote();
+				return ok;
+			});
+			log.push('w');
+			order.appended('w');
+		} finally {
+			order.end('w');
+		}
+		expect(log).toEqual(['w']);
+		release();
+		await outer;
+		expect(log).toEqual(['w', 'outer']);
+	});
+
+	it('adds nothing for a nested read under a mutation, which never waits on its own write', async () => {
+		const { order, log } = harness();
+		await nested(order, log, true, async () => {});
+		expect(log).toEqual(['outer']);
+	});
+});
+
 describe('journal-order (#2117)', () => {
 	it('breaks WAR/RAW cycles cleanly on single- and two-resource interleavings without deadlocking', async () => {
 		// Single resource: r reads before w writes, then reads again after w writes -> w waits on r, r skips back-edge.

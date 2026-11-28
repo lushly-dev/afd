@@ -297,8 +297,9 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 		if (typeof document === 'string' && document !== '') {
 			deps.recordOrder?.(call.traceId, `doc:${document}`)?.read();
 			// A type's instance command reads none of what a stamp changes, the time and the person: only a call that may
-			// answer with the record does (#2705).
-			if (!typeOfCommand(name)) deps.recordOrder?.(call.traceId, `doc-stamp:${document}`)?.read();
+			// answer with the record does (#2705). `document-export`'s envelope carries neither (#2727).
+			if (name !== 'document-export' && !typeOfCommand(name))
+				deps.recordOrder?.(call.traceId, `doc-stamp:${document}`)?.read();
 		}
 		const record =
 			typeof document === 'string' && document !== ''

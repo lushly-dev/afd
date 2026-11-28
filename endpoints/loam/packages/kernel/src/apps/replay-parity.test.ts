@@ -1307,3 +1307,81 @@ describe('#2705: an instance query beside an instance mutation of the same docum
 		});
 	}
 });
+
+type Exported = CommandResult<{ content: { text: string } | null }>;
+
+/**
+ * #2727: `document-export` checks the record at the top level, then reads the content through the type's export, a
+ * nested call. A nested read counts toward its top-level call's order, as a nested write does, so an export that read
+ * the content a concurrent save wrote journals after it.
+ */
+describe('#2727: a document-export beside an instance mutation of the same document', () => {
+	it('journals an export that checked after the mutation’s content write and read its content after the stamp, after it', async () => {
+		const note = await probeNote();
+		let exported: Promise<Exported> | undefined;
+		const found = held();
+		const stamped = held();
+		let holdFind = false;
+		note.store.batch = (async (ops: Parameters<MemoryAdapter['batch']>[0]) => {
+			if (note.stamp(ops)) stamped.release();
+			const result = await note.batch(ops);
+			if (!exported && note.content(ops)) {
+				holdFind = true;
+				exported = note.kernel.call('document-export', {
+					document: note.document,
+				}) as Promise<Exported>;
+				await found.promise;
+			}
+			return result;
+		}) as typeof note.store.batch;
+		note.store.get = (async <T>(table: string, id: string) => {
+			const result = await note.get<T>(table, id);
+			if (holdFind && table === 'document' && id === note.document) {
+				holdFind = false;
+				found.release();
+				// Its nested content read comes once the stamp is issued.
+				await stamped.promise;
+			}
+			return result;
+		}) as typeof note.store.get;
+
+		const set = await note.kernel.call('probe-content-set', {
+			document: note.document,
+			text: 'Alpha text',
+		});
+		expect(set.success, JSON.stringify(set.error)).toBe(true);
+		const envelope = await exported;
+		expect(envelope?.success, JSON.stringify(envelope?.error)).toBe(true);
+		expect(envelope?.data?.content).toEqual({ text: 'Alpha text' });
+		const { commands, different } = await note.replayed();
+		expect(commands.indexOf('document-export')).toBeGreaterThan(
+			commands.indexOf('probe-content-set')
+		);
+		expect(different).toEqual([]);
+	});
+
+	it('journals an export that ran whole between the mutation’s check and its write, before it', async () => {
+		const note = await probeNote();
+		let exported: Exported | undefined;
+		let armed = true;
+		note.store.get = (async <T>(table: string, id: string) => {
+			if (armed && table === 'app-probe') {
+				armed = false;
+				exported = (await note.kernel.call('document-export', {
+					document: note.document,
+				})) as Exported;
+			}
+			return note.get<T>(table, id);
+		}) as typeof note.store.get;
+
+		const set = await note.kernel.call('probe-content-set', {
+			document: note.document,
+			text: 'Alpha text',
+		});
+		expect(set.success, JSON.stringify(set.error)).toBe(true);
+		expect(exported?.data?.content).toEqual({ text: '' });
+		const { commands, different } = await note.replayed();
+		expect(commands.indexOf('document-export')).toBeLessThan(commands.indexOf('probe-content-set'));
+		expect(different).toEqual([]);
+	});
+});
