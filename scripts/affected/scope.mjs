@@ -109,6 +109,13 @@ export const EXTRA_INPUTS = [
 		packages: ['@lushly-dev/loam-web', '@lushly-dev/loam-desktop'],
 		ownTests: true,
 	},
+	// The web host's ceiling-raises unit reads the decision log, where D161 records the date D115 ends (#2926): only its
+	// own test, though the rest of the unit's docs folder is prose no suite reads.
+	{
+		prefix: 'endpoints/loam/docs/decisions.md',
+		packages: ['@lushly-dev/loam-web'],
+		ownTests: true,
+	},
 	...[
 		'endpoints/loam/apps/hello/',
 		'endpoints/loam/apps/tally/',
