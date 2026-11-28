@@ -29,8 +29,7 @@ from afd import (
 from afd.core import open_dispatch
 from afd.core.commands import CommandContext, CommandMiddleware, declared_secret
 from afd.core.result import ResultMetadata
-from afd.direct import CommandContext as DirectCommandContext
-from afd.direct import CommandInfo
+from afd.direct import CommandInfo, DirectContext
 from afd.server.journal import run_off_tape
 from afd.server.middleware import compose_middleware
 
@@ -288,8 +287,8 @@ class CommandHost:
         return DirectClient(self)
 
     def call_context(
-        self, context: CommandContext | DirectCommandContext | None = None
-    ) -> CommandContext | DirectCommandContext:
+        self, context: CommandContext | DirectContext | None = None
+    ) -> CommandContext | DirectContext:
         """The per-call context middleware and handlers see: ``context`` when a surface
         built one (with the caller it verified as ``actor``), else a fresh one with a
         trace ID and this host's ``actor``."""
@@ -398,7 +397,7 @@ class CommandHost:
         self,
         name: str,
         args: dict[str, Any] | None = None,
-        context: CommandContext | DirectCommandContext | None = None,
+        context: CommandContext | DirectContext | None = None,
     ) -> CommandResult[Any]:
         """Run one command through the host's policy and middleware.
 
