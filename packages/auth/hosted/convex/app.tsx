@@ -101,9 +101,21 @@ interface BrowserHarness {
 	cleanup(runId: string, expectedEmail: string): Promise<CleanupResult>;
 }
 
+/**
+ * The outcome's kind as a fixed string. Literals, not `outcome.kind`, so the
+ * value stored in sessionStorage carries nothing from the sign-in call, whose
+ * input holds the password (CodeQL js/clear-text-storage-of-sensitive-data).
+ */
 // biome-ignore lint/suspicious/noConfusingVoidType: AuthAdapter keeps legacy Promise<void> assignability
-function outcomeKind(outcome: SignInOutcome | void) {
-	return outcome?.kind ?? 'signed-in';
+function outcomeKind(outcome: SignInOutcome | void): SignInOutcome['kind'] {
+	switch (outcome?.kind) {
+		case 'redirect':
+			return 'redirect';
+		case 'pending':
+			return 'pending';
+		default:
+			return 'signed-in';
+	}
 }
 
 function Harness() {

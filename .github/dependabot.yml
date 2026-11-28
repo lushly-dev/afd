@@ -33,8 +33,9 @@ updates:
       - dependency-name: '@types/chai'
         update-types:
           - version-update:semver-major
-      # 2.x needs convex 1.48 or later and new Convex components, and changes the internals
-      # the hosted fixture's tests import: a migration, not a bump (#3006). Lift this with it.
+      # The hosted Convex fixture pins 0.0.96, and moving it to 2.x is a rebuild on 2.x's
+      # server setup and the Convex component, not a bump (#3006). The adapter's 2.x types
+      # are checked through the `@convex-dev/auth-v2` alias. Lift this with the fixture.
       - dependency-name: '@convex-dev/auth'
         update-types:
           - version-update:semver-major

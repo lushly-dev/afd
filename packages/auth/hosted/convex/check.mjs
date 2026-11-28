@@ -52,7 +52,7 @@ async function verifyConvexDependencyPreflight(preflightDir) {
 	);
 	await writeFile(join(preflightDir, 'package.json'), JSON.stringify(fixturePackage));
 	await symlink(
-		join(authDir, 'node_modules'),
+		join(fixtureDir, 'node_modules'),
 		join(preflightDir, 'node_modules'),
 		process.platform === 'win32' ? 'junction' : 'dir'
 	);
@@ -67,7 +67,7 @@ async function verifyConvexDependencyPreflight(preflightDir) {
 	environment.USERPROFILE = preflightDir;
 	environment.XDG_CONFIG_HOME = preflightDir;
 	const result = spawnTool(
-		join(authDir, 'node_modules', '.bin', 'convex'),
+		join(fixtureDir, 'node_modules', '.bin', 'convex'),
 		['codegen', '--dry-run', '--typecheck', 'disable'],
 		{
 			cwd: preflightDir,
@@ -140,8 +140,18 @@ try {
 	]);
 	const cliPreflightDir = join(outputDir, 'convex-cli-preflight');
 	await verifyConvexDependencyPreflight(cliPreflightDir);
-	await run(join(authDir, 'node_modules', '.bin', 'convex'), ['--help'], cliPreflightDir, 'ignore');
-	await run(join(authDir, 'node_modules', '.bin', 'auth'), ['--help'], cliPreflightDir, 'ignore');
+	await run(
+		join(fixtureDir, 'node_modules', '.bin', 'convex'),
+		['--help'],
+		cliPreflightDir,
+		'ignore'
+	);
+	await run(
+		join(fixtureDir, 'node_modules', '.bin', 'auth'),
+		['--help'],
+		cliPreflightDir,
+		'ignore'
+	);
 	const fixtureTypeScript = join(fixtureDir, 'node_modules', 'typescript', 'bin', 'tsc');
 	await run(
 		process.execPath,
