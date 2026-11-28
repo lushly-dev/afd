@@ -77,19 +77,20 @@ def choose_plan(plans: list[Plan], ceiling: float, now: datetime) -> PlanChoice:
     """The plan with the highest pace (room below the ceiling per day to its reset) below the
     ceiling.
 
-    A plan at or above ``plans.ceiling`` is skipped. With none left, ``next_reset`` says when
-    the first window resets.
+    A plan at or above ``plans.ceiling``, or a stale one, is skipped. With none left,
+    ``next_reset`` says when the first window resets.
     """
-    open_plans = [plan for plan in plans if plan.used < ceiling]
+    live = [plan for plan in plans if plan.stale is None]
+    open_plans = [plan for plan in live if plan.used < ceiling]
     if open_plans:
         best = max(open_plans, key=lambda plan: (pace(plan, ceiling, now), -plan.used, plan.id))
         return PlanChoice(best, None, ceiling, now)
-    resets = sorted(plan.resets_at for plan in plans if plan.resets_at)
+    resets = sorted(plan.resets_at for plan in live if plan.resets_at)
     return PlanChoice(None, resets[0] if resets else None, ceiling, now)
 
 
 def describe_plan(plan: Plan, ceiling: float, now: datetime) -> dict[str, Any]:
-    return {
+    described = {
         "id": plan.id,
         "provider": plan.provider,
         "used": plan.used,
@@ -103,6 +104,14 @@ def describe_plan(plan: Plan, ceiling: float, now: datetime) -> dict[str, Any]:
         "aboveCeiling": plan.used >= ceiling,
         "resetsAt": plan.resets_at,
     }
+    if plan.stale is not None:
+        described["stale"] = plan.stale
+    return described
+
+
+def stale_plans(plans: list[Plan]) -> list[dict[str, str]]:
+    """The plans whose cache is out of date, so the owner sees them rather than a silent gap."""
+    return [{"id": plan.id, "reason": plan.stale} for plan in plans if plan.stale is not None]
 
 
 def read_plans(factory: Factory) -> list[Plan]:
@@ -120,7 +129,8 @@ def read_plans(factory: Factory) -> list[Plan]:
         ) from exc
 
 
-#: Providers whose plans run Claude Code: T3 Code's cache name, and the provider's own name.
+#: Providers whose plans run Claude Code: T3 Code's driver (every Claude instance, as
+#: ``claudeAgent_2``, has it), and the provider's own name.
 CLAUDE_PROVIDERS = frozenset({"claudeAgent", "anthropic"})
 
 
@@ -145,9 +155,19 @@ def no_plan_reason(
             "start cells on any plan",
         )
     which = "Claude plan" if dials.value(overrides, "cells.claudeOnly") else "plan"
+    if plans and all(plan.stale is not None for plan in plans):
+        return (
+            "PLANS_STALE",
+            f"Every {which}'s usage cache is out of date: "
+            + "; ".join(f"{plan.id}: {plan.stale}" for plan in plans),
+            "Open T3 Code on the lane host so it refreshes its usage caches, and delete the cache "
+            "of any provider instance that was removed; lane-status lists stalePlans",
+        )
+    stale = sum(1 for plan in plans if plan.stale is not None)
     return (
         "PLAN_ABOVE_CEILING",
-        f"Every {which} is at or above plans.ceiling ({_percent(choice.ceiling)})",
+        f"Every {which} is at or above plans.ceiling ({_percent(choice.ceiling)})"
+        + (f", or stale ({stale}: see stalePlans)" if stale else ""),
         f"Start nothing until the next window resets at "
         f"{choice.next_reset or 'an unknown time'}; lane-status says when canStartCell returns",
     )

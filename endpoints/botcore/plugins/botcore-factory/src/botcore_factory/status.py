@@ -19,6 +19,7 @@ from botcore_factory.cells import (
     holding_seats,
     no_plan_reason,
     read_plans,
+    stale_plans,
     waits_on_owner,
 )
 from botcore_factory.events import open_events, view
@@ -95,6 +96,15 @@ def can_start(factory: Factory, state: dict[str, Any], ready: list[int]) -> dict
     }
 
 
+def stale_plan_list(factory: Factory) -> list[dict[str, str]]:
+    """The plans whose usage cache is out of date; empty when the plans cannot be read, which
+    ``reason`` already says."""
+    try:
+        return stale_plans(read_plans(factory))
+    except Refusal:
+        return []
+
+
 def waiting_on_owner(state: dict[str, Any], backlog: Backlog) -> int:
     """Items only the owner can answer: decision and operator issues (a parked cell's issue
     among them), parked cells and ejected cells at ``cells.maxEjections``, and open events
@@ -150,6 +160,7 @@ def lane_status(factory: Factory, limit: int | None, cursor: str | None) -> dict
         "waitingOnOwner": waiting_on_owner(state, backlog),
         "dials": dials.values(state["dials"]),
         "diskWarnings": world.machine.disk_warnings(),
+        "stalePlans": stale_plan_list(factory),
         **can_start(factory, state, dispatchable(backlog)),
     }
 

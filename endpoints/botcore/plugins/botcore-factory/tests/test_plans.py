@@ -34,6 +34,16 @@ def test_the_ceiling_bounds_the_room_and_still_refuses():
     assert (choice.plan, choice.next_reset) == (None, "2030-01-02T00:00:00Z")
 
 
+def test_a_stale_plan_is_never_chosen_nor_names_the_next_reset():
+    """lushly-dev/afd#2691: a removed instance's cache is roomy and its reset long past."""
+    stale = Plan("plan-a", "anthropic", 0, 100, "2029-12-30T00:00:00Z", "its window reset")
+    full = Plan("plan-b", "anthropic", 90, 50, "2030-01-05T00:00:00Z")
+    choice = choose_plan([stale, full], 85, NOW)
+    assert choice.plan is None and choice.next_reset == "2030-01-05T00:00:00Z"
+    roomy = Plan("plan-c", "anthropic", 10, 50, "2030-01-05T00:00:00Z")
+    assert choose_plan([stale, roomy], 85, NOW).plan == roomy
+
+
 def test_a_plan_without_a_reset_reads_its_window_from_the_share_elapsed():
     plan = Plan("plan-a", "openai", 0, 50, None)
     assert days_to_reset(plan, NOW) == 3.5

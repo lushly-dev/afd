@@ -8,6 +8,7 @@ answers as the Actions API does, including its cap of 1,000 runs for one query.
 from __future__ import annotations
 
 import asyncio
+import itertools
 import json
 import shutil
 import subprocess
@@ -25,8 +26,10 @@ from botcore.commands.skill_usage import store
 
 REPO = "bench-org/beds"
 CANARY = "CANARY-7f3a-never-in-the-record"
-NOW = datetime.now(UTC).replace(microsecond=0)
-TODAY = NOW.replace(hour=0, minute=0, second=0)
+TODAY = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+# Noon today, whatever the hour the tests start: the bench's clock (Bench) ticks forward from
+# here, and half a day is room for every read a test makes before it reaches midnight (#2753).
+NOW = TODAY + timedelta(hours=12)
 
 
 def day(days_ago: int, hour: int = 12, minute: int = 0) -> datetime:
@@ -202,6 +205,11 @@ class Bench:
 
     def __init__(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         self.tmp, self.monkeypatch = tmp_path, monkeypatch
+        # the record's clock starts at NOW, the moment `day` counts from, and moves a millisecond
+        # each time it is read: a test that runs across midnight UTC sees one day throughout
+        # (#2753), and what is written later is still stamped later
+        ticks = itertools.count()
+        monkeypatch.setattr(record, "now", lambda: NOW + timedelta(milliseconds=next(ticks)))
         self.checkout = tmp_path / "beds"
         self.checkout.mkdir()
         subprocess.run(["git", "init", "-q", str(self.checkout)], check=True)

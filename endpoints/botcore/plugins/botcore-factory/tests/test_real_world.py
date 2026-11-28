@@ -324,6 +324,62 @@ def test_plans_come_from_t3_code_s_weekly_windows(tmp_path):
     assert plan.elapsed == 50.0 and plan.resets_at == "2030-01-07T12:00:00Z"
 
 
+def _cache(tmp_path, name, used, resets_at, checked_at, driver=None):
+    cache = {
+        "checkedAt": checked_at,
+        "usageLimits": {
+            "checkedAt": checked_at,
+            "windows": [
+                {
+                    "id": "seven_day",
+                    "kind": "weekly",
+                    "windowDurationMins": 10080,
+                    "usedPercent": used,
+                    "resetsAt": resets_at,
+                }
+            ],
+        },
+    }
+    if driver is not None:
+        cache["driver"] = driver
+    (tmp_path / f"{name}.json").write_text(json.dumps(cache))
+
+
+def test_a_stale_cache_is_listed_as_stale_and_never_fresh(tmp_path):
+    """lushly-dev/afd#2691: a removed instance's cache kept 84% used from a week before, past its
+    reset. Its window is still listed, marked stale; a fresh one is not."""
+    now = "2030-01-04T00:00:00Z"
+    _cache(tmp_path, "claudeAgent", 30, "2030-01-07T12:00:00Z", now, driver="claudeAgent")
+    # The window reset after the cache was last checked: a removed instance's file.
+    _cache(tmp_path, "claudeAgent_2", 84, "2030-01-02T05:00:00Z", "2029-12-27T00:00:00Z",
+           driver="claudeAgent")  # fmt: skip
+    # Its reset is ahead, but nothing has checked it for longer than the window lasts.
+    _cache(tmp_path, "claudeAgent_3", 10, "2030-01-05T00:00:00Z", "2029-12-26T00:00:00Z",
+           driver="claudeAgent")  # fmt: skip
+    plans = {plan.id: plan for plan in T3Plans(FixedClock(), tmp_path).read()}
+    assert plans["claudeAgent:seven_day"].stale is None
+    assert "reset at 2030-01-02T05:00:00Z" in plans["claudeAgent_2:seven_day"].stale
+    assert "last checked at 2029-12-26T00:00:00Z" in plans["claudeAgent_3:seven_day"].stale
+
+
+def test_a_cache_with_no_readable_check_time_is_judged_by_its_reset_alone(tmp_path):
+    _cache(tmp_path, "claudeAgent", 30, "2030-01-07T12:00:00Z", "not a time")
+    _cache(tmp_path, "gone", 30, "2030-01-02T00:00:00Z", None)
+    (tmp_path / "list.json").write_text("[1, 2]")  # Not a cache: skipped.
+    plans = {plan.id: plan.stale for plan in T3Plans(FixedClock(), tmp_path).read()}
+    assert plans["claudeAgent:seven_day"] is None
+    assert "reset at 2030-01-02" in plans["gone:seven_day"]
+    assert "list:seven_day" not in plans
+
+
+def test_a_second_claude_instance_takes_its_provider_from_the_driver(tmp_path):
+    now = "2030-01-04T00:00:00Z"
+    _cache(tmp_path, "claudeAgent_2", 20, "2030-01-07T12:00:00Z", now, driver="claudeAgent")
+    _cache(tmp_path, "older", 20, "2030-01-07T12:00:00Z", now)  # no driver: the file's name
+    providers = {plan.id: plan.provider for plan in T3Plans(FixedClock(), tmp_path).read()}
+    assert providers == {"claudeAgent_2:seven_day": "claudeAgent", "older:seven_day": "older"}
+
+
 def test_no_plan_windows_is_unreadable(tmp_path):
     with pytest.raises(WorldError, match="No weekly plan windows"):
         T3Plans(FixedClock(), tmp_path).read()

@@ -102,7 +102,8 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable[..., Any]]:
     ) -> CommandResult[Any]:
         """Claim issues for a new cell on GitHub and assign it a plan: the highest pace among
         Claude's plans while cells.claudeOnly is on (refused NO_CLAUDE_PLAN with none), else
-        among every plan.
+        among every plan. A plan whose usage cache is out of date is never assigned (refused
+        PLANS_STALE when every plan a cell may take is).
 
         Args:
             issues: The issue numbers the cell takes; more than one is a package, which needs
@@ -291,7 +292,8 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable[..., Any]]:
         """Each plan's weekly window: share used and elapsed, room, pace (room below
         plans.ceiling per day to its reset) and whether it is above plans.ceiling. next is the
         plan cell-register would assign: the highest pace among Claude's plans while
-        cells.claudeOnly is on, null when none can take a cell."""
+        cells.claudeOnly is on, null when none can take a cell. A plan whose usage cache is out
+        of date carries stale, saying why, and is never next."""
         return await run(lambda: success(status.plan_list(get())))
 
     return [
