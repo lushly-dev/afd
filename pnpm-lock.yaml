@@ -491,8 +491,8 @@ importers:
         specifier: workspace:*
         version: link:../../../../foundations/fast-af/packages/violet-elements
       '@tanstack/ai-client':
-        specifier: 1.2.0
-        version: 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+        specifier: 1.2.1
+        version: 1.2.1(@opentelemetry/api@1.10.0)(zod@4.6.7)
     devDependencies:
       '@lushly-dev/afd-core':
         specifier: workspace:*
@@ -2305,6 +2305,8 @@ importers:
       vitest:
         specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.1)(@vitest/browser@5.1.1)(@vitest/coverage-v8@5.1.1)(@vitest/ui@5.1.1)(happy-dom@21.0.4)(jsdom@31.0.1(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/rust: {}
 
   packages/server:
     dependencies:
@@ -4410,8 +4412,8 @@ packages:
       '@anthropic-ai/vertex-sdk':
         optional: true
 
-  '@tanstack/ai-client@1.2.0':
-    resolution: {integrity: sha512-fwDe6AijLgScdEDq6Cy15U6V1i2GPBtxSmUhNGytGxuW1IQIFvufYMqSmVtJ4pd/CrZXvm43BoBo6jLogl574w==}
+  '@tanstack/ai-client@1.2.1':
+    resolution: {integrity: sha512-m6EjS6pRdbOxMrIIgWm6QtOfCGBbAh2QnV7PJ6b64xfeq908bTYk5U2dJKQboFN2PuAIHFa02Udbvu6nU5tp8g==}
 
   '@tanstack/ai-event-client@1.0.1':
     resolution: {integrity: sha512-IURnn4oRKJbtbAuC3GcXRcuKHi8DrPmwuACqaTq6ApSGlyJyHhq0NTksKEmzql2Z12+njFjsKSXG9c7UbSHTxg==}
@@ -9313,7 +9315,7 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  '@tanstack/ai-client@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)':
+  '@tanstack/ai-client@1.2.1(@opentelemetry/api@1.10.0)(zod@4.6.7)':
     dependencies:
       '@tanstack/ai': 1.7.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
       '@tanstack/ai-event-client': 1.1.0

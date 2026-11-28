@@ -52,7 +52,7 @@
 		"@lushly-dev/loam-sdk": "workspace:*",
 		"@lushly-dev/loam-theme": "workspace:*",
 		"@lushly-dev/violet-elements": "workspace:*",
-		"@tanstack/ai-client": "1.2.0"
+		"@tanstack/ai-client": "1.2.1"
 	},
 	"devDependencies": {
 		"@lushly-dev/afd-core": "workspace:*",
