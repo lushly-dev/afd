@@ -130,12 +130,29 @@ class SqliteStore:
             # Decide ownership before WAL: switching a file to WAL is persistent, and a refused
             # file must be left as it was found.
             self._prepare_schema(db, seed_path)
-            db.execute("PRAGMA journal_mode = WAL")
+            self._switch_to_wal(db)
             db.execute("PRAGMA synchronous = FULL")
         except BaseException:
             db.close()
             raise
         return db
+
+    def _switch_to_wal(self, db: sqlite3.Connection) -> None:
+        """Switch the file to WAL, waiting up to the busy timeout for the lock. The switch takes an
+        exclusive lock, and while another connection holds a write lock SQLite refuses it at once
+        without calling its busy handler (its deadlock rule), so ``busy_timeout`` does not cover
+        it: two processes that open one new file together would fail as ``database is locked``
+        (lushly-dev/afd#2250). The TypeScript adapter retries the same way."""
+        deadline = time.monotonic() + self._busy_timeout_ms / 1000
+        while True:
+            try:
+                db.execute("PRAGMA journal_mode = WAL")
+                return
+            except sqlite3.OperationalError as error:
+                left = deadline - time.monotonic()
+                if (error.sqlite_errorcode & 0xFF) != sqlite3.SQLITE_BUSY or left <= 0:
+                    raise
+                time.sleep(min(0.01, left))
 
     def _prepare_schema(self, db: sqlite3.Connection, seed_path: Path | None) -> None:
         """Create the table in a new database, inside one write transaction so two processes

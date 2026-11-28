@@ -213,7 +213,7 @@ export class SqliteAdapter implements DataAdapter {
 			// Decide ownership before WAL: switching a file to WAL is persistent, and a refused file
 			// must be left as it was found.
 			prepareSchema(database, this.path);
-			database.exec('PRAGMA journal_mode = WAL');
+			switchToWal(database, this.busyTimeoutMs);
 			database.exec('PRAGMA synchronous = FULL');
 			this.statements = prepare(database);
 		} catch (error) {
@@ -286,6 +286,32 @@ function rollbackQuietly(database: DatabaseSync): boolean {
 	} catch {
 		// Without `isTransaction`, a failed ROLLBACK means no transaction was open.
 		return inTransaction() !== true;
+	}
+}
+
+/** SQLite's result code for a lock another connection holds (`SQLITE_BUSY`, any extended form). */
+const SQLITE_BUSY = 5;
+const isBusy = (error: unknown) =>
+	((error as { errcode?: number } | null)?.errcode ?? 0) % 256 === SQLITE_BUSY;
+const pause = new Int32Array(new SharedArrayBuffer(4));
+
+/**
+ * Switch the file to WAL, waiting up to `timeoutMs` for the lock. The switch takes an exclusive
+ * lock, and while another connection holds a write lock SQLite refuses it at once without calling
+ * its busy handler (its deadlock rule), so `busy_timeout` does not cover it: two processes that
+ * open one new file together would fail as `database is locked` (#2250). Retry until the timeout.
+ */
+function switchToWal(database: DatabaseSync, timeoutMs: number): void {
+	const deadline = performance.now() + timeoutMs;
+	for (;;) {
+		try {
+			database.exec('PRAGMA journal_mode = WAL');
+			return;
+		} catch (error) {
+			const left = deadline - performance.now();
+			if (!isBusy(error) || left <= 0) throw error;
+			Atomics.wait(pause, 0, 0, Math.min(10, left));
+		}
 	}
 }
 
