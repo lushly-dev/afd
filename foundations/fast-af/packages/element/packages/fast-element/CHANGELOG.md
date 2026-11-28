@@ -1,5 +1,11 @@
 # Change Log - @microsoft/fast-element
 
+## 3.1.4-preview.1
+
+### Patch Changes
+
+- [#2492](https://github.com/lushly-dev/afd/pull/2492) [`a60cfff`](https://github.com/lushly-dev/afd/commit/a60cfff0d0115227e98b0975bc5a8f4a4106799b) Thanks [@Falkicon](https://github.com/Falkicon)! - The README now says what the package is: an independent fork of Microsoft's open-source `@microsoft/fast-element`, not affiliated with or endorsed by Microsoft. Its npm badge shows this package's preview version instead of the upstream package's, and its CDN examples use addresses that resolve (`@preview`, and `@3.1.4-preview.0` as the pinned example) in place of an unpinned address and a version that was never published here. A tip that linked to a page this package does not carry is removed.
+
 ## 3.1.4-preview.0
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @lushly-dev/violet-runtime
 
+## 0.3.0-preview.7
+
+### Minor Changes
+
+- [#2449](https://github.com/lushly-dev/afd/pull/2449) [`6ef7e7d`](https://github.com/lushly-dev/afd/commit/6ef7e7d9cc3747e909421c19ad988250be6a16b4) Thanks [@Falkicon](https://github.com/Falkicon)! - One rule names a Violet token's custom property everywhere ([#1786](https://github.com/lushly-dev/afd/issues/1786)): `tokenCustomProperty(id, prefix?)` and `VIOLET_CSS_PREFIX` (`'violet'`), exported from `@lushly-dev/violet-runtime` and from a new import-free subpath, `@lushly-dev/violet-runtime/property`. The runtime's inline writes and `adopt()` sheet name properties with it, as before (`cssPrefix` still defaults to empty); pass `cssPrefix: VIOLET_CSS_PREFIX` to theme `@lushly-dev/violet-elements`, whose token interface version 4 reads `--violet-<id>`. `@lushly-dev/violet-core`'s CSS exporter now names its properties with the same function and so depends on `@lushly-dev/violet-runtime`; its output is unchanged, and `prefix: 'violet'` writes the names violet-elements reads.
+
 ## 0.3.0-preview.6
 
 ### Minor Changes
