@@ -37,12 +37,14 @@ from afd.server import (  # noqa: E402
     JwtIssuer,
     JwtVerifier,
     McpAuthOptions,
+    PendingListOutcome,
     PrincipalCredentials,
     RelayApproved,
     RelayCall,
     RelayDeclined,
     RelayInvalid,
     RelayPending,
+    RelayPendingDecision,
     RelayPrompt,
     ScopeMissing,
     allows_url_elicitation,
@@ -52,6 +54,7 @@ from afd.server import (  # noqa: E402
     credentials_binding,
     define_command,
     input_digest,
+    is_decision_id,
     is_relay_url,
     jwks_key_source,
     principal_binding,
@@ -199,12 +202,36 @@ class _ScriptedRelay:
 # ── 1. URL validation & capability detection ────────────────────────────────────────────
 
 
+def test_is_decision_id_rules() -> None:
+    assert is_decision_id("d-1")
+    assert is_decision_id("A_b-9")
+    assert is_decision_id("a" * 128)
+    for bad in (
+        None,
+        123,
+        "",
+        "a b",
+        "d.1",
+        "d/1",
+        "https://x",
+        "<b>",
+        "é",
+        "d-1\n",
+        "a" * 129,
+    ):
+        assert not is_decision_id(bad), f"expected False for {bad!r}"
+
+
 def test_is_relay_url_rules() -> None:
     assert is_relay_url("https://host.example/confirm/123?a=1")
     assert is_relay_url("HTTPS://host.example:8443/confirm")
     assert is_relay_url("https://[2001:db8::1]:8443/confirm")
+    assert is_relay_url("https://[::1]/d/")
     assert is_relay_url("https://127.0.0.1/confirm")
-    assert is_relay_url("https://münchen.example/confirm")
+    assert is_relay_url("https://localhost")
+    assert is_relay_url("https://xn--mnchen-3ya.example/confirm")
+    assert is_relay_url("https://a.example:1/")
+    assert is_relay_url("https://a.example:65535/")
     for bad in (
         None,
         123,
@@ -217,11 +244,34 @@ def test_is_relay_url_rules() -> None:
         "https://host.example/has\nnewline",
         "https://host.example/has\x7fctrl",
         "https://host.example:99999/badport",
+        "https://host.example:65536/badport",
+        "https://host.example:0/badport",
+        "https://host.example:/badport",
+        "https://host.example:8a/badport",
+        "https://host.example:000080/badport",
+        "https://host..example/confirm",
+        "https://host.example./confirm",
+        "https://-host.example/confirm",
+        "https://host-.example/confirm",
+        "https://host_example.com/confirm",
         "https://host.example\\evil/confirm",
+        "https://host.example/path\\back",
+        "https://host.example/d?q=\\1",
+        "https://host.example/d#\\frag",
         "https://host%2eexample/confirm",
+        "https://münchen.example/confirm",
+        "https://[]/confirm",
+        "https://[::1/confirm",
+        "https://[::1]x/confirm",
+        "https://[::1]:0/confirm",
+        "https://[::1]:/confirm",
+        "https://[::1]:99999/confirm",
         "https://[not-ipv6]/confirm",
+        "https://[::1%lo]/confirm",
         "https://host.example/\ud800surrogate",
         "javascript:alert(1)",
+        f"https://{'a' * 64}.example/",
+        f"https://{'a' * 62}.{'b' * 62}.{'c' * 62}.{'d' * 62}.example/",
     ):
         assert not is_relay_url(bad), f"expected False for {bad!r}"
 
@@ -1817,3 +1867,404 @@ async def test_meta_tool_names_short_circuit_in_targets_host_verified() -> None:
     assert (
         server._targets_host_verified("afd-call", {"command": "wire-grouped"}, None, None) is True
     )
+
+
+# ── Pending-list fallback (#2723) ───────────────────────────────────────────────────────
+
+
+class _PendingListRelay(_ScriptedRelay):
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.pending_calls: list[RelayCall] = []
+        self.pending_queue: list[PendingListOutcome | None] = []
+        self.annotated: list[str] = []
+
+    def enqueue_pending(self, outcome: PendingListOutcome | None) -> None:
+        self.pending_queue.append(outcome)
+
+    def pending_list(self, call: RelayCall) -> PendingListOutcome | None:
+        self.pending_calls.append(call)
+        return self.pending_queue.pop(0) if self.pending_queue else None
+
+    def approved_context(self, decision_id: str, call: RelayCall) -> dict[str, Any]:
+        self.annotated.append(decision_id)
+        return super().approved_context(decision_id, call)
+
+
+def _pending_list_server(
+    relay: Any, *, replay: str = "single-use"
+) -> tuple[Any, dict[str, int], list[dict[str, Any]]]:
+    runs = {"erase": 0}
+    seen: list[dict[str, Any]] = []
+
+    class EraseInput(BaseModel):
+        id: str
+        mode: str = "soft"
+
+    server = create_server(
+        "hv-pending-list",
+        tool_strategy="individual",
+        human_relay=relay,
+        middleware=[create_approval_middleware(secret=SECRET, replay=replay)],  # type: ignore[arg-type]
+    )
+
+    @server.command(
+        name="memory-erase",
+        description="Erase a memory",
+        input_schema=EraseInput,
+        mutation=True,
+        approval="required",
+        confirmation_mode="host-verified",
+        expose=MCP,
+    )
+    async def erase(input: EraseInput, context: CommandContext) -> Any:
+        runs["erase"] += 1
+        seen.append(
+            {
+                "input": input.model_dump(),
+                "person": context.extra.get("host.example/person"),
+                "has_evidence": relay_evidence_of(context) is not None,
+            }
+        )
+        return success({"id": input.id, "person": context.extra.get("host.example/person")})
+
+    return server, runs, seen
+
+
+async def test_pending_list_default_keeps_todays_refusal() -> None:
+    # Omitting pending_list keeps the existing refusal.
+    base_relay = _ScriptedRelay()
+    server1, runs1, _ = _pending_list_server(base_relay)
+    res1 = await _http_call(server1, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+    body1 = json.loads(res1["result"]["content"][0]["text"])
+    assert body1["error"]["code"] == "CONFIRMATION_REQUIRED"
+    assert body1["error"]["retryable"] is False
+    assert len(base_relay.begins) == 1
+    assert runs1["erase"] == 0
+
+    # Returning None from pending_list also keeps the existing refusal.
+    opt_out_relay = _PendingListRelay()
+    opt_out_relay.enqueue_pending(None)
+    server2, runs2, _ = _pending_list_server(opt_out_relay)
+    res2 = await _http_call(server2, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+    body2 = json.loads(res2["result"]["content"][0]["text"])
+    assert body2["error"]["code"] == "CONFIRMATION_REQUIRED"
+    assert body2["error"]["retryable"] is False
+    assert len(opt_out_relay.pending_calls) == 1
+    assert len(opt_out_relay.begins) == 1
+    assert runs2["erase"] == 0
+
+
+async def test_pending_list_refusal_and_approval_lifecycle() -> None:
+    list_url = "https://person.example.com/d/"
+    decision_url = "https://person.example.com/d/d-1"
+    relay = _PendingListRelay(approved_extra={"host.example/person": "alice"})
+    relay.enqueue_pending(RelayPendingDecision(decision="d-1", url=decision_url, list=list_url))
+    relay.enqueue_pending(RelayApproved(decision_id="d-1"))
+    relay.enqueue_pending(RelayApproved(decision_id="d-1"))
+    server, runs, seen = _pending_list_server(relay, replay="within-ttl")
+
+    # 1. Pending refusal names the list first and skips begin.
+    res = await _http_call(server, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+    assert res["result"].get("resultType") != "input_required"
+    refused = json.loads(res["result"]["content"][0]["text"])
+    err = refused["error"]
+    assert err["code"] == "CONFIRMATION_REQUIRED"
+    assert err["retryable"] is True
+    assert err["recovery"] == {"kind": "external"}
+    assert err["details"] == {
+        "commands": ["memory-erase"],
+        "reason": "pending-list",
+        "decision": "d-1",
+        "url": decision_url,
+        "list": list_url,
+    }
+    assert err["suggestion"].index(list_url) < err["suggestion"].index(decision_url)
+    assert "d-1" in err["suggestion"] and "same call again" in err["suggestion"]
+    assert len(relay.pending_calls) == 1
+    assert len(relay.begins) == 0
+    assert relay.pending_calls[0].supports_url_elicitation() is False
+    assert relay.pending_calls[0].input_digest == input_digest({"id": "42", "mode": "soft"})
+    assert runs["erase"] == 0
+
+    # 2. Same call after approval runs once with approved_context and relay evidence.
+    ran_res = await _http_call(server, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+    ran = json.loads(ran_res["result"]["content"][0]["text"])
+    assert ran["success"] is True
+    assert ran["data"] == {"id": "42", "person": "alice"}
+    assert relay.annotated == ["d-1"]
+    assert runs["erase"] == 1
+    assert seen == [
+        {"input": {"id": "42", "mode": "soft"}, "person": "alice", "has_evidence": False}
+    ]
+
+    # 3. Reusing the same decision_id is spent even under within-ttl.
+    spent_res = await _http_call(server, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+    spent = json.loads(spent_res["result"]["content"][0]["text"])
+    assert spent["success"] is False
+    assert spent["error"]["code"] == "APPROVAL_REQUIRED"
+    assert spent["error"]["details"]["reason"] == "already-used"
+    assert runs["erase"] == 1
+    assert len(relay.begins) == 0
+    assert len(relay.resumes) == 0
+
+
+async def test_pending_list_decline_error_stop_answer_and_url_mode_bypass() -> None:
+    list_url = "https://person.example.com/d/"
+    decision_url = "https://person.example.com/d/d-1"
+    relay = _PendingListRelay()
+    server, runs, _ = _pending_list_server(relay)
+
+    # Declined
+    relay.enqueue_pending(RelayDeclined())
+    declined_res = await _http_call(server, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+    declined = json.loads(declined_res["result"]["content"][0]["text"])
+    assert declined["error"]["code"] == "CONFIRMATION_DECLINED"
+    assert declined["error"]["retryable"] is False
+    assert declined["error"]["recovery"] == {"kind": "stop"}
+
+    # CommandError refusal
+    relay.enqueue_pending(CommandError(code="RATE_LIMITED", message="Too many decisions"))
+    rl_res = await _http_call(server, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+    rl = json.loads(rl_res["result"]["content"][0]["text"])
+    assert rl["error"]["code"] == "RATE_LIMITED"
+
+    # Stop answers (decline/cancel) end the call BEFORE pending_list is asked — even with an
+    # explicitly supplied empty requestState.
+    asked_before_stop = len(relay.pending_calls)
+    for state in ("state-1", ""):
+        for action in ("decline", "cancel"):
+            relay.enqueue_pending(RelayApproved(decision_id="d-stop"))
+            stopped_res = await _http_call(
+                server,
+                "memory-erase",
+                {"id": "42"},
+                caps=FORM_CAPS,
+                request_state=state,
+                input_responses={RELAY_INPUT_KEY: {"action": action}},
+            )
+            stopped = json.loads(stopped_res["result"]["content"][0]["text"])
+            assert stopped["error"]["code"] == "CONFIRMATION_DECLINED", f"{action}:{state!r}"
+            relay.pending_queue.clear()
+    assert len(relay.pending_calls) == asked_before_stop
+    assert len(relay.begins) == 0
+    assert len(relay.resumes) == 0
+
+    # A client WITH URL-mode elicitation never falls back to pending_list; an accept retry
+    # carrying an empty requestState skips resume and falls through to begin.
+    relay.enqueue_pending(RelayPendingDecision(decision="d-url", url=decision_url, list=list_url))
+    url_res = await _http_call(
+        server,
+        "memory-erase",
+        {"id": "42"},
+        caps=URL_CAPS,
+        request_state="",
+        input_responses={RELAY_INPUT_KEY: {"action": "accept"}},
+    )
+    assert url_res["result"]["resultType"] == "input_required"
+    assert len(relay.pending_calls) == asked_before_stop
+    assert len(relay.resumes) == 0
+    assert len(relay.begins) == 1
+    assert runs["erase"] == 0
+
+
+async def test_pending_list_preserves_dynamic_default_factory_across_retries() -> None:
+    counter = 0
+
+    def next_nonce() -> str:
+        nonlocal counter
+        counter += 1
+        return f"nonce-{counter}"
+
+    class DynInput(BaseModel):
+        amount: int
+        idempotency_key: str = Field(default_factory=next_nonce)
+
+    pending_by_binding: dict[tuple[str, str, str], dict[str, Any]] = {}
+    seen_digests: list[str] = []
+    next_decision = 0
+
+    class _DigestBindingPendingListRelay(_ScriptedRelay):
+        def pending_list(self, call: RelayCall) -> PendingListOutcome:
+            nonlocal next_decision
+            seen_digests.append(call.input_digest)
+            key = (call.principal_binding(), call.command, call.input_digest)
+            existing = pending_by_binding.get(key)
+            if existing is not None and existing["approved"]:
+                del pending_by_binding[key]
+                return RelayApproved(decision_id=existing["decision"])
+            if existing is None:
+                next_decision += 1
+                decision = f"dyn-{next_decision}"
+                pending_by_binding[key] = {"decision": decision, "approved": False}
+            else:
+                decision = existing["decision"]
+            return RelayPendingDecision(
+                decision=decision,
+                url=f"https://person.example.com/d/{decision}",
+                list="https://person.example.com/d/",
+            )
+
+    seen_inputs: list[dict[str, Any]] = []
+    seen_fields_set: list[set[str]] = []
+    relay = _DigestBindingPendingListRelay()
+    server = create_server(
+        "relay-pending-dynamic",
+        middleware=[create_approval_middleware(secret=SECRET)],
+        human_relay=relay,
+        tool_strategy="individual",
+    )
+
+    @server.command(
+        name="payment-send",
+        description="Send payment with dynamic default",
+        mutation=True,
+        approval="required",
+        confirmation_mode="host-verified",
+        input_schema=DynInput,
+        expose=MCP,
+    )
+    async def payment_send(input: DynInput) -> Any:
+        seen_inputs.append(input.model_dump())
+        seen_fields_set.append(set(input.model_fields_set))
+        return success(input.model_dump())
+
+    # 1. First call generates nonce-1 and creates pending decision dyn-1.
+    first_res = await _http_call(server, "payment-send", {"amount": 50}, caps=FORM_CAPS)
+    first = json.loads(first_res["result"]["content"][0]["text"])
+    assert first["error"]["details"]["decision"] == "dyn-1"
+    assert seen_inputs == []
+
+    # 2. Retry while still pending reuses nonce-1 and matches dyn-1.
+    second_res = await _http_call(server, "payment-send", {"amount": 50}, caps=FORM_CAPS)
+    second = json.loads(second_res["result"]["content"][0]["text"])
+    assert second["error"]["details"]["decision"] == "dyn-1"
+    assert seen_digests[1] == seen_digests[0]
+
+    # 3. Approve dyn-1; retry runs with the exact approved nonce-1 and original fields_set.
+    for entry in pending_by_binding.values():
+        entry["approved"] = True
+    approved_res = await _http_call(server, "payment-send", {"amount": 50}, caps=FORM_CAPS)
+    approved = json.loads(approved_res["result"]["content"][0]["text"])
+    assert approved["success"] is True
+    assert approved["data"] == {"amount": 50, "idempotency_key": "nonce-1"}
+    assert seen_digests[2] == seen_digests[0]
+    assert seen_inputs == [{"amount": 50, "idempotency_key": "nonce-1"}]
+    assert seen_fields_set == [{"amount"}]
+
+    # 4. Subsequent fresh call generates nonce-2 and creates dyn-2.
+    next_res = await _http_call(server, "payment-send", {"amount": 50}, caps=FORM_CAPS)
+    next_body = json.loads(next_res["result"]["content"][0]["text"])
+    assert next_body["error"]["details"]["decision"] == "dyn-2"
+    assert seen_digests[3] != seen_digests[0]
+    assert len(seen_inputs) == 1
+
+
+async def test_pending_list_and_url_mode_reject_bad_ids_urls_and_returns() -> None:
+    list_url = "https://person.example.com/d/"
+    decision_url = "https://person.example.com/d/d-1"
+    relay = _PendingListRelay()
+    server, runs, _ = _pending_list_server(relay)
+
+    # Bad decision_id in pending_list Approved
+    for bad_id in ("", "d 1", "see https://evil.example", "a" * 129):
+        relay.enqueue_pending(RelayApproved(decision_id=bad_id))
+        res = await _http_call(server, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+        assert res["error"]["code"] == -32603, bad_id
+    assert relay.annotated == []
+
+    # Bad decision_id in URL-mode resume Approved
+    st = (await _http_call(server, "memory-erase", {"id": "42"}, caps=URL_CAPS))["result"][
+        "requestState"
+    ]
+    for bad_id in ("", "d 1", "see https://evil.example", "a" * 129):
+        relay.decision_id = bad_id
+        relay.spent.clear()
+        res = await _http_call(
+            server,
+            "memory-erase",
+            {"id": "42"},
+            caps=URL_CAPS,
+            request_state=st,
+            input_responses={RELAY_INPUT_KEY: {"action": "accept"}},
+        )
+        assert res["error"]["code"] == -32603, bad_id
+    assert relay.annotated == []
+
+    # Bad prompt URL in URL-mode begin, URL-mode resume RelayPending, and pending_list URLs
+    relay.decision_id = "dec-1"
+    relay.spent.clear()
+    bad_urls = (
+        "https://person.example.com:0/d/1",
+        "https://person.example.com:99999/d/1",
+        "https://person.example.com:/d/1",
+        "https://bad_host.example/d/1",
+        "https://-bad.example/d/1",
+        "https://münchen.example/d/1",
+        "https://[::1]:0/d/1",
+        "https://person.example.com/d\\1",
+        "https://person.example.com/d?a=\\1",
+    )
+    for bad_url in bad_urls:
+        relay.url = bad_url
+        res = await _http_call(server, "memory-erase", {"id": "42"}, caps=URL_CAPS)
+        assert res["error"]["code"] == -32603, f"begin:{bad_url}"
+
+        begins_before = len(relay.begins)
+        resumes_before = len(relay.resumes)
+        relay.pending_rounds = 1
+        resume_res = await _http_call(
+            server,
+            "memory-erase",
+            {"id": "42"},
+            caps=URL_CAPS,
+            request_state=st,
+            input_responses={RELAY_INPUT_KEY: {"action": "accept"}},
+        )
+        assert resume_res["error"]["code"] == -32603, f"resume:{bad_url}"
+        assert len(relay.resumes) == resumes_before + 1
+        assert len(relay.begins) == begins_before
+
+        relay.enqueue_pending(RelayPendingDecision(decision="d-1", url=bad_url, list=list_url))
+        p_url_res = await _http_call(server, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+        assert p_url_res["error"]["code"] == -32603, f"pending-url:{bad_url}"
+
+        relay.enqueue_pending(RelayPendingDecision(decision="d-1", url=decision_url, list=bad_url))
+        p_list_res = await _http_call(server, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+        assert p_list_res["error"]["code"] == -32603, f"pending-list:{bad_url}"
+
+    # Bad return / raising / non-callable pending_list
+    relay.enqueue_pending("not-an-outcome")  # type: ignore[arg-type]
+    bad_ret = await _http_call(server, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+    assert bad_ret["error"]["code"] == -32603
+
+    class _RaisingRelay(_ScriptedRelay):
+        async def pending_list(self, call: RelayCall) -> PendingListOutcome | None:
+            raise RuntimeError("boom")
+
+    raising_server, _, _ = _pending_list_server(_RaisingRelay())
+    raised = await _http_call(raising_server, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+    assert raised["error"]["code"] == -32603
+
+    # Construction fails fast for a non-callable pending_list; runtime guard also rejects mutation.
+    class _NonCallableRelay(_ScriptedRelay):
+        pending_list = "not-callable"  # type: ignore[assignment]
+
+    with pytest.raises(TypeError, match="pending_list"):
+        _pending_list_server(_NonCallableRelay())
+
+    mutated_relay = _ScriptedRelay()
+    mutated_server, _, _ = _pending_list_server(mutated_relay)
+    mutated_relay.pending_list = "not-callable"  # type: ignore[attr-defined]
+    mutated_res = await _http_call(mutated_server, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+    assert mutated_res["error"]["code"] == -32603
+
+    class _AsyncApprovedRelay(_ScriptedRelay):
+        async def pending_list(self, call: RelayCall) -> PendingListOutcome | None:
+            return RelayApproved(decision_id="async-d-1")
+
+    async_server, async_runs, _ = _pending_list_server(_AsyncApprovedRelay())
+    async_res = await _http_call(async_server, "memory-erase", {"id": "42"}, caps=FORM_CAPS)
+    assert json.loads(async_res["result"]["content"][0]["text"])["success"] is True
+    assert async_runs["erase"] == 1
+    assert runs["erase"] == 0

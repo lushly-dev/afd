@@ -146,11 +146,14 @@ export {
 	allowsUrlElicitation,
 	type HumanRelay,
 	inputDigest,
+	isDecisionId,
 	isRelayUrl,
+	type PendingListOutcome,
 	RELAY_INPUT_KEY,
 	type RelayBeginResult,
 	type RelayCall,
 	type RelayOutcome,
+	type RelayPending,
 	type RelayPrompt,
 } from './human-relay.js';
 export {

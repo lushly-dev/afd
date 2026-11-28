@@ -1,8 +1,6 @@
 {
 	"description": "The relay's pending list (spec/command-metadata.md, \"The pending list\"). Each case is a relay's Pending answer for a call to `command` from a client without URL-mode elicitation, and the whole error the server answers with. Every implementation that implements HumanRelay's pendingList answers each `pending` case with exactly `error`, and each `invalid` case with an internal error (no CommandError reaches the client). A language in `gaps` does not implement pendingList yet; its vector suite asserts the gap and skips the cases.",
 	"gaps": {
-		"typescript": "https://github.com/lushly-dev/afd/issues/2722",
-		"python": "https://github.com/lushly-dev/afd/issues/2723",
 		"cpp": "not applicable: afd::mcp_stdio has no HumanRelay"
 	},
 	"pending": [

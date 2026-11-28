@@ -223,10 +223,8 @@ What a relay guarantees:
   host verifies who opens it and that it is the person the call is for (MCP 2026-07-28,
   elicitation, URL mode). Its host is DNS labels of ASCII letters, digits and `-`, or a bracketed
   IPv6 address, with an optional port from 1 to 65535 and no user information; the server answers
-  any other prompt with an internal error. Rust enforces this host and port rule and the decision-id rule
-  above; TypeScript ([#2722](https://github.com/lushly-dev/afd/issues/2722)) and Python
-  ([#2723](https://github.com/lushly-dev/afd/issues/2723)) check only for an `https` URL without
-  user information and a non-empty id until they do.
+  any other prompt with an internal error. Rust, TypeScript and Python enforce this host and port
+  rule and the decision-id rule above.
 
 ### The pending list
 
@@ -284,9 +282,9 @@ therefore names the command, what the person is shown of the input and the decis
 refusal names, and the person signs in there as the URL guarantee requires, so another link can
 lead the person astray but cannot decide for them. The cases are in
 [`vectors/human-relay.json`](./vectors/human-relay.json). Rust
-(`HumanRelay::pending_list`) implements this; TypeScript
-([#2722](https://github.com/lushly-dev/afd/issues/2722)) and Python
-([#2723](https://github.com/lushly-dev/afd/issues/2723)) are planned.
+(`HumanRelay::pending_list`), TypeScript (`HumanRelay.pendingList`,
+[#2722](https://github.com/lushly-dev/afd/issues/2722)) and Python (`HumanRelay.pending_list`,
+[#2723](https://github.com/lushly-dev/afd/issues/2723)) implement this.
 
 ## Approvals
 

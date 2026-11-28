@@ -1283,7 +1283,7 @@ Create an MCP server from commands.
 | `resources` | `ResourceProvider \| ResourceEntry[]` | No | MCP resources served on `/mcp` and stdio; declares the `resources` capability |
 | `skills` | `SkillCatalog` | No | Agent Skills served through `skills/list`, `skills/get` and as `skill://` resources; declares `io.modelcontextprotocol/skills` |
 | `confirmations` | `'off' \| 'enforce' \| 'require-human'` | No | Enforce `confirmPrompt` on the MCP and HTTP surfaces (default: `'off'`) |
-| `humanRelay` | `HumanRelay` | No | Host-owned out-of-band confirmation relay (`begin`, `resume`, optional `approvedContext`) for commands with `confirmationMode: 'host-verified'` |
+| `humanRelay` | `HumanRelay` | No | Host-owned out-of-band confirmation relay (`begin`, `resume`, optional `approvedContext` and `pendingList`) for commands with `confirmationMode: 'host-verified'` |
 | `confirmationKey` | `string \| Uint8Array` | No | Key (32 bytes or more) that signs elicitation `requestState` (default: a random key per process) |
 | `instances` | `'single' \| 'multiple'` | No | `'multiple'` refuses per-process defaults in use; left out, HTTP logs one warning when it relies on one ([Several instances](#several-instances)) |
 | `middleware` | array | No | Middleware functions |

@@ -565,9 +565,13 @@
 			]
 		},
 		"mcp.host-verified-pending-list": {
-			"status": "planned",
-			"note": "([#2723](https://github.com/lushly-dev/afd/issues/2723))",
-			"evidence": ["python/src/afd/server/human_relay.py"]
+			"status": "yes",
+			"note": "([#2723](https://github.com/lushly-dev/afd/issues/2723)): `HumanRelay.pending_list`, `PendingListOutcome`, `RelayPendingDecision`; asked only for a client without URL-mode elicitation, before `begin`",
+			"evidence": [
+				"python/src/afd/server/human_relay.py",
+				"python/tests/test_human_relay_vectors.py",
+				"python/tests/test_human_relay.py"
+			]
 		},
 		"mcp.tasks": {
 			"status": "yes",

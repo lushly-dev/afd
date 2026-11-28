@@ -348,6 +348,9 @@ class MCPServer:
             approved_ctx = getattr(config.human_relay, "approved_context", None)
             if approved_ctx is not None and not callable(approved_ctx):
                 raise TypeError("human_relay.approved_context must be callable")
+            pending_list = getattr(config.human_relay, "pending_list", None)
+            if pending_list is not None and not callable(pending_list):
+                raise TypeError("human_relay.pending_list must be callable")
         if config.task_options is not None and not isinstance(config.task_options, TaskOptions):
             raise TypeError("task_options must be a TaskOptions instance")
         if config.tools_list_ttl_ms is not None and (
