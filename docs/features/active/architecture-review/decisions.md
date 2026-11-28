@@ -20,7 +20,7 @@ a superseded entry stays and points at its replacement.
 | Question | Decision | Where | Work |
 | --- | --- | --- | --- |
 | [#1804](https://github.com/lushly-dev/afd/issues/1804), 1: Loam's desktop store | A SQLite file the Rust host owns | [Loam's log](../../../../endpoints/loam/docs/decisions.md), D160 | [#1928](https://github.com/lushly-dev/afd/issues/1928) |
-| #1804, 2: Loam's size ceilings | D115 ends on a date, which the work proposes and the owner names, and first contentful paint has an asserted ceiling | Loam's log, D161 and D163 | [#1929](https://github.com/lushly-dev/afd/issues/1929) |
+| #1804, 2: Loam's size ceilings | D115 ends on 2026-11-30 (named 2026-11-27), and first contentful paint has an asserted ceiling | Loam's log, D161 and D163 | [#1929](https://github.com/lushly-dev/afd/issues/1929) |
 | #1804, 3: Loam's hosted lane | Frozen behind its own CI job, and the freeze holds phase 6's steps 8 to 10 while steps 4 to 7 continue to completion; the local `MockAuthAdapter` renamed | Loam's log, D162 and D164 | [#1930](https://github.com/lushly-dev/afd/issues/1930) |
 | #1804, 4: Umbel's pre-release versions | One version 1 of each shape at release; `architecture.json`'s surfaces generated from `versions.rs` | [Umbel's log](../../../../endpoints/umbel/docs/decisions.md), D200 | [#1931](https://github.com/lushly-dev/afd/issues/1931) |
 | #1804, 5: Umbel's unread decisions | The owner reviews them before phase 5's remaining steps | Umbel's log, D201 | [#1932](https://github.com/lushly-dev/afd/issues/1932) |

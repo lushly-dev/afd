@@ -32,10 +32,12 @@
  * 18 in the places its row names, against loam-exit-check.p3.minimums.json, with condition 3 over `P3-`
  * titles; "Identity path" is the `loam` job's "AFD's identity path" step. P3-E12 reuses phase 2's rows and
  * minimums, as its row says: every `P2-E<n>:` and `P2-D<n>:` row above, in its own places, at
- * loam-exit-check.minimums.json's counts, with condition 3 over `P2-` titles. Budgets are D115's (owner,
- * 2026-11-13): a ceiling rises with its measurement, so neither P3-E10 nor E12's P2-E2 holds a ceiling to a
- * figure; each row the specification names must be printed, at or under its own ceiling, and no row OVER. Once
- * D161 names the date D115 ends, this reading goes back to holding the figures the specification names.
+ * loam-exit-check.minimums.json's counts, with condition 3 over `P2-` titles. Budgets started under D115 (owner,
+ * 2026-11-13): a ceiling rises with its measurement, so neither P3-E10 nor E12's P2-E2 hard-codes a ceiling
+ * figure here; each row the specification names must be printed, at or under its own ceiling, and no row OVER.
+ * D161 ends D115 on 2026-11-30 (UTC): from 2026-12-01 onward, `budget`'s `ceiling-raises` check enforces that
+ * any ceiling raise carries an approved amendment in `web/scripts/ceiling-amendments.mjs`, while this exit
+ * reader keeps verifying the run's printed rows against their ceilings.
  * The hosted part is step 10's: P3-H1 to P3-H5, and P3-E8's two cases left to the server (section 18's "Hosted" for
  * E8), each in the "Hosted" place, the `Hosted development profile` job's criterion step. They are phase 3's own
  * rows (`ownRows`), read when phase 3 is checked as itself: `--phase 3` is the exit, both parts, and phase 4's P4-E14,

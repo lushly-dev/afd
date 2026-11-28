@@ -147,7 +147,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1928](https://github.com/lushly-dev/afd/issues/1928) loam-desktop: the store in a SQLite file the Rust host owns
 
-- [#1929](https://github.com/lushly-dev/afd/issues/1929) loam: an end date for D115 and an asserted first-contentful-paint ceiling
+- [#1929](https://github.com/lushly-dev/afd/issues/1929) loam: an end date for D115 and an asserted first-contentful-paint ceiling; merged in #2260 and #2939 (D115 ends on 2026-11-30, D161)
 
 - [#1930](https://github.com/lushly-dev/afd/issues/1930) loam: the hosted lane frozen behind its own CI job, and the local MockAuthAdapter renamed
 

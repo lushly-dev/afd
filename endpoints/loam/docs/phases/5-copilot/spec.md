@@ -1193,7 +1193,7 @@ What an attacker can try, and what stops it. "Content" is text a stranger wrote,
 
 ## 16. Budgets
 
-The copilot is never in first paint, so phase 0's first-paint ceiling is unchanged. New rows, set from the spike (S5) at its measurement plus 25%, and raised under D115 when a step exceeds them:
+The copilot is never in first paint, so phase 0's first-paint ceiling is unchanged. New rows, set from the spike (S5) at its measurement plus 25%, and raised under D115 through 2026-11-30 (UTC) when a step exceeds them (from 2026-12-01 onward, D161 requires an approved amendment in `web/scripts/ceiling-amendments.mjs`):
 
 | Row | Ceiling | Enforced in |
 | --- | --- | --- |

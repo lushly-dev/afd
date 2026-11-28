@@ -327,13 +327,51 @@ describe("ceiling-raises: D115's end date", () => {
 		const result = checkCeilingRaises({
 			endsOn: D115_ENDS_ON,
 			amendments: CEILING_AMENDMENTS,
-			today: '2000-01-01',
+			today: new Date().toISOString().slice(0, 10),
 			decisions,
 			readRepoFile: (path) => read(path),
 			readHead: (path) => read(path),
 			readBase: (path) => read(path),
 		});
 		expect(result.failures).toEqual([]);
+	});
+
+	it('activates the day after the recorded 2026-11-30 end date against the real decision log', () => {
+		const decisions = read(DECISIONS);
+		expect(D115_ENDS_ON).toBe('2026-11-30');
+		const within = checkCeilingRaises({
+			endsOn: D115_ENDS_ON,
+			amendments: [],
+			today: '2026-11-30',
+			decisions,
+			readRepoFile: (path) => read(path),
+			readHead: files(344_000),
+			readBase: files(343_500),
+		});
+		expect(within).toMatchObject({ state: 'within', failures: [] });
+		const active = checkCeilingRaises({
+			endsOn: D115_ENDS_ON,
+			amendments: [],
+			today: '2026-12-01',
+			decisions,
+			readRepoFile: (path) => read(path),
+			readHead: files(344_000),
+			readBase: files(343_500),
+		});
+		expect(active.state).toBe('checked');
+		expect(active.failures).toHaveLength(1);
+		expect(active.failures[0]).toContain('raises `jsMinified` from 343500 to 344000');
+		expect(active.failures[0]).toContain('after D115 ended (2026-11-30)');
+		const tampered = checkCeilingRaises({
+			endsOn: null,
+			amendments: [],
+			today: '2026-12-01',
+			decisions,
+			readRepoFile: (path) => read(path),
+			readHead: files(344_000),
+			readBase: (path) => (path === AMENDMENTS_FILE ? read(AMENDMENTS_FILE) : files(343_500)(path)),
+		});
+		expect(tampered.failures.join('\n')).toContain('D115_ENDS_ON on the base is 2026-11-30');
 	});
 });
 
