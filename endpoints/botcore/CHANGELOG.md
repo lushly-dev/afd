@@ -11,6 +11,26 @@ as a dated section when a release is prepared, so nothing is added under `Unrele
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-28
+
+A minor release for seeded repositories: the `gate-discipline` skill carries the portability check AFD and Lushly now share, with each repository's scope as configuration, so Lushly can replace its own copy (step 13 of lushly-dev/afd#1387). It also fixes `botcore.host` for afd 0.15.0, a command-line injection in the factory gateway's unanswered-filing search, stale plan usage and Windows console signals in botcore-factory, and two gaps in the gate-discipline checks. No breaking changes.
+
+### Added
+
+- The seeded `gate-discipline` skill (1.2.0) carries `scripts/check-portability.mjs`, converged with Lushly's copy (lushly-dev/afd#2834): it fails on Windows drive and user-home paths and on a package manager started by bare name without a shell, warns on localhost URLs, lists files from git and refuses a full scan that finds none. A repository's scope (`include`, `exclude`, `skipSegments`, `extensions`, whether Markdown and comment lines are scanned, the localhost allowlist and the spawn helper it names) goes in `scripts/policy/portability.json` or `--config <path>`.
+
+### Fixed
+
+- **Importing `botcore.host` no longer raises afd's `DeprecationWarning`.** The host imported `afd.direct.CommandContext`, an alias afd 0.14.0 deprecates and 0.15.0 removes. It now uses `afd.direct.DirectContext`, so Botcore keeps working with afd 0.15.0.
+
+- **The factory gateway's search for an unanswered filing no longer puts the title in a command line.** When GitHub does not answer an `issue-create` without a `dedupe_key`, the refusal's `details.search` now holds the search (`in:title "<title>"`, matching the title as one phrase), and the suggestion says to pass it as one argument to `gh issue list --repo <repo> --state open --search`. It had put the title raw inside single quotes: an apostrophe broke the command, a crafted title could run one, and the search named no repository (#2907).
+
+- **botcore-factory no longer assigns a plan from a stale usage cache, and counts every Claude instance as Claude.** A weekly window whose `resetsAt` has passed since its T3 Code cache was checked, or whose cache was checked longer ago than the window lasts (a removed instance leaves its file behind), is never chosen. `plan-list` marks it `stale`, `lane-status` lists it under `stalePlans`, and `cell-register` refuses `PLANS_STALE` when every plan a cell may take is stale. A cache's provider is now its `driver`, so a second Claude instance (`claudeAgent_2`) is a Claude plan while `cells.claudeOnly` is on (#2691).
+- **botcore-factory's lane on Windows survives a console Ctrl+C or Ctrl+Break, and `lane-stopped` names the log the lane wrote.** A step it runs, or the host, sending one to its whole console killed the lane mid-merge. The lane and every process it starts now ignore Ctrl+C, and a handler answers Ctrl+Break, writing `ignored console control event 1 (Ctrl+Break)` to its log to help find the sender; `lane-stop` still stops it, and a console that closes still ends it. `python -m botcore_factory.lane_main --log <file>` appends the lane's output, and its steps', to that file and records it; `lane-start` passes its `lane.log`, and `lane-stopped`'s `logPath` is the recorded file, or none when the launcher named none, instead of always `lane.log` (#2836).
+
+- **The gate-discipline quarantine check reads a test chain on past `runIf(...)` or `skipIf(...)` (#2927).** `it.runIf(key).only(...)` and `test.runIf(key).only.each(...)` now fail as a focus, and `it.skipIf(cond).concurrent.skip(...)` as an unconditional skip, through `?.` too; `test.skipIf(cond).each(...)` is still allowed.
+- **The gate-discipline config check reads `passWithNoTests` in a shared Vitest module (#2942):** every root `vitest*` or `vite*` module, every module a config imports by a relative path (followed to the end), and every path given on the command line, which was read only for the CLI flag. It also refuses a computed key (`['passWithNoTests']: true`), an assignment (`config.test.passWithNoTests = true`) and a value that only starts with `false` (`false || x`); only a bare `false` passes. A module reached by a package name or path alias is not followed.
+
 ## [0.12.0] - 2026-11-28
 
 A minor release that retires the managed host's `{name}-start`, `{name}-call` and `{name}-docs` MCP tools for AFD's own, adds the `info_catalog` and `info_docs` commands that carry what they returned, raises the `afd` floor to 0.14.0, and fixes the factory gateway's handling of an unkeyed outage. Upgraders have three things to do. Move a client that still calls the retired tools to `afd-discover`, `afd-call` (`input`, not `arguments`), `info_catalog` and `info_docs`. Rename a plugin or extra command already named `info_catalog` or `info_docs`, which now makes `build_host` raise `Duplicate command`. And upgrade `afd` to 0.14.0 or later alongside Botcore.
