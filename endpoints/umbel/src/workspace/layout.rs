@@ -46,6 +46,12 @@ impl Layout {
         self.state_dir().join("journal.jsonl")
     }
 
+    /// `state/journal.ahead.jsonl`, the write-ahead file of the required journal policy (D208,
+    /// D221, D224): present only in a workspace whose embedder set journal policies.
+    pub fn journal_ahead_file(&self) -> PathBuf {
+        self.state_dir().join("journal.ahead.jsonl")
+    }
+
     /// `state/projection.pending`, present only while an event may be missing.
     pub fn pending_marker(&self) -> PathBuf {
         self.state_dir().join("projection.pending")

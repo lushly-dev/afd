@@ -22,6 +22,7 @@ pub mod workspace;
 
 mod commands;
 mod host;
+mod journal_policy;
 mod logging;
 pub(crate) mod meaning;
 mod metrics;
@@ -40,6 +41,10 @@ mod versions;
 pub mod testkit;
 
 pub use host::{Host, HostBuilder, HostError, RESERVED_VERBS, SPACE_NOT_FOUND};
+pub use journal_policy::{
+    AHEAD_VERSION, DEFAULT_BUFFER, DISPATCH_ID_MISSING, JOURNAL_UNAVAILABLE, JournalHealth,
+    JournalPolicies, JournalPolicy, JournalStorage, UnsettledIntent,
+};
 pub use plugins::{PLUGIN_PROTOCOL_VERSION, WIT_WORLD};
 pub use store::{STORE_GRANTS, codes as store_codes};
 pub use surfaces::http::HttpServer;

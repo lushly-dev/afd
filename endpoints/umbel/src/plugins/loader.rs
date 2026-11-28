@@ -177,6 +177,10 @@ pub(crate) struct GateEntry {
     /// sections 2 and 14): its event's text-derived envelope fields are removed, as a memory
     /// writer's are.
     pub lane_writer: bool,
+    /// Whether the instance holds any store write grant (`*_write`, `memory_write` included): a
+    /// result it marks `dev.umbel/no-change` itself is not believed (D224), since the host's
+    /// ledger, keyed by trace id, cannot always tell its writes from another call's.
+    pub store_writer: bool,
     /// `journal.mode = "digest"`: the input keys the journal keeps (phase 3 section 7.1). A
     /// pipeline with a digest step inherits digest with no kept key.
     pub digest: Option<Vec<String>>,
@@ -487,6 +491,7 @@ fn gate_entry(
         pipeline,
         memory_writer: false,
         lane_writer: false,
+        store_writer: false,
         digest: None,
         authority_prompt: None,
         steps: Vec::new(),
@@ -951,6 +956,9 @@ fn prepare(
     // 6. Prepare the kind: a compiled plugin builds its handlers; a pack plugin has no code.
     let memory_writer = granted.contains("memory_write");
     let lane_writer = !manifest.records.is_empty();
+    let store_writer = crate::store::STORE_GRANTS
+        .iter()
+        .any(|grant| grant.ends_with("_write") && granted.contains(*grant));
     let services = Services::new(Shared {
         instance: instance.id.clone(),
         granted,
@@ -1084,6 +1092,7 @@ fn prepare(
                 );
                 entry.memory_writer = memory_writer;
                 entry.lane_writer = lane_writer;
+                entry.store_writer = store_writer;
                 entry.person = command.person;
                 entry.preview = command.confirm_preview.clone();
                 entry.shown = command
