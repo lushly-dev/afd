@@ -38,6 +38,8 @@ pub(crate) use attestation::PipelineAttestations;
 pub(crate) use check::run as check_plugin;
 #[cfg(feature = "testkit")]
 pub(crate) use check::single_plugin_config;
+#[cfg(feature = "auth")]
+pub(crate) use compiled::space_unreadable;
 pub use compiled::{Asset, CompiledPlugin, PluginCommand, sdk};
 pub(crate) use compiled_gate::CompiledGate;
 #[cfg(feature = "store-embedded")]
@@ -48,6 +50,8 @@ pub(crate) use doctor::{
 };
 pub use error::{PluginError, codes};
 pub use files::{AssetFiles, DirFiles, PluginFiles};
+#[cfg(feature = "auth")]
+pub(crate) use grants::TASK_SPACE_UNREADABLE;
 pub use grants::{CallServices, MAX_LOG_BYTES, MAX_PACK_READ_BYTES, Services};
 pub(crate) use ledger::{Assigned, CallRecord, Ledger};
 #[cfg(feature = "testkit")]

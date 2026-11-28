@@ -2723,6 +2723,38 @@ it can read, and no answer changes.
   with it, its first page 8.08 s and 8.62 ms, and `space-list` 13.8 s either way
   (`cursor_v1::sealed_event_reads_at_1k_and_1m`, ignored by default).
 
+## Amendments from #3010: what a task keeps
+
+Made in the pull request for [#3010](https://github.com/lushly-dev/afd/issues/3010), which the security review of
+the [#2506](https://github.com/lushly-dev/afd/issues/2506) change found: 12.2's "no content is retained" held for a
+direct call but not for two paths.
+
+- **A pipeline's result carries its steps' content label, and a task keeps no labelled result.** A pipeline builds
+  its result from its steps' data (`src/plugins/pipelines.rs`), so it dropped `sources-sync`'s
+  `dev.umbel/trust: "content"`, and a `knowledge-refresh` task kept a result the store refuses from `sources-sync`
+  itself. When any step's result is labelled content, the pipeline's is too. The store now refuses any trust
+  label, `external` as well as `content`, since the host writes `external` over a mounted plugin's results, its
+  pipelines' included, and keeps its "is labelled as content" failure instead.
+- **A failure is kept in the host's words.** A failure (`isError`, or `success: false` with or without an
+  `error`) may repeat the call's input in its message, suggestion, details or code (`sources-sync`'s
+  `COLLECTION_NOT_FOUND` names the collection asked for). The host's notices are rebuilt with their own recovery
+  advice, from what the store knows itself (whether the command is a mutation, its own size cap), never from a
+  fact the result supplied: `TASK_TOKEN_EXPIRED` and `TASK_LOST` as before, AFD's oversized result (it says the
+  command ran, with the host's `limitBytes`), AFD's `TIMEOUT` (as though the work had started, since only the runner
+  knows it had not) and Umbel's `TASK_SPACE_UNREADABLE`. A result is a failure when `isError`, `success: false` or
+  any `error` says so. Any other failure keeps its code when AFD's catalog (`ERROR_CODE_CATALOG`) or Umbel's fixed
+  codes (the host's, the store refusals' and its task commands') have it, else `COMMAND_EXECUTION_ERROR`, and
+  whether it is retryable, with no details, and a suggestion that tells a mutation's caller to check its effect
+  first. A failure is decided before a label, so a mounted plugin's failure reads as one. A task's
+  failure is therefore no longer the inline call's word for word: the inline call gives the rest. The size cap
+  applies to the result as it is stored.
+- **Tests.** `tests/it/contexts_pipelines.rs` (the label), `src/shared/tasks/tests.rs` (a failure at the SQLite
+  boundary, in the database and its log; the host's notices; a failure with no `error`; an `external` label; a
+  mutation's suggestion) and `tests/it/tasks.rs` (a task's failure against the inline call's). The end-to-end test
+  in `plugins/knowledge/tests/it/tasks.rs` (`knowledge-refresh` and a `sources-sync` failure as tasks, read back
+  and in the store's files; it fails without the pipeline change) lands in a pull request of its own, since the
+  plugin isolation gate keeps a plugin's files and the host's apart.
+
 ## Follow-ups
 
 | Date | Follow-up | Owner |

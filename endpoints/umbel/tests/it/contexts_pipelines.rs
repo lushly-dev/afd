@@ -72,6 +72,12 @@ effects = ["plugin-state"]
 input_schema = {PLAIN}
 
 [[commands]]
+name = "ctxp-read"
+description = "Return content, labelled as such."
+effects = ["inspect"]
+input_schema = {PLAIN}
+
+[[commands]]
 name = "ctxp-clear"
 description = "Clear every note."
 effects = ["plugin-state"]
@@ -126,6 +132,13 @@ input_schema = { type = "object", properties = {}, additionalProperties = false 
 steps = [ { command = "ctxp-bump" }, { command = "ctxp-guarded" } ]
 
 [[pipelines]]
+name = "ctxp-read-twice"
+description = "A step that returns content, then one that does not."
+effects = ["inspect"]
+input_schema = { type = "object", properties = {}, additionalProperties = false }
+steps = [ { command = "ctxp-read" }, { command = "ctxp-other" } ]
+
+[[pipelines]]
 name = "ctxp-ghost"
 description = "Names a command nobody provides."
 effects = ["inspect"]
@@ -178,6 +191,14 @@ fn plugin(manifest: String, counters: &Counters) -> Raw {
             echo("ctxp-in"),
             echo("ctxp-out"),
             closure("ctxp-other", |_, _| afd::success(json!({}))),
+            closure("ctxp-read", |_, _| {
+                let mut read = afd::success(json!({ "text": "a document's words" }));
+                read.metadata
+                    .get_or_insert_with(ResultMetadata::new)
+                    .extra
+                    .insert("dev.umbel/trust".to_owned(), json!("content"));
+                read
+            }),
             closure("ctxp-note", |input, _| {
                 let text = input["text"].as_str().unwrap_or("note").to_owned();
                 with_record(
@@ -337,6 +358,37 @@ async fn a_pipeline_runs_its_steps_with_input_and_earlier_steps() {
         assert_eq!(over["success"], true, "{}: {over}", client.label());
         assert_eq!(over["data"]["steps"][2]["data"]["text"], "b");
     }
+}
+
+#[tokio::test]
+async fn a_pipeline_whose_step_returned_content_is_labelled_content() {
+    // #3010: the pipeline's result is built fresh from its steps' data, so it must carry the
+    // label a step's had, or a task store would keep content it refuses from the step itself.
+    let (_dir, host) = host_with("", &Counters::default());
+    let result = call(&host, agent("a"), "ctxp-read-twice", json!({})).await;
+    assert!(result.success, "{result:?}");
+    let label = result
+        .metadata
+        .as_ref()
+        .and_then(|metadata| metadata.extra.get("dev.umbel/trust"))
+        .cloned();
+    assert_eq!(label, Some(json!("content")));
+    // A pipeline whose steps returned none is not labelled.
+    let plain = call(
+        &host,
+        agent("a"),
+        "ctxp-twice",
+        json!({ "first": "a", "second": "b" }),
+    )
+    .await;
+    assert!(
+        plain
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.extra.get("dev.umbel/trust"))
+            .is_none(),
+        "{plain:?}"
+    );
 }
 
 #[tokio::test]

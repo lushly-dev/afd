@@ -178,12 +178,9 @@ pub(crate) fn is_phase(message: &str) -> bool {
 /// Whether a `CallToolResult` carries content (`dev.umbel/trust: "content"`, in the command
 /// result's metadata or the result's `_meta`).
 fn carries_content(result: &Map<String, Value>) -> bool {
-    let labelled = |value: Option<&Value>| {
-        value
-            .and_then(|meta| meta.get(TRUST_KEY))
-            .and_then(Value::as_str)
-            == Some("content")
-    };
+    // Any trust label: `content` from a compiled plugin or a pipeline over one, and `external`,
+    // which the host writes over a mounted plugin's results (and a mounted plugin's pipeline's).
+    let labelled = |value: Option<&Value>| value.and_then(|meta| meta.get(TRUST_KEY)).is_some();
     labelled(
         result
             .get("structuredContent")
@@ -264,6 +261,139 @@ fn not_kept(why: &str) -> CommandError {
         "The command ran: check its effect before running it again, and call it without a task to receive its result.",
     )
     .with_retryable(false)
+}
+
+/// The fixed codes of Umbel's host and its task commands that a task keeps as they came, beside
+/// AFD's catalog ([`afd::ERROR_CODE_CATALOG`]). Any other code, which a command could have built
+/// from its input, is kept as `COMMAND_EXECUTION_ERROR` (#3010).
+const UMBEL_CODES: &[&str] = &[
+    TASK_LOST,
+    crate::plugins::TASK_SPACE_UNREADABLE,
+    "TASK_STOPPED",
+    "SPACE_NOT_FOUND",
+    "SPACE_NOT_READABLE",
+    "ACCESS_INVALID",
+    "PLUGIN_GRANT_DENIED",
+    "STORE_BUSY",
+    "STORE_CONFLICT",
+    "STORE_CORRUPT",
+    "STORE_IO",
+    "STORE_PROVENANCE_REQUIRED",
+    "STORE_WRITE_NOT_ALLOWED",
+    "COLLECTION_FAILED",
+    "COLLECTION_NOT_FOUND",
+    "CONTENT_FLAGGED",
+    "FRONTMATTER_INVALID",
+    "FRONTMATTER_SCHEMA",
+    "KNOWLEDGE_FAILED",
+    "KNOWLEDGE_INDEX_INVALID",
+    "KNOWLEDGE_PACK_INVALID",
+    "KNOWLEDGE_TOO_LARGE",
+    "OKF_VERSION_UNKNOWN",
+    "SOURCES_PACK_INVALID",
+    "SOURCE_CONFLICT",
+    "SOURCE_FAILED",
+    "SOURCE_INVALID",
+    "SOURCE_LIMIT",
+    "SOURCE_PATH_INVALID",
+    "SOURCE_TOO_LARGE",
+    "SOURCE_UNREADABLE",
+];
+
+/// `code` as a task keeps it: itself when AFD's catalog or [`UMBEL_CODES`] has it.
+fn kept_code(code: &str) -> &'static str {
+    afd::ERROR_CODE_CATALOG
+        .iter()
+        .map(|entry| entry.code)
+        .chain(UMBEL_CODES.iter().copied())
+        .find(|kept| *kept == code)
+        .unwrap_or(afd::error_codes::COMMAND_EXECUTION_ERROR)
+}
+
+/// The `error` of a failed result: `isError`, `success: false`, or any `error` at all, whatever
+/// the flags say (an embedder may return a failure without an `error`, or an `error` beside
+/// `success: true`). `None` for a success.
+fn failed_error(result: &Map<String, Value>) -> Option<&Map<String, Value>> {
+    static EMPTY: std::sync::OnceLock<Map<String, Value>> = std::sync::OnceLock::new();
+    let structured = result.get("structuredContent");
+    let error = structured.and_then(|s| s.get("error"));
+    let failed = result.get("isError") == Some(&Value::Bool(true))
+        || structured.and_then(|s| s.get("success")) == Some(&Value::Bool(false))
+        || error.is_some_and(|error| !error.is_null());
+    if !failed {
+        return None;
+    }
+    Some(
+        structured
+            .and_then(|s| s.get("error"))
+            .and_then(Value::as_object)
+            .unwrap_or_else(|| EMPTY.get_or_init(Map::new)),
+    )
+}
+
+/// A failure as a task keeps it (#3010): never the command's own words, which may repeat the
+/// call's input (`sources-sync`'s `COLLECTION_NOT_FOUND` names the collection asked for), and no
+/// fact a command could have supplied. The host's notices are rebuilt in the host's words with
+/// their own recovery advice, from what the store knows itself (the command's `mutation` and
+/// [`MAX_RESULT_BYTES`]): AFD's oversized result (it says the command ran), AFD's `TIMEOUT` (as
+/// though the work had started: only the runner knows it had not) and Umbel's
+/// `TASK_SPACE_UNREADABLE`. Any other failure keeps its code ([`kept_code`]) and whether it is
+/// retryable, with no details, and a suggestion that never invites a mutation to run again
+/// unchecked. (`TASK_TOKEN_EXPIRED` and `TASK_LOST` are rebuilt by [`canonical`] before this.)
+fn failure_as_kept(error: &Map<String, Value>, mutation: bool) -> CommandError {
+    let code = error
+        .get("code")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    // AFD's oversized result, by its shape: both sizes, as whole numbers. Only the host's own
+    // limit is kept, never a size the result supplied.
+    let sized = error
+        .get("details")
+        .and_then(Value::as_object)
+        .is_some_and(|details| {
+            ["limitBytes", "actualBytes"]
+                .iter()
+                .all(|key| details.get(*key).and_then(Value::as_u64).is_some())
+        });
+    if code == afd::error_codes::INTERNAL_ERROR && sized {
+        return not_kept("is larger than a task keeps").with_details(
+            std::collections::HashMap::from([("limitBytes".to_owned(), json!(MAX_RESULT_BYTES))]),
+        );
+    }
+    if code == afd::error_codes::TIMEOUT {
+        let suggestion = if mutation {
+            "The command may have made part of its change before it stopped: check its effect, then start it again if it is still needed."
+        } else {
+            "Start the task again, or ask the operator for a longer run budget."
+        };
+        return CommandError::new(
+            afd::error_codes::TIMEOUT,
+            "The task stopped because its execution run budget elapsed",
+        )
+        .with_suggestion(suggestion)
+        .with_retryable(!mutation);
+    }
+    if code == crate::plugins::TASK_SPACE_UNREADABLE {
+        return crate::plugins::space_unreadable();
+    }
+    let code = kept_code(code);
+    let retryable = error
+        .get("retryable")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let suggestion = if mutation {
+        "The command may have made part of its change: check its effect, then call it without a task to see the failure in full before running it again."
+    } else {
+        "Call the command without a task to see the failure in full, then correct the call."
+    };
+    CommandError::new(
+        code,
+        format!(
+            "The command failed with {code}. A task keeps only the code and whether it is retryable, since the command's own words may repeat the call's input"
+        ),
+    )
+    .with_suggestion(suggestion)
+    .with_retryable(retryable)
 }
 
 /// The JSON-RPC error a `failed` task holds: only the internal error (`task-record.v1`).
@@ -654,22 +784,30 @@ fn make_room(
     Ok(())
 }
 
-/// What a `Completed` change stores: the result, unless it carries content or is too large, which
-/// a failure that says the command ran replaces.
+/// What a `Completed` change stores: a success as it came, a failure in the host's words
+/// ([`failure_as_kept`]), and in place of a result labelled content (or `external`), or one larger
+/// than [`MAX_RESULT_BYTES`] as it would be stored, a failure that says the command ran.
 fn kept_result(result: Map<String, Value>, mutation: bool) -> Map<String, Value> {
+    let notice = matches!(
+        error_code(&result),
+        Some(afd::error_codes::TASK_TOKEN_EXPIRED | TASK_LOST)
+    );
     let result = canonical(result, mutation);
-    let size = serde_json::to_vec(&result).map_or(usize::MAX, |bytes| bytes.len());
-    let replacement = if carries_content(&result) {
-        Some(not_kept("is labelled as content"))
-    } else if size > MAX_RESULT_BYTES {
-        Some(not_kept("is larger than a task keeps"))
+    let kept = if notice {
+        result
+    } else if let Some(error) = failed_error(&result) {
+        afd::server::failure_result(failure_as_kept(error, mutation)).unwrap_or_default()
+    } else if carries_content(&result) {
+        afd::server::failure_result(not_kept("is labelled as content")).unwrap_or_default()
     } else {
-        None
+        result
     };
-    match replacement {
-        None => result,
-        Some(error) => afd::server::failure_result(error).unwrap_or_default(),
+    let size = serde_json::to_vec(&kept).map_or(usize::MAX, |bytes| bytes.len());
+    if size > MAX_RESULT_BYTES {
+        return afd::server::failure_result(not_kept("is larger than a task keeps"))
+            .unwrap_or_default();
     }
+    kept
 }
 
 #[async_trait::async_trait]

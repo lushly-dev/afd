@@ -814,6 +814,30 @@ async fn a_task_s_result_is_the_inline_call_s_and_reveals_no_more() {
             "{body}"
         );
         let mut from_inline = inline(&call(client, &ada, "job-echo", input.clone(), false).await);
+        if from_inline["success"] == json!(false) {
+            // #3010: a task keeps a failure's code and whether it is retryable, never its words,
+            // which may repeat the call's input.
+            let (kept, said) = (&from_task["error"], &from_inline["error"]);
+            // The fixture's own `JOB_FAILED` is no registered code: a task keeps the generic one.
+            let code = if said["code"] == json!("JOB_FAILED") {
+                json!("COMMAND_EXECUTION_ERROR")
+            } else {
+                said["code"].clone()
+            };
+            assert_eq!(kept["code"], code, "{input}");
+            assert_eq!(
+                kept["retryable"].as_bool().unwrap_or(false),
+                said["retryable"].as_bool().unwrap_or(false),
+                "{input}"
+            );
+            assert!(
+                kept["message"]
+                    .as_str()
+                    .is_some_and(|message| message.starts_with("The command failed with ")),
+                "{kept}"
+            );
+            continue;
+        }
         // Only the handler's own view of being a task differs.
         if from_inline["success"] == json!(true) {
             assert_eq!(from_inline["data"]["task"], json!(false));
@@ -915,6 +939,13 @@ async fn an_owner_s_tasks_are_capped_across_processes_and_a_result_is_capped() {
     let result = task_result(&settled(&world.b.client, &id, &other).await);
     assert_eq!(result["error"]["code"], json!("INTERNAL_ERROR"), "{result}");
     assert_eq!(result["error"]["details"]["limitBytes"], json!(1_048_576));
+    // The command ran: a task never tells its caller to run it again unchecked.
+    assert!(
+        result["error"]["suggestion"]
+            .as_str()
+            .is_some_and(|text| text.contains("check its effect")),
+        "{result}"
+    );
     for id in &ids {
         settled(&world.a.client, id, &ada).await;
     }
