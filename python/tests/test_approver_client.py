@@ -191,6 +191,7 @@ def _make_http_server(
     on_approval_accepted: Any = None,
     relay: str = "none",
     tool_strategy: str = "individual",
+    idempotency: Any = None,
 ):
     pytest.importorskip("mcp")
     pytest.importorskip("cryptography")
@@ -227,6 +228,7 @@ def _make_http_server(
             verifier=verifier,
         ),
         approver=approver,
+        idempotency=idempotency,
     )
 
     @server.command(
@@ -238,6 +240,7 @@ def _make_http_server(
             "required": ["id"],
         },
         mutation=True,
+        idempotency="keyed",
         approval="required",
         expose=ExposeOptions(mcp=True),
     )
@@ -297,8 +300,10 @@ async def _modern_call(
     arguments: dict[str, Any],
     *,
     client_id: str = "loam-shell",
+    subject: str = "person-1",
     approval: Any = None,
     elicit: bool = False,
+    key: str | None = None,
 ) -> dict[str, Any]:
     meta: dict[str, Any] = {
         "io.modelcontextprotocol/protocolVersion": MODERN,
@@ -307,6 +312,8 @@ async def _modern_call(
     }
     if approval is not None:
         meta[AFD_APPROVAL_META_KEY] = approval
+    if key is not None:
+        meta["dev.afd/idempotencyKey"] = key
     resp = await client.post(
         "/mcp",
         headers={
@@ -315,7 +322,7 @@ async def _modern_call(
             "MCP-Protocol-Version": MODERN,
             "Mcp-Method": "tools/call",
             "Mcp-Name": tool,
-            "Authorization": f"Bearer {_jwt(client_id=client_id)}",
+            "Authorization": f"Bearer {_jwt(client_id=client_id, subject=subject)}",
         },
         json={
             "jsonrpc": "2.0",
@@ -597,3 +604,41 @@ async def test_rule5_runs_before_context_hook_and_request_state_and_in_execute()
     assert exec_res.success is False
     assert exec_res.error is not None
     assert exec_res.error.code == "VALIDATION_ERROR"
+
+
+@pytest.mark.asyncio
+async def test_approver_retry_of_a_keyed_call_is_scoped_and_answered_from_the_store():
+    from afd.server import IdempotencyOptions
+
+    server, runs = _make_http_server(idempotency=IdempotencyOptions())
+
+    async def approved(subject: str, key: str) -> dict[str, Any]:
+        held_rpc = await _modern_call(client, "todo-delete", {"id": 7}, subject=subject, key=key)
+        held = json.loads(held_rpc["result"]["content"][0]["text"])
+        token = held["error"]["details"]["approvalToken"]
+        rpc = await _modern_call(
+            client, "todo-delete", {"id": 7}, subject=subject, key=key, approval=token
+        )
+        return json.loads(rpc["result"]["content"][0]["text"])
+
+    async with _http_client(server) as client:
+        first = await approved("person-1", "k1")
+        assert first["success"] is True
+        assert runs == ["delete:7"]
+        # A repeat is approved again (I2), then answered from the store.
+        again = await approved("person-1", "k1")
+        assert again["success"] is True
+        assert again["metadata"]["idempotentReplay"] is True
+        assert runs == ["delete:7"]
+        # Other credentials under the same approver are another principal (S3, M8).
+        theirs = await approved("person-2", "k1")
+        assert theirs["success"] is True
+        assert "idempotentReplay" not in (theirs.get("metadata") or {})
+        assert runs == ["delete:7", "delete:7"]
+        # A malformed key fails before any approval evidence is read (K2).
+        bad_rpc = await _modern_call(
+            client, "todo-delete", {"id": 7}, key="not a key", approval="forged"
+        )
+        bad = json.loads(bad_rpc["result"]["content"][0]["text"])
+        assert bad["error"]["code"] == "VALIDATION_ERROR"
+        assert runs == ["delete:7", "delete:7"]

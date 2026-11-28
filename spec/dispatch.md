@@ -76,8 +76,7 @@ as it does a declared context field in stage 7 ([idempotency, K1 to K6](./idempo
 so a malformed key comes ahead of `CONFIRMATION_REQUIRED`, though rules 2 and 5 otherwise put
 confirmation before validation. A call the step would act on from a caller the server cannot tell
 apart is refused at the same point (S3), and the engine's cancellation check runs again between
-the step's reservation and the handler (S5). TypeScript, Rust and C++ implement the key and the
-step; Python does not yet ([#2955](https://github.com/lushly-dev/afd/issues/2955)).
+the step's reservation and the handler (S5). Every language implements the key and the step.
 
 ## Normative rules
 

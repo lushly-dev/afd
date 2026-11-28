@@ -44,7 +44,7 @@ from afd.core.commands import (
 )
 from afd.core.errors import Recovery, _retry_after
 from afd.core.result import CommandError, CommandResult
-from afd.core.running_command import pass_on_binding, running_command_mutation
+from afd.core.running_command import RunningCommand, pass_on_binding, running_command_entry
 from afd.core.telemetry import TelemetryError as _TelemetryError
 from afd.core.telemetry import TelemetryEvent as _TelemetryEvent
 from afd.core.telemetry import TelemetrySink as _TelemetrySink
@@ -232,6 +232,17 @@ def _retry_wait_ms(retry: int, base_ms: float, max_ms: float, jitter: bool) -> f
     return random.uniform(backoff / 2, backoff) if jitter else backoff
 
 
+def _may_repeat(entry: RunningCommand | None) -> bool:
+    """Whether R1 lets the retry middleware repeat the call ``entry`` describes."""
+    if entry is None:
+        return False
+    if entry.idempotency == "natural":
+        return True
+    if entry.idempotency == "keyed":
+        return entry.has_key
+    return entry.mutation is False
+
+
 def create_retry_middleware(
     *,
     max_retries: int = 3,
@@ -249,13 +260,16 @@ def create_retry_middleware(
     ``min(max_delay, retry_delay * 2 ** (n - 1))`` ms. Cancelling the call
     (``asyncio.CancelledError``) during a wait stops retrying at once.
 
-    A command that declares ``mutation=True`` is never retried unless
-    ``retry_mutations`` is set: a failed mutation, such as one whose handler
-    returned ``TIMEOUT`` after a downstream write, may already have applied its
-    change. The declaration is read from the command the engine runs, never
-    from its name; a call whose declaration cannot be read (outside the engine,
-    or behind an outside engine's ``open_dispatch`` that does not declare it)
-    counts as a mutation.
+    What it may repeat follows the command's declaration (``spec/idempotency.md``,
+    R1), in this order: a command that declares ``idempotency="natural"`` is
+    repeated; one that declares ``idempotency="keyed"`` is repeated only when the
+    call carries an idempotency key and is not an MCP task run; any other command
+    is repeated unless it declares ``mutation=True``. A failed mutation, such as
+    one whose handler returned ``TIMEOUT`` after a downstream write, may already
+    have applied its change. The declaration is read from the command the engine
+    runs, never from its name; a call whose declaration cannot be read (outside
+    the engine, or behind an outside engine's ``open_dispatch`` that does not
+    declare it) counts as a mutation that declares nothing.
 
     Args:
         max_retries: Maximum number of retries after the first attempt. Default 3.
@@ -267,7 +281,7 @@ def create_retry_middleware(
         jitter: Randomize each wait to between half and all of the backoff,
             so clients that failed together do not retry in lockstep. Default
             True; False waits exactly the backoff.
-        retry_mutations: Retry commands that declare ``mutation=True`` too.
+        retry_mutations: Retry every command, whatever it declares (R2).
             Default False. Set it only when every mutation the middleware wraps
             is safe to repeat.
 
@@ -291,7 +305,7 @@ def create_retry_middleware(
         next_fn: NextFn,
     ) -> CommandResult[Any]:
         # Read before the first attempt, while the engine's dispatch is open.
-        repeatable = retry_mutations or running_command_mutation(context, next_fn) is False
+        repeatable = retry_mutations or _may_repeat(running_command_entry(context, next_fn))
         result = await next_fn()
         if not repeatable:
             return result

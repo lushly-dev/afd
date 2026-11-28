@@ -396,7 +396,7 @@
 		},
 		{
 			"id": "mcp.meta-argument",
-			"label": "The meta-tools' `meta` argument: `dev.afd/context` and declared fields for clients that cannot set `_meta` ([`spec/context-fields.md`](../spec/context-fields.md#clients-that-cannot-set-_meta), #466)"
+			"label": "The meta-tools' `meta` argument: `dev.afd/context`, `dev.afd/idempotencyKey` and declared fields for clients that cannot set `_meta` ([`spec/context-fields.md`](../spec/context-fields.md#clients-that-cannot-set-_meta), #466)"
 		},
 		{
 			"id": "mcp.bootstrap",

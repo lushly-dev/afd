@@ -52,6 +52,7 @@ from afd.core.command_execution import (
 )
 from afd.core.dispatch_id import DispatchIdCarrier
 from afd.core.errors import CommandError, ErrorCodes, Recovery
+from afd.core.idempotency import IdempotencySupport, is_idempotency_support
 from afd.core.output_budget import (
     AFD_OUTPUT_BUDGET_META_KEY,
     OutputBudget,
@@ -100,6 +101,20 @@ def validate_secret(name: str, secret: Any) -> bool:
     if not isinstance(secret, bool):
         raise TypeError(f"Command '{name}': secret must be a boolean")
     return secret
+
+
+def validate_idempotency(name: str, idempotency: Any) -> IdempotencySupport | None:
+    """Validate ``idempotency`` metadata (``spec/idempotency.md``, D1): ``natural``, ``keyed`` or
+    ``None``.
+
+    Raises:
+        ValueError: For any other value.
+    """
+    if idempotency is None or is_idempotency_support(idempotency):
+        return idempotency
+    raise ValueError(
+        f"Command '{name}': idempotency must be 'natural' or 'keyed', got {idempotency!r}"
+    )
 
 
 def declared_secret(name: str, handler: Any, secret: Any = False) -> bool:
@@ -264,6 +279,11 @@ class CommandContext(DispatchIdCarrier):
             ``spec/authorization.md``, M4), set by the server's authorization layer
             on verified HTTP requests. Never the raw token; never journaled or
             forwarded.
+        idempotency_key: The call's idempotency key (``spec/idempotency.md``, K1 to K6). An
+            in-process caller sets it; the MCP server sets it from
+            ``_meta["dev.afd/idempotencyKey"]``. The engine checks its form (K2) and gives the
+            handler the key it decided on, so a command the handler runs through the registry
+            on this context starts without it (K6).
         dispatch_id: Read-only. The id the engine gives this one dispatch
             (``spec/dispatch.md``, "The dispatch id"), set before anything else
             runs; ``None`` outside an AFD engine. Not a dataclass field: it is
@@ -283,6 +303,7 @@ class CommandContext(DispatchIdCarrier):
     signal: asyncio.Event | None = None
     credentials: Any | None = None
     output_budget: int | None = None
+    idempotency_key: str | None = None
     _direct_approval: Any = field(default=None, repr=False, compare=False)
     _direct_allow: Any = field(default=None, repr=False, compare=False)
     _server_signal: asyncio.Event | None = field(default=None, repr=False, compare=False)
@@ -290,6 +311,13 @@ class CommandContext(DispatchIdCarrier):
     _output_budget_ask: Any = field(default=None, repr=False, compare=False)
     _scope_view: Any = field(default=None, repr=False, compare=False)
     _skip_output_budget: bool = field(default=False, repr=False, compare=False)
+    # Idempotency keys (spec/idempotency.md; afd.core.idempotency_keys): a key the engine set
+    # itself, the key it delivered to this call's handler (K6), who the lane says the caller is
+    # (S3) and whether this is an MCP task run (S11). Underscored, so no journal digest counts them.
+    _idempotency_key_engine: str | None = field(default=None, repr=False, compare=False)
+    _idempotency_key_delivered: str | None = field(default=None, repr=False, compare=False)
+    _idempotency_caller: Any = field(default=None, repr=False, compare=False)
+    _task_run: bool = field(default=False, repr=False, compare=False)
 
     def is_cancelled(self) -> bool:
         """Whether cooperative cancellation has been signalled on this context."""
@@ -447,6 +475,12 @@ class CommandDefinition:
     output_budget: OutputBudget | None = None
     scopes: list[str] = field(default_factory=list)
     confirmation_mode: CommandConfirmationMode | None = None
+    idempotency: IdempotencySupport | None = None
+    """What the command declares about repeating a call (``spec/idempotency.md``, D1 to D5):
+    ``natural`` when a repeat leaves the same state as one call (it sets the MCP annotation
+    ``idempotentHint``), ``keyed`` when a repeat that carries the same idempotency key and input
+    is safe (the handler, or the server's idempotency step, answers it). Unset claims nothing,
+    and is never derived from ``mutation``."""
     secret: bool = False
     """Whether the command takes or returns a secret (a password argument, an issued token). A
     journal never records a call to it unless the host also gives the recorder ``redact``, which
@@ -571,9 +605,11 @@ class _CommandRegistryImpl:
         middleware: Sequence[CommandMiddleware] | None = None,
         clock: Clock | None = None,
         random: RandomSource | None = None,
+        idempotency: Any = None,
     ) -> None:
         if call_grant is not None and not callable(call_grant):
             raise TypeError("call_grant must be callable")
+        self._idempotency = _checked_step(idempotency)
         self._commands: dict[str, CommandDefinition] = {}
         self._dev_mode = dev_mode
         self._call_grant = call_grant
@@ -598,6 +634,7 @@ class _CommandRegistryImpl:
 
             check_schema(command.input_schema)
         validate_secret(command.name, command.secret)
+        validate_idempotency(command.name, command.idempotency)
         normalized_confirmation_mode = validate_confirmation_mode(
             command.name, command.confirmation_mode
         )
@@ -657,6 +694,7 @@ class _CommandRegistryImpl:
             logger=logger,
             suggest_tools=False,
             stamp_metadata=False,
+            idempotency=self._idempotency,
         )
 
     async def execute(
@@ -719,6 +757,7 @@ def create_command_registry(
     middleware: Sequence[CommandMiddleware] | None = None,
     clock: Clock | None = None,
     random: RandomSource | None = None,
+    idempotency: Any = None,
 ) -> CommandRegistry:
     """Create a new command registry.
 
@@ -741,6 +780,10 @@ def create_command_registry(
         middleware: Optional middleware chain wrapping each executed handler.
         clock: Default clock for handlers when the call context has none.
         random: Default random source for handlers when the call context has none.
+        idempotency: The idempotency step (``spec/idempotency.md``, S1 to S13), built with
+            ``afd.server.create_idempotency_step`` (give it this registry's ``clock``). It
+            answers a repeat of a call to an ``idempotency="keyed"`` command that carries the
+            same key from its store, between the approval admission check and the handler.
 
     Returns:
         A CommandRegistry instance for registering and executing commands.
@@ -756,7 +799,20 @@ def create_command_registry(
         middleware=opts.middleware if middleware is None else middleware,
         clock=opts.clock if clock is None else clock,
         random=opts.random if random is None else random,
+        idempotency=opts.idempotency if idempotency is None else idempotency,
     )
+
+
+def _checked_step(step: Any) -> Any:
+    """``step`` when it is an idempotency step (or ``None``)."""
+    if step is None:
+        return None
+    for method in ("principal", "prepare", "run"):
+        if not callable(getattr(step, method, None)):
+            raise TypeError(
+                "idempotency must be a step built with afd.server.create_idempotency_step"
+            )
+    return step
 
 
 def is_mcp_exposed(command: CommandDefinition) -> bool:
@@ -867,6 +923,8 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
     if command.category is not None:
         meta["category"] = command.category
     meta["mutation"] = command.mutation
+    if command.idempotency is not None:
+        meta["idempotency"] = command.idempotency
     # Planning signals only: title and confirm_prompt are display text and stay out of _meta.
     if command.destructive is not None:
         meta["destructive"] = command.destructive
@@ -905,11 +963,16 @@ def command_tool_annotations(command: CommandDefinition) -> dict[str, bool] | No
 
     Only what the command declares is reported. ``mutation`` has no unset state in
     Python, so a mutation gives ``readOnlyHint: False`` and ``destructiveHint`` from
-    ``destructive`` (``False`` when unset), and anything else gives ``None``.
+    ``destructive`` (``False`` when unset), and anything else gives nothing.
+    ``idempotency="natural"`` adds ``idempotentHint: True`` (``spec/idempotency.md``, D2); no
+    other value, and no default, reports it.
     """
+    annotations: dict[str, bool] = {}
     if command.mutation:
-        return {"readOnlyHint": False, "destructiveHint": bool(command.destructive)}
-    return None
+        annotations = {"readOnlyHint": False, "destructiveHint": bool(command.destructive)}
+    if command.idempotency == "natural":
+        annotations["idempotentHint"] = True
+    return annotations or None
 
 
 # Keywords of the schema subset (spec/validation.md) whose value is a schema, an array of

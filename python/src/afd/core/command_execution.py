@@ -40,6 +40,7 @@ from afd.core.batch import (
 )
 from afd.core.builtin_names import AFD_META_TOOL_NAMES
 from afd.core.errors import CommandError
+from afd.core.idempotency_keys import with_derived_idempotency_key
 from afd.core.result import (
     CommandResult,
     ResultMetadata,
@@ -95,6 +96,8 @@ class CommandRegistryOptions:
     middleware: Sequence[CommandMiddleware] | None = None
     clock: Clock | None = None
     random: RandomSource | None = None
+    idempotency: Any = None
+    """The idempotency step (``afd.server.create_idempotency_step``), or ``None``."""
 
 
 def resolve_batch_limit(value: int | None, fallback: int, name: str) -> int:
@@ -500,7 +503,10 @@ async def execute_batch(
                 }
                 if batch_deadline_event is not None:
                     item_updates.update(deadline_signal_updates(base_context, batch_deadline_event))
-                item_context = clone_context_with(base_context, **item_updates)
+                # Each item runs under the key derived from the request's (K4).
+                item_context = with_derived_idempotency_key(
+                    clone_context_with(base_context, **item_updates), "batch", index
+                )
                 item = commands[index]
                 task = asyncio.ensure_future(
                     _settle_batch_item(executor, item.command, item.input, item_context, dev_mode)

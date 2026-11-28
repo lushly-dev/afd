@@ -141,6 +141,9 @@ class JournalRecord:
     context: dict[str, Any] | None = None
     context_omitted: list[str] | None = None
     output_budget: int | None = dataclasses.field(default=None, kw_only=True)
+    idempotency_key: str | None = dataclasses.field(default=None, kw_only=True)
+    """The call's idempotency key (``spec/idempotency.md``, "The journal"), a derived one as
+    derived. ``None`` when the call had none."""
 
 
 @dataclass
@@ -166,6 +169,8 @@ class JournalEntry(JournalRecord):
         data: dict[str, Any] = {"seq": self.seq, "timestamp": self.timestamp}
         if self.trace_id is not None:
             data["traceId"] = self.trace_id
+        if self.idempotency_key is not None:
+            data["idempotencyKey"] = self.idempotency_key
         data["command"] = self.command
         data["input"] = self.input
         if self.actor is not None:
@@ -204,6 +209,7 @@ class JournalEntry(JournalRecord):
             seq=data["seq"],
             timestamp=data["timestamp"],
             trace_id=data.get("traceId"),
+            idempotency_key=data.get("idempotencyKey"),
             command=data["command"],
             input=data["input"],
             actor=_actor_from_dict(data["actor"]) if "actor" in data else None,
@@ -426,7 +432,8 @@ def create_context_digest(
     never enter the hash or the digest. With ``journaled``, the values the
     entry keeps for declared context fields, the hash also covers those values
     and omitted names, and their names leave the key list; without it the hash
-    is unchanged.
+    is unchanged. A context with an ``idempotency_key`` hashes it as the member
+    ``idempotencyKey``, and its name leaves the key list.
     """
     journaled = journaled or JournalContextFields()
     values = _context_values(context)
@@ -436,6 +443,12 @@ def create_context_digest(
     trace_id = values.get("trace_id")
     trace_id = trace_id if isinstance(trace_id, str) else None
     recorded = {*(journaled.context or {}), *(journaled.context_omitted or [])}
+    idempotency_key = values.get("idempotency_key")
+    if isinstance(idempotency_key, str):
+        # Hashed as a member of its own, so its name leaves `keys` (spec/journal.md).
+        recorded.add("idempotency_key")
+    else:
+        idempotency_key = None
     keys = sorted(
         name
         for name, value in values.items()
@@ -449,6 +462,8 @@ def create_context_digest(
     }
     if journaled.context is not None:
         hashed["context"] = journaled.context
+    if idempotency_key is not None:
+        hashed["idempotencyKey"] = idempotency_key
     if journaled.context_omitted is not None:
         hashed["contextOmitted"] = journaled.context_omitted
     if output_budget is _UNSET:
@@ -573,6 +588,7 @@ def is_journal_entry(value: Any) -> bool:
         and 1 <= seq <= _MAX_SAFE_INTEGER
         and isinstance(value.get("timestamp"), str)
         and ("traceId" not in value or isinstance(value["traceId"], str))
+        and ("idempotencyKey" not in value or isinstance(value["idempotencyKey"], str))
         and isinstance(value.get("command"), str)
         and "input" in value
         and ("actor" not in value or _is_actor_dict(value["actor"]))

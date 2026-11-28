@@ -1,7 +1,6 @@
-"""The idempotency key's form (K2) and derived keys (K4), against ``spec/vectors/idempotency.json``.
-
-The engine's sections of that file stay a documented Python gap (#2676); these definitions are
-pure, so their two sections run here.
+"""The idempotency key's shared definitions, its form (K2) and derived keys (K4), against
+``spec/vectors/idempotency.json``. ``test_idempotency_vectors.py`` runs every section of that file
+against the engine; ``test_idempotency_engine.py`` covers what the vectors leave to each language.
 """
 
 from __future__ import annotations

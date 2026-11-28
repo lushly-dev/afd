@@ -39,6 +39,7 @@ class CommandInfo(WireModel):
     category: str | None = None
     tags: list[str] | None = None
     mutation: bool | None = None
+    idempotency: str | None = None
     destructive: bool | None = None
     undoable: bool | None = None
     requires: list[str] | None = None
@@ -126,6 +127,7 @@ async def _afd_help_handler(
             # Empty lists are omitted (spec/command-metadata.md, "Reporting rules"; #1480).
             info.tags = list(command.tags) if command.tags else None
             info.mutation = command.mutation
+            info.idempotency = command.idempotency
             info.destructive = command.destructive
             info.undoable = command.undoable
             info.examples = _serialize_examples(command.examples) if command.examples else None

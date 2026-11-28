@@ -8,13 +8,19 @@ Centralizes the AFD single-command dispatch pipeline (``spec/dispatch.md``):
 4. Interface exposure check
 5. Active context check
 6. Input validation
-7. Post-validation hooks (M6 scope re-check, context fields)
-8. Output budget ask validation and effective budget resolution (B2-B4)
-9. Pre-execution cancellation check
-10. Middleware chain wrapping approval admission, handler invocation, B5 output
-    budget check and optional execution metadata stamping
-11. Deadline enforcement (``TIMEOUT`` with cooperative signal propagation) and
-    exception redaction (``COMMAND_EXECUTION_ERROR`` outside ``dev_mode``)
+6. The idempotency key's form (K2) and, for a server with the idempotency step,
+   whether it can tell the caller apart (S3)
+7. Input validation
+8. Post-validation hooks (M6 scope re-check, context fields), then the call's
+   digest for the idempotency step (S4)
+9. Output budget ask validation and effective budget resolution (B2-B4)
+10. Pre-execution cancellation check
+11. Middleware chain wrapping approval admission, the idempotency step
+    (``spec/idempotency.md``, S1 to S13), handler invocation, B5 output budget
+    check and optional execution metadata stamping
+12. Deadline enforcement (``TIMEOUT`` with cooperative signal propagation, and
+    R3's recovery where the step reserved the key) and exception redaction
+    (``COMMAND_EXECUTION_ERROR`` outside ``dev_mode``)
 
 ``MCPServer``, ``CommandRegistry``, ``SimpleRegistry`` and ``MockServer`` all
 execute single commands through this module so dispatch semantics never drift.
@@ -46,6 +52,12 @@ from afd.core.dispatch_id import (
     owned_entry,
 )
 from afd.core.errors import CommandError, Recovery
+from afd.core.idempotency import invalid_idempotency_key_error
+from afd.core.idempotency_keys import (
+    deliver_idempotency_key,
+    has_idempotency_key_state,
+    resolve_idempotency_key,
+)
 from afd.core.output_budget import (
     apply_output_budget,
     check_output_budget,
@@ -278,6 +290,8 @@ class CommandExecutionConfig:
     )
     invoke_handler: Callable[[CommandDefinition, Any, CommandContext], Awaitable[Any]] | None = None
     after_execute: Callable[[str, Any], None] | None = None
+    # The idempotency step (afd.server.idempotency_step.IdempotencyStep), or None.
+    idempotency: Any = None
 
 
 def _internal_error(
@@ -298,6 +312,7 @@ async def _run_chain_with_deadline(
     *,
     dev_mode: bool,
     logger: logging.Logger,
+    step_reserved: Callable[[], bool] = lambda: False,
 ) -> Any:
     if effective_timeout is None:
         try:
@@ -379,15 +394,23 @@ async def _run_chain_with_deadline(
         task.cancel()
         task.add_done_callback(_consume_task_exception)
         await asyncio.sleep(0)
+        # Where the idempotency step holds the call's key, a repeat with that key is answered
+        # from its store, so it is safe (spec/idempotency.md, R3); anywhere else it is not.
+        keyed = step_reserved()
         return failure(
             CommandError(
                 code="TIMEOUT",
                 message=f"Command '{truncate_name(name)}' timed out after {effective_timeout}ms",
                 suggestion=(
-                    "Retry with a larger timeout. The command was signalled to abort "
+                    "Repeat the call with the same idempotency key and input: this server "
+                    "answers it from its store, with the first call's result or "
+                    "OUTCOME_UNKNOWN, so the change is not applied twice."
+                    if keyed
+                    else "Retry with a larger timeout. The command was signalled to abort "
                     "but may have completed, so check its effect before retrying a mutation."
                 ),
                 retryable=True,
+                recovery=Recovery(kind="retry") if keyed else None,
                 details={"command": name, "timeoutMs": effective_timeout},
             )
         )
@@ -618,7 +641,39 @@ async def _execute_command_inner(
             recovery=recovery,
         )
 
-    # 6. Input validation.
+    # 6. The idempotency key (spec/idempotency.md, K1 to K6): decided as every engine decides
+    # it, delivered on the context the middleware and handler share, and its form checked
+    # before any middleware or handler (K2).
+    key = resolve_idempotency_key(exec_context)
+    if exec_context is context and has_idempotency_key_state(context):
+        # A context the defaults could not copy (a dict, a frozen object): never mark the
+        # caller's own object, or its next call would read as nested (K6).
+        exec_context = copy.copy(context)
+    deliver_idempotency_key(exec_context, key)
+    if key.kind == "invalid":
+        return failure(invalid_idempotency_key_error())
+    # A task run carries no key for the step or the retry middleware (S11).
+    task_run = getattr(exec_context, "_task_run", False) is True
+    step = config.idempotency
+    step_key = (
+        key.key
+        if step is not None
+        and key.kind == "key"
+        and getattr(command, "idempotency", None) == "keyed"
+        and not task_run
+        else None
+    )
+    # The step acts only where it can tell this caller apart (S3).
+    if step_key is not None:
+        decided = step.principal(exec_context)
+        if decided.kind == "refused":
+            return failure(decided.error)
+        if decided.kind != "ok":
+            from afd.server.idempotency_step import internal_principal_error
+
+            return failure(internal_principal_error())
+
+    # 7. Input validation.
     if config.validate_input is not None:
         valid, data_or_failure = await config.validate_input(command, input, exec_context)
     else:
@@ -633,20 +688,36 @@ async def _execute_command_inner(
         return data_or_failure
     data = data_or_failure
 
-    # 7. Post-validation hooks (M6 scope re-check, context fields).
+    # 8. Post-validation hooks (M6 scope re-check, context fields).
     if config.post_validate is not None:
         post_failure = config.post_validate(command, data, exec_context)
         if post_failure is not None:
             return post_failure
 
-    # 8. Output budget ask validation & effective budget resolution (B2-B4).
+    effective_timeout = _resolve_timeout_ms(
+        getattr(exec_context, "timeout", None), config.default_timeout_ms
+    )
+    # The call the step acts on, digested over its declared context fields and input (S4).
+    prepared: Any = None
+    if step_key is not None:
+        prepared = step.prepare(
+            command=command.name,
+            key=step_key,
+            input=data,
+            context=exec_context,
+            timeout_ms=effective_timeout,
+        )
+        if isinstance(prepared, CommandError):
+            return failure(prepared)
+
+    # 9. Output budget ask validation & effective budget resolution (B2-B4).
     effective_budget, invalid_budget = apply_output_budget(command, exec_context)
     if invalid_budget is not None:
         return invalid_budget
     if skip_budget:
         effective_budget = None
 
-    # 9. Pre-execution cancellation check.
+    # 10. Pre-execution cancellation check.
     caller_signal = getattr(exec_context, "signal", None)
     caller_cancel = getattr(exec_context, "cancel", None)
 
@@ -660,10 +731,8 @@ async def _execute_command_inner(
     if _is_aborted():
         return _cancelled_before_start(name)
 
-    # 10-11. Admission, middleware chain, handler, B5 budget, metadata stamp, deadline.
-    effective_timeout = _resolve_timeout_ms(
-        getattr(exec_context, "timeout", None), config.default_timeout_ms
-    )
+    # 11-12. Admission, middleware chain, idempotency step, handler, B5 budget, metadata
+    # stamp, deadline.
     scope = (
         config.admission_scope(exec_context, command)
         if config.admission_scope is not None
@@ -673,6 +742,11 @@ async def _execute_command_inner(
     # travels with the continuation, across a thread hop too, and a recorder given a `next` of
     # its own reads unknown), and closed when the dispatch ends.
     running = open_running_command(exec_context, command)
+    running.has_key = key.kind == "key" and not task_run
+
+    def _mark_reserved() -> None:
+        running.idempotency_reserved = True
+
     with scope as admission_record:
 
         async def run_handler() -> Any:
@@ -684,25 +758,43 @@ async def _execute_command_inner(
                     return denied
             clock = getattr(exec_context, "clock", None) or system_clock
             start = clock.now()
-            if config.invoke_handler is not None:
-                result = await config.invoke_handler(command, data, exec_context)
-            elif (
-                config.validate_input is None
-                and getattr(command.handler, "__afd_validate_input__", None) is not None
-                and (validated_handler := owned_entry(command.handler, VALIDATED_ENTRY)) is not None
-            ):
-                result = await validated_handler(data, exec_context)
-            else:
-                # An AFD wrapper's own engine entry; its public entry is for plain calls, which
-                # are not a dispatch. Any other handler, a host's decorator around an AFD
-                # wrapper included, is called as it is, as the engine's call.
-                engine_entry = owned_entry(command.handler, ENGINE_ENTRY)
-                if engine_entry is not None:
-                    result = await engine_entry(data, exec_context)
+
+            async def invoke() -> CommandResult[Any]:
+                if config.invoke_handler is not None:
+                    raw = await config.invoke_handler(command, data, exec_context)
+                elif (
+                    config.validate_input is None
+                    and getattr(command.handler, "__afd_validate_input__", None) is not None
+                    and (validated_handler := owned_entry(command.handler, VALIDATED_ENTRY))
+                    is not None
+                ):
+                    raw = await validated_handler(data, exec_context)
                 else:
-                    result = await call_public_handler(command.handler, data, exec_context)
-            # Coerced before the budget check, the metadata stamp and any middleware.
-            result = _as_command_result(result, name, config.logger)
+                    # An AFD wrapper's own engine entry; its public entry is for plain calls,
+                    # which are not a dispatch. Any other handler, a host's decorator around an
+                    # AFD wrapper included, is called as it is, as the engine's call.
+                    engine_entry = owned_entry(command.handler, ENGINE_ENTRY)
+                    if engine_entry is not None:
+                        raw = await engine_entry(data, exec_context)
+                    else:
+                        raw = await call_public_handler(command.handler, data, exec_context)
+                # Coerced before the step, the budget check, the metadata stamp and any
+                # middleware.
+                return _as_command_result(raw, name, config.logger)
+
+            if step is not None:
+                # Between the approval admission check and the handler (S1): a stored result
+                # passes the budget check and the metadata stamp below as any result does.
+                result: Any = await step.run(
+                    prepared,
+                    context=exec_context,
+                    command_name=name,
+                    started_at=chain_started,
+                    handler=invoke,
+                    on_reserved=_mark_reserved,
+                )
+            else:
+                result = await invoke()
             if effective_budget is not None:
                 normalized = coerce_budgeted_result(result)
                 if normalized is not None:
@@ -732,6 +824,8 @@ async def _execute_command_inner(
         for mw in reversed(config.middleware):
             next_fn = link(mw, next_fn)
 
+        # When the call's chain and its deadline start, on the step's clock (S7's lease).
+        chain_started = step.clock.now() if step is not None else 0
         try:
             result = await _run_chain_with_deadline(
                 name,
@@ -740,6 +834,7 @@ async def _execute_command_inner(
                 effective_timeout,
                 dev_mode=config.dev_mode,
                 logger=config.logger,
+                step_reserved=lambda: running.idempotency_reserved,
             )
         finally:
             running.open = False

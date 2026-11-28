@@ -20,7 +20,7 @@ mechanically generated files are guarded in CI against unflagged drift
 | `approver-client.json` | Approval evidence from an approver client and the approval display rules ([`spec/approvals.md`](../approvals.md#approval-evidence-from-an-approver-client)): an approver's token and its principal binding, the `_meta` carrier over MCP, and every display limit and hidden range | Format-generated (`generate-approver-client.mjs`) |
 | `journal-context-cap.json` | The journal's 4096-byte cap on a declared context field's value ([`spec/journal.md`](../journal.md#declared-context-fields)): values just at, under and over it, where number spelling, multibyte UTF-8 and escapes decide kept or omitted | Format-generated (`generate-journal-context-cap.mjs`) |
 | `journal-seams.json` | The dispatch id ([`spec/dispatch.md`](../dispatch.md#the-dispatch-id), I1 to I4) and the approval summary ([`spec/approvals.md`](../approvals.md#the-approval-summary), rules 1 to 5). No language is a documented gap | Specification-authored |
-| `idempotency.json` | Idempotency keys ([`spec/idempotency.md`](../idempotency.md)): what a command declares, the key's form, delivery and derived keys, the engine's step, the retry rule, the `TIMEOUT` recovery and the journal member. Python and Rust are documented gaps | Specification-authored |
+| `idempotency.json` | Idempotency keys ([`spec/idempotency.md`](../idempotency.md)): what a command declares, the key's form, delivery and derived keys, the engine's step, the retry rule, the `TIMEOUT` recovery and the journal member. | Specification-authored |
 | `pipeline-variables.json` | Reference resolution and `when` conditions ([`spec/pipeline-variables.md`](../pipeline-variables.md)) against one fixed pipeline context | Legacy reference-generated (`generate-pipeline-variables.mjs`) |
 | `batch-controls.json` | Batch and pipeline execution controls: `stopOnError`, `parallelism`, the batch `timeout` and pipeline `timeoutMs` deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION`, and envelope validation | Legacy reference-generated (`generate-batch-controls.mjs`) |
 | `validation.json` | Command input validation ([`spec/validation.md`](../validation.md)): unknown keys, the `VALIDATION_ERROR` shape, length units, the JSON Schema subset, explicit `null` and defaults | Legacy reference-generated (`generate-validation.mjs`) |
@@ -79,9 +79,9 @@ Every vector file in `spec/vectors/` falls into one of three categories, enforce
   ([#2681](https://github.com/lushly-dev/afd/issues/2681)), Python and C++
   ([#2682](https://github.com/lushly-dev/afd/issues/2682)) have left it, so it lists none. `idempotency.json` listed all
   four for the same reason; TypeScript ([#2675](https://github.com/lushly-dev/afd/issues/2675)),
-  Rust ([#2956](https://github.com/lushly-dev/afd/issues/2956)) and C++
-  ([#2957](https://github.com/lushly-dev/afd/issues/2957)) left it with their implementations, and
-  Python stays listed ([#2955](https://github.com/lushly-dev/afd/issues/2955)).
+  Python ([#2955](https://github.com/lushly-dev/afd/issues/2955)), Rust
+  ([#2956](https://github.com/lushly-dev/afd/issues/2956)) and C++
+  ([#2957](https://github.com/lushly-dev/afd/issues/2957)) left it with their implementations.
 - A vector file joins this directory once all four languages load it, because `alfred parity`
   fails on any file here that a language does not load. Until then it sits in `spec/` next to the
   page it pins: [`authorization.json`](../authorization.json), for MCP authorization, the principal

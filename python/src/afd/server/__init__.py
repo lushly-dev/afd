@@ -202,6 +202,21 @@ from afd.server.human_relay import (
     is_decision_id,
     is_relay_url,
 )
+from afd.server.idempotency_step import (
+    DEFAULT_IDEMPOTENCY_LEASE_MS,
+    DEFAULT_IDEMPOTENCY_TTL_MS,
+    IdempotencyOptions,
+    IdempotencyStep,
+    create_idempotency_step,
+)
+from afd.server.idempotency_store import (
+    IdempotencyRecord,
+    IdempotencyReservationRequest,
+    IdempotencyReserveOutcome,
+    IdempotencySettlement,
+    IdempotencyStore,
+    InMemoryIdempotencyStore,
+)
 from afd.server.instance_state import ServerInstances
 from afd.server.journal import (
     MAX_JOURNAL_CONTEXT_BYTES,
@@ -334,6 +349,18 @@ __all__ = [
     "create_afd_context_list_command",
     "create_afd_context_enter_command",
     "create_afd_context_exit_command",
+    # Idempotency keys (spec/idempotency.md)
+    "DEFAULT_IDEMPOTENCY_LEASE_MS",
+    "DEFAULT_IDEMPOTENCY_TTL_MS",
+    "IdempotencyOptions",
+    "IdempotencyRecord",
+    "IdempotencyReservationRequest",
+    "IdempotencyReserveOutcome",
+    "IdempotencySettlement",
+    "IdempotencyStep",
+    "IdempotencyStore",
+    "InMemoryIdempotencyStore",
+    "create_idempotency_step",
     # Middleware
     "CommandMiddleware",
     "NextFn",

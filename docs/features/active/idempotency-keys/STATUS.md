@@ -20,18 +20,17 @@ the pull request's number.
 - **3. TypeScript** ([#2675](https://github.com/lushly-dev/afd/issues/2675)): merged in #2864. Every case of `spec/vectors/idempotency.json` runs in `packages/server/src/idempotency-vectors.test.ts` (the `waits`, `cancels` and `drops` engines' S7 cases skipped as another engine's); the three codes are in the catalog with constants in all four languages; the todo example declares its nine mutations, and `afd validate --surface` reports none undeclared (`missing-idempotency`). A direct registry takes a step built with `createIdempotencyStep`, so `/direct` hosts without it do not bundle it.
 
 - **4. Python, Rust and C++** (#2676, split on 2026-11-27): one issue per language, each planned and independent of the others: Python [#2955](https://github.com/lushly-dev/afd/issues/2955), Rust [#2956](https://github.com/lushly-dev/afd/issues/2956), C++ [#2957](https://github.com/lushly-dev/afd/issues/2957). Each language's line below records its pull request.
-  - **C++** ([#2957](https://github.com/lushly-dev/afd/issues/2957)): merged in #3051. `CommandRegistryOptions::idempotency` adds the step inside the registry's innermost link, after the approval admission check. C++ waits for a late handler (S7, `waits`), so the step settles from the handler's result before the caller gets `TIMEOUT`. Every case of `spec/vectors/idempotency.json` runs in `packages/cpp/tests/idempotency_vectors_test.cpp` except other engines' S7 cases and the HTTP and task cases, which C++ has no surface for; C++ has left `gaps`. The todo C++ backend declares its nine mutations, and `afd validate --surface`'s rules find none undeclared. R3's recovery is on the `TIMEOUT` of the registry, `DirectClient` and `afd::mcp_stdio`. Not done here, because other languages were still to land: the last-lander items (`spec/meta-tools.json`'s `meta` description, `spec/context-fields.md`'s "once every language accepts it").
+  - **C++** ([#2957](https://github.com/lushly-dev/afd/issues/2957)): merged in #3051. `CommandRegistryOptions::idempotency` adds the step inside the registry's innermost link, after the approval admission check. C++ waits for a late handler (S7, `waits`), so the step settles from the handler's result before the caller gets `TIMEOUT`. Every case of `spec/vectors/idempotency.json` runs in `packages/cpp/tests/idempotency_vectors_test.cpp` except other engines' S7 cases and the HTTP and task cases, which C++ has no surface for; C++ has left `gaps`. The todo C++ backend declares its nine mutations, and `afd validate --surface`'s rules find none undeclared. R3's recovery is on the `TIMEOUT` of the registry, `DirectClient` and `afd::mcp_stdio`. Not done here, because other languages were still to land: the last-lander items (`spec/meta-tools.json`'s `meta` description, `spec/context-fields.md`'s "once every language accepts it"), done in #3060.
 
   - **Rust** ([#2956](https://github.com/lushly-dev/afd/issues/2956)): merged in #3058. `tests/idempotency_vectors.rs` runs every case but the other engines' three S7 cases, and Rust left the vectors' `gaps`. The step is `CommandRegistry::set_idempotency`, in the innermost link after the approval admission check, with no feature needed. The engine drops a call at its deadline (S7, `drops`). The todo backend declares its nine mutations, and `todo-create-batch`, which may run as a task, keys repeats in its handler.
+
+  - **Python** ([#2955](https://github.com/lushly-dev/afd/issues/2955)): merged in #3060. Every case of `spec/vectors/idempotency.json` runs in `python/tests/test_idempotency_vectors.py` (the `continues`, `waits` and `drops` engines' S7 cases skipped as another engine's), and Python has left the file's `gaps`; `python/tests/test_idempotency_engine.py` has the proposal's exit criteria. The todo Python backend declares its nine mutations and serves the step, and its `tests/test_surface.py` finds none undeclared. As the last of the three, it also names `dev.afd/idempotencyKey` in `spec/meta-tools.json`'s `meta` description (and in each language's copy), empties the vectors' `gaps`, and states the shared spec text for all four languages.
 
 ## Follow-ups not yet issues
 
 - The todo example's scenarios have jobs 4 and 8 (`backends/typescript/scenarios/10-*` and `11-*`);
   a keyed repeat joins them once the scenario runner can send `_meta`. The runner change has no
   issue.
-- `spec/meta-tools.json`'s `meta` description names `dev.afd/idempotencyKey` only once every
-  language accepts it, since every server lists that file; TypeScript accepts it already. Part of
-  step 4.
 - The default in-memory store sweeps expired keys but has no cap on live ones, so an identified
   caller can fill it with unique keys for `ttlMs`. A `maxEntries` that refuses new reservations
   with a retryable error is a possible follow-up. No issue.
@@ -58,6 +57,20 @@ the pull request's number.
   `@lushly-dev/afd-core/internal/idempotency`: the router, the server engine, the core registry and
   the meta argument, so a nested call from a batch item never trips K2 on its parent's derived
   key.
+
+- Python's step is `afd.server.idempotency_step`, called from `run_handler` in
+  `afd.core.single_executor` after `check_admission`; the retry middleware and the deadline read
+  the command's `idempotency`, whether the call has a key and whether the step reserved it from
+  the executor's `RunningCommand` entry. Python's engine cancels the handler at the deadline
+  (S7, `cancels`): the step catches the `CancelledError` and settles the reservation as unknown,
+  synchronously for the default store. An `async` store's `reserve` runs under
+  `asyncio.shield`, and a reservation made after the call was cancelled is released.
+- Python tells anonymous stdio connections apart by wrapping each connection's read stream in
+  `Server.run` (`afd.server.sdk_internals.READ_STREAM_CONTEXT`, with a guard test). The MCP SDK's
+  in-process `Client(server)` in its default 2026-07-28 mode has no connection at all (a direct
+  dispatcher, no streams), so there an anonymous keyed call cannot be told apart and the step
+  refuses it with `UNAUTHORIZED`; tests that need a connection use
+  `Client(InMemoryTransport(server))`.
 
 - Rust keeps the key's marks (delivered, set by the engine) and the step's call in crate-private
   `CommandContext` fields that `CallState` restores at every link, so a middleware cannot change

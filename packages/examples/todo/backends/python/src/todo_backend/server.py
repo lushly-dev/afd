@@ -23,6 +23,7 @@ from typing import Any, Literal
 from afd import ExposeOptions, success
 from afd.server import (
     CommandMiddleware,
+    IdempotencyOptions,
     MCPServer,
     TaskOptions,
     create_approval_middleware,
@@ -222,6 +223,10 @@ def create_app(store: Store, env: Env | None = None) -> MCPServer:
         # Adds the afd-help, afd-docs and afd-schema bootstrap tools, as the TypeScript backend.
         bootstrap=True,
         task_options=resolve_task_options(env),
+        # Answers a repeat of todo-create, todo-update, todo-toggle and todo-toggle-batch, which
+        # declare idempotency="keyed", from an in-memory store (spec/idempotency.md, S1 to S13).
+        # todo-create-batch keeps its own answers, since it may run as a task (S11).
+        idempotency=IdempotencyOptions(),
     )
     for command in commands:
         server.register(command)

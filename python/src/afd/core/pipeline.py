@@ -1062,10 +1062,12 @@ async def _call_step(
     context: Any,
     dev_mode: bool,
     *,
+    index: int = 0,
     deadline_event: asyncio.Event | None = None,
 ) -> Any:
     """Run one step. An exception from the executor becomes a failed result
-    whose message is redacted unless ``dev_mode`` is set."""
+    whose message is redacted unless ``dev_mode`` is set. The step at ``index`` runs under the
+    idempotency key derived from the request's (K4)."""
     from collections.abc import Mapping
 
     from afd.core.command_execution import (
@@ -1075,6 +1077,7 @@ async def _call_step(
         invoke_executor,
     )
     from afd.core.commands import CommandContext as CoreCommandContext
+    from afd.core.idempotency_keys import with_derived_idempotency_key
 
     per_step: Any
     if context is not None:
@@ -1089,7 +1092,9 @@ async def _call_step(
         }
         if deadline_event is not None:
             updates.update(deadline_signal_updates(context, deadline_event))
-        per_step = clone_context_with(context, **updates)
+        per_step = with_derived_idempotency_key(
+            clone_context_with(context, **updates), "pipeline", index
+        )
     else:
         per_step = CoreCommandContext()
         if deadline_event is not None:
@@ -1263,6 +1268,7 @@ async def execute_pipeline(
                             resolved_input,
                             context,
                             dev_mode,
+                            index=i,
                             deadline_event=pipeline_deadline_event,
                         )
                     )
@@ -1285,7 +1291,7 @@ async def execute_pipeline(
                         raise
                 else:
                     raw_result = await _call_step(
-                        executor, step.command, resolved_input, context, dev_mode
+                        executor, step.command, resolved_input, context, dev_mode, index=i
                     )
             except TimeoutError:
                 timeout_error = CommandError(

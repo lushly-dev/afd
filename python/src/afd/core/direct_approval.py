@@ -75,6 +75,10 @@ def _public_context(context: Any) -> Any:
         _skip_output_budget=bool(getattr(context, "_skip_output_budget", False)),
         _server_signal=getattr(context, "_server_signal", None),
         _server_signal_fields=tuple(getattr(context, "_server_signal_fields", ()) or ()),
+        # The call's idempotency key and the engine's marks on it (spec/idempotency.md, K1 to K6).
+        idempotency_key=getattr(context, "idempotency_key", None),
+        _idempotency_key_engine=getattr(context, "_idempotency_key_engine", None),
+        _idempotency_key_delivered=getattr(context, "_idempotency_key_delivered", None),
     )
 
 

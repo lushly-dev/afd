@@ -497,9 +497,12 @@ def create_journal_middleware(
                 journaled = journal_context_fields(
                     context, getattr(context, JOURNALED_CONTEXT_FIELDS, None) or ()
                 )
+                key = getattr(context, "idempotency_key", None)
                 draft = JournalRecord(
                     timestamp=_iso_timestamp(start),
                     trace_id=_trace_id(context),
+                    # The call's key, a derived one as derived (spec/idempotency.md, I9).
+                    idempotency_key=key if isinstance(key, str) else None,
                     command=command_name,
                     input=_input_json(input),
                     actor=journal_actor(getattr(context, "actor", None)),
@@ -802,10 +805,22 @@ def _replay_context(
         context.extra["interface"] = entry.context_digest.interface
     if entry.output_budget is not None:
         context._output_budget_ask = ask_value(entry.output_budget)
+    if entry.idempotency_key is not None and "idempotency_key" not in (extra or {}):
+        # Restored through the engine's own replay path, so K2 does not refuse a derived key.
+        context.idempotency_key = entry.idempotency_key
+        context._idempotency_key_engine = entry.idempotency_key
     # Copies, so a target that does not validate them cannot change the journal's objects.
     context.extra.update(copy.deepcopy(restored))
     for name, value in (extra or {}).items():
-        if name in ("trace_id", "timeout", "actor", "clock", "random", "approval"):
+        if name in (
+            "trace_id",
+            "timeout",
+            "actor",
+            "clock",
+            "random",
+            "approval",
+            "idempotency_key",
+        ):
             setattr(context, name, value)
         elif name == "output_budget":
             context._output_budget_ask = normalize_ask_option(value)

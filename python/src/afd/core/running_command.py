@@ -33,15 +33,33 @@ _Next = TypeVar("_Next", bound=Callable[..., Any])
 
 
 class RunningCommand:
-    """One dispatch's entry: its context, its command's ``secret`` and ``mutation``, and whether it
-    is still open."""
+    """One dispatch's entry: its context, its command's ``secret``, ``mutation`` and
+    ``idempotency``, whether the call carries an idempotency key (outside a task run, S11),
+    whether the idempotency step reserved it (R3), and whether it is still open."""
 
-    __slots__ = ("context", "mutation", "open", "secret")
+    __slots__ = (
+        "context",
+        "has_key",
+        "idempotency",
+        "idempotency_reserved",
+        "mutation",
+        "open",
+        "secret",
+    )
 
-    def __init__(self, context: Any, secret: bool, mutation: bool | None = None) -> None:
+    def __init__(
+        self,
+        context: Any,
+        secret: bool,
+        mutation: bool | None = None,
+        idempotency: str | None = None,
+    ) -> None:
         self.context = context
         self.secret = secret
         self.mutation = mutation
+        self.idempotency = idempotency
+        self.has_key = False
+        self.idempotency_reserved = False
         self.open = True
 
 
@@ -53,10 +71,12 @@ _LOCK = threading.Lock()
 
 def open_running_command(context: Any, command: Any) -> RunningCommand:
     """The entry of a dispatch of ``command`` on ``context``; close it when the dispatch ends."""
+    idempotency = getattr(command, "idempotency", None)
     return RunningCommand(
         context,
         getattr(command, "secret", False) is True,
         getattr(command, "mutation", False) is True,
+        idempotency if idempotency in ("natural", "keyed") else None,
     )
 
 
@@ -101,6 +121,16 @@ def running_command_mutation(context: Any, next_fn: Any) -> bool | None:
     if entry is None or not entry.open or entry.context is not context:
         return None
     return entry.mutation
+
+
+def running_command_entry(context: Any, next_fn: Any) -> RunningCommand | None:
+    """The open entry of the engine's dispatch on ``context``, read through ``next_fn`` as
+    :func:`running_command_mutation` reads it, or ``None``. The retry middleware reads the
+    command's ``idempotency`` and whether the call carries a key from it (R1)."""
+    entry = bound_entry(next_fn)
+    if entry is None or not entry.open or entry.context is not context:
+        return None
+    return entry
 
 
 class CommandDispatch:

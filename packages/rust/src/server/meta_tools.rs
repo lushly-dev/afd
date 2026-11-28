@@ -20,7 +20,7 @@ use crate::{
 use super::strategy::{default_command_group, object_schema};
 
 const CONFIRM_FLAG: &str = "Set to true to confirm a command that asks for confirmation, once the user intends it (only on servers that enforce confirmations)";
-const META_ARGUMENT: &str = "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and the server's declared context fields' _meta keys, applied as if sent in _meta";
+const META_ARGUMENT: &str = "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget, dev.afd/idempotencyKey and the server's declared context fields' _meta keys, applied as if sent in _meta";
 const CONFIRM_NAMES: &str = "Names of the commands that ask for confirmation and are confirmed, once the user intends them (only on servers that enforce confirmations)";
 
 /// The `afd-call` tool.

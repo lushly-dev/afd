@@ -73,7 +73,6 @@ from afd.core.errors import CommandError, ErrorCodes, Recovery
 from afd.core.meta_keys import assert_advertised_input_schema, assert_tool_meta
 from afd.core.output_budget import (
     OutputBudget,
-    bind_output_budget_ask,
     normalize_ask_option,
     output_budget_ask_from_meta,
     validate_output_budget_declaration,
@@ -97,6 +96,7 @@ from afd.core.schema_validation import (
 from afd.core.single_executor import CommandExecutionConfig, execute_command
 from afd.core.streaming import StreamChunk, StreamOptions
 from afd.server import approver as _approver
+from afd.server import idempotency_lane as lane
 from afd.server.approval_admission import (
     Admission,
     admission_for,
@@ -152,7 +152,6 @@ from afd.server.context_fields import (
     JOURNALED_CONTEXT_FIELDS,
     ContextField,
     apply_context_fields,
-    bind_context_field_values,
     check_context_fields,
     context_field_values,
     describe_context_fields,
@@ -423,6 +422,9 @@ class MCPServer:
             if config.auth is not None
             else None
         )
+        self._idempotency = lane.build_idempotency_step(
+            config, self._default_timeout_ms, auth_layer=self._auth_layer is not None
+        )
         self._task_runtime = TaskRuntime(
             get_exposed_commands=lambda: self.list_exposed_commands(
                 interface="mcp", include_bootstrap=False, context_filtered=False
@@ -614,6 +616,7 @@ class MCPServer:
         scopes: Sequence[str] | None = None,
         confirmation_mode: CommandConfirmationMode | None = None,
         secret: bool = False,
+        idempotency: Literal["natural", "keyed"] | None = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorator to register a command with this server (arguments as ``define_command``)."""
 
@@ -647,6 +650,7 @@ class MCPServer:
                 output_budget=output_budget,
                 confirmation_mode=confirmation_mode,
                 secret=secret,
+                idempotency=idempotency,
                 # Point a name warning at the user's @server.command line.
                 _stacklevel=3,
             )(func)
@@ -1297,6 +1301,7 @@ class MCPServer:
             check_admission=self._check_admission_for_execution,
             invoke_handler=self._invoke_handler_for_execution,
             after_execute=self._refresh_dynamic_tools,
+            idempotency=self._idempotency,
         )
         result = await execute_command(
             name,
@@ -1354,10 +1359,7 @@ class MCPServer:
                 else output_budget_ask_from_meta(lifted.meta)
             )
             field_values = context_field_values(self.config.context_fields, lifted.meta)
-            with (
-                bind_context_field_values(field_values),
-                bind_output_budget_ask(budget_ask),
-            ):
+            with lane.bind_meta_values(field_values, budget_ask, lifted.meta):
                 return await self.route_tool_call(name, lifted.arguments, caller_context=context)
         return await self._execute_command(
             name, input, context, output_budget=output_budget, _meta_tools=True
@@ -1636,6 +1638,7 @@ class MCPServer:
                     get_scope_view=self._current_scope_view,
                     max_batch_size=self.config.max_batch_size,
                     max_batch_parallelism=self.config.max_batch_parallelism,
+                    **lane.router_deps(self, _CURRENT_REQUEST.get),
                 )
             )
         return self._router
@@ -2061,8 +2064,7 @@ class MCPServer:
                     return _tool_call_result(failure(decision.error))
                 with (
                     bound_request(meta=lifted.meta),
-                    bind_context_field_values(values),
-                    bind_output_budget_ask(budget_ask),
+                    lane.bind_meta_values(values, budget_ask, lifted.meta),
                     _approver.bind_approver_call(decision.approver),
                 ):
                     return await server._call_sdk_tool(
@@ -2128,6 +2130,7 @@ class MCPServer:
             ),
         )
         lowlevel = lowlevel_server(self._mcp_server)
+        lane.tag_connections(lowlevel)
         strip_unused_sdk_handlers(lowlevel, serve_resources=self._resource_service is not None)
         if self._resource_service is not None:
             self._resource_service.install_handlers(
@@ -2283,6 +2286,7 @@ def create_server(
     resources: ResourcesOption | None = None,
     skills: SkillCatalog | None = None,
     call_grant: CallGrant | None = None,
+    idempotency: lane.IdempotencyOptions | None = None,
 ) -> MCPServer:
     """Create a new AFD MCP server.
 
@@ -2448,5 +2452,6 @@ def create_server(
         resources=resources,
         skills=skills,
         call_grant=call_grant,
+        idempotency=idempotency,
     )
     return MCPServer(config)

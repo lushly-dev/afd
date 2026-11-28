@@ -40,6 +40,8 @@ def _tool_to_command(tool: ToolInfo) -> dict[str, Any]:
         "outputJsonSchema": meta.get("outputSchema"),
         "requires": meta.get("requires"),
         "contexts": meta.get("contexts"),
+        "mutation": meta.get("mutation"),
+        "idempotency": meta.get("idempotency"),
     }
 
 
@@ -52,6 +54,8 @@ def _action_to_command(action: dict[str, Any]) -> dict[str, Any]:
         "outputJsonSchema": action.get("outputSchema"),
         "requires": action.get("requires"),
         "contexts": action.get("contexts"),
+        "mutation": action.get("mutation"),
+        "idempotency": action.get("idempotency"),
     }
 
 
@@ -232,6 +236,8 @@ async def _discover_commands(transport: Transport) -> list[dict[str, Any]]:
                     "outputJsonSchema": entry.get("outputSchema"),
                     "requires": entry.get("requires"),
                     "contexts": entry.get("contexts"),
+                    "mutation": entry.get("mutation"),
+                    "idempotency": entry.get("idempotency"),
                 }
             )
     return commands

@@ -117,6 +117,21 @@ REQUEST_STATE_BOUNDARY = SdkInternal(
     ),
 )
 
+READ_STREAM_CONTEXT = SdkInternal(
+    name="Server.run's read stream last_context (the sender's per-message context)",
+    used_for=(
+        "tell connections apart in either protocol era: AFD wraps each connection's read "
+        "stream so the context the SDK runs each request's handler in also binds an object of "
+        "that connection's own, which the idempotency step scopes an anonymous caller's keys "
+        "to (spec/idempotency.md, S3)"
+    ),
+    breaks=(
+        "an anonymous stdio caller's idempotency keys are scoped to each request alone, so a "
+        "repeat on the same connection runs the command again instead of being answered from "
+        "the store"
+    ),
+)
+
 SDK_INTERNALS: tuple[SdkInternal, ...] = (
     LOWLEVEL_SERVER,
     REQUEST_HANDLERS,
@@ -124,6 +139,7 @@ SDK_INTERNALS: tuple[SdkInternal, ...] = (
     TOOL_INPUT_SCHEMA,
     SESSION_CONNECTION,
     REQUEST_STATE_BOUNDARY,
+    READ_STREAM_CONTEXT,
 )
 """The private SDK internals the AFD server depends on, each with a guard test."""
 
@@ -161,6 +177,7 @@ def connection_identity(session: Any) -> Any:
 __all__ = [
     "GET_CAPABILITIES",
     "LOWLEVEL_SERVER",
+    "READ_STREAM_CONTEXT",
     "REQUEST_HANDLERS",
     "REQUEST_STATE_BOUNDARY",
     "SDK_INTERNALS",

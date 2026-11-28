@@ -17,6 +17,7 @@ from afd.testing.surface.rules import (
     check_description_quality,
     check_missing_category,
     check_missing_context,
+    check_missing_idempotency,
     check_missing_output_schema,
     check_naming_collision,
     check_naming_convention,
@@ -57,6 +58,8 @@ def _normalize_commands(commands: list[Any]) -> list[SurfaceCommand]:
                     ),
                     requires=cmd.get("requires"),
                     contexts=cmd.get("contexts"),
+                    mutation=_bool_or_none(cmd.get("mutation")),
+                    idempotency=_str_or_none(cmd.get("idempotency")),
                 )
             )
             continue
@@ -94,10 +97,20 @@ def _normalize_commands(commands: list[Any]) -> list[SurfaceCommand]:
                 output_json_schema=output_json_schema,
                 requires=requires,
                 contexts=contexts,
+                mutation=_bool_or_none(getattr(cmd, "mutation", None)),
+                idempotency=_str_or_none(getattr(cmd, "idempotency", None)),
             )
         )
 
     return result
+
+
+def _bool_or_none(value: Any) -> bool | None:
+    return value if isinstance(value, bool) else None
+
+
+def _str_or_none(value: Any) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 def _parameters_to_json_schema(params: list[Any]) -> dict[str, Any]:
@@ -257,6 +270,10 @@ def validate_command_surface(
     # Always run: missing-output-schema
     rules_evaluated.append("missing-output-schema")
     all_findings.extend(check_missing_output_schema(normalized))
+
+    # Always run: missing-idempotency (spec/idempotency.md, D4)
+    rules_evaluated.append("missing-idempotency")
+    all_findings.extend(check_missing_idempotency(normalized))
 
     # Missing context only when configured contexts are supplied
     if configured_contexts:
