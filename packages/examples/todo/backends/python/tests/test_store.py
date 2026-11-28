@@ -7,6 +7,9 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import threading
+import time
+from contextlib import closing
 
 import pytest
 from afd.testing import assert_error
@@ -208,6 +211,56 @@ def test_sqlite_writes_the_local_db_adapter_layout(open_store, db_path):
             "id": "000000000001",
         },
     )
+
+
+def _hold_write_lock(path, hold_seconds: float) -> threading.Thread:
+    """Another connection that has just created the schema, not yet in WAL, holds a write lock on
+    a thread for ``hold_seconds``. Returns once the lock is held."""
+    created = sqlite3.connect(path)
+    created.executescript(
+        "CREATE TABLE records (tbl TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL,"
+        " PRIMARY KEY (tbl, id)) WITHOUT ROWID; PRAGMA user_version = 1;"
+    )
+    created.close()
+    held = threading.Event()
+
+    def hold() -> None:
+        db = sqlite3.connect(path, isolation_level=None)
+        db.execute("BEGIN IMMEDIATE")
+        held.set()
+        threading.Event().wait(hold_seconds)
+        db.execute("COMMIT")
+        db.close()
+
+    thread = threading.Thread(target=hold)
+    thread.start()
+    assert held.wait(5), "the lock holder never took the lock"
+    return thread
+
+
+# lushly-dev/afd#2250: SQLite refuses the switch to WAL at once, past its busy handler, while
+# another connection holds a write lock, so two processes opening one new file failed as locked.
+def test_sqlite_waits_for_another_connections_write_lock_to_switch_to_wal(db_path):
+    holder = _hold_write_lock(db_path, 0.3)
+    try:
+        store = SqliteStore(db_path, busy_timeout_ms=5000)
+        store.close()
+    finally:
+        holder.join()
+    with closing(sqlite3.connect(db_path)) as probe:
+        assert probe.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+
+
+def test_sqlite_fails_the_switch_to_wal_once_the_busy_timeout_passes(db_path):
+    holder = _hold_write_lock(db_path, 1.0)
+    try:
+        started = time.monotonic()
+        with pytest.raises(sqlite3.OperationalError, match="locked"):
+            SqliteStore(db_path, busy_timeout_ms=50)
+        # It waited out the timeout, not the lock: the retry is bounded.
+        assert 0.045 <= time.monotonic() - started < 0.8
+    finally:
+        holder.join()
 
 
 @pytest.mark.parametrize(

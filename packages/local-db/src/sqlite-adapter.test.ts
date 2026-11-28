@@ -9,6 +9,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { Worker } from 'node:worker_threads';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DataAdapterError } from './adapter-support.js';
 import { SqliteAdapter } from './sqlite-adapter.js';
@@ -254,6 +255,66 @@ describe('P6-E7: SqliteAdapter, durability and transactions', () => {
 		await expect(open(join(directory, 'inside.sqlite')).get('items', 'a')).rejects.toMatchObject({
 			code: 'STORAGE_ERROR',
 		});
+	});
+
+	/**
+	 * Another connection, on a worker thread, that has just created the schema and not yet switched
+	 * to WAL, holds a write lock for `holdMs`. Resolves once the lock is held, with a promise of its release.
+	 */
+	async function holdWriteLock(path: string, holdMs: number): Promise<{ released: Promise<void> }> {
+		const created = new DatabaseSync(path);
+		created.exec(
+			'CREATE TABLE records (tbl TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (tbl, id)) WITHOUT ROWID; PRAGMA user_version = 1'
+		);
+		created.close();
+		const script = `const { DatabaseSync } = require('node:sqlite');
+const { parentPort, workerData } = require('node:worker_threads');
+const db = new DatabaseSync(workerData.path);
+db.exec('BEGIN IMMEDIATE');
+parentPort.postMessage('held');
+setTimeout(() => { db.exec('COMMIT'); db.close(); }, workerData.holdMs);`;
+		const worker = new Worker(script, { eval: true, workerData: { path, holdMs } });
+		const released = new Promise<void>((resolve) => worker.once('exit', () => resolve()));
+		await new Promise<void>((resolve, reject) => {
+			worker.once('message', () => resolve());
+			worker.once('error', reject);
+		});
+		return { released };
+	}
+
+	// #2250: SQLite refuses the switch to WAL at once, past its busy handler, while another
+	// connection holds a write lock, so two processes opening one new file failed as locked.
+	it("waits for another connection's write lock to switch a new file to WAL", async () => {
+		const path = databasePath();
+		const { released } = await holdWriteLock(path, 300);
+		try {
+			const adapter = open(path, { busyTimeoutMs: 5000 });
+			await expect(adapter.health()).resolves.toMatchObject({ status: 'ok' });
+			const probe = new DatabaseSync(path);
+			try {
+				expect(probe.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' });
+			} finally {
+				probe.close();
+			}
+		} finally {
+			await released;
+		}
+	});
+
+	it('fails the switch to WAL as STORAGE_ERROR once the busy timeout passes', async () => {
+		const path = databasePath();
+		const { released } = await holdWriteLock(path, 1000);
+		try {
+			const adapter = open(path, { busyTimeoutMs: 50 });
+			const started = performance.now();
+			await expect(adapter.health()).rejects.toMatchObject({ code: 'STORAGE_ERROR' });
+			// It waited out the timeout, not the lock: the retry is bounded.
+			const waited = performance.now() - started;
+			expect(waited).toBeGreaterThanOrEqual(45);
+			expect(waited).toBeLessThan(800);
+		} finally {
+			await released;
+		}
 	});
 
 	it('creates the table once when two adapters open a new file at the same time', async () => {
