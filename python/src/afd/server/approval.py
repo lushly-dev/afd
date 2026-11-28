@@ -46,6 +46,7 @@ from typing import (
 
 from pydantic import BaseModel, PlainSerializer, SecretBytes, SecretStr, WrapSerializer
 
+from afd.core._canonical_json import canonical_json
 from afd.core.actor import Actor
 from afd.core.approval import ApprovalPolicy
 from afd.core.clock import Clock, system_clock
@@ -66,8 +67,15 @@ from afd.server.approval_relay import (
     not_canonical_error,
     relay_message,
 )
+from afd.server.approver import (
+    AFD_APPROVAL_META_KEY,
+    approver_call_of,
+    take_approver_evidence,
+)
 from afd.server.instance_state import ApprovalProcessState, mark_approval_process_state
 from afd.server.relay_evidence import relay_evidence_of
+
+_canonical_json = canonical_json
 
 __all__ = [
     "ApprovalCommand",
@@ -415,7 +423,12 @@ def create_approval_middleware(
         return False
 
     def verify(
-        evidence: Any, command_name: str, input_binding: str, actor_binding: str, now: float
+        evidence: Any,
+        command_name: str,
+        input_binding: str,
+        who_purpose: Literal["actor", "principal"],
+        who_binding: str,
+        now: float,
     ) -> _Accepted | ApprovalRejection:
         if not isinstance(evidence, str) or len(evidence) > _MAX_TOKEN_LENGTH:
             return "malformed"
@@ -452,13 +465,17 @@ def create_approval_middleware(
         ):
             return "input-mismatch"
         if not hmac.compare_digest(
-            _utf8(payload["a"]), _b64url(_digest(key, "actor", actor_binding)).encode()
+            _utf8(payload["a"]), _b64url(_digest(key, who_purpose, who_binding)).encode()
         ):
-            return "actor-mismatch"
+            return "credentials-mismatch" if who_purpose == "principal" else "actor-mismatch"
         return _Accepted(nonce=payload["n"], issued_at=payload["iat"], expires_at=payload["exp"])
 
     def sign(
-        command_name: str, input_binding: str, actor_binding: str, now: float
+        command_name: str,
+        input_binding: str,
+        who_purpose: Literal["actor", "principal"],
+        who_binding: str,
+        now: float,
     ) -> tuple[str, float, str]:
         """A fresh token for the call, its expiry and its nonce."""
         key = keys[0]
@@ -469,7 +486,7 @@ def create_approval_middleware(
         payload = (
             f'{{"c":{_js_string(command_name)}'
             f',"i":"{_b64url(_digest(key, "input", input_binding))}"'
-            f',"a":"{_b64url(_digest(key, "actor", actor_binding))}"'
+            f',"a":"{_b64url(_digest(key, who_purpose, who_binding))}"'
             f',"iat":{_js_number(issued_at)}'
             f',"exp":{_js_number(expires_at)}'
             f',"n":"{nonce}"}}'
@@ -604,12 +621,19 @@ def create_approval_middleware(
             )
             return await outer_next()
 
+        # An approver client's call (spec/approvals.md, "Approval evidence from an approver
+        # client"): its token reaches it and is never replaced by an elicitation, its carried
+        # evidence is taken by the first command checked (the one the call routes to), once, and
+        # its tokens bind its principal binding.
+        approver = approver_call_of(context)
+        carried = take_approver_evidence(approver) if approver is not None else None
+        effective_relays = relays and approver is None
         # Claimed only by the command the tool call routes to, once, gated or not, so a command
         # that runs inside another (or after it) cannot turn the tool call into an elicitation.
-        bound = current_approval_relay() if relays else None
+        bound = current_approval_relay() if effective_relays else None
         relay_here = bound if bound is not None and bound.claim(command_name) else None
         # A step of an afd-batch or afd-pipe that can ask: the whole call is approved up front.
-        up_front = current_up_front_approval() if relays else None
+        up_front = current_up_front_approval() if effective_relays else None
         if up_front is not None:
             return await up_front.run(up_front_deps, command_name, input, context, next_fn)
         # The policy of the command this call runs, and the one the `commands` option lists.
@@ -631,6 +655,19 @@ def create_approval_middleware(
         rejected: ApprovalRejection | None = None
         exchange = _exchange(context)
         relay_ev = relay_evidence_of(context)
+
+        def resolve_who() -> tuple[Literal["actor", "principal"], str]:
+            # Defer approver principal_binding until needed so incomplete credentials never
+            # preempt relay evidence's ordered mismatch checks.
+            if approver is not None and relay_ev is None:
+                from afd.server.principal import principal_binding, sdk_credentials
+
+                ctx_creds = getattr(context, "credentials", None)
+                if ctx_creds is None:
+                    ctx_creds = sdk_credentials()
+                return ("principal", principal_binding(actor, ctx_creds))
+            return ("actor", actor_binding)
+
         if relay_ev is not None:
             # Relay evidence rule 2: when present, consider it and nothing else.
             # Rule 3 order: command -> input -> actor -> credentials, then spend once for 24h.
@@ -671,10 +708,15 @@ def create_approval_middleware(
                 rejected = "already-used"
         else:
             evidence = (
-                exchange.take() if exchange is not None else getattr(context, "approval", None)
+                exchange.take()
+                if exchange is not None
+                else (carried if carried is not None else getattr(context, "approval", None))
             )
             if evidence is not None:
-                verdict = verify(evidence, command_name, input_binding, actor_binding, now)
+                who_purpose, who_binding = resolve_who()
+                verdict = verify(
+                    evidence, command_name, input_binding, who_purpose, who_binding, now
+                )
                 if isinstance(verdict, _Accepted):
                     if await spend(verdict.nonce, verdict.expires_at, now):
                         return await next_fn(
@@ -751,7 +793,10 @@ def create_approval_middleware(
                 )
             )
 
-        approval_token, expires_ms, nonce = sign(command_name, input_binding, actor_binding, now)
+        who_purpose, who_binding = resolve_who()
+        approval_token, expires_ms, nonce = sign(
+            command_name, input_binding, who_purpose, who_binding, now
+        )
         held_approval_id = approval_id(nonce)
         expires_at = _iso_timestamp(expires_ms)
         # Checked again after the awaits since the first check (spending a token awaits a store),
@@ -791,8 +836,12 @@ def create_approval_middleware(
                 reason=rejected,
             )
         on_mcp = (context.extra or {}).get("interface") == "mcp"
-        # Rule 6: omit details.approvalToken on MCP by default unless the server opted in.
-        public_token = exchange is None and (not on_mcp if include_token is None else include_token)
+        # An approver always gets its token (except when relay evidence was what failed); anyone
+        # else follows rule 6 / include_token.
+        public_token = exchange is None and (
+            (relay_ev is None and approver is not None)
+            or (not on_mcp if include_token is None else include_token)
+        )
         why = (
             (
                 f"The relay approval was not accepted ({rejected}). "
@@ -808,7 +857,13 @@ def create_approval_middleware(
         held_recovery: Recovery | None = Recovery(kind="external")
         # Addressed to whoever relays the decision: the token is the approval, so the gated
         # caller must not resubmit it on its own, and tool arguments cannot carry it.
-        if public_token:
+        if approver is not None and relay_ev is None:
+            retry = (
+                "once they approve, the approver retries the same call with the same input "
+                f'and details.approvalToken in _meta["{AFD_APPROVAL_META_KEY}"]. The token '
+                f"expires at {expires_at}{' and works once' if single_use else ''}."
+            )
+        elif public_token:
             retry = (
                 "once they approve, the application retries the same call with the same input "
                 "and details.approvalToken as its approval evidence (tool arguments cannot carry "
@@ -820,7 +875,7 @@ def create_approval_middleware(
                 f"command. Call {command_name} on its own so the client can ask the user."
             )
             held_recovery = None
-        elif relays and on_mcp and relay_ev is None and not host_verified:
+        elif effective_relays and on_mcp and relay_ev is None and not host_verified:
             retry = (
                 f"the client could not be asked here. Call {command_name} from an MCP client "
                 "that supports form elicitation, or the application records the approval and "
@@ -1015,67 +1070,7 @@ def _check_bindable(value: Any) -> None:
             _check_bindable(item)
 
 
-def _canonical_json(value: Any) -> str:
-    """Stable JSON for binding a token to an input: object keys sorted at every depth (in
-    UTF-16 code-unit order, as JavaScript sorts them), otherwise as ``JSON.stringify``
-    writes it.
-
-    It fails closed rather than collide: only dicts with string keys, lists, tuples,
-    strings, finite numbers (integers only when a JavaScript number holds them exactly),
-    booleans and ``None`` are accepted. Anything else, or a cycle, raises, so a call whose validated
-    input holds one cannot be approved.
-
-    Raises:
-        TypeError: For a value it cannot encode without ambiguity.
-    """
-    ancestors: set[int] = set()
-
-    def encode(item: Any) -> str:
-        if item is None:
-            return "null"
-        if item is True:
-            return "true"
-        if item is False:
-            return "false"
-        if isinstance(item, str):
-            return _js_string(item)
-        if isinstance(item, int):
-            # Past 2**53 JavaScript holds a double: bind the integers a double represents
-            # exactly, as TypeScript would, and refuse the rest (neighbours would collide).
-            if abs(item) > _MAX_SAFE_INTEGER and (abs(item) >= 2**1024 or int(float(item)) != item):
-                raise TypeError(
-                    "Cannot bind an approval to an integer a JavaScript number cannot hold exactly"
-                )
-            return _js_number(item)
-        if isinstance(item, float):
-            if not math.isfinite(item):
-                raise TypeError("Cannot bind an approval to a non-finite number")
-            return _js_number(item)
-        if isinstance(item, (dict, list, tuple)):
-            marker = id(item)
-            if marker in ancestors:
-                raise TypeError("Cannot bind an approval to a cyclic input")
-            ancestors.add(marker)
-            try:
-                if isinstance(item, dict):
-                    if not all(isinstance(key, str) for key in item):
-                        raise TypeError("Cannot bind an approval to an object with non-string keys")
-                    members = sorted(item.items(), key=lambda member: _utf16_key(member[0]))
-                    return (
-                        "{"
-                        + ",".join(f"{_js_string(key)}:{encode(member)}" for key, member in members)
-                        + "}"
-                    )
-                return "[" + ",".join(encode(member) for member in item) + "]"
-            finally:
-                ancestors.discard(marker)
-        raise TypeError(f"Cannot bind an approval to a {type(item).__name__}: use plain JSON input")
-
-    return encode(value)
-
-
-def _utf16_key(key: str) -> bytes:
-    return key.encode("utf-16-be", "surrogatepass")
+# _canonical_json is re-exported from afd.core._canonical_json above for internal callers.
 
 
 def _actor_json(actor: Any) -> str:
@@ -1118,8 +1113,8 @@ def _hmac(key: bytes, data: str) -> bytes:
     return hmac.new(key, _utf8(data), hashlib.sha256).digest()
 
 
-def _digest(key: bytes, purpose: Literal["input", "actor"], value: str) -> bytes:
-    """A keyed digest; ``purpose`` keeps an input digest from ever matching an actor digest."""
+def _digest(key: bytes, purpose: Literal["input", "actor", "principal"], value: str) -> bytes:
+    """A keyed digest; ``purpose`` keeps input, actor and principal digests disjoint."""
     return _hmac(key, f"{purpose}\0{value}")
 
 

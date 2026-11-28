@@ -54,6 +54,7 @@ add_library(
     afd
     src/actor.cpp
     src/approval.cpp
+    src/approval_display.cpp
     src/batch.cpp
     src/batch_execution.cpp
     src/bootstrap.cpp

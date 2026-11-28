@@ -429,7 +429,7 @@ rules 2 to 5 in its `carrier` section, each token's payload included.
 <!-- generated:capabilities:spec.approvals.approver:start -->
 |  | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Approver carrier (rules 1 to 5) | Yes (`createMcpServer({ approver })`; `AFD_APPROVAL_META_KEY`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) | Yes (`McpServer::with_approver`; `AFD_APPROVAL_META_KEY`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) |
+| Approver carrier (rules 1 to 5) | Yes (`createMcpServer({ approver })`; `AFD_APPROVAL_META_KEY`) | Yes (`create_server(approver=...)`, `AFD_APPROVAL_META_KEY`) | Yes (`McpServer::with_approver`; `AFD_APPROVAL_META_KEY`) | Yes (`StdioServerOptions::approver`, `afd::mcp::approval_meta_key`, `PrincipalCredentials` via `context_hook`) |
 <!-- generated:capabilities:spec.approvals.approver:end -->
 
 ## The approval summary
@@ -541,5 +541,5 @@ rule and range.
 <!-- generated:capabilities:spec.approvals.display:start -->
 |  | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Display rules | Yes (`@lushly-dev/afd-core`: `approvalDisplay`, `hidesCharacters`, `isHiddenCodePoint`, `APPROVAL_DISPLAY_LIMITS`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) | Yes (`approval_display`, `hides_characters`, `is_hidden_code_point`, `APPROVAL_DISPLAY_LIMITS`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) |
+| Display rules | Yes (`@lushly-dev/afd-core`: `approvalDisplay`, `hidesCharacters`, `isHiddenCodePoint`, `APPROVAL_DISPLAY_LIMITS`) | Yes (`approval_display`, `hides_characters`, `is_hidden_code_point`, `APPROVAL_DISPLAY_LIMITS`) | Yes (`approval_display`, `hides_characters`, `is_hidden_code_point`, `APPROVAL_DISPLAY_LIMITS`) | Yes (`approval_display`, `hides_characters`, `is_hidden_code_point`, `approval_display_limits`) |
 <!-- generated:capabilities:spec.approvals.display:end -->

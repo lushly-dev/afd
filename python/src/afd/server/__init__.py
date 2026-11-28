@@ -70,6 +70,7 @@ from afd.server.approval import (
     approval_id,
     create_approval_middleware,
 )
+from afd.server.approver import AFD_APPROVAL_META_KEY, ApproverPredicate
 from afd.server.auth import (
     AuthLayer,
     AuthRefusal,
@@ -357,6 +358,9 @@ __all__ = [
     "ApprovalSecret",
     "ApprovalSummary",
     "approval_id",
+    # Approver client carrier
+    "AFD_APPROVAL_META_KEY",
+    "ApproverPredicate",
     # Host-verified confirmation (spec/command-metadata.md, "Host-verified confirmation")
     "CommandConfirmationMode",
     "HumanRelay",

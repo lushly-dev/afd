@@ -41,6 +41,7 @@ enum class ApprovalRejection {
     command_mismatch,
     input_mismatch,
     actor_mismatch,
+    credentials_mismatch,
     already_used
 };
 

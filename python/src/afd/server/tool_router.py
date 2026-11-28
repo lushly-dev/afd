@@ -29,6 +29,7 @@ from afd.server.approval_relay import (
     bind_approval_relay,
     current_approval_relay,
 )
+from afd.server.approver import bind_approver, current_approver_call
 from afd.server.auth import credentials_actor
 from afd.server.auth_view import (
     ScopeView,
@@ -248,13 +249,14 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
             )
         outcome = current_hook_outcome()
         hook_ctx = outcome.context if outcome is not None else None
+        approver_call = current_approver_call()
         if hook_ctx is not None:
             budget_ask = (
                 hook_ctx._output_budget_ask
                 if hook_ctx._output_budget_ask is not None
                 else current_output_budget_ask()
             )
-            return CommandContext(
+            ctx = CommandContext(
                 trace_id=hook_ctx.trace_id or new_trace_id(prefix),
                 timeout=hook_ctx.timeout,
                 extra={
@@ -276,7 +278,10 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
                 _output_budget_ask=budget_ask,
                 _scope_view=view,
             )
-        return CommandContext(
+            if approver_call is not None:
+                bind_approver(ctx, approver_call)
+            return ctx
+        ctx = CommandContext(
             trace_id=new_trace_id(prefix),
             extra={
                 **current_context_field_values(),
@@ -289,6 +294,9 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
             _output_budget_ask=current_output_budget_ask(),
             _scope_view=view,
         )
+        if approver_call is not None:
+            bind_approver(ctx, approver_call)
+        return ctx
 
     def context_command_callable(
         name: str, view: ScopeView | None, active_context: str | None

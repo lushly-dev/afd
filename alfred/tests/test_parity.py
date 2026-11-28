@@ -906,7 +906,9 @@ NAME_GAP_BUDGET = {
     # types, condition guards and helpers), Wave 4 (similarity helpers) and execution_failure.
     # Remaining 10: the 5 colliding root names deferred to #550 PR 2 until Botcore drops the #2455
     # deprecation shim, plus the 5 approval-display helpers tracked in #1466.
-    "missing_from_python": 10,
+    # Python 10 → 5 (#1466): approval_display, ApprovalDisplayRefusal, APPROVAL_DISPLAY_LIMITS,
+    # hides_characters and is_hidden_code_point exported from afd.
+    "missing_from_python": 5,
     "missing_from_rust": 7,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
@@ -922,7 +924,9 @@ NAME_GAP_BUDGET = {
     # TypeScript (Python #2186 and Rust export all three; C++ #2187 exports OutputBudget and
     # MAX_OUTPUT_BUDGET_BYTES, using output_budget_meta_key without the afd_ prefix).
     # 74 → 75 (#2263): CommandConfirmationMode in TypeScript (matching Rust; HumanRelay is N/A for C++).
-    "missing_from_cpp": 75,
+    # 75 → 70 (#1466): approval_display, ApprovalDisplayRefusal, approval_display_limits,
+    # hides_characters and is_hidden_code_point exported from afd/approval_display.hpp.
+    "missing_from_cpp": 70,
 }
 
 # Exports every language must have; if one disappears the parser is broken.

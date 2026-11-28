@@ -16,6 +16,7 @@ from afd.core.clock import Clock, RandomSource
 from afd.core.commands import CallGrant, CommandContext, call_not_granted
 from afd.core.pipeline import create_pipeline_failure
 from afd.core.result import failure
+from afd.server.approver import ApproverPredicate
 from afd.server.auth import McpAuthOptions
 from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY
 from afd.server.context_fields import ContextField
@@ -144,6 +145,10 @@ class ServerConfig:
     silences that warning. Stdio logs nothing."""
     human_relay: HumanRelay | None = None
     """Host-verified confirmation relay (``spec/command-metadata.md``, "Host-verified confirmation")."""
+    approver: ApproverPredicate | None = None
+    """Which MCP callers are approvers (``spec/approvals.md``, "Approval evidence from an
+    approver client"): clients the server trusts to show a person a held call and carry their
+    decision back in ``_meta["dev.afd/approval"]``. Only an explicit ``True`` makes one."""
 
 
 def default_instructions(

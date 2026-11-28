@@ -113,6 +113,8 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
     // Public callers cannot supply approval authority, including a copied private marker.
     context.approval.reset();
     context.mcp_approval_relay.reset();
+    context.up_front_approval.reset();
+    context.approver_call.reset();
     context.output_budget_meta_ask.reset();
     // The registry records the command each call runs; one a caller's context carries from
     // another call is not this call's, so client middleware (a journal) reads none.

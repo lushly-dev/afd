@@ -14,8 +14,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from afd.core._canonical_json import canonical_json as _canonical_json
 from afd.core.actor import Actor
-from afd.server.approval import _canonical_json
 from afd.server.auth_rules import Credentials
 
 
