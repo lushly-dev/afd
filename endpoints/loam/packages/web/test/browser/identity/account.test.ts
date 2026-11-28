@@ -570,7 +570,7 @@ describe('P3-E11: the account section by keyboard and under axe', () => {
 		await kernelCall(page.page, 'section-open', { section: 'account' });
 		const section = shadow(page.page, 'loam-main loam-account-section');
 		// The tabs, not the heading: they fill in once the section's app list answers.
-		await expect.poll(() => section.getByRole('tab').count()).toBe(5);
+		await expect.poll(() => section.getByRole('tab').count()).toBe(6);
 		await tabTo(page.page, named('Passkeys'), 'The Passkeys tab');
 		await page.page.keyboard.press('Enter');
 		await expect.poll(() => new URL(page.page.url()).pathname).toBe('/personal/~/account/passkeys');
@@ -676,6 +676,8 @@ describe('P3-E11: the account section by keyboard and under axe', () => {
 				'Profile',
 				'Passkeys',
 				'Sessions',
+				// #2783's personas tab (5.1).
+				'Personas',
 				'Members',
 				// Step 7's connected agents (5.3).
 				'Agents',

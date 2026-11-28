@@ -3,7 +3,8 @@
  * section shows, when a person who is no member asks for their invitations, or on a join or recovery link:
  *
  * - `loam-account-section`, main's account section at `/<workspace>/~/account[/<tab>]`: a tablist of links over
- *   `profile`, `passkeys`, `sessions` and `members` (`passkeys` and `sessions` in `provider` mode only; the owner
+ *   `profile`, `passkeys`, `sessions`, `personas`, `members` and `agents` (`passkeys`, `sessions` and `agents` in
+ *   `provider` mode only, `personas.ts` the personas tab's; the owner
  *   controls of `members` for an owner only, absent for anyone else), then a tab per app's `ui.account` section at
  *   `~/account/<instance>/<id>` (5.5, `account-apps.ts`). Every change is a command.
  * - `loam-account-invitations`, the invitations a signed-in person who is no member may accept (5.3).
@@ -42,6 +43,7 @@ import {
 } from './account-parts.js';
 import { type AgentAccess, accessText, askAccess } from './agent-access.js';
 import { agentMembersPart } from './agent-members.js';
+import { personasPart } from './personas.js';
 
 export {
 	type LinkPageOptions,
@@ -59,12 +61,13 @@ export {
 	scopeWords,
 } from './oauth-pages.js';
 
-const TABS = ['profile', 'passkeys', 'sessions', 'members', 'agents'] as const;
+const TABS = ['profile', 'passkeys', 'sessions', 'personas', 'members', 'agents'] as const;
 type Tab = (typeof TABS)[number];
 const TAB_NAMES: Record<Tab, string> = {
 	profile: 'Profile',
 	passkeys: 'Passkeys',
 	sessions: 'Sessions',
+	personas: 'Personas',
 	members: 'Members',
 	agents: 'Agents',
 };
@@ -108,6 +111,14 @@ export class LoamAccountSection extends AccountElement {
 			) {
 				void this.drop();
 				void this.show(this.#wanted);
+			} else if (
+				this.tab === 'personas' &&
+				event.success &&
+				event.mutation &&
+				event.command.startsWith('persona-')
+			) {
+				// A persona's change made elsewhere in this page, such as the account menu's switch, while the tab shows (6.3).
+				void this.read();
 			} else if (event.success && (event as { settings?: string[] }).settings?.length)
 				this.#shown?.settingsChanged((event as { settings: string[] }).settings);
 		});
@@ -134,9 +145,11 @@ export class LoamAccountSection extends AccountElement {
 		);
 	}
 
-	/** The tabs this deployment has: no passkeys or sessions in `local` mode (5.1). */
+	/** The tabs this deployment has: no passkeys, sessions or agents in `local` mode (5.1). */
 	get tabs(): readonly Tab[] {
-		return this.provider ? TABS : TABS.filter((tab) => tab === 'profile' || tab === 'members');
+		return this.provider
+			? TABS
+			: TABS.filter((tab) => tab === 'profile' || tab === 'personas' || tab === 'members');
 	}
 
 	focusHeading(): void {
@@ -272,11 +285,19 @@ export class LoamAccountSection extends AccountElement {
 				? await this.#passkeys(kernel)
 				: this.tab === 'sessions'
 					? await this.#sessions(kernel)
-					: this.tab === 'members'
-						? await this.#members(kernel)
-						: this.tab === 'agents'
-							? await this.#agents(kernel)
-							: await this.#profile(kernel);
+					: this.tab === 'personas'
+						? await personasPart({
+								kernel,
+								root: this.shadowRoot as ShadowRoot,
+								say: (text) => this.#say(text),
+								failed: (answer) => this.#failed(answer),
+								read: () => this.read(),
+							})
+						: this.tab === 'members'
+							? await this.#members(kernel)
+							: this.tab === 'agents'
+								? await this.#agents(kernel)
+								: await this.#profile(kernel);
 		if (generation === this.#reads) content.replaceChildren(...rendered);
 	}
 

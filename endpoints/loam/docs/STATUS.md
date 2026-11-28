@@ -293,6 +293,7 @@ status changes.
 | 2026-11-26 | Phase 3 step 10, the exit | The rows of 2026-11-21 "Seven rows dated 2026-11-21" and 2026-11-22 "A journaled single sign-on result": every open row of the [specification's follow-ups](phases/3-identity/spec.md#follow-ups) filed at the exit as #2771 to #2786, sub-issues of #1541; the agent-member table's row closed by phase 6's step 5 | Filed |
 | 2026-11-28 | #2784 | The row of 2026-11-21 "A connected agent's person narrowing its access", filed as #2784: closed in the specification by `account-agent-update` and the agents tab's Change access ([its session](sessions/2026-11-28-t3-loam-connected-agent-access.md)) | Closed |
 | 2026-11-28 | #2784's review | In a browser, an owner sees another person's narrowed connected agent's projects only as a count, in the [specification's follow-ups](phases/3-identity/spec.md#follow-ups) | Open |
+| 2026-11-27 | [#2783](https://github.com/lushly-dev/afd/issues/2783) | The personas tab has no form for a persona's avatar, defaults or emphasis, in the [specification's follow-ups](phases/3-identity/spec.md#follow-ups) | Open, filed as [#3017](https://github.com/lushly-dev/afd/issues/3017) |
 
 ### Follow-ups: phase 4, settings, experiments, notifications, overlays
 

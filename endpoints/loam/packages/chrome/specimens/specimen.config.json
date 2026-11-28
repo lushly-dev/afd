@@ -817,6 +817,12 @@
 			"exportName": "IdentityAccountSessions"
 		},
 		{
+			"id": "identity-account-personas",
+			"title": "Loam/Identity/AccountPersonas",
+			"module": "./identity.specimens.ts",
+			"exportName": "IdentityAccountPersonas"
+		},
+		{
 			"id": "identity-account-members",
 			"title": "Loam/Identity/AccountMembers",
 			"module": "./identity.specimens.ts",
