@@ -26,12 +26,24 @@ struct JournalCallState;
 struct DirectApprovalState;
 class McpApprovalRelay;
 class UpFrontApproval;
+class ApproverCall;
 struct JournaledContextFields;
 struct ApprovalAdmission;
 struct RawOutputBudgetAsk;
 struct CallerAllow;
 struct DispatchIdAccess;
 } // namespace detail
+
+/// The identity of a call's verified credentials (`spec/authorization.md`, M4/M8): `issuer`,
+/// `subject` and `client_id`. Plain `afd::mcp_stdio` leaves `CommandContext::credentials` unset;
+/// a host that verified a caller may populate it in `StdioServerOptions::context_hook`.
+struct PrincipalCredentials {
+    std::string issuer;
+    std::string subject;
+    std::string client_id;
+
+    bool operator==(const PrincipalCredentials&) const = default;
+};
 
 /// A surface a command can be exposed to. TypeScript calls this the command's `interface`; C++
 /// avoids that word because <windows.h> defines `interface` as a macro.
@@ -187,9 +199,14 @@ struct CommandContext {
     /// `DirectClient` replaces whatever the caller passes. Leave unset.
     std::shared_ptr<const detail::CallerAllow> caller_allow;
     /// This dispatch's own id, set by `CommandRegistry::execute` (see `DispatchId`). Read it with
-    /// `context.dispatch_id.value()`; nothing else can set it. Last, so positional initializers
-    /// written before it existed still compile.
+    /// `context.dispatch_id.value()`; nothing else can set it.
     DispatchId dispatch_id;
+    /// Verified caller credentials (spec/authorization.md, M4/M8), when a host verified them.
+    /// Plain `afd::mcp_stdio` leaves this unset.
+    std::optional<PrincipalCredentials> credentials;
+    /// Internal approver client call state (`afd::mcp_stdio`). Only the MCP server sets it; leave
+    /// unset. Last, so positional initializers written before it existed still compile.
+    std::shared_ptr<detail::ApproverCall> approver_call;
 };
 
 /// Defaults for `with_context_defaults`.

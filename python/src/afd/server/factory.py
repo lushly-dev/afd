@@ -96,6 +96,7 @@ from afd.core.schema_validation import (
 )
 from afd.core.single_executor import CommandExecutionConfig, execute_command
 from afd.core.streaming import StreamChunk, StreamOptions
+from afd.server import approver as _approver
 from afd.server.approval_admission import (
     Admission,
     admission_for,
@@ -111,7 +112,6 @@ from afd.server.auth import (
     admitted_view_for,
     bind_trusted_transport,
     create_auth_layer,
-    credentials_actor,
     is_trusted_transport,
 )
 from afd.server.auth_middleware_check import assert_auth_middleware_recognises_tokens
@@ -186,7 +186,6 @@ from afd.server.instance_state import ServerInstances, check_instance_state, war
 from afd.server.lazy_tools import command_not_found
 from afd.server.meta_argument import lift_meta_argument, meta_argument_keys
 from afd.server.middleware import CommandMiddleware
-from afd.server.principal import principal_binding, sdk_credentials
 from afd.server.relay_evidence import (
     RelayDispatchAdmission,
     clear_relay_evidence,
@@ -339,6 +338,8 @@ class MCPServer:
         self._max_validation_issues = resolve_max_validation_issues(config.max_validation_issues)
         if config.context_hook is not None and not callable(config.context_hook):
             raise TypeError("context_hook must be callable")
+        if config.approver is not None and not callable(config.approver):
+            raise TypeError("approver must be callable")
         if config.call_grant is not None and not callable(config.call_grant):
             raise TypeError("call_grant must be callable")
         if config.human_relay is not None:
@@ -1168,10 +1169,12 @@ class MCPServer:
     ) -> Iterator[None]:
         if caller_context is not None:
             transfer_relay_state(caller_context, exec_context)
+            _approver.inherit_approver_call(caller_context, exec_context)
         try:
             yield
         finally:
             clear_relay_state(exec_context)
+            _approver.clear_approver_call(exec_context)
 
     @contextmanager
     def _admission_scope_for_execution(
@@ -1181,6 +1184,7 @@ class MCPServer:
         with (
             bind_human_relay_channel(None),
             bind_relay_wire(None),
+            _approver.bind_approver_call(None),
             admission_for(context, command) as record,
         ):
             yield record, relay_dispatch
@@ -1328,6 +1332,8 @@ class MCPServer:
             )
         self._check_before_request()
         if name in META_TOOL_NAMES:
+            if (keyed := _approver.approval_key_in_input(input)) is not None:
+                return failure(keyed)
             meta_keys = meta_argument_keys(self.config.context_fields)
             lifted = lift_meta_argument(name, input, None, meta_keys)
             if lifted.error is not None:
@@ -1678,6 +1684,9 @@ class MCPServer:
         refused = refuse_apps_tool_call(tool_name, caller_context)
         if refused is not None:
             return refused
+        # Rule 5: approval evidence is never input, from any caller.
+        if (keyed := _approver.approval_key_in_input(args)) is not None:
+            return failure(keyed)
         return await self._get_router()(tool_name, {} if args is None else args, caller_context)
 
     async def call_tool(self, tool_name: str, args: Any = None) -> Any:
@@ -1825,8 +1834,9 @@ class MCPServer:
                     return CallToolResult(content=[])
                 return _tool_call_result(result)
         relay_channel = HumanRelayChannel.from_sdk(afd_ctx, _CURRENT_REQUEST.get())
+        is_approver = _approver.current_approver_call() is not None
         for _ in range(MAX_IN_BAND_ROUNDS):
-            relay = round.relay() if round.can_elicit else None
+            relay = round.relay() if (round.can_elicit and not is_approver) else None
             with (
                 bind_confirmation_channel(round),
                 bind_approval_relay(relay),
@@ -2032,10 +2042,11 @@ class MCPServer:
                 # learns nothing about which tools or contexts exist.
                 if outcome is not None and outcome.refusal is not None:
                     return _tool_call_result(failure(outcome.refusal))
+                if (keyed := _approver.approval_key_in_input(arguments)) is not None:
+                    return _tool_call_result(failure(keyed))
+                raw_meta = _request_meta(_CURRENT_REQUEST.get())
                 # A meta-tool's `meta` argument counts as _meta from here on.
-                lifted = lift_meta_argument(
-                    name, arguments, _request_meta(_CURRENT_REQUEST.get()), meta_keys
-                )
+                lifted = lift_meta_argument(name, arguments, raw_meta, meta_keys)
                 if lifted.error is not None:
                     return _tool_call_result(failure(lifted.error))
                 # Declared context fields and output budget ask come from this request's _meta,
@@ -2043,10 +2054,16 @@ class MCPServer:
                 # them on the context (with hook values winning) and execution validates them.
                 values = context_field_values(server.config.context_fields, lifted.meta)
                 budget_ask = output_budget_ask_from_meta(lifted.meta)
+                decision = _approver.resolve_mcp_approver(
+                    server, name, outcome, values, raw_meta, context, _CURRENT_REQUEST.get()
+                )
+                if decision.kind == "refuse" and decision.error is not None:
+                    return _tool_call_result(failure(decision.error))
                 with (
                     bound_request(meta=lifted.meta),
                     bind_context_field_values(values),
                     bind_output_budget_ask(budget_ask),
+                    _approver.bind_approver_call(decision.approver),
                 ):
                     return await server._call_sdk_tool(
                         name if isinstance(name, str) else "", lifted.arguments, context
@@ -2055,6 +2072,8 @@ class MCPServer:
             async def call_tool(self, name: Any, arguments: Any, context: Any = None) -> Any:
                 if not server._is_auth_admitted():
                     return _tool_call_result(failure(server._unauthorized_error()))
+                if (keyed := _approver.approval_key_in_input(arguments)) is not None:
+                    return _tool_call_result(failure(keyed))
                 outcome = current_hook_outcome()
                 if outcome is None and server.config.context_hook is not None:
                     # Direct SDK call_tool outside ServerRunner middleware: still run the hook.
@@ -2165,26 +2184,8 @@ class MCPServer:
         install_pre_boundary_middleware(self)
 
     def _request_principal(self) -> str:
-        """The principal binding of the MCP request being served: the actor its commands run
-        with (from ``context_hook`` when set, else the verified credentials' default actor, else
-        the server's configured ``actor`` or ``Actor(kind="agent")``) and the identity of the
-        verified access token, if any.
-
-        Raises:
-            IncompleteCredentials: A verified token lacks an issuer, subject or client id. The
-                SDK then refuses to seal a state with an internal error, and
-                ``_install_pre_boundary_middleware`` refuses a retry the same way.
-        """
-        admitted = self._current_admitted_credentials()
-        outcome = current_hook_outcome()
-        if outcome is not None and outcome.actor_at_start is not None:
-            actor = outcome.actor_at_start
-        elif admitted is not None:
-            actor = credentials_actor(admitted)
-        else:
-            actor = self.config.actor or Actor(kind="agent")
-        creds = admitted if self._auth_layer is not None else sdk_credentials()
-        return principal_binding(actor, creds)
+        """The principal binding of the MCP request being served (M8)."""
+        return _approver.resolve_request_principal(self, current_hook_outcome())
 
     def streamable_http_app(self, **options: Any) -> Any:
         """The Streamable HTTP ASGI app, for mounting in a host application.
@@ -2271,6 +2272,7 @@ def create_server(
     confirmation_key: bytes | bytearray | memoryview | str | None = None,
     instances: ServerInstances | None = None,
     human_relay: HumanRelay | None = None,
+    approver: _approver.ApproverPredicate | None = None,
     first_class_tools: Sequence[str] | None = None,
     context_fields: Sequence[ContextField | dict[str, Any]] | None = None,
     advertise_output_schema: bool = True,
@@ -2434,6 +2436,7 @@ def create_server(
         confirmation_key=confirmation_key,
         instances=instances,
         human_relay=human_relay,
+        approver=approver,
         first_class_tools=first_class_tools,  # type: ignore[arg-type]  # MCPServer checks it
         advertise_output_schema=advertise_output_schema,
         bootstrap=bootstrap,

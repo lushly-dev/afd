@@ -186,8 +186,8 @@ describe('approver-client.json', () => {
 		expect(generator.approverClientVectors(approvalDisplay, canonicalJson)).toEqual(vectors);
 	});
 
-	it('records the documented gap of the languages that skip it', () => {
-		expect(Object.keys(vectors.gaps).sort()).toEqual(['cpp', 'python']);
+	it('has no remaining language gaps', () => {
+		expect(Object.keys(vectors.gaps)).toEqual([]);
 	});
 
 	describe('display', () => {

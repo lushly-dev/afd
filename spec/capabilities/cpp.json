@@ -346,22 +346,28 @@
 			"evidence": ["packages/cpp/include/afd/approval.hpp", "packages/cpp/tests/mcp_stdio_test.cpp"]
 		},
 		"middleware.approver-client": {
-			"status": "planned",
-			"note": "([#1466](https://github.com/lushly-dev/afd/issues/1466))",
+			"status": "yes",
+			"note": "([#1466](https://github.com/lushly-dev/afd/issues/1466)): `StdioServerOptions::approver`, `afd::mcp::approval_meta_key`, `CommandContext::credentials` (`PrincipalCredentials`) populated by the host's `context_hook`, principal-bound tokens",
 			"views": {
-				"approver": "([#1466](https://github.com/lushly-dev/afd/issues/1466))"
+				"approver": "(`StdioServerOptions::approver`, `afd::mcp::approval_meta_key`, `PrincipalCredentials` via `context_hook`)"
 			},
-			"issue": "#1466",
-			"evidence": ["packages/cpp/tests/approver_client_vectors_test.cpp"]
+			"evidence": [
+				"packages/cpp/include/afd/mcp_stdio.hpp",
+				"packages/cpp/src/mcp_stdio/server.cpp",
+				"packages/cpp/tests/approver_client_vectors_test.cpp"
+			]
 		},
 		"middleware.approval-display": {
-			"status": "planned",
-			"note": "([#1466](https://github.com/lushly-dev/afd/issues/1466))",
+			"status": "yes",
+			"note": "([#1466](https://github.com/lushly-dev/afd/issues/1466)): `approval_display`, `hides_characters`, `is_hidden_code_point`, `approval_display_limits` in `afd/approval_display.hpp`",
 			"views": {
-				"display": "([#1466](https://github.com/lushly-dev/afd/issues/1466))"
+				"display": "(`approval_display`, `hides_characters`, `is_hidden_code_point`, `approval_display_limits`)"
 			},
-			"issue": "#1466",
-			"evidence": ["packages/cpp/tests/approver_client_vectors_test.cpp"]
+			"evidence": [
+				"packages/cpp/include/afd/approval_display.hpp",
+				"packages/cpp/src/approval_display.cpp",
+				"packages/cpp/tests/approver_client_vectors_test.cpp"
+			]
 		},
 		"middleware.approval-summary": {
 			"status": "yes",

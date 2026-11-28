@@ -13,6 +13,7 @@
 
 #include "detail/approval_admission.hpp"
 #include "detail/approval_relay.hpp"
+#include "detail/approver_call.hpp"
 #include "detail/canonical_json.hpp"
 #include "detail/direct_approval.hpp"
 #include "detail/dispatch_id.hpp"
@@ -150,7 +151,8 @@ struct ApprovalState {
     }
 
     Verdict verify_token(std::string_view evidence, std::string_view command,
-                         std::string_view input, std::string_view actor, std::int64_t now) const {
+                         std::string_view input, std::string_view who_purpose,
+                         std::string_view who_value, std::int64_t now) const {
         if (evidence.size() > max_token_length) {
             return reject(ApprovalRejection::malformed);
         }
@@ -215,8 +217,9 @@ struct ApprovalState {
             return reject(ApprovalRejection::input_mismatch);
         }
         if (!detail::constant_time_equal(payload["a"].get_ref<const std::string&>(),
-                                         digest(*key, "actor", actor))) {
-            return reject(ApprovalRejection::actor_mismatch);
+                                         digest(*key, who_purpose, who_value))) {
+            return reject(who_purpose == "principal" ? ApprovalRejection::credentials_mismatch
+                                                     : ApprovalRejection::actor_mismatch);
         }
         // `expires` is above `now` here; clamp a far-future expiry into range, and the issue time.
         const double capped = (std::min)(expires, 9.0e18);
@@ -229,8 +232,9 @@ struct ApprovalState {
 
     /// A signed token, laid out as TypeScript's `JSON.stringify(payload)` writes it.
     /// Also gives the token's expiry and its nonce.
-    std::string issue(std::string_view command, std::string_view input, std::string_view actor,
-                      std::int64_t now, std::int64_t& expires_at_ms, std::string& nonce_out) const {
+    std::string issue(std::string_view command, std::string_view input,
+                      std::string_view who_purpose, std::string_view who_value, std::int64_t now,
+                      std::int64_t& expires_at_ms, std::string& nonce_out) const {
         const std::string& key = keys.front();
         std::array<std::uint8_t, 16> nonce{};
         if (options.random_bytes) {
@@ -244,7 +248,7 @@ struct ApprovalState {
         std::string payload = "{\"c\":";
         detail::append_json_string(payload, command);
         payload += ",\"i\":\"" + digest(key, "input", input) + "\"";
-        payload += ",\"a\":\"" + digest(key, "actor", actor) + "\"";
+        payload += ",\"a\":\"" + digest(key, who_purpose, who_value) + "\"";
         payload += ",\"iat\":" + std::to_string(now);
         payload += ",\"exp\":" + std::to_string(expires_at_ms);
         payload += ",\"n\":\"" + nonce_out + "\"}";
@@ -812,6 +816,8 @@ std::string_view approval_rejection_name(ApprovalRejection rejection) noexcept {
         return "input-mismatch";
     case ApprovalRejection::actor_mismatch:
         return "actor-mismatch";
+    case ApprovalRejection::credentials_mismatch:
+        return "credentials-mismatch";
     case ApprovalRejection::already_used:
         return "already-used";
     }
@@ -1035,20 +1041,27 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
             }
             return outer_next();
         };
+        // An approver client's call (spec/approvals.md, "Approval evidence from an approver
+        // client"): its token reaches it and is never replaced by an elicitation, its carried
+        // evidence is taken by the first command checked (the one the call routes to), once, and
+        // its tokens bind its principal binding.
+        const auto approver = context.approver_call;
+        const std::optional<Json> carried = approver ? approver->take_evidence() : std::nullopt;
+        const bool relays =
+            state->options.relay == ApprovalRelay::mcp_elicitation && approver == nullptr;
         // A step of an afd-batch or afd-pipe approved up front. The step never sees the up-front
         // approval, so a command it runs falls back as a nested command does.
         if (context.up_front_approval) {
             const auto up_front = std::move(context.up_front_approval);
             context.up_front_approval.reset();
-            if (state->options.relay == ApprovalRelay::mcp_elicitation) {
+            if (relays) {
                 return run_up_front(*state, *up_front, name, input, context, next);
             }
         }
         // Claimed only by the command the tool call routes to, once, gated or not, so a command
         // that runs inside another (or after it) cannot turn the tool call into an elicitation.
         detail::McpApprovalRelay* relay = nullptr;
-        if (state->options.relay == ApprovalRelay::mcp_elicitation && context.mcp_approval_relay &&
-            context.mcp_approval_relay->claim(name)) {
+        if (relays && context.mcp_approval_relay && context.mcp_approval_relay->claim(name)) {
             relay = context.mcp_approval_relay.get();
         }
         if (!ApprovalState::requires_approval(decider, input, context)) {
@@ -1064,6 +1077,17 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         if (!actor) {
             return unbindable(name, actor.error());
         }
+        const std::string_view who_purpose = approver ? "principal" : "actor";
+        std::string who_value;
+        if (approver) {
+            const auto principal = detail::principal_binding(context.actor, context.credentials);
+            if (!principal) {
+                return unbindable(name, principal.error());
+            }
+            who_value = *principal;
+        } else {
+            who_value = *actor;
+        }
         const std::int64_t now = settings.clock->wall_ms();
         // Expiry must fit an ISO 8601 date (years up to 9999), as `expiresAt` reports it.
         if (now < 0 || now > max_wall_ms) {
@@ -1072,14 +1096,52 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
 
         std::optional<ApprovalRejection> rejected;
         const bool direct = context.direct_approval != nullptr;
-        const auto evidence = direct ? context.direct_approval->take() : context.approval;
-        if (evidence) {
-            const Verdict verdict =
-                state->verify_token(*evidence, name, *input_binding, *actor, now);
+        if (direct) {
+            if (const auto evidence = context.direct_approval->take()) {
+                const Verdict verdict = state->verify_token(*evidence, name, *input_binding,
+                                                            who_purpose, who_value, now);
+                if (!verdict.rejection) {
+                    if (state->consume(verdict.nonce, verdict.expires_at_ms, now)) {
+                        return admit(*state,
+                                     {.via = ApprovalVia::direct,
+                                      .key = verdict.nonce,
+                                      .issued_at = verdict.issued_at_ms,
+                                      .expires_at = verdict.expires_at_ms},
+                                     name, *input_binding, context, next);
+                    }
+                    rejected = ApprovalRejection::already_used;
+                } else {
+                    rejected = verdict.rejection;
+                }
+            }
+        } else if (carried.has_value()) {
+            if (!carried->is_string()) {
+                rejected = ApprovalRejection::malformed;
+            } else {
+                const Verdict verdict =
+                    state->verify_token(carried->get_ref<const std::string&>(), name,
+                                        *input_binding, who_purpose, who_value, now);
+                if (!verdict.rejection) {
+                    if (state->consume(verdict.nonce, verdict.expires_at_ms, now)) {
+                        return admit(*state,
+                                     {.via = ApprovalVia::token,
+                                      .key = verdict.nonce,
+                                      .issued_at = verdict.issued_at_ms,
+                                      .expires_at = verdict.expires_at_ms},
+                                     name, *input_binding, context, next);
+                    }
+                    rejected = ApprovalRejection::already_used;
+                } else {
+                    rejected = verdict.rejection;
+                }
+            }
+        } else if (context.approval) {
+            const Verdict verdict = state->verify_token(*context.approval, name, *input_binding,
+                                                        who_purpose, who_value, now);
             if (!verdict.rejection) {
                 if (state->consume(verdict.nonce, verdict.expires_at_ms, now)) {
                     return admit(*state,
-                                 {.via = direct ? ApprovalVia::direct : ApprovalVia::token,
+                                 {.via = ApprovalVia::token,
                                   .key = verdict.nonce,
                                   .issued_at = verdict.issued_at_ms,
                                   .expires_at = verdict.expires_at_ms},
@@ -1132,7 +1194,8 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
 
         std::int64_t expires_at_ms = 0;
         std::string nonce;
-        std::string token = state->issue(name, *input_binding, *actor, now, expires_at_ms, nonce);
+        std::string token =
+            state->issue(name, *input_binding, who_purpose, who_value, now, expires_at_ms, nonce);
         const std::string expires_at = wire::iso8601_utc(expires_at_ms);
         // The approval id the summary of a call admitted on this token will carry (rule 5).
         const std::string held_approval_id =
@@ -1161,11 +1224,11 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         }
         const bool on_mcp = context.surface == Interface::mcp;
         const bool include_token =
-            settings.include_token.value_or(!on_mcp) && !context.direct_approval;
+            !context.direct_approval &&
+            (approver != nullptr || settings.include_token.value_or(!on_mcp));
         // A relay was offered for this tool call but another command claimed it (or this one
         // runs inside another), so the client could not be asked for this command.
-        const bool relay_elsewhere = settings.relay == ApprovalRelay::mcp_elicitation &&
-                                     context.mcp_approval_relay != nullptr;
+        const bool relay_elsewhere = relays && context.mcp_approval_relay != nullptr;
         const std::string why = rejected
                                     ? "The approval token was not accepted (" +
                                           std::string(approval_rejection_name(*rejected)) + "). "
@@ -1173,7 +1236,11 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         // Addressed to whoever relays the decision: the token is the approval, so the gated
         // caller must not resubmit it on its own, and tool arguments cannot carry it.
         const std::string retry =
-            include_token
+            approver != nullptr
+                ? "once they approve, the approver retries the same call with the same input and "
+                  "details.approvalToken in _meta[\"dev.afd/approval\"]. The token expires at " +
+                      expires_at + (state->single_use ? " and works once." : ".")
+            : include_token
                 ? "once they approve, the application retries the same call with the same input "
                   "and details.approvalToken as its approval evidence (tool arguments cannot "
                   "carry it). The token expires at " +
@@ -1182,7 +1249,7 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
                 ? "the client could not be asked from inside afd-batch, afd-pipe or another "
                   "command. Call " +
                       std::string(name) + " on its own so the client can ask the user."
-            : settings.relay == ApprovalRelay::mcp_elicitation && on_mcp
+            : relays && on_mcp
                 ? "the client could not be asked here. Call " + std::string(name) +
                       " from an MCP client that supports form elicitation, or the application "
                       "records the approval and retries."

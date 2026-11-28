@@ -16,8 +16,6 @@ import { createHmac } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-/** The parity follow-up for the languages that skip every case until they implement them. */
-const GAP = 'https://github.com/lushly-dev/afd/issues/1466';
 const SECRET = 'afd-approver-client-vectors-secret-0123456789';
 /** 2026-10-26T12:00:00.000Z, as the approval token vectors. */
 const NOW = Date.UTC(2026, 9, 26, 12);
@@ -406,7 +404,7 @@ export function approverClientVectors(approvalDisplay, canonicalJson) {
 	return {
 		description:
 			'Approval evidence from an approver client and the approval display rules (spec/command-metadata.md). Display verdicts from the TypeScript reference; token payloads built from the documented format. Regenerate with node spec/vectors/generate-approver-client.mjs.',
-		gaps: { python: GAP, cpp: GAP },
+		gaps: {},
 		display: {
 			limits: {
 				maxSerializedLength: 8000,

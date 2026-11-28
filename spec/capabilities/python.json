@@ -318,22 +318,28 @@
 			"evidence": ["python/src/afd/server/approval_relay.py", "python/tests/test_approval_relay.py"]
 		},
 		"middleware.approver-client": {
-			"status": "planned",
-			"note": "([#1466](https://github.com/lushly-dev/afd/issues/1466))",
+			"status": "yes",
+			"note": "([#1466](https://github.com/lushly-dev/afd/issues/1466)): `create_server(approver=...)`, `AFD_APPROVAL_META_KEY`, off-object carrier and principal-bound tokens",
 			"views": {
-				"approver": "([#1466](https://github.com/lushly-dev/afd/issues/1466))"
+				"approver": "(`create_server(approver=...)`, `AFD_APPROVAL_META_KEY`)"
 			},
-			"issue": "#1466",
-			"evidence": ["python/tests/test_approver_client_vectors.py"]
+			"evidence": [
+				"python/src/afd/server/approver.py",
+				"python/tests/test_approver_client_vectors.py",
+				"python/tests/test_approver_client.py"
+			]
 		},
 		"middleware.approval-display": {
-			"status": "planned",
-			"note": "([#1466](https://github.com/lushly-dev/afd/issues/1466))",
+			"status": "yes",
+			"note": "([#1466](https://github.com/lushly-dev/afd/issues/1466)): `approval_display`, `hides_characters`, `is_hidden_code_point`, `APPROVAL_DISPLAY_LIMITS` in `afd` and `afd.core`",
 			"views": {
-				"display": "([#1466](https://github.com/lushly-dev/afd/issues/1466))"
+				"display": "(`approval_display`, `hides_characters`, `is_hidden_code_point`, `APPROVAL_DISPLAY_LIMITS`)"
 			},
-			"issue": "#1466",
-			"evidence": ["python/tests/test_approver_client_vectors.py"]
+			"evidence": [
+				"python/src/afd/core/approval_display.py",
+				"python/tests/test_approver_client_vectors.py",
+				"python/tests/test_approver_client.py"
+			]
 		},
 		"middleware.approval-summary": {
 			"status": "yes",

@@ -1,9 +1,6 @@
 {
 	"description": "Approval evidence from an approver client and the approval display rules (spec/command-metadata.md). Display verdicts from the TypeScript reference; token payloads built from the documented format. Regenerate with node spec/vectors/generate-approver-client.mjs.",
-	"gaps": {
-		"python": "https://github.com/lushly-dev/afd/issues/1466",
-		"cpp": "https://github.com/lushly-dev/afd/issues/1466"
-	},
+	"gaps": {},
 	"display": {
 		"limits": {
 			"maxSerializedLength": 8000,

@@ -104,6 +104,14 @@ using GroupBy = std::function<std::optional<std::string>(const CommandDefinition
 /// The `_meta` key a client sets to `true` to acknowledge a confirm-gated call.
 inline constexpr std::string_view confirm_meta_key = "dev.afd/confirm";
 
+/// The `_meta` key an approver client sets to the approval token of the call it retries
+/// (spec/approvals.md, "Approval evidence from an approver client").
+inline constexpr std::string_view approval_meta_key = "dev.afd/approval";
+
+/// Whether the caller of one MCP `tools/call` is an approver, from its context once `context_hook`
+/// has run. Only `true` makes an approver.
+using ApproverPredicate = std::function<bool(const CommandContext& context)>;
+
 /// The `_meta` key the server sets on a resource entry to carry its SHA-256 digest
 /// (spec/mcp-resources.md, R6).
 inline constexpr std::string_view digest_meta_key = "dev.afd/digest";
@@ -264,6 +272,11 @@ struct StdioServerOptions {
     /// `std::nullopt` or `0` to disable the default deadline. Negative or non-finite values fail
     /// `StdioServer::create`.
     std::optional<double> default_timeout_ms = default_command_timeout_ms;
+    /// Which MCP callers are approvers (`spec/approvals.md`, "Approval evidence from an approver
+    /// client"). For an approver, a held call carries `details.approvalToken` and never triggers a
+    /// form elicitation, and `_meta["dev.afd/approval"]` carries its token back on single-command
+    /// MCP 2026-07-28 calls, bound to the call's principal binding (M8).
+    ApproverPredicate approver;
 };
 
 /// Sends a request (`{"method", "params"}`) to the client and returns its `result`, or

@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from afd.core.builtin_names import AFD_META_TOOL_NAMES
 from afd.core.commands import CommandDefinition
+from afd.server.approver import approval_key_in_input
 from afd.server.auth import claim_admitted_dispatch
 from afd.server.auth_view import ScopeView, select_grouped_call
 from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY
@@ -248,6 +249,21 @@ def install_pre_boundary_middleware(server: Any) -> None:
                     with bind_hook_outcome(HookOutcome(refusal=server._unauthorized_error())):
                         return await call_next(ctx)
                 raise server._unauthorized_rpc_error()
+
+            # Approver client rule 5: `dev.afd/approval` anywhere in tool arguments is refused
+            # with VALIDATION_ERROR before context_hook, requestState or lookup, from any caller.
+            if method == "tools/call" and isinstance(params, Mapping):
+                keyed = approval_key_in_input(params.get("arguments"))
+                if keyed is not None:
+                    if params.get("requestState") is not None or "inputResponses" in params:
+                        cleaned = {
+                            key: value
+                            for key, value in params.items()
+                            if key not in ("requestState", "inputResponses")
+                        }
+                        ctx = dataclasses.replace(ctx, params=cleaned)
+                    with bind_hook_outcome(HookOutcome(refusal=keyed)):
+                        return await call_next(ctx)
 
             # M6: non-tool methods (tools/list, server/discover, resources/*, tasks/*, ...)
             # require the server's required_scopes even when pre-dispatch could not decide.

@@ -3,6 +3,7 @@
 
 #include "afd/actor.hpp"
 #include "afd/approval.hpp"
+#include "afd/approval_display.hpp"
 #include "afd/batch.hpp"
 #include "afd/bootstrap.hpp"
 #include "afd/builtin_names.hpp"

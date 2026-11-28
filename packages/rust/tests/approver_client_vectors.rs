@@ -20,11 +20,10 @@ fn load_vectors() -> Value {
 }
 
 #[test]
-fn records_the_documented_gap_of_the_languages_that_skip_it() {
+fn has_no_remaining_language_gaps() {
     let vectors = load_vectors();
-    let mut gaps: Vec<&String> = vectors["gaps"].as_object().unwrap().keys().collect();
-    gaps.sort();
-    assert_eq!(gaps, ["cpp", "python"]);
+    let gaps = vectors["gaps"].as_object().unwrap();
+    assert!(gaps.is_empty(), "unexpected language gaps: {gaps:?}");
 }
 
 #[test]

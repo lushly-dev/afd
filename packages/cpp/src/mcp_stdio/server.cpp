@@ -27,6 +27,7 @@
 #include <utility>
 
 #include "detail/approval_relay.hpp"
+#include "detail/approver_call.hpp"
 #include "detail/canonical_json.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/hmac.hpp"
@@ -164,21 +165,6 @@ std::string canonical(const Json& value) {
 
 /// The actor fields the state is bound to (`kind`, `id`, `onBehalfOf`), as approval tokens bind
 /// them, or `null`.
-Json actor_binding(const std::optional<Actor>& actor) {
-    if (!actor) {
-        return nullptr;
-    }
-    Json fields = Json::object();
-    fields["kind"] = std::string(actor_kind_name(actor->kind));
-    if (actor->id) {
-        fields["id"] = *actor->id;
-    }
-    if (actor->on_behalf_of) {
-        fields["onBehalfOf"] = *actor->on_behalf_of;
-    }
-    return fields;
-}
-
 /// The binding of a confirmation question: the unpadded base64url SHA-256 of the command and its
 /// input, canonically, as TypeScript's `confirmationBinding` writes it.
 std::string confirm_question(std::string_view command, const Json& input) {
@@ -652,10 +638,10 @@ struct StdioServer::State {
     // --- requestState -------------------------------------------------------------------------
 
     /// The state's associated data: the layout, the caller and the call, canonically.
-    static std::string state_binding(const std::optional<Actor>& actor, std::string_view command,
+    static std::string state_binding(const CommandContext& context, std::string_view command,
                                      const Json& input) {
-        return canonical(Json::array({std::string(state_binding_version), actor_binding(actor),
-                                      Json::array({std::string(command), input})}));
+        return canonical(
+            detail::state_binding_array(state_binding_version, context, command, input));
     }
 
     [[nodiscard]] std::string state_mac(std::string_view payload, std::string_view binding) const {
@@ -780,6 +766,7 @@ struct StdioServer::State {
         context.surface = Interface::mcp;
         context.approval.reset();
         context.mcp_approval_relay.reset();
+        context.approver_call.reset();
         context.output_budget_meta_ask.reset();
         // Output budget ask (spec/output-budgets.md, B2): `context_hook` wins over `_meta`.
         // `null` is no ask; invalid values are kept for `CommandRegistry::execute` to reject.
@@ -848,7 +835,7 @@ struct StdioServer::State {
 
         CommandContext context = base;
         std::shared_ptr<detail::McpApprovalRelay> relay;
-        if (can_elicit && command != nullptr) {
+        if (can_elicit && command != nullptr && !context.approver_call) {
             const Round answers = round;
             relay = std::make_shared<detail::McpApprovalRelay>(
                 name, [answers, at](const std::vector<std::string>& bindings) {
@@ -920,7 +907,7 @@ struct StdioServer::State {
                 valid = true;
             }
         }
-        const std::string binding = state_binding(context.actor, name, bound);
+        const std::string binding = state_binding(context, name, bound);
         const bool can_elicit = declares_form_elicitation(info.client_capabilities) &&
                                 (info.modern || static_cast<bool>(ask));
         Round round = info.modern ? modern_round(params, binding) : Round{};
@@ -1294,7 +1281,7 @@ struct StdioServer::State {
     CommandContext step_context(const CommandContext& context, const RequestInfo& info,
                                 const ClientRequester& ask) const {
         CommandContext steps = context;
-        if (declares_form_elicitation(info.client_capabilities) &&
+        if (!context.approver_call && declares_form_elicitation(info.client_capabilities) &&
             (info.modern || static_cast<bool>(ask))) {
             steps.mcp_approval_relay =
                 std::make_shared<detail::McpApprovalRelay>(std::string(), nullptr);
@@ -1471,7 +1458,7 @@ struct StdioServer::State {
             steps.emplace_back(item.command, item.input.value_or(Json::object()));
         }
         // Confirmations and the approval share one state, bound to the caller and the request.
-        const std::string binding = state_binding(context.actor, "afd-batch", request);
+        const std::string binding = state_binding(context, "afd-batch", request);
         Round round = info.modern ? modern_round(params, binding) : Round{};
         auto decision = confirm_steps(steps, *acknowledged,
                                       "repeat the afd-batch with confirm: [the command names]",
@@ -1486,7 +1473,7 @@ struct StdioServer::State {
             const BatchResult result = registry.execute_batch(*parsed, steps_context);
             return json_tool_result(Json(result), !result.success);
         };
-        if (!may_gate(info, ask)) {
+        if (context.approver_call || !may_gate(info, ask)) {
             return run(step_context(context, info, ask));
         }
         // Steps cannot ask mid-run: the whole batch is approved up front, or nothing runs.
@@ -1522,7 +1509,7 @@ struct StdioServer::State {
         for (const auto& step : parsed->steps) {
             steps.emplace_back(step.command, step.input.value_or(Json::object()));
         }
-        const std::string binding = state_binding(context.actor, "afd-pipe", request);
+        const std::string binding = state_binding(context, "afd-pipe", request);
         Round round = info.modern ? modern_round(params, binding) : Round{};
         auto decision = confirm_steps(steps, *acknowledged,
                                       "repeat the afd-pipe with confirm: [the command names]",
@@ -1541,7 +1528,7 @@ struct StdioServer::State {
                 });
             return json_tool_result(Json(result), failed);
         };
-        if (!may_gate(info, ask)) {
+        if (context.approver_call || !may_gate(info, ask)) {
             return run(step_context(context, info, ask));
         }
         // Steps cannot ask mid-run: the whole pipeline is approved up front, or nothing runs. A
@@ -1584,9 +1571,10 @@ struct StdioServer::State {
                             [](const CommandError& error) { return pipeline_failure(error); });
     }
 
-    Json call_tool(const Json& params, const RequestInfo& info, const ClientRequester& ask,
-                   const CancellationToken& cancellation,
-                   const std::shared_ptr<const ContextScope>& scope) {
+    Expected<Json, std::string> call_tool(const Json& params, const Json& raw_meta,
+                                          const RequestInfo& info, const ClientRequester& ask,
+                                          const CancellationToken& cancellation,
+                                          const std::shared_ptr<const ContextScope>& scope) {
         const std::string name =
             params.is_object() && params.contains("name") && params["name"].is_string()
                 ? params["name"].get<std::string>()
@@ -1598,7 +1586,14 @@ struct StdioServer::State {
                 arguments = *it;
             }
         }
-        const CommandContext context = call_context(info, cancellation, scope);
+        CommandContext context = call_context(info, cancellation, scope);
+        if (auto resolved = detail::resolve_stdio_approver(options.approver, context, raw_meta,
+                                                           name, info.modern);
+            resolved.internal_error) {
+            return unexpected(std::string("Internal error"));
+        } else if (resolved.refusal) {
+            return tool_result(failure(std::move(*resolved.refusal)));
+        }
         // 1. A meta-tool, whether or not the strategy lists it.
         if (name == "afd-call") {
             return afd_call(arguments, params, info, ask, context);
@@ -1747,6 +1742,11 @@ struct StdioServer::State {
             // `liftMetaArgument`), so it can name the active context.
             Json routed = params;
             if (method == "tools/call") {
+                if (auto keyed = detail::approval_key_in_params(routed)) {
+                    Json result = tool_result(failure(std::move(*keyed)));
+                    return response(id,
+                                    modern ? modern_result(std::move(result)) : std::move(result));
+                }
                 if (auto refused = lift_meta_argument(routed, info)) {
                     Json result = tool_result(*refused);
                     return response(id,
@@ -1775,9 +1775,13 @@ struct StdioServer::State {
                 return response(id, modern_result(std::move(result)));
             }
             if (method == "tools/call") {
-                Json result =
-                    call_tool(routed, info, modern ? ClientRequester{} : ask, cancellation, scope);
-                return response(id, modern ? modern_result(std::move(result)) : std::move(result));
+                auto result = call_tool(routed, meta, info, modern ? ClientRequester{} : ask,
+                                        cancellation, scope);
+                if (!result) {
+                    return error_response(id, -32603, result.error());
+                }
+                return response(id,
+                                modern ? modern_result(std::move(*result)) : std::move(*result));
             }
             const auto resource_reply = [&](surface::RpcOutcome outcome) -> std::string {
                 if (!outcome.ok) {

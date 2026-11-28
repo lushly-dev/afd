@@ -18,6 +18,15 @@ from afd.core.actor import (
     with_context_defaults,
 )
 from afd.core.approval import ApprovalDecision, ApprovalPolicy, approval_mode
+from afd.core.approval_display import (
+    APPROVAL_DISPLAY_LIMITS,
+    ApprovalDisplay,
+    ApprovalDisplayLimits,
+    ApprovalDisplayRefusal,
+    approval_display,
+    hides_characters,
+    is_hidden_code_point,
+)
 from afd.core.batch import (
     DEFAULT_MAX_BATCH_PARALLELISM,
     DEFAULT_MAX_BATCH_SIZE,
@@ -341,6 +350,14 @@ __all__ = [
     "ApprovalDecision",
     "ApprovalPolicy",
     "approval_mode",
+    # Approval display rules
+    "APPROVAL_DISPLAY_LIMITS",
+    "ApprovalDisplay",
+    "ApprovalDisplayLimits",
+    "ApprovalDisplayRefusal",
+    "approval_display",
+    "hides_characters",
+    "is_hidden_code_point",
     # Idempotency keys
     "AFD_IDEMPOTENCY_KEY_META_KEY",
     "IdempotencySupport",
