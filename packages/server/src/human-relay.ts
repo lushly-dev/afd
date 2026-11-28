@@ -136,6 +136,26 @@ export type RelayOutcome =
 	| { kind: 'pending'; prompt: RelayPrompt }
 	| { kind: 'invalid' };
 
+/** A pending decision's address, for a client without URL-mode elicitation. */
+export interface RelayPending {
+	/** The decision's id: 1 to 128 ASCII letters, digits, `_` and `-`. */
+	decision: string;
+	/** The decision's page: an absolute `https` URL with no identity, as {@link RelayPrompt.url}. */
+	url: string;
+	/**
+	 * The page listing the person's pending decisions, the same kind of URL. A fixed address the
+	 * person can learn, so the refusal's suggestion names it first.
+	 */
+	list: string;
+}
+
+/** What {@link HumanRelay.pendingList} found for a call from a client without URL-mode elicitation. */
+export type PendingListOutcome =
+	| { kind: 'approved'; decisionId: string }
+	| { kind: 'declined' }
+	| ({ kind: 'pending' } & RelayPending)
+	| { kind: 'error'; error: CommandError };
+
 /**
  * The host's way to prove that a person decided a call to a host-verified command
  * (`spec/command-metadata.md`, "Host-verified confirmation").
@@ -146,8 +166,11 @@ export type RelayOutcome =
  *   `{ kind: 'invalid' }` for a state that does not verify, has expired, or names another
  *   command, input or principal.
  * - `{ kind: 'approved', decisionId }` is returned at most once per decision, atomically, with
- *   a non-empty `decisionId`, and only for a decision the person made after `begin`.
- * - Its `url` is an absolute `https` URL holding no identity and not pre-authenticated.
+ *   a `decisionId` of 1 to 128 ASCII letters, digits, `_` and `-`, and only for a decision the
+ *   person made after `begin`.
+ * - Its `url` (and `list` in `pendingList`) is an absolute `https` URL with a valid ASCII DNS
+ *   host or bracketed IPv6 address, optional port 1–65535, holding no identity and not
+ *   pre-authenticated.
  */
 export interface HumanRelay {
 	/** Start a decision for `call`, or refuse it with a `CommandError`. */
@@ -164,6 +187,16 @@ export interface HumanRelay {
 		decisionId: string,
 		call: RelayCall
 	): Promise<Record<string, unknown>> | Record<string, unknown>;
+	/**
+	 * Optional pending-list fallback for a call from a client that did not declare URL-mode
+	 * elicitation (`spec/command-metadata.md`, "The pending list"). Returning `undefined` (or
+	 * omitting the method) keeps the default refusal; answering `pending` fails with a retryable
+	 * `CONFIRMATION_REQUIRED` naming the decision, its page and the pending list, and `approved`
+	 * runs the command through the same relay evidence and `approvedContext` path as `resume`.
+	 */
+	pendingList?(
+		call: RelayCall
+	): Promise<PendingListOutcome | undefined> | PendingListOutcome | undefined;
 }
 
 /** Reserved context keys that `approvedContext` must never replace. */
@@ -202,9 +235,35 @@ export function allowsUrlElicitation(capabilities: unknown): boolean {
 	return isRecord(elicitation.url);
 }
 
+const DNS_LABEL_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
+const PORT_RE = /^[0-9]{1,5}$/;
+const IPV6_CHARS_RE = /^[0-9A-Fa-f:.]+$/;
+const DECISION_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+
+function isValidPort(port: string): boolean {
+	if (!PORT_RE.test(port)) return false;
+	const num = Number(port);
+	return num >= 1 && num <= 65_535;
+}
+
+function isValidDnsHost(host: string): boolean {
+	if (host.length === 0 || host.length > 253) return false;
+	return host.split('.').every((label) => DNS_LABEL_RE.test(label));
+}
+
 /**
- * Whether `url` is an absolute `https` URL with a host, no user information, and no whitespace
- * or control character.
+ * Whether `id` is a valid relay decision id: 1 to 128 ASCII letters, digits, `_` and `-`
+ * (`spec/command-metadata.md`, "Host-verified confirmation"), so it carries no sentence, markup
+ * or link into a refusal suggestion.
+ */
+export function isDecisionId(id: unknown): id is string {
+	return typeof id === 'string' && DECISION_ID_RE.test(id);
+}
+
+/**
+ * Whether `url` is an absolute `https` URL with a valid host (DNS labels of ASCII letters, digits
+ * and `-`, or a bracketed IPv6 address), an optional port from 1 to 65535, no user information,
+ * and no whitespace, control character or unpaired surrogate.
  */
 export function isRelayUrl(url: unknown): url is string {
 	if (typeof url !== 'string' || url.length <= 8) return false;
@@ -212,11 +271,38 @@ export function isRelayUrl(url: unknown): url is string {
 	for (let i = 0; i < url.length; i++) {
 		const code = url.charCodeAt(i);
 		if (code <= 0x20 || (code >= 0x7f && code <= 0x9f)) return false;
+		if (code >= 0xd800 && code <= 0xdbff) {
+			const next = url.charCodeAt(i + 1);
+			if (next >= 0xdc00 && next <= 0xdfff) {
+				i += 1;
+				continue;
+			}
+			return false;
+		}
+		if (code >= 0xdc00 && code <= 0xdfff) return false;
 		if (/\s/.test(url[i] ?? '')) return false;
 	}
+	if (url.includes('\\')) return false;
 	const rest = url.slice(8);
 	const authority = rest.split(/[/?#]/, 1)[0] ?? '';
 	if (authority.length === 0 || authority.includes('@')) return false;
+	if (authority.startsWith('[')) {
+		const closeIdx = authority.indexOf(']');
+		if (closeIdx === -1) return false;
+		const addr = authority.slice(1, closeIdx);
+		if (addr.length === 0 || !addr.includes(':') || !IPV6_CHARS_RE.test(addr)) return false;
+		const after = authority.slice(closeIdx + 1);
+		if (after.length > 0 && (!after.startsWith(':') || !isValidPort(after.slice(1)))) {
+			return false;
+		}
+	} else {
+		if (authority.includes('[') || authority.includes(']')) return false;
+		const colonIdx = authority.indexOf(':');
+		const host = colonIdx === -1 ? authority : authority.slice(0, colonIdx);
+		const port = colonIdx === -1 ? undefined : authority.slice(colonIdx + 1);
+		if (!isValidDnsHost(host)) return false;
+		if (port !== undefined && !isValidPort(port)) return false;
+	}
 	try {
 		const parsed = new URL(url);
 		return (
@@ -272,6 +358,33 @@ export function hostVerifiedUnrelayable(names: readonly string[], hasRelay: bool
 	return requiredError(names, suggestion);
 }
 
+function pendingRefusal(name: string, pending: unknown): HumanRelayOutcome {
+	if (
+		!isRecord(pending) ||
+		!isDecisionId(pending.decision) ||
+		!isRelayUrl(pending.url) ||
+		!isRelayUrl(pending.list)
+	) {
+		throw relayInternalError();
+	}
+	const { decision, url, list } = pending;
+	const suggestion = `Ask the person to open their pending decisions at ${list} (or this one at ${url}), check that it is decision ${decision} for '${name}', and decide there; then send this same call again.`;
+	return {
+		kind: 'error',
+		error: {
+			...requiredError([name], suggestion),
+			retryable: true,
+			details: {
+				commands: [name],
+				reason: 'pending-list',
+				decision,
+				url,
+				list,
+			},
+		},
+	};
+}
+
 function relayInternalError(): ProtocolError {
 	return new ProtocolError(ProtocolErrorCode.InternalError, 'Internal error');
 }
@@ -320,20 +433,46 @@ export function createHumanRelayGate(options: HumanRelayGateOptions): HumanRelay
 			.filter((command) => command.confirmationMode === 'host-verified')
 			.map((command) => command.name)
 	);
-	// Keeps the initial validated input across `begin` -> `resume` when a Zod schema computes a
-	// dynamic default (e.g. a generated id or timestamp), without altering the relay's `state` on
-	// the wire. Re-validated through the command's schema on retry (#1414 semantics).
+	// Keeps the initial validated input across `begin` -> `resume` (and across pending-list
+	// retries, which carry no `requestState`) when a Zod schema computes a dynamic default (e.g. a
+	// generated id or timestamp), without altering the relay's `state` on the wire. Re-validated
+	// through the command's schema on retry (#1414 semantics).
 	const pendingInputs = new Map<string, PendingInput>();
+	const pendingListInputs = new Map<string, PendingInput>();
 
-	function prunePending(now: number): void {
-		for (const [key, entry] of pendingInputs) {
-			if (entry.expiresAt <= now) pendingInputs.delete(key);
+	function prunePendingMap(store: Map<string, PendingInput>, now: number): void {
+		for (const [key, entry] of store) {
+			if (entry.expiresAt <= now) store.delete(key);
 		}
-		while (pendingInputs.size >= MAX_PENDING_INPUTS) {
-			const oldest = pendingInputs.keys().next().value;
+		while (store.size >= MAX_PENDING_INPUTS) {
+			const oldest = store.keys().next().value;
 			if (oldest === undefined) break;
-			pendingInputs.delete(oldest);
+			store.delete(oldest);
 		}
+	}
+
+	function pendingListKey(command: string, rawCanonical: string, principal: string): string {
+		return stateKey(JSON.stringify([command, rawCanonical, principal]));
+	}
+
+	function rememberInStore(
+		store: Map<string, PendingInput>,
+		key: string,
+		command: string,
+		rawCanonical: string | undefined,
+		principal: string,
+		canonical: string
+	): void {
+		if (rawCanonical === undefined || canonical.length > MAX_PENDING_INPUT_CHARS) return;
+		const now = clock.now();
+		prunePendingMap(store, now);
+		store.set(key, {
+			command,
+			rawCanonical,
+			principal,
+			canonical,
+			expiresAt: now + PENDING_INPUT_TTL_MS,
+		});
 	}
 
 	function rememberPending(
@@ -343,30 +482,38 @@ export function createHumanRelayGate(options: HumanRelayGateOptions): HumanRelay
 		principal: string,
 		canonical: string
 	): void {
-		if (rawCanonical === undefined || canonical.length > MAX_PENDING_INPUT_CHARS) return;
-		const now = clock.now();
-		prunePending(now);
-		pendingInputs.set(stateKey(state), {
+		rememberInStore(pendingInputs, stateKey(state), command, rawCanonical, principal, canonical);
+	}
+
+	function rememberPendingList(
+		command: string,
+		rawCanonical: string | undefined,
+		principal: string,
+		canonical: string
+	): void {
+		if (rawCanonical === undefined) return;
+		rememberInStore(
+			pendingListInputs,
+			pendingListKey(command, rawCanonical, principal),
 			command,
 			rawCanonical,
 			principal,
-			canonical,
-			expiresAt: now + PENDING_INPUT_TTL_MS,
-		});
+			canonical
+		);
 	}
 
-	function readPending(
-		state: string,
+	function readFromStore(
+		store: Map<string, PendingInput>,
+		key: string,
 		command: ZodCommandDefinition,
 		rawCanonical: string | undefined,
 		principal: string
 	): EnhancedValidationResult<unknown> | undefined {
 		if (rawCanonical === undefined) return undefined;
-		const key = stateKey(state);
-		const entry = pendingInputs.get(key);
+		const entry = store.get(key);
 		if (!entry) return undefined;
 		if (entry.expiresAt <= clock.now()) {
-			pendingInputs.delete(key);
+			store.delete(key);
 			return undefined;
 		}
 		if (
@@ -388,6 +535,30 @@ export function createHumanRelayGate(options: HumanRelayGateOptions): HumanRelay
 		return undefined;
 	}
 
+	function readPending(
+		state: string,
+		command: ZodCommandDefinition,
+		rawCanonical: string | undefined,
+		principal: string
+	): EnhancedValidationResult<unknown> | undefined {
+		return readFromStore(pendingInputs, stateKey(state), command, rawCanonical, principal);
+	}
+
+	function readPendingList(
+		command: ZodCommandDefinition,
+		rawCanonical: string | undefined,
+		principal: string
+	): EnhancedValidationResult<unknown> | undefined {
+		if (rawCanonical === undefined) return undefined;
+		return readFromStore(
+			pendingListInputs,
+			pendingListKey(command.name, rawCanonical, principal),
+			command,
+			rawCanonical,
+			principal
+		);
+	}
+
 	function forgetPendingIfMatching(
 		state: string | undefined,
 		command: string,
@@ -405,6 +576,15 @@ export function createHumanRelayGate(options: HumanRelayGateOptions): HumanRelay
 		) {
 			pendingInputs.delete(key);
 		}
+	}
+
+	function forgetPendingList(
+		command: string,
+		rawCanonical: string | undefined,
+		principal: string
+	): void {
+		if (rawCanonical === undefined) return;
+		pendingListInputs.delete(pendingListKey(command, rawCanonical, principal));
 	}
 
 	function present(
@@ -494,13 +674,21 @@ export function createHumanRelayGate(options: HumanRelayGateOptions): HumanRelay
 
 			// Step 2: validate first, as the execution engine will, so the person decides on
 			// exactly what will run. On an `accept` retry for the same raw input, command and
-			// principal, reuse the initial validated input if it still validates to the same
-			// canonical JSON (so dynamic Zod defaults stay bound across `begin` -> `resume`).
+			// principal — or a pending-list retry (which carries no `requestState`) — reuse the
+			// initial validated input if it still validates to the same canonical JSON (so dynamic
+			// Zod defaults stay bound across `begin` -> `resume` and across pending-list retries).
+			const isStopAnswer =
+				channel.requestState !== undefined &&
+				(channel.relayAction === 'decline' || channel.relayAction === 'cancel');
 			const rawCanonical = canonicalOrUndefined(input);
 			const pendingValidation =
 				channel.relayAction === 'accept' && channel.requestState
 					? readPending(channel.requestState, command, rawCanonical, boundPrincipal)
-					: undefined;
+					: !isStopAnswer &&
+							!allowsUrlElicitation(channel.clientCapabilities) &&
+							relay.pendingList !== undefined
+						? readPendingList(command, rawCanonical, boundPrincipal)
+						: undefined;
 			let validation: EnhancedValidationResult<unknown> | undefined = pendingValidation;
 			if (!validation) {
 				try {
@@ -613,73 +801,125 @@ export function createHumanRelayGate(options: HumanRelayGateOptions): HumanRelay
 				supportsUrlElicitation: () => allowsUrlElicitation(capabilities),
 			};
 
-			// Step 4: retry carrying inputResponses.relay and requestState.
-			if (channel.relayAction && channel.requestState) {
-				if (channel.relayAction === 'decline' || channel.relayAction === 'cancel') {
-					forgetPendingIfMatching(channel.requestState, name, rawCanonical, boundPrincipal);
-					return { kind: 'error', error: declinedError([name]) };
+			const approved = async (decisionId: unknown): Promise<HumanRelayOutcome> => {
+				if (!isDecisionId(decisionId)) {
+					throw relayInternalError();
 				}
-				if (channel.relayAction === 'accept') {
-					const outcome = await relay.resume(channel.requestState, call);
-					if (!isRecord(outcome) || typeof outcome.kind !== 'string') {
+				if (relay.approvedContext !== undefined && typeof relay.approvedContext !== 'function') {
+					throw relayInternalError();
+				}
+				const extra = relay.approvedContext
+					? filterApprovedExtra(await relay.approvedContext(decisionId, call))
+					: {};
+				const evidence: RelayEvidence = {
+					command: name,
+					inputDigest: digest,
+					actor: actorJson(actor),
+					credentialsBinding: credsBinding,
+					decisionId,
+				};
+				// Build execution context: strip form-mode approval relay, merge host-owned
+				// approvedContext fields, attach private relay evidence, validated input,
+				// and one-shot host-verified dispatch admission (off-object WeakMap).
+				const execContext: CommandContext = {
+					...withoutApprovalRelay(callContext),
+					...extra,
+				};
+				attachRelayEvidence(execContext, evidence);
+				attachRelayValidatedInput(execContext, name, validation.data);
+				attachRelayDispatchAdmission(execContext, {
+					command: name,
+					canonical: validatedCanonical,
+					canonicalize: canonicalOrUndefined,
+				});
+				return { kind: 'proceed', context: execContext };
+			};
+
+			// Ending the elicitation is an answer only to stop: nothing is asked of the relay,
+			// whatever the client declared.
+			if (isStopAnswer) {
+				forgetPendingIfMatching(channel.requestState, name, rawCanonical, boundPrincipal);
+				forgetPendingList(name, rawCanonical, boundPrincipal);
+				return { kind: 'error', error: declinedError([name]) };
+			}
+
+			// A client that cannot open a URL elicitation is never sent one: the relay's pending
+			// list, if it keeps one, is its only way (`spec/command-metadata.md`, "The pending list").
+			if (!call.supportsUrlElicitation() && relay.pendingList !== undefined) {
+				if (typeof relay.pendingList !== 'function') {
+					throw relayInternalError();
+				}
+				const found: unknown = await relay.pendingList(call);
+				if (found === undefined) {
+					forgetPendingList(name, rawCanonical, boundPrincipal);
+				} else {
+					if (!isRecord(found) || typeof found.kind !== 'string') {
 						throw relayInternalError();
 					}
-					switch (outcome.kind) {
+					switch (found.kind) {
 						case 'approved': {
-							if (typeof outcome.decisionId !== 'string' || outcome.decisionId.length === 0) {
-								throw relayInternalError();
-							}
+							const outcome = await approved(found.decisionId);
 							forgetPendingIfMatching(channel.requestState, name, rawCanonical, boundPrincipal);
-							const extra = relay.approvedContext
-								? filterApprovedExtra(await relay.approvedContext(outcome.decisionId, call))
-								: {};
-							const evidence: RelayEvidence = {
-								command: name,
-								inputDigest: digest,
-								actor: actorJson(actor),
-								credentialsBinding: credsBinding,
-								decisionId: outcome.decisionId,
-							};
-							// Build execution context: strip form-mode approval relay, merge host-owned
-							// approvedContext fields, attach private relay evidence, validated input,
-							// and one-shot host-verified dispatch admission (off-object WeakMap).
-							const execContext: CommandContext = {
-								...withoutApprovalRelay(callContext),
-								...extra,
-							};
-							attachRelayEvidence(execContext, evidence);
-							attachRelayValidatedInput(execContext, name, validation.data);
-							attachRelayDispatchAdmission(execContext, {
-								command: name,
-								canonical: validatedCanonical,
-								canonicalize: canonicalOrUndefined,
-							});
-							return { kind: 'proceed', context: execContext };
+							forgetPendingList(name, rawCanonical, boundPrincipal);
+							return outcome;
 						}
 						case 'declined':
 							forgetPendingIfMatching(channel.requestState, name, rawCanonical, boundPrincipal);
+							forgetPendingList(name, rawCanonical, boundPrincipal);
 							return { kind: 'error', error: declinedError([name]) };
-						case 'pending':
-							if (outcome.prompt?.state !== channel.requestState) {
-								forgetPendingIfMatching(channel.requestState, name, rawCanonical, boundPrincipal);
+						case 'pending': {
+							const outcome = pendingRefusal(name, found);
+							rememberPendingList(name, rawCanonical, boundPrincipal, validatedCanonical);
+							return outcome;
+						}
+						case 'error':
+							if (
+								!isRecord(found.error) ||
+								typeof found.error.code !== 'string' ||
+								typeof found.error.message !== 'string'
+							) {
+								throw relayInternalError();
 							}
-							return present(
-								name,
-								capabilities,
-								outcome.prompt,
-								rawCanonical,
-								boundPrincipal,
-								validatedCanonical
-							);
-						case 'invalid':
-							if (pendingValidation) {
-								forgetPendingIfMatching(channel.requestState, name, rawCanonical, boundPrincipal);
-							}
-							// State is not an answer: begin again (step 3).
-							break;
+							return { kind: 'error', error: found.error as unknown as CommandError };
 						default:
 							throw relayInternalError();
 					}
+				}
+			}
+
+			// Step 4: retry carrying inputResponses.relay (accept) and requestState.
+			if (channel.relayAction === 'accept' && channel.requestState) {
+				const outcome = await relay.resume(channel.requestState, call);
+				if (!isRecord(outcome) || typeof outcome.kind !== 'string') {
+					throw relayInternalError();
+				}
+				switch (outcome.kind) {
+					case 'approved':
+						forgetPendingIfMatching(channel.requestState, name, rawCanonical, boundPrincipal);
+						return approved(outcome.decisionId);
+					case 'declined':
+						forgetPendingIfMatching(channel.requestState, name, rawCanonical, boundPrincipal);
+						return { kind: 'error', error: declinedError([name]) };
+					case 'pending':
+						if (outcome.prompt?.state !== channel.requestState) {
+							forgetPendingIfMatching(channel.requestState, name, rawCanonical, boundPrincipal);
+						}
+						return present(
+							name,
+							capabilities,
+							outcome.prompt,
+							rawCanonical,
+							boundPrincipal,
+							validatedCanonical
+						);
+					case 'invalid':
+						if (pendingValidation) {
+							forgetPendingIfMatching(channel.requestState, name, rawCanonical, boundPrincipal);
+						}
+						// State is not an answer: begin again (step 3).
+						break;
+					default:
+						throw relayInternalError();
 				}
 			}
 

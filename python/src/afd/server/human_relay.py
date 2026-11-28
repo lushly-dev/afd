@@ -66,7 +66,24 @@ _MAX_PENDING_INPUTS = 4096
 _MAX_PENDING_INPUT_CHARS = 32_768
 _PENDING_INPUT_TTL_MS = 24 * 60 * 60_000
 
-_HOST_LABEL_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
+_HOST_LABEL_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\Z")
+_PORT_RE = re.compile(r"^[0-9]{1,5}\Z")
+_DECISION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}\Z")
+_IPV6_ALLOWED = frozenset("0123456789abcdefABCDEF:.")
+
+
+def is_decision_id(value: Any) -> bool:
+    """Whether ``value`` is a valid relay decision id: 1 to 128 ASCII letters, digits, ``_`` and
+    ``-`` (``spec/command-metadata.md``, "Host-verified confirmation")."""
+    return isinstance(value, str) and _DECISION_ID_RE.match(value) is not None
+
+
+def _is_valid_port(port: str) -> bool:
+    if _PORT_RE.match(port) is None:
+        return False
+    num = int(port)
+    return 1 <= num <= 65_535
+
 
 _RESERVED_APPROVED_KEYS = _RESERVED_NAMES | frozenset(
     {
@@ -139,8 +156,9 @@ def allows_url_elicitation(capabilities: Any) -> bool:
 
 
 def is_relay_url(url: Any) -> bool:
-    """Whether ``url`` is an absolute ``https`` URL with a valid host, no user information, and no
-    whitespace, control character, or unpaired surrogate."""
+    """Whether ``url`` is an absolute ``https`` URL with a valid host (DNS labels of ASCII
+    letters, digits and ``-``, or a bracketed IPv6 address), an optional port from 1 to 65535, no
+    user information, and no whitespace, control character, or unpaired surrogate."""
     if not isinstance(url, str) or len(url) <= 8:
         return False
     if not url[:8].lower().startswith("https://"):
@@ -153,6 +171,8 @@ def is_relay_url(url: Any) -> bool:
         code = ord(ch)
         if code <= 0x20 or (0x7F <= code <= 0x9F) or ch.isspace():
             return False
+    if "\\" in url:
+        return False
     rest = url[8:]
     cut = len(rest)
     for sep in ("/", "?", "#"):
@@ -160,54 +180,47 @@ def is_relay_url(url: Any) -> bool:
         if idx != -1 and idx < cut:
             cut = idx
     authority = rest[:cut]
-    if not authority or "@" in authority or "\\" in authority:
+    if not authority or "@" in authority:
         return False
-    try:
-        parsed = urlsplit(url)
-        # Access .port to reject out-of-range or non-numeric ports.
-        _ = parsed.port
-    except ValueError:
-        return False
-    if (
-        parsed.scheme.lower() != "https"
-        or not parsed.hostname
-        or parsed.username is not None
-        or parsed.password is not None
-    ):
-        return False
-    hostname = parsed.hostname
     if authority.startswith("["):
-        # IPv6 literal: must be a valid IPv6 address inside brackets.
         bracket_end = authority.find("]")
         if bracket_end == -1:
             return False
+        addr = authority[1:bracket_end]
         after = authority[bracket_end + 1 :]
-        if after and not (after.startswith(":") and after[1:].isdigit()):
+        if after and not (after.startswith(":") and _is_valid_port(after[1:])):
+            return False
+        if not addr or ":" not in addr or not all(ch in _IPV6_ALLOWED for ch in addr):
             return False
         try:
-            ipaddress.IPv6Address(hostname)
+            ipaddress.IPv6Address(addr)
         except ValueError:
             return False
-        return True
-    if "[" in authority or "]" in authority or "%" in hostname:
-        return False
-    # Check IPv4 first, else validate DNS/IDNA labels strictly.
+    else:
+        if "[" in authority or "]" in authority:
+            return False
+        if ":" in authority:
+            host, port = authority.split(":", 1)
+            if not _is_valid_port(port):
+                return False
+        else:
+            host = authority
+        if not host or len(host) > 253:
+            return False
+        labels = host.split(".")
+        if not all(_HOST_LABEL_RE.match(label) is not None for label in labels):
+            return False
     try:
-        ipaddress.IPv4Address(hostname)
-        return True
+        parsed = urlsplit(url)
+        _ = parsed.port
     except ValueError:
-        pass
-    host_no_dot = hostname[:-1] if hostname.endswith(".") else hostname
-    if not host_no_dot:
         return False
-    try:
-        ascii_host = host_no_dot.encode("idna").decode("ascii")
-    except UnicodeError:
-        return False
-    if len(ascii_host) > 253:
-        return False
-    labels = ascii_host.split(".")
-    return all(_HOST_LABEL_RE.match(label) is not None for label in labels)
+    return (
+        parsed.scheme.lower() == "https"
+        and bool(parsed.hostname)
+        and parsed.username is None
+        and parsed.password is None
+    )
 
 
 def _capabilities_to_dict(capabilities: Any) -> dict[str, Any] | None:
@@ -265,11 +278,30 @@ class RelayInvalid:
     kind: Literal["invalid"] = "invalid"
 
 
+@dataclass(frozen=True)
+class RelayPendingDecision:
+    """A pending decision's address, for a client without URL-mode elicitation.
+
+    Attributes:
+        decision: The decision's id: 1 to 128 ASCII letters, digits, ``_`` and ``-``.
+        url: The decision's page: an absolute ``https`` URL with no identity.
+        list: The page listing the person's pending decisions, the same kind of URL.
+    """
+
+    decision: str
+    url: str
+    list: str
+    kind: Literal["pending"] = "pending"
+
+
 RelayBeginResult = RelayPrompt | CommandError
 """Result of :meth:`HumanRelay.begin`: a prompt to send, or a refusal error."""
 
 RelayOutcome = RelayApproved | RelayDeclined | RelayPending | RelayInvalid
 """What :meth:`HumanRelay.resume` found for the pending decision."""
+
+PendingListOutcome = RelayApproved | RelayDeclined | RelayPendingDecision | CommandError
+"""What ``HumanRelay.pending_list`` found for a call from a client without URL-mode elicitation."""
 
 
 @dataclass(frozen=True)
@@ -315,14 +347,23 @@ class HumanRelay(Protocol):
       command, ``input_digest`` and ``call.principal_binding()`` (M8). ``resume`` returns
       :class:`RelayInvalid` for a state that does not verify, has expired, or names another
       command, input or principal.
-    - :class:`RelayApproved` is returned at most once per decision, atomically, with a non-empty
-      ``decision_id``, and only for a decision the person made after ``begin``.
-    - Its ``url`` is an absolute ``https`` URL holding no identity and not pre-authenticated.
+    - :class:`RelayApproved` is returned at most once per decision, atomically, with a
+      ``decision_id`` of 1 to 128 ASCII letters, digits, ``_`` and ``-``, and only for a decision
+      the person made after ``begin``.
+    - Its ``url`` (and ``list`` in ``pending_list``) is an absolute ``https`` URL with a valid
+      ASCII DNS host or bracketed IPv6 address, optional port 1–65535, holding no identity and not
+      pre-authenticated.
 
-    A relay may also define an optional ``approved_context(decision_id, call)`` method (sync or
-    async) returning a mapping of host-owned context fields merged into ``context.extra`` before
-    middleware and the handler run (replacing any request-supplied field of the same name, never
-    reserved AFD keys).
+    A relay may also define two optional methods (sync or async):
+
+    - ``approved_context(decision_id, call)`` returning a mapping of host-owned context fields
+      merged into ``context.extra`` before middleware and the handler run (replacing any
+      request-supplied field of the same name, never reserved AFD keys).
+    - ``pending_list(call)`` returning :data:`PendingListOutcome` or ``None`` for a call from a
+      client without URL-mode elicitation (``spec/command-metadata.md``, "The pending list").
+      ``None`` (the default when omitted) keeps the default refusal; :class:`RelayPendingDecision`
+      fails with a retryable ``CONFIRMATION_REQUIRED`` naming the decision, its page and the list,
+      and :class:`RelayApproved` runs the command with relay evidence and ``approved_context``.
     """
 
     def begin(self, call: RelayCall) -> RelayBeginResult | Awaitable[RelayBeginResult]:
@@ -402,7 +443,7 @@ class HumanRelayChannel:
         return cls(
             modern=modern,
             client_capabilities=caps,
-            request_state=raw_state if raw_state else None,
+            request_state=raw_state,
             relay_action=relay_action,
         )
 
@@ -512,6 +553,37 @@ def host_verified_unrelayable(names: Sequence[str], has_relay: bool) -> CommandE
     return _required_error(names, suggestion)
 
 
+def _pending_refusal(name: str, pending: RelayPendingDecision) -> HumanRelayOutcome:
+    if (
+        not is_decision_id(pending.decision)
+        or not is_relay_url(pending.url)
+        or not is_relay_url(pending.list)
+    ):
+        raise _relay_internal_error()
+    suggestion = (
+        f"Ask the person to open their pending decisions at {pending.list} "
+        f"(or this one at {pending.url}), check that it is decision {pending.decision} "
+        f"for '{name}', and decide there; then send this same call again."
+    )
+    return HumanRelayOutcome(
+        "error",
+        error=CommandError(
+            code=ErrorCodes.CONFIRMATION_REQUIRED,
+            message=f"'{name}' needs a person's confirmation through the host",
+            suggestion=suggestion,
+            retryable=True,
+            details={
+                "commands": [name],
+                "reason": "pending-list",
+                "decision": pending.decision,
+                "url": pending.url,
+                "list": pending.list,
+            },
+            recovery=Recovery(kind="external"),
+        ),
+    )
+
+
 def _relay_internal_error() -> Exception:
     try:
         from mcp import MCPError
@@ -605,24 +677,54 @@ class HumanRelayGate:
         self._clock = clock or system_clock
         self._max_validation_issues = max_validation_issues
         self._has_auth_layer = has_auth_layer
-        # Keeps the initial validated input across begin -> resume when a Pydantic model computes
-        # a dynamic default (e.g. default_factory), without altering the relay's state on the wire.
-        # Raw inputs are stored only as a fixed-size SHA-256 digest; restored models keep their
-        # original model_fields_set and are re-validated through the schema (#1414 semantics).
+        # Keeps the initial validated input across begin -> resume (and across pending-list
+        # retries, which carry no requestState) when a Pydantic model computes a dynamic default
+        # (e.g. default_factory), without altering the relay's state on the wire. Raw inputs are
+        # stored only as a fixed-size SHA-256 digest; restored models keep their original
+        # model_fields_set and are re-validated through the schema (#1414 semantics).
         self._pending_inputs: dict[str, _PendingInput] = {}
+        self._pending_list_inputs: dict[str, _PendingInput] = {}
 
     def _command_for(self, name: str) -> CommandDefinition | None:
         if self._lookup_command is not None:
             return self._lookup_command(name)
         return self._commands_by_name.get(name)
 
-    def _prune_pending(self, now: float) -> None:
-        expired = [key for key, entry in self._pending_inputs.items() if entry.expires_at <= now]
+    @staticmethod
+    def _pending_list_key(command: str, raw_digest: str, principal: str) -> str:
+        return _sha256_b64url(json.dumps([command, raw_digest, principal], separators=(",", ":")))
+
+    @staticmethod
+    def _prune_pending_map(store: dict[str, _PendingInput], now: float) -> None:
+        expired = [key for key, entry in store.items() if entry.expires_at <= now]
         for key in expired:
-            del self._pending_inputs[key]
-        while len(self._pending_inputs) >= _MAX_PENDING_INPUTS:
-            oldest = next(iter(self._pending_inputs))
-            del self._pending_inputs[oldest]
+            del store[key]
+        while len(store) >= _MAX_PENDING_INPUTS:
+            oldest = next(iter(store))
+            del store[oldest]
+
+    def _remember_in_store(
+        self,
+        store: dict[str, _PendingInput],
+        key: str,
+        command: str,
+        raw_digest: str | None,
+        principal: str,
+        canonical: str,
+        fields_set: Any,
+    ) -> None:
+        if raw_digest is None or len(canonical) > _MAX_PENDING_INPUT_CHARS:
+            return
+        now = self._clock.now()
+        self._prune_pending_map(store, now)
+        store[key] = _PendingInput(
+            command=command,
+            raw_digest=raw_digest,
+            principal=principal,
+            canonical=canonical,
+            fields_set=fields_set,
+            expires_at=now + _PENDING_INPUT_TTL_MS,
+        )
 
     def _remember_pending(
         self,
@@ -633,22 +735,40 @@ class HumanRelayGate:
         canonical: str,
         fields_set: Any,
     ) -> None:
-        if raw_digest is None or len(canonical) > _MAX_PENDING_INPUT_CHARS:
-            return
-        now = self._clock.now()
-        self._prune_pending(now)
-        self._pending_inputs[_sha256_b64url(state)] = _PendingInput(
-            command=command,
-            raw_digest=raw_digest,
-            principal=principal,
-            canonical=canonical,
-            fields_set=fields_set,
-            expires_at=now + _PENDING_INPUT_TTL_MS,
+        self._remember_in_store(
+            self._pending_inputs,
+            _sha256_b64url(state),
+            command,
+            raw_digest,
+            principal,
+            canonical,
+            fields_set,
         )
 
-    def _read_pending(
+    def _remember_pending_list(
         self,
-        state: str,
+        command: str,
+        raw_digest: str | None,
+        principal: str,
+        canonical: str,
+        fields_set: Any,
+    ) -> None:
+        if raw_digest is None:
+            return
+        self._remember_in_store(
+            self._pending_list_inputs,
+            self._pending_list_key(command, raw_digest, principal),
+            command,
+            raw_digest,
+            principal,
+            canonical,
+            fields_set,
+        )
+
+    def _read_from_store(
+        self,
+        store: dict[str, _PendingInput],
+        key: str,
         command: CommandDefinition,
         input_schema: Any,
         raw_digest: str | None,
@@ -656,12 +776,11 @@ class HumanRelayGate:
     ) -> tuple[Any] | None:
         if raw_digest is None:
             return None
-        key = _sha256_b64url(state)
-        entry = self._pending_inputs.get(key)
+        entry = store.get(key)
         if entry is None:
             return None
         if entry.expires_at <= self._clock.now():
-            del self._pending_inputs[key]
+            del store[key]
             return None
         if (
             entry.command != command.name
@@ -682,6 +801,41 @@ class HumanRelayGate:
             pass
         return None
 
+    def _read_pending(
+        self,
+        state: str,
+        command: CommandDefinition,
+        input_schema: Any,
+        raw_digest: str | None,
+        principal: str,
+    ) -> tuple[Any] | None:
+        return self._read_from_store(
+            self._pending_inputs,
+            _sha256_b64url(state),
+            command,
+            input_schema,
+            raw_digest,
+            principal,
+        )
+
+    def _read_pending_list(
+        self,
+        command: CommandDefinition,
+        input_schema: Any,
+        raw_digest: str | None,
+        principal: str,
+    ) -> tuple[Any] | None:
+        if raw_digest is None:
+            return None
+        return self._read_from_store(
+            self._pending_list_inputs,
+            self._pending_list_key(command.name, raw_digest, principal),
+            command,
+            input_schema,
+            raw_digest,
+            principal,
+        )
+
     def _forget_pending_if_matching(
         self,
         state: str | None,
@@ -700,6 +854,16 @@ class HumanRelayGate:
             and entry.principal == principal
         ):
             del self._pending_inputs[key]
+
+    def _forget_pending_list(
+        self,
+        command: str,
+        raw_digest: str | None,
+        principal: str,
+    ) -> None:
+        if raw_digest is None:
+            return
+        self._pending_list_inputs.pop(self._pending_list_key(command, raw_digest, principal), None)
 
     def _present(
         self,
@@ -805,20 +969,32 @@ class HumanRelayGate:
             raise _relay_internal_error() from None
 
         # Step 2: validate first, as the execution engine will, so the person decides on exactly
-        # what will run. On an accept retry for the same raw input, command and principal, reuse
-        # the initial validated input if it still validates to the same canonical JSON.
+        # what will run. On an accept retry for the same raw input, command and principal — or a
+        # pending-list retry (which carries no requestState) — reuse the initial validated input
+        # if it still validates to the same canonical JSON.
+        is_stop_answer = channel.request_state is not None and channel.relay_action in (
+            "decline",
+            "cancel",
+        )
         metadata = get_command_metadata(command.handler)
         input_schema = metadata.input_schema if metadata is not None else command.input_schema
         normalized_raw = {} if (input_schema is not None and raw_input is None) else raw_input
         raw_canonical = _canonical_or_none(normalized_raw)
         raw_digest = _sha256_b64url(raw_canonical) if raw_canonical is not None else None
-        pending_validated = (
-            self._read_pending(
+        if channel.relay_action == "accept" and channel.request_state:
+            pending_validated = self._read_pending(
                 channel.request_state, command, input_schema, raw_digest, bound_principal
             )
-            if channel.relay_action == "accept" and channel.request_state
-            else None
-        )
+        elif (
+            not is_stop_answer
+            and not allows_url_elicitation(channel.client_capabilities)
+            and getattr(self._relay, "pending_list", None) is not None
+        ):
+            pending_validated = self._read_pending_list(
+                command, input_schema, raw_digest, bound_principal
+            )
+        else:
+            pending_validated = None
         if pending_validated is not None:
             validated_data = pending_validated[0]
         else:
@@ -922,115 +1098,162 @@ class HumanRelayGate:
             _principal_binding=bound_principal,
         )
 
-        # Step 4: retry carrying inputResponses.relay and requestState.
-        if channel.relay_action is not None and channel.request_state is not None:
-            if channel.relay_action in ("decline", "cancel"):
+        async def _approve(decision_id: Any) -> HumanRelayOutcome:
+            if not is_decision_id(decision_id):
+                raise _relay_internal_error()
+            approved_extra: dict[str, Any] = {}
+            approved_ctx_fn = getattr(self._relay, "approved_context", None)
+            if approved_ctx_fn is not None:
+                if not callable(approved_ctx_fn):
+                    raise _relay_internal_error()
+                try:
+                    raw_extra = approved_ctx_fn(decision_id, call)
+                    resolved_extra = (
+                        await raw_extra if inspect.isawaitable(raw_extra) else raw_extra
+                    )
+                except Exception:
+                    logger.exception("HumanRelay.approved_context raised for '%s'", name)
+                    raise _relay_internal_error() from None
+                approved_extra = _filter_approved_extra(resolved_extra)
+            evidence = RelayEvidence(
+                command=name,
+                input_digest=digest,
+                actor=_actor_json(actor),
+                credentials_binding=creds_binding,
+                decision_id=decision_id,
+                use_sdk_credentials=use_sdk_creds,
+            )
+            # Carry the already-validated context fields from relay_context (so dynamic
+            # defaults on context models never drift between relay and handler), then
+            # overlay approved_context and validate only declared fields it replaced.
+            exec_context = CommandContext(
+                trace_id=call_context.trace_id,
+                timeout=call_context.timeout,
+                extra={**relay_context.extra, **approved_extra},
+                actor=copy.copy(actor),
+                clock=call_context.clock,
+                random=call_context.random,
+                approval=call_context.approval,
+                report_progress=call_context.report_progress,
+                cancel=call_context.cancel,
+                signal=call_context.signal,
+                credentials=call_context.credentials,
+                output_budget=call_context.output_budget,
+                _output_budget_ask=call_context._output_budget_ask,
+                _scope_view=call_context._scope_view,
+            )
+            if self._context_fields:
+                replaced = [f for f in self._context_fields if f.name in approved_extra]
+                if replaced:
+                    invalid_replaced = apply_context_fields(
+                        replaced, exec_context, name, dev_mode=self._dev_mode
+                    )
+                    if invalid_replaced is not None:
+                        return HumanRelayOutcome("error", error=invalid_replaced.error)
+                journaled = getattr(relay_context, JOURNALED_CONTEXT_FIELDS, None)
+                if journaled is not None:
+                    setattr(exec_context, JOURNALED_CONTEXT_FIELDS, journaled)
+                attach_relay_context_validated(exec_context)
+            attach_relay_evidence(exec_context, evidence)
+            attach_relay_validated_input(exec_context, name, validated_data)
+            attach_relay_dispatch_admission(
+                exec_context, name, validated_canonical, _canonical_or_none
+            )
+            return HumanRelayOutcome("proceed", context=exec_context)
+
+        # Ending the elicitation is an answer only to stop: nothing is asked of the relay,
+        # whatever the client declared.
+        if is_stop_answer:
+            self._forget_pending_if_matching(
+                channel.request_state, name, raw_digest, bound_principal
+            )
+            self._forget_pending_list(name, raw_digest, bound_principal)
+            return HumanRelayOutcome("error", error=_declined_error([name]))
+
+        # A client that cannot open a URL elicitation is never sent one: the relay's pending
+        # list, if it keeps one, is its only way (spec/command-metadata.md, "The pending list").
+        if not call.supports_url_elicitation():
+            pending_list_fn = getattr(self._relay, "pending_list", None)
+            if pending_list_fn is not None:
+                if not callable(pending_list_fn):
+                    raise _relay_internal_error()
+                try:
+                    raw_found = pending_list_fn(call)
+                    found = await raw_found if inspect.isawaitable(raw_found) else raw_found
+                except Exception:
+                    logger.exception("HumanRelay.pending_list raised for '%s'", name)
+                    raise _relay_internal_error() from None
+                if found is None:
+                    self._forget_pending_list(name, raw_digest, bound_principal)
+                else:
+                    if isinstance(found, RelayApproved):
+                        approved_outcome = await _approve(found.decision_id)
+                        self._forget_pending_if_matching(
+                            channel.request_state, name, raw_digest, bound_principal
+                        )
+                        self._forget_pending_list(name, raw_digest, bound_principal)
+                        return approved_outcome
+                    if isinstance(found, RelayDeclined):
+                        self._forget_pending_if_matching(
+                            channel.request_state, name, raw_digest, bound_principal
+                        )
+                        self._forget_pending_list(name, raw_digest, bound_principal)
+                        return HumanRelayOutcome("error", error=_declined_error([name]))
+                    if isinstance(found, RelayPendingDecision):
+                        pending_outcome = _pending_refusal(name, found)
+                        self._remember_pending_list(
+                            name, raw_digest, bound_principal, validated_canonical, fields_set
+                        )
+                        return pending_outcome
+                    if isinstance(found, CommandError):
+                        if not isinstance(found.code, str) or not isinstance(found.message, str):
+                            raise _relay_internal_error()
+                        return HumanRelayOutcome("error", error=found)
+                    raise _relay_internal_error()
+
+        # Step 4: retry carrying inputResponses.relay (accept) and requestState.
+        if channel.relay_action == "accept" and channel.request_state:
+            try:
+                raw_outcome = self._relay.resume(channel.request_state, call)
+                outcome = await raw_outcome if inspect.isawaitable(raw_outcome) else raw_outcome
+            except Exception:
+                logger.exception("HumanRelay.resume raised for '%s'", name)
+                raise _relay_internal_error() from None
+            if isinstance(outcome, RelayApproved):
+                self._forget_pending_if_matching(
+                    channel.request_state, name, raw_digest, bound_principal
+                )
+                return await _approve(outcome.decision_id)
+            if isinstance(outcome, RelayDeclined):
                 self._forget_pending_if_matching(
                     channel.request_state, name, raw_digest, bound_principal
                 )
                 return HumanRelayOutcome("error", error=_declined_error([name]))
-            if channel.relay_action == "accept":
-                try:
-                    raw_outcome = self._relay.resume(channel.request_state, call)
-                    outcome = await raw_outcome if inspect.isawaitable(raw_outcome) else raw_outcome
-                except Exception:
-                    logger.exception("HumanRelay.resume raised for '%s'", name)
-                    raise _relay_internal_error() from None
-                if isinstance(outcome, RelayApproved):
-                    if not isinstance(outcome.decision_id, str) or len(outcome.decision_id) == 0:
-                        raise _relay_internal_error()
+            if isinstance(outcome, RelayPending):
+                if (
+                    isinstance(outcome.prompt, RelayPrompt)
+                    and outcome.prompt.state != channel.request_state
+                ):
                     self._forget_pending_if_matching(
                         channel.request_state, name, raw_digest, bound_principal
                     )
-                    approved_extra: dict[str, Any] = {}
-                    approved_ctx_fn = getattr(self._relay, "approved_context", None)
-                    if approved_ctx_fn is not None:
-                        if not callable(approved_ctx_fn):
-                            raise _relay_internal_error()
-                        try:
-                            raw_extra = approved_ctx_fn(outcome.decision_id, call)
-                            resolved_extra = (
-                                await raw_extra if inspect.isawaitable(raw_extra) else raw_extra
-                            )
-                        except Exception:
-                            logger.exception("HumanRelay.approved_context raised for '%s'", name)
-                            raise _relay_internal_error() from None
-                        approved_extra = _filter_approved_extra(resolved_extra)
-                    evidence = RelayEvidence(
-                        command=name,
-                        input_digest=digest,
-                        actor=_actor_json(actor),
-                        credentials_binding=creds_binding,
-                        decision_id=outcome.decision_id,
-                        use_sdk_credentials=use_sdk_creds,
-                    )
-                    # Carry the already-validated context fields from relay_context (so dynamic
-                    # defaults on context models never drift between relay and handler), then
-                    # overlay approved_context and validate only declared fields it replaced.
-                    exec_context = CommandContext(
-                        trace_id=call_context.trace_id,
-                        timeout=call_context.timeout,
-                        extra={**relay_context.extra, **approved_extra},
-                        actor=copy.copy(actor),
-                        clock=call_context.clock,
-                        random=call_context.random,
-                        approval=call_context.approval,
-                        report_progress=call_context.report_progress,
-                        cancel=call_context.cancel,
-                        signal=call_context.signal,
-                        credentials=call_context.credentials,
-                        output_budget=call_context.output_budget,
-                        _output_budget_ask=call_context._output_budget_ask,
-                        _scope_view=call_context._scope_view,
-                    )
-                    if self._context_fields:
-                        replaced = [f for f in self._context_fields if f.name in approved_extra]
-                        if replaced:
-                            invalid_replaced = apply_context_fields(
-                                replaced, exec_context, name, dev_mode=self._dev_mode
-                            )
-                            if invalid_replaced is not None:
-                                return HumanRelayOutcome("error", error=invalid_replaced.error)
-                        journaled = getattr(relay_context, JOURNALED_CONTEXT_FIELDS, None)
-                        if journaled is not None:
-                            setattr(exec_context, JOURNALED_CONTEXT_FIELDS, journaled)
-                        attach_relay_context_validated(exec_context)
-                    attach_relay_evidence(exec_context, evidence)
-                    attach_relay_validated_input(exec_context, name, validated_data)
-                    attach_relay_dispatch_admission(
-                        exec_context, name, validated_canonical, _canonical_or_none
-                    )
-                    return HumanRelayOutcome("proceed", context=exec_context)
-                if isinstance(outcome, RelayDeclined):
+                return self._present(
+                    name,
+                    capabilities,
+                    outcome.prompt,
+                    raw_digest,
+                    bound_principal,
+                    validated_canonical,
+                    fields_set,
+                )
+            if isinstance(outcome, RelayInvalid):
+                if pending_validated is not None:
                     self._forget_pending_if_matching(
                         channel.request_state, name, raw_digest, bound_principal
                     )
-                    return HumanRelayOutcome("error", error=_declined_error([name]))
-                if isinstance(outcome, RelayPending):
-                    if (
-                        isinstance(outcome.prompt, RelayPrompt)
-                        and outcome.prompt.state != channel.request_state
-                    ):
-                        self._forget_pending_if_matching(
-                            channel.request_state, name, raw_digest, bound_principal
-                        )
-                    return self._present(
-                        name,
-                        capabilities,
-                        outcome.prompt,
-                        raw_digest,
-                        bound_principal,
-                        validated_canonical,
-                        fields_set,
-                    )
-                if isinstance(outcome, RelayInvalid):
-                    if pending_validated is not None:
-                        self._forget_pending_if_matching(
-                            channel.request_state, name, raw_digest, bound_principal
-                        )
-                    # Fall through to Step 3 (begin again).
-                else:
-                    raise _relay_internal_error()
+                # Fall through to Step 3 (begin again).
+            else:
+                raise _relay_internal_error()
 
         # Step 3: begin.
         try:
@@ -1058,6 +1281,7 @@ class HumanRelayGate:
 
 __all__ = [
     "HumanRelay",
+    "PendingListOutcome",
     "RELAY_INPUT_KEY",
     "RelayApproved",
     "RelayBeginResult",
@@ -1066,8 +1290,10 @@ __all__ = [
     "RelayInvalid",
     "RelayOutcome",
     "RelayPending",
+    "RelayPendingDecision",
     "RelayPrompt",
     "allows_url_elicitation",
     "input_digest",
+    "is_decision_id",
     "is_relay_url",
 ]

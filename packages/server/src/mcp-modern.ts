@@ -713,8 +713,7 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 							{
 								modern: era === 'modern',
 								...(isRecord(rawCaps) && { clientCapabilities: rawCaps }),
-								...(typeof rawState === 'string' &&
-									rawState.length > 0 && { requestState: rawState }),
+								...(typeof rawState === 'string' && { requestState: rawState }),
 								...(relayView.kind === 'elicit' && { relayAction: relayView.action }),
 							}
 						);

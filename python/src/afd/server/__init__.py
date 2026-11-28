@@ -184,6 +184,7 @@ from afd.server.handoff_schemas import (
 from afd.server.human_relay import (
     RELAY_INPUT_KEY,
     HumanRelay,
+    PendingListOutcome,
     RelayApproved,
     RelayBeginResult,
     RelayCall,
@@ -191,9 +192,11 @@ from afd.server.human_relay import (
     RelayInvalid,
     RelayOutcome,
     RelayPending,
+    RelayPendingDecision,
     RelayPrompt,
     allows_url_elicitation,
     input_digest,
+    is_decision_id,
     is_relay_url,
 )
 from afd.server.instance_state import ServerInstances
@@ -353,6 +356,7 @@ __all__ = [
     # Host-verified confirmation (spec/command-metadata.md, "Host-verified confirmation")
     "CommandConfirmationMode",
     "HumanRelay",
+    "PendingListOutcome",
     "RELAY_INPUT_KEY",
     "RelayApproved",
     "RelayBeginResult",
@@ -361,9 +365,11 @@ __all__ = [
     "RelayInvalid",
     "RelayOutcome",
     "RelayPending",
+    "RelayPendingDecision",
     "RelayPrompt",
     "allows_url_elicitation",
     "input_digest",
+    "is_decision_id",
     "is_relay_url",
     # The principal binding (spec/authorization.md, M8)
     "IncompleteCredentials",

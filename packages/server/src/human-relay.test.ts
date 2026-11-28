@@ -32,7 +32,9 @@ import {
 	createHumanRelayGate,
 	type HumanRelay,
 	inputDigest,
+	isDecisionId,
 	isRelayUrl,
+	type PendingListOutcome,
 	type RelayBeginResult,
 	type RelayCall,
 	type RelayOutcome,
@@ -122,6 +124,7 @@ interface HarnessOptions {
 	toolStrategy?: ToolStrategy;
 	nonceStore?: ApprovalNonceStore;
 	clock?: ReturnType<typeof fixedClock>;
+	onApprovalAccepted?: Parameters<typeof createApprovalMiddleware>[0]['onApprovalAccepted'];
 	extraOptions?: Partial<McpHandlerOptions>;
 }
 
@@ -248,6 +251,7 @@ async function createHarness(options: HarnessOptions = {}) {
 		...(options.formRelay && { relay: 'mcp-elicitation' }),
 		...(options.nonceStore && { nonceStore: options.nonceStore }),
 		...(options.clock && { clock: options.clock }),
+		...(options.onApprovalAccepted && { onApprovalAccepted: options.onApprovalAccepted }),
 	});
 	const strategy = options.toolStrategy ?? 'grouped';
 	const handlerOptions: McpHandlerOptions = {
@@ -383,12 +387,43 @@ function sha256Base64urlSync(text: string): string {
 	return createHash('sha256').update(text, 'utf8').digest('base64url');
 }
 
+describe('isDecisionId', () => {
+	it('accepts 1 to 128 ASCII letters, digits, _ and - only', () => {
+		expect(isDecisionId('d-1')).toBe(true);
+		expect(isDecisionId('A_b-9')).toBe(true);
+		expect(isDecisionId('a'.repeat(128))).toBe(true);
+		for (const invalid of [
+			'',
+			'a b',
+			'd.1',
+			'd/1',
+			'https://x',
+			'<b>',
+			'é',
+			'd-1\n',
+			'a'.repeat(129),
+			null,
+			undefined,
+			123,
+		]) {
+			expect(isDecisionId(invalid), String(invalid)).toBe(false);
+		}
+	});
+});
+
 describe('isRelayUrl', () => {
-	it('accepts absolute https URLs without userinfo or control chars', () => {
+	it('accepts absolute https URLs with valid ASCII DNS or IPv6 host and port 1..65535', () => {
 		for (const valid of [
 			'https://umbel.example.com/person/abc',
 			'HTTPS://umbel.example.com',
 			'https://umbel.example.com:8443/p?d=1#x',
+			'https://127.0.0.1/mcp/d/',
+			'https://[::1]:8443/d/',
+			'https://[2001:db8::1]/d/x',
+			'https://localhost',
+			'https://xn--mnchen-3ya.example/confirm',
+			'https://a.example:1/',
+			'https://a.example:65535/',
 		]) {
 			expect(isRelayUrl(valid), valid).toBe(true);
 		}
@@ -400,10 +435,40 @@ describe('isRelayUrl', () => {
 			'https://:pass@umbel.example.com/',
 			'https://umbel.example.com/a b',
 			'https://umbel.example.com/\n',
+			'https://umbel.example.com/has\x7fctrl',
+			'https://umbel.example.com/\ud800surrogate',
 			'javascript:alert(1)',
 			'',
 			'https:/umbel.example.com',
 			'person.example.com/decide',
+			'https://umbel.example.com:99999/',
+			'https://umbel.example.com:65536/',
+			'https://umbel.example.com:0/',
+			'https://umbel.example.com:/',
+			'https://umbel.example.com:8a/',
+			'https://umbel.example.com:000080/',
+			'https://umbel..example.com/',
+			'https://umbel.example.com./',
+			'https://-umbel.example.com/',
+			'https://umbel-.example.com/',
+			'https://umbel_example.com/',
+			'https://%75mbel.example.com/',
+			'https://host.example\\evil/confirm',
+			'https://host.example/path\\back',
+			'https://host.example/d?q=\\1',
+			'https://host.example/d#\\frag',
+			'https://münchen.example/confirm',
+			'https://[]/',
+			'https://[::1/',
+			'https://[::1]x/',
+			'https://[::1]:0/',
+			'https://[::1]:/',
+			'https://[::1]:99999/',
+			'https://[zz::1]/',
+			'https://[::::]/',
+			'https://[::1%25lo]/',
+			`https://${'a'.repeat(64)}.example/`,
+			`https://${'a'.repeat(62)}.${'b'.repeat(62)}.${'c'.repeat(62)}.${'d'.repeat(62)}.example/`,
 		]) {
 			expect(isRelayUrl(invalid), invalid).toBe(false);
 		}
@@ -1802,5 +1867,381 @@ describe('HumanRelay with MCP authorization, scopes, hidden commands and M8', ()
 		expect(stdioPayload.success).toBe(false);
 		expect(stdioPayload.error?.code).toBe(ErrorCodes.CONFIRMATION_REQUIRED);
 		expect(stdioRelay.begins).toBe(0);
+	});
+});
+
+describe('HumanRelay.pendingList fallback (#2722)', () => {
+	const LIST_URL = 'https://person.example.com/d/';
+	const DECISION_URL = 'https://person.example.com/d/d-1';
+	const formCaps = () => ({ elicitation: { form: {} } });
+
+	class PendingListRelay extends FakeRelay {
+		pendingAsked = 0;
+		pendingQueue: Array<PendingListOutcome | undefined> = [];
+
+		enqueuePending(outcome: PendingListOutcome | undefined): void {
+			this.pendingQueue.push(outcome);
+		}
+
+		async pendingList(call: RelayCall): Promise<PendingListOutcome | undefined> {
+			this.pendingAsked += 1;
+			this.calls.push(call);
+			return this.pendingQueue.shift();
+		}
+	}
+
+	it('keeps today’s refusal when pendingList is omitted or returns undefined', async () => {
+		// Omitted pendingList
+		const withoutList = await createHarness();
+		const res1 = commandResult(
+			(await postMcp(withoutList.url, makeCall('memory-erase', { id: '42' }, formCaps()))).json
+		);
+		expect((res1.error as { code: string; retryable: boolean }).code).toBe(
+			ErrorCodes.CONFIRMATION_REQUIRED
+		);
+		expect((res1.error as { retryable: boolean }).retryable).toBe(false);
+		expect(withoutList.relay.begins).toBe(1);
+
+		// pendingList returns undefined
+		const relay = new PendingListRelay();
+		relay.enqueuePending(undefined);
+		const withUndefined = await createHarness({ relay });
+		const res2 = commandResult(
+			(await postMcp(withUndefined.url, makeCall('memory-erase', { id: '42' }, formCaps()))).json
+		);
+		expect((res2.error as { code: string; retryable: boolean }).code).toBe(
+			ErrorCodes.CONFIRMATION_REQUIRED
+		);
+		expect((res2.error as { retryable: boolean }).retryable).toBe(false);
+		expect(relay.pendingAsked).toBe(1);
+		expect(relay.begins).toBe(1);
+	});
+
+	it('names the pending decision and list to a client without URL elicitation, before begin', async () => {
+		const relay = new PendingListRelay();
+		relay.enqueuePending({
+			kind: 'pending',
+			decision: 'd-1',
+			url: DECISION_URL,
+			list: LIST_URL,
+		});
+		const { url, runs } = await createHarness({ relay });
+		const raw = (await postMcp(url, makeCall('memory-erase', { id: '42' }, formCaps()))).json;
+		expect((raw.result as { resultType?: string }).resultType).not.toBe('input_required');
+		const refused = commandResult(raw);
+		const err = refused.error as Record<string, unknown>;
+		expect(err.code).toBe(ErrorCodes.CONFIRMATION_REQUIRED);
+		expect(err.retryable).toBe(true);
+		expect(err.recovery).toEqual({ kind: 'external' });
+		expect(err.details).toEqual({
+			commands: ['memory-erase'],
+			reason: 'pending-list',
+			decision: 'd-1',
+			url: DECISION_URL,
+			list: LIST_URL,
+		});
+		const suggestion = err.suggestion as string;
+		expect(suggestion.indexOf(LIST_URL)).toBeLessThan(suggestion.indexOf(DECISION_URL));
+		expect(suggestion).toContain('d-1');
+		expect(suggestion).toContain('same call again');
+		expect(relay.pendingAsked).toBe(1);
+		expect(relay.begins).toBe(0);
+		expect(relay.resumes).toBe(0);
+		expect(relay.lastCall().supportsUrlElicitation()).toBe(false);
+		expect(relay.lastCall().inputDigest).toBe(inputDigest({ id: '42', mode: 'soft' }));
+		expect(runs.erase).toBe(0);
+	});
+
+	it('runs the same call once after approval with approvedContext, onApprovalAccepted and single-use relay evidence', async () => {
+		const relay = new PendingListRelay();
+		relay.extra = { 'host.example/person': 'alice' };
+		relay.enqueuePending({
+			kind: 'pending',
+			decision: 'd-1',
+			url: DECISION_URL,
+			list: LIST_URL,
+		});
+		relay.enqueuePending({ kind: 'approved', decisionId: 'd-1' });
+		relay.enqueuePending({ kind: 'approved', decisionId: 'd-1' });
+		const accepted: Array<{ via: string; command: string }> = [];
+		const { url, runs, seenEvidenceInHandler } = await createHarness({
+			relay,
+			replay: 'within-ttl',
+			onApprovalAccepted: (summary) => {
+				accepted.push({ via: summary.via, command: summary.command });
+			},
+		});
+
+		await postMcp(url, makeCall('memory-erase', { id: '42' }, formCaps()));
+		const ran = commandResult(
+			(await postMcp(url, makeCall('memory-erase', { id: '42' }, formCaps()))).json
+		);
+		expect(ran.success).toBe(true);
+		expect((ran.data as { person: string }).person).toBe('alice');
+		expect(relay.annotated).toEqual(['d-1']);
+		expect(runs.erase).toBe(1);
+		expect(seenEvidenceInHandler).toEqual([false]);
+		expect(accepted).toEqual([{ via: 'relay', command: 'memory-erase' }]);
+
+		// Reusing the same decisionId is refused as already-used even under within-ttl.
+		const spent = commandResult(
+			(await postMcp(url, makeCall('memory-erase', { id: '42' }, formCaps()))).json
+		);
+		expect(spent.success).toBe(false);
+		expect((spent.error as { code: string }).code).toBe(ErrorCodes.APPROVAL_REQUIRED);
+		expect((spent.error as { details: { reason: string } }).details.reason).toBe('already-used');
+		expect(runs.erase).toBe(1);
+		expect(accepted).toEqual([{ via: 'relay', command: 'memory-erase' }]);
+		expect(relay.begins).toBe(0);
+		expect(relay.resumes).toBe(0);
+	});
+
+	it('handles decline, CommandError refusal, stop answers (including empty requestState), and URL-mode bypass', async () => {
+		const relay = new PendingListRelay();
+		const { url, runs } = await createHarness({ relay });
+
+		// Declined
+		relay.enqueuePending({ kind: 'declined' });
+		const declined = commandResult(
+			(await postMcp(url, makeCall('memory-erase', { id: '42' }, formCaps()))).json
+		);
+		expect((declined.error as { code: string }).code).toBe(ErrorCodes.CONFIRMATION_DECLINED);
+		expect((declined.error as { retryable: boolean }).retryable).toBe(false);
+		expect((declined.error as { recovery: unknown }).recovery).toEqual({ kind: 'stop' });
+
+		// CommandError refusal
+		relay.enqueuePending({
+			kind: 'error',
+			error: { code: ErrorCodes.RATE_LIMITED, message: 'Too many decisions' },
+		});
+		const rateLimited = commandResult(
+			(await postMcp(url, makeCall('memory-erase', { id: '42' }, formCaps()))).json
+		);
+		expect((rateLimited.error as { code: string }).code).toBe(ErrorCodes.RATE_LIMITED);
+
+		// Stop answers (decline/cancel) end the call BEFORE pendingList is asked — even with an
+		// explicitly supplied empty requestState.
+		const askedBeforeStop = relay.pendingAsked;
+		for (const state of ['state-1', '']) {
+			for (const action of ['decline', 'cancel']) {
+				relay.enqueuePending({ kind: 'approved', decisionId: 'd-stop' });
+				const stopped = commandResult(
+					(
+						await postMcp(
+							url,
+							makeCall('memory-erase', { id: '42' }, formCaps(), retryExtra(action, state))
+						)
+					).json
+				);
+				expect((stopped.error as { code: string }).code, `${action}:${state}`).toBe(
+					ErrorCodes.CONFIRMATION_DECLINED
+				);
+				relay.pendingQueue.length = 0;
+			}
+		}
+		expect(relay.pendingAsked).toBe(askedBeforeStop);
+		expect(relay.begins).toBe(0);
+		expect(relay.resumes).toBe(0);
+
+		// A client WITH URL-mode elicitation never calls pendingList; an accept retry carrying an
+		// empty requestState skips resume and falls through to begin.
+		relay.enqueuePending({
+			kind: 'pending',
+			decision: 'd-url',
+			url: DECISION_URL,
+			list: LIST_URL,
+		});
+		expectUrlElicitation(
+			(
+				await postMcp(
+					url,
+					makeCall('memory-erase', { id: '42' }, urlCaps(), retryExtra('accept', ''))
+				)
+			).json
+		);
+		expect(relay.pendingAsked).toBe(askedBeforeStop);
+		expect(relay.resumes).toBe(0);
+		expect(relay.begins).toBe(1);
+		expect(runs.erase).toBe(0);
+	});
+
+	it('preserves dynamic Zod defaults across pending-list retries for a digest-binding relay', async () => {
+		const pendingByBinding = new Map<
+			string,
+			{ decision: string; approved: boolean; input: unknown }
+		>();
+		let nextDecision = 0;
+		const seenDigests: string[] = [];
+		const seenInputs: unknown[] = [];
+		const relay = Object.assign(new FakeRelay(), {
+			pendingList: async (call: RelayCall): Promise<PendingListOutcome> => {
+				seenDigests.push(call.inputDigest);
+				seenInputs.push(call.input);
+				const key = `${call.principalBinding()}|${call.command}|${call.inputDigest}`;
+				const existing = pendingByBinding.get(key);
+				if (existing?.approved) {
+					pendingByBinding.delete(key);
+					return { kind: 'approved', decisionId: existing.decision };
+				}
+				const decision = existing?.decision ?? `dyn-${++nextDecision}`;
+				if (!existing) {
+					pendingByBinding.set(key, { decision, approved: false, input: call.input });
+				}
+				return {
+					kind: 'pending',
+					decision,
+					url: `https://person.example.com/d/${decision}`,
+					list: LIST_URL,
+				};
+			},
+		});
+		const { url, runs } = await createHarness({ relay });
+
+		// 1. First call creates pending decision dyn-1 for the generated nonce.
+		const first = commandResult(
+			(await postMcp(url, makeCall('memory-dynamic', { id: '42' }, formCaps()))).json
+		);
+		expect((first.error as { details: { decision: string } }).details.decision).toBe('dyn-1');
+		expect(seenInputs[0]).toMatchObject({ id: '42', nonce: expect.stringMatching(/^gen-\d+$/) });
+		expect(runs.dynamic).toBe(0);
+
+		// 2. Retry while still pending reuses the same validated input and hits dyn-1.
+		const stillPending = commandResult(
+			(await postMcp(url, makeCall('memory-dynamic', { id: '42' }, formCaps()))).json
+		);
+		expect((stillPending.error as { details: { decision: string } }).details.decision).toBe(
+			'dyn-1'
+		);
+		expect(seenDigests[1]).toBe(seenDigests[0]);
+		expect(seenInputs[1]).toEqual(seenInputs[0]);
+
+		// 3. Approve dyn-1; retry runs with the exact approved nonce.
+		for (const entry of pendingByBinding.values()) entry.approved = true;
+		const approved = commandResult(
+			(await postMcp(url, makeCall('memory-dynamic', { id: '42' }, formCaps()))).json
+		);
+		expect(approved.success).toBe(true);
+		expect(approved.data).toEqual(seenInputs[0]);
+		expect(seenDigests[2]).toBe(seenDigests[0]);
+		expect(runs.dynamic).toBe(1);
+
+		// 4. After approval, a fresh call gets a brand-new dynamic default and decision (dyn-2).
+		const nextCall = commandResult(
+			(await postMcp(url, makeCall('memory-dynamic', { id: '42' }, formCaps()))).json
+		);
+		expect((nextCall.error as { details: { decision: string } }).details.decision).toBe('dyn-2');
+		expect(seenDigests[3]).not.toBe(seenDigests[0]);
+		expect(seenInputs[3]).not.toEqual(seenInputs[0]);
+		expect(runs.dynamic).toBe(1);
+	});
+
+	it('rejects bad decision ids, bad URLs in URL/pending-list modes, and throwing or malformed pendingList with -32603', async () => {
+		const relay = new PendingListRelay();
+		const { url, runs } = await createHarness({ relay });
+
+		// Bad decision ids on pendingList approved
+		for (const badId of ['', 'd 1', 'see https://evil.example', 'a'.repeat(129)]) {
+			relay.enqueuePending({ kind: 'approved', decisionId: badId });
+			const res = (await postMcp(url, makeCall('memory-erase', { id: '42' }, formCaps()))).json;
+			expect((res.error as { code: number }).code, badId).toBe(-32603);
+		}
+		expect(relay.annotated).toEqual([]);
+
+		// Bad decision ids on URL-mode resume approved
+		for (const badId of ['', 'd 1', 'see https://evil.example', 'a'.repeat(129)]) {
+			relay.answer({ kind: 'approved', decisionId: badId });
+			const res = (
+				await postMcp(
+					url,
+					makeCall('memory-erase', { id: '42' }, urlCaps(), retryExtra('accept', 'state-1'))
+				)
+			).json;
+			expect((res.error as { code: number }).code, badId).toBe(-32603);
+		}
+		expect(relay.annotated).toEqual([]);
+
+		// Bad host / port / backslash on URL-mode begin prompt, resume Pending prompt, and pendingList URLs
+		const badUrls = [
+			'https://person.example.com:0/d/1',
+			'https://person.example.com:99999/d/1',
+			'https://person.example.com:/d/1',
+			'https://bad_host.example/d/1',
+			'https://-bad.example/d/1',
+			'https://münchen.example/d/1',
+			'https://[::1]:0/d/1',
+			'https://person.example.com/d\\1',
+			'https://person.example.com/d?a=\\1',
+		];
+		for (const badUrl of badUrls) {
+			relay.prompt = { url: badUrl, message: 'Confirm', state: 's-1' };
+			const beginRes = (await postMcp(url, makeCall('memory-erase', { id: '42' }, urlCaps()))).json;
+			expect((beginRes.error as { code: number }).code, `begin:${badUrl}`).toBe(-32603);
+
+			relay.answer({
+				kind: 'pending',
+				prompt: { url: badUrl, message: 'Still pending', state: 's-1' },
+			});
+			const resumeRes = (
+				await postMcp(
+					url,
+					makeCall('memory-erase', { id: '42' }, urlCaps(), retryExtra('accept', 's-1'))
+				)
+			).json;
+			expect((resumeRes.error as { code: number }).code, `resume:${badUrl}`).toBe(-32603);
+
+			relay.enqueuePending({ kind: 'pending', decision: 'd-1', url: badUrl, list: LIST_URL });
+			const listRes = (await postMcp(url, makeCall('memory-erase', { id: '42' }, formCaps()))).json;
+			expect((listRes.error as { code: number }).code, `pending-url:${badUrl}`).toBe(-32603);
+
+			relay.enqueuePending({ kind: 'pending', decision: 'd-1', url: DECISION_URL, list: badUrl });
+			const listFieldRes = (await postMcp(url, makeCall('memory-erase', { id: '42' }, formCaps())))
+				.json;
+			expect((listFieldRes.error as { code: number }).code, `pending-list:${badUrl}`).toBe(-32603);
+		}
+
+		// Malformed pendingList return values
+		for (const bad of [
+			null,
+			'pending',
+			{ kind: 'unknown' },
+			{ kind: 'error', error: { code: 123 } },
+		]) {
+			relay.enqueuePending(bad as unknown as PendingListOutcome);
+			const res = (await postMcp(url, makeCall('memory-erase', { id: '42' }, formCaps()))).json;
+			expect((res.error as { code: number }).code).toBe(-32603);
+		}
+
+		// Throwing, rejecting, and non-function pendingList
+		const throwingRelay = Object.assign(new FakeRelay(), {
+			pendingList: () => {
+				throw new Error('sync boom');
+			},
+		});
+		const throwingHarness = await createHarness({ relay: throwingRelay });
+		const syncBoom = (
+			await postMcp(throwingHarness.url, makeCall('memory-erase', { id: '42' }, formCaps()))
+		).json;
+		expect((syncBoom.error as { code: number }).code).toBe(-32603);
+
+		const rejectingRelay = Object.assign(new FakeRelay(), {
+			pendingList: async () => {
+				throw new Error('async boom');
+			},
+		});
+		const rejectingHarness = await createHarness({ relay: rejectingRelay });
+		const asyncBoom = (
+			await postMcp(rejectingHarness.url, makeCall('memory-erase', { id: '42' }, formCaps()))
+		).json;
+		expect((asyncBoom.error as { code: number }).code).toBe(-32603);
+
+		const badHookRelay = new FakeRelay();
+		(badHookRelay as unknown as { pendingList: unknown }).pendingList = 'not-a-function';
+		const badHookHarness = await createHarness({ relay: badHookRelay });
+		const badHookRes = (
+			await postMcp(badHookHarness.url, makeCall('memory-erase', { id: '42' }, formCaps()))
+		).json;
+		expect((badHookRes.error as { code: number }).code).toBe(-32603);
+
+		expect(runs.erase).toBe(0);
 	});
 });
