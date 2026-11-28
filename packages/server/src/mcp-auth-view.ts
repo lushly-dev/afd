@@ -1,8 +1,8 @@
 /**
  * @fileoverview The scope authority of a server with MCP authorization (`spec/authorization.md`,
  * M6): it makes each admitted request's {@link ScopeView}, which commands exist for its caller and
- * which it is shown, decided once as the request arrives, and the scope decision on every call it
- * names, before dispatch, after routing and at execution.
+ * which it is shown, decided once per request when first asked, and the scope decision on every
+ * call it names, before dispatch, after routing and at execution.
  */
 
 import type { CommandError } from '@lushly-dev/afd-core';
@@ -106,22 +106,31 @@ export function createScopeAuthority(options: ScopeAuthorityOptions): ScopeAutho
 				return false;
 			}
 		};
-		// Decided once, as the request arrives, for every command (M6, "Hidden commands").
-		const known = new Set<string>();
-		const shown = new Set<string>();
-		for (const command of byName.values()) {
-			const name = command.name;
-			const exists =
-				!hider || asks((n, c) => (hider.known ?? hider.visible).call(hider, n, c), name);
-			if (exists) known.add(name);
-			const visible =
-				required === 'allowed' &&
-				(resolver
-					? asks((n, c) => resolver.visible(n, c), name) && exists
-					: (command.scopes ?? []).every((scope) => held.includes(scope)));
-			if (!filterToolsByScope || (visible && exists)) shown.add(name);
-		}
-		const isKnown = (name: string) => byName.has(name) && known.has(name);
+		// Decided once per request for every command (M6, "Hidden commands"), on the first question
+		// that needs it: a request that names no command, such as `/health`, never asks the resolver.
+		let sets: { known: Set<string>; shown: Set<string> } | undefined;
+		const decided = () => {
+			sets ??= decideSets();
+			return sets;
+		};
+		const decideSets = () => {
+			const known = new Set<string>();
+			const shown = new Set<string>();
+			for (const command of byName.values()) {
+				const name = command.name;
+				const exists =
+					!hider || asks((n, c) => (hider.known ?? hider.visible).call(hider, n, c), name);
+				if (exists) known.add(name);
+				const visible =
+					required === 'allowed' &&
+					(resolver
+						? asks((n, c) => resolver.visible(n, c), name) && exists
+						: (command.scopes ?? []).every((scope) => held.includes(scope)));
+				if (!filterToolsByScope || (visible && exists)) shown.add(name);
+			}
+			return { known, shown };
+		};
+		const isKnown = (name: string) => byName.has(name) && decided().known.has(name);
 
 		/** One named call: the required scopes, then the call's own decision. */
 		const decide = (call: NamedCall): ScopeDecision => {
@@ -160,7 +169,8 @@ export function createScopeAuthority(options: ScopeAuthorityOptions): ScopeAutho
 			}
 			if (toolStrategy === 'grouped') {
 				const members = [...byName.values()].filter(
-					(command) => commandGroup(command, groupByFn) === tool && known.has(command.name)
+					(command) =>
+						commandGroup(command, groupByFn) === tool && decided().known.has(command.name)
 				);
 				const action = record.action;
 				if (typeof action === 'string' && action !== '') {
@@ -177,7 +187,8 @@ export function createScopeAuthority(options: ScopeAuthorityOptions): ScopeAutho
 				}
 				// Without an action the router answers a missing action only for a group with a
 				// member it shows; any other tool runs the command it names.
-				if (members.some((command) => shown.has(command.name))) return [{ kind: 'unresolved' }];
+				if (members.some((command) => decided().shown.has(command.name)))
+					return [{ kind: 'unresolved' }];
 			}
 			return [{ kind: 'command', name: tool, input: args ?? {} }];
 		};
@@ -185,8 +196,8 @@ export function createScopeAuthority(options: ScopeAuthorityOptions): ScopeAutho
 		return Object.freeze({
 			credentials,
 			filtered: filterToolsByScope,
-			known: (name: string) => !byName.has(name) || known.has(name),
-			shown: (name: string) => shown.has(name),
+			known: (name: string) => !byName.has(name) || decided().known.has(name),
+			shown: (name: string) => decided().shown.has(name),
 			decideCall: (tool: string, args: unknown) =>
 				requestDecision(named(tool, args).map(decide), warn),
 			decideCommands: (calls: readonly { command: string; input: unknown }[]) =>
@@ -213,6 +224,9 @@ export function createScopeAuthority(options: ScopeAuthorityOptions): ScopeAutho
 				}
 				const cmd = byName.get(command);
 				return requestDecision([staticDecision([], cmd?.scopes ?? [], held)], warn);
+			},
+			settle: () => {
+				decided();
 			},
 			insufficientScope: failure,
 		});

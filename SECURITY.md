@@ -14,7 +14,7 @@ Fixes land on `main` and ship in the next release of the affected package; there
 
 ## Development vs Production Mode
 
-AFD servers take a `devMode` option (`dev_mode` in Python and C++). It is off by default. It decides how much an error tells the caller and, in TypeScript, adds debug output for grouped tools; it changes no Host, Origin or CORS rule:
+The TypeScript, Python and C++ servers take a `devMode` option (`dev_mode` in Python and C++); the Rust server has none. It is off by default. It decides how much an error tells the caller and, in TypeScript, adds debug output for grouped tools; it changes no Host, Origin or CORS rule:
 
 | Behavior                   | Production (`devMode: false`, default)                                   | Development (`devMode: true`)                                                                                                    |
 | -------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |

@@ -9,7 +9,7 @@
  * removed when the response closes. A route that runs a command without admitted credentials is
  * refused (M1: fail closed).
  *
- * Scopes (M6): each admitted request gets a scope view, decided once as it arrives, which the
+ * Scopes (M6): each admitted request gets a scope view, decided once per request, which the
  * routes, the router, the engine and the listings read; the layer decides a `POST` body before
  * dispatch and answers a missing scope with M5's 403. A host whose own layer vouches for its
  * callers admits them with `handler.admit` and runs the same decision with
@@ -173,7 +173,7 @@ export interface AuthLayer {
 	 * @throws HttpRequestError 401 when it admitted none (M1: fail closed)
 	 */
 	credentialsFor(req: IncomingMessage): Credentials;
-	/** The scope view of an admitted request, decided once as it arrived. */
+	/** The scope view of an admitted request, decided once per request when first asked. */
 	viewFor(req: IncomingMessage): ScopeView | undefined;
 	/**
 	 * Admit `credentials` a host's own layer vouches for, for `req` alone (`handler.admit`).
@@ -442,6 +442,9 @@ export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContex
 	const views = new WeakMap<IncomingMessage, ScopeView>();
 	// Credentials a host's own layer vouched for, until the handler takes the request.
 	const vouched = new WeakMap<IncomingMessage, Credentials>();
+	// The view `preDispatchCheck` made for vouched credentials, which `take` then reuses. Its
+	// resolver may have been asked before `take` brands the credentials (`isVerifiedCredentials`).
+	const vouchedViews = new WeakMap<IncomingMessage, ScopeView>();
 
 	function json(res: ServerResponse, status: number, body: unknown, challenge?: string): void {
 		res.writeHead(status, {
@@ -485,7 +488,12 @@ export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContex
 		if (res.destroyed || res.writableEnded) return false;
 		brandVerifiedCredentials(credentials, skewS);
 		admitted.set(req, credentials);
-		views.set(req, authority.view(credentials));
+		const early = vouchedViews.get(req);
+		vouchedViews.delete(req);
+		views.set(
+			req,
+			early && early.credentials === credentials ? early : authority.view(credentials)
+		);
 		// No credentials outlive their request as verified.
 		res.once('close', () => unbrandVerifiedCredentials(credentials));
 		return true;
@@ -632,8 +640,15 @@ export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContex
 				if (path === undefined) return { proceed: true };
 				const credentials = vouched.get(req) ?? admitted.get(req);
 				if (!credentials) return { proceed: true };
+				const viewOf = (): ScopeView => {
+					const made = views.get(req) ?? vouchedViews.get(req);
+					if (made && made.credentials === credentials) return made;
+					const view = authority.view(credentials);
+					if (!admitted.has(req)) vouchedViews.set(req, view);
+					return view;
+				};
 				if (req.method === 'GET' && path === '/sse') {
-					const view = views.get(req) ?? authority.view(credentials);
+					const view = viewOf();
 					const decision = view.decideRequest();
 					return decision === 'proceed'
 						? { proceed: true }
@@ -641,7 +656,7 @@ export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContex
 				}
 				if (req.method !== 'POST') return { proceed: true };
 				if (!decidesBody(path) || !isJsonContent(req)) return { proceed: true };
-				const view = views.get(req) ?? authority.view(credentials);
+				const view = viewOf();
 				return decideBody(view, path, bytes.toString('utf8'), resource, style);
 			},
 		});
