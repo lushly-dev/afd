@@ -1,0 +1,11 @@
+{
+  "cores": 10,
+  "freeDiskGb": 35.4,
+  "id": "random",
+  "measured": false,
+  "memoryGb": 24.0,
+  "missing": [],
+  "name": "random",
+  "probedAt": "2026-11-28T05:58:30.387521Z",
+  "suggestedSlots": 1
+}
