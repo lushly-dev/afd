@@ -355,7 +355,7 @@ const SUITE_CONFIG = [
 		workflow: 'umbel.yml',
 		tools: ['cargo'],
 		remote:
-			'Linux, the per-feature and wasm32-wasip2 clippy legs, MSRV 1.97 (daily) and plugin isolation',
+			'Linux, the per-feature and wasm32-wasip2 clippy legs, plugin isolation, and daily MSRV 1.97 and Windows store and clippy checks',
 		extract(wf) {
 			requireGate(wf, 'host');
 			requireGate(wf, 'loamos');
