@@ -1,0 +1,910 @@
+{
+  "schema_version": "1.3",
+  "generator": {
+    "name": "lushly-health",
+    "version": "0.1.0"
+  },
+  "generated_at": "2026-11-28T16:28:46Z",
+  "targets": [
+    {
+      "id": "afd",
+      "path": "/home/runner/work/afd/afd",
+      "language": "typescript"
+    }
+  ],
+  "policy": {
+    "check_ids": [
+      "agent_skills_mirror",
+      "changesets_configured",
+      "ci_present",
+      "commitlint_configured",
+      "dependabot_configured",
+      "dependency_version_drift",
+      "gitattributes_lf",
+      "last_commit",
+      "lefthook_configured",
+      "node_version_alignment"
+    ],
+    "disabled": [],
+    "severity": {
+      "agent_skills_mirror": "required",
+      "changesets_configured": "required",
+      "ci_present": "required",
+      "commitlint_configured": "required",
+      "dependabot_configured": "required",
+      "dependency_version_drift": "advisory",
+      "gitattributes_lf": "required",
+      "last_commit": "required",
+      "lefthook_configured": "required",
+      "node_version_alignment": "required"
+    },
+    "remediation": "none"
+  },
+  "outcomes": [
+    {
+      "check_id": "agent_skills_mirror",
+      "target": "afd",
+      "status": "passed",
+      "severity": "required",
+      "message": ".agents/skills mirrors .claude/skills",
+      "evidence": {
+        "paths": [
+          ".claude/skills",
+          ".agents/skills",
+          ".codex/skills"
+        ],
+        "required_tools": [],
+        "kind": "local_configuration_heuristic",
+        "metric": "mirrored"
+      },
+      "remediation": null,
+      "schema_version": "1.3"
+    },
+    {
+      "check_id": "changesets_configured",
+      "target": "afd",
+      "status": "passed",
+      "severity": "required",
+      "message": "changesets configured",
+      "evidence": {
+        "paths": [
+          ".changeset",
+          "package.json"
+        ],
+        "required_tools": [],
+        "kind": "local_configuration_heuristic",
+        "metric": "yes"
+      },
+      "remediation": null,
+      "schema_version": "1.3"
+    },
+    {
+      "check_id": "ci_present",
+      "target": "afd",
+      "status": "passed",
+      "severity": "required",
+      "message": "CI workflow found: alfred.yml",
+      "evidence": {
+        "paths": [
+          ".github/workflows"
+        ],
+        "required_tools": [],
+        "kind": "local_configuration_heuristic",
+        "metric": "32 wf"
+      },
+      "remediation": null,
+      "schema_version": "1.3"
+    },
+    {
+      "check_id": "commitlint_configured",
+      "target": "afd",
+      "status": "passed",
+      "severity": "required",
+      "message": "commitlint.config.js found",
+      "evidence": {
+        "paths": [
+          "commitlint.config.mjs",
+          "commitlint.config.js"
+        ],
+        "required_tools": [],
+        "kind": "local_configuration_heuristic",
+        "metric": "yes"
+      },
+      "remediation": null,
+      "schema_version": "1.3"
+    },
+    {
+      "check_id": "dependabot_configured",
+      "target": "afd",
+      "status": "passed",
+      "severity": "required",
+      "message": "dependabot.yml configured",
+      "evidence": {
+        "paths": [
+          ".github/dependabot.yml"
+        ],
+        "required_tools": [],
+        "kind": "local_configuration_heuristic",
+        "metric": "yes"
+      },
+      "remediation": null,
+      "schema_version": "1.3"
+    },
+    {
+      "check_id": "dependency_version_drift",
+      "target": "afd",
+      "status": "warn",
+      "severity": "advisory",
+      "message": "19 direct dependencies resolve to several versions in 15 lockfiles: base64 (cargo): 0.22.1, 0.23.1; bytes (cargo): 1.12.1, 1.12.2; getrandom (cargo): 0.3.4, 0.4.3; regex (cargo): 1.13.1, 1.13.2; rmcp (cargo): 3.11.0, 3.9.0; ryu-js (cargo): 1.0.3, 1.0.4; saphyr-parser (cargo): 0.3.3, 0.3.4; sha2 (cargo): 0.10.9, 0.11.1; url (cargo): 2.5.8, 2.5.9; uuid (cargo): 1.29.0, 1.29.3; and 9 more. 251 packages split overall",
+      "evidence": {
+        "paths": [
+          "**/pnpm-lock.yaml",
+          "**/uv.lock",
+          "**/Cargo.lock"
+        ],
+        "required_tools": [],
+        "kind": "local_configuration_heuristic",
+        "metric": "direct=19 all=251"
+      },
+      "remediation": "Align these dependencies, or keep the split where it is deliberate",
+      "schema_version": "1.3"
+    },
+    {
+      "check_id": "gitattributes_lf",
+      "target": "afd",
+      "status": "passed",
+      "severity": "required",
+      "message": ".gitattributes enforces LF line endings",
+      "evidence": {
+        "paths": [
+          ".gitattributes"
+        ],
+        "required_tools": [],
+        "kind": "local_configuration_heuristic",
+        "metric": "LF"
+      },
+      "remediation": null,
+      "schema_version": "1.3"
+    },
+    {
+      "check_id": "last_commit",
+      "target": "afd",
+      "status": "passed",
+      "severity": "required",
+      "message": "Latest checkout commit timestamp observed",
+      "evidence": {
+        "paths": [
+          ".git"
+        ],
+        "required_tools": [
+          "git"
+        ],
+        "kind": "local_configuration_heuristic",
+        "metric": "1795881598"
+      },
+      "remediation": null,
+      "schema_version": "1.3"
+    },
+    {
+      "check_id": "lefthook_configured",
+      "target": "afd",
+      "status": "passed",
+      "severity": "required",
+      "message": "lefthook.yml has pre-commit and pre-push hooks",
+      "evidence": {
+        "paths": [
+          "lefthook.yml"
+        ],
+        "required_tools": [],
+        "kind": "local_configuration_heuristic",
+        "metric": "2/2"
+      },
+      "remediation": null,
+      "schema_version": "1.3"
+    },
+    {
+      "check_id": "node_version_alignment",
+      "target": "afd",
+      "status": "passed",
+      "severity": "required",
+      "message": "Node version declarations aligned (.nvmrc=26, CI=[22, 24, 26], engines>=22)",
+      "evidence": {
+        "paths": [
+          ".nvmrc",
+          ".node-version",
+          "package.json",
+          ".github/workflows"
+        ],
+        "required_tools": [],
+        "kind": "local_configuration_heuristic",
+        "metric": "26"
+      },
+      "remediation": null,
+      "schema_version": "1.3"
+    }
+  ],
+  "measures": [
+    {
+      "key": "files_over_warn",
+      "label": "Files over size warning",
+      "value": 563,
+      "unit": "files",
+      "direction": "lower_is_better",
+      "source": "sweep-bloat"
+    },
+    {
+      "key": "largest_source_lines",
+      "label": "Largest source file",
+      "value": 4416,
+      "unit": "lines",
+      "direction": "lower_is_better",
+      "source": "sweep-bloat"
+    },
+    {
+      "key": "duplicated_lines",
+      "label": "Duplicated lines",
+      "value": 17907,
+      "unit": "lines",
+      "direction": "lower_is_better",
+      "source": "sweep-bloat"
+    },
+    {
+      "key": "clone_groups",
+      "label": "Clone groups",
+      "value": 440,
+      "unit": "groups",
+      "direction": "lower_is_better",
+      "source": "sweep-bloat"
+    },
+    {
+      "key": "spreading_clones",
+      "label": "Copies in 3+ files",
+      "value": 90,
+      "unit": "groups",
+      "direction": "lower_is_better",
+      "source": "sweep-bloat"
+    },
+    {
+      "key": "cohesive_exemptions",
+      "label": "Cohesive size exemptions",
+      "value": 0,
+      "unit": "files",
+      "direction": "neutral",
+      "source": "sweep-bloat"
+    },
+    {
+      "key": "cognitive_complexity_findings",
+      "label": "Functions over cognitive complexity 15",
+      "value": 2186,
+      "unit": "functions",
+      "direction": "lower_is_better",
+      "source": "cognitive-complexity"
+    },
+    {
+      "key": "cognitive_complexity_max",
+      "label": "Max function cognitive complexity",
+      "value": 927,
+      "unit": "score",
+      "direction": "lower_is_better",
+      "source": "cognitive-complexity"
+    },
+    {
+      "key": "cognitive_complexity_total",
+      "label": "Total cognitive complexity",
+      "value": 151444,
+      "unit": "score",
+      "direction": "neutral",
+      "source": "cognitive-complexity"
+    },
+    {
+      "key": "cognitive_complexity_functions",
+      "label": "Measured functions",
+      "value": 32610,
+      "unit": "functions",
+      "direction": "neutral",
+      "source": "cognitive-complexity"
+    },
+    {
+      "key": "test_files_total",
+      "label": "Tracked test files",
+      "value": 2251,
+      "unit": "files",
+      "direction": "higher_is_better",
+      "source": "test-counts"
+    },
+    {
+      "key": "tests_total",
+      "label": "Tests across suites",
+      "value": 26908,
+      "unit": "tests",
+      "direction": "higher_is_better",
+      "source": "test-counts"
+    },
+    {
+      "key": "test_assertions_total",
+      "label": "Test assertions across suites",
+      "value": 102233,
+      "unit": "assertions",
+      "direction": "higher_is_better",
+      "source": "test-counts"
+    },
+    {
+      "key": "tests_skipped",
+      "label": "Skipped tests (lexical)",
+      "value": 198,
+      "unit": "skips",
+      "direction": "lower_is_better",
+      "source": "test-counts"
+    },
+    {
+      "key": "tests_unconditional_skips",
+      "label": "Unconditional test skips",
+      "value": 12,
+      "unit": "skips",
+      "direction": "lower_is_better",
+      "source": "test-counts"
+    },
+    {
+      "key": "tests_quarantined",
+      "label": "Quarantined test files",
+      "value": 0,
+      "unit": "files",
+      "direction": "lower_is_better",
+      "source": "test-counts"
+    },
+    {
+      "key": "test_discovery_exemptions",
+      "label": "Unrun test-discovery exemptions",
+      "value": 7,
+      "unit": "entries",
+      "direction": "lower_is_better",
+      "source": "test-counts"
+    },
+    {
+      "key": "scenario_files_total",
+      "label": "Scenario files",
+      "value": 280,
+      "unit": "files",
+      "direction": "higher_is_better",
+      "source": "test-counts"
+    },
+    {
+      "key": "scenario_steps_total",
+      "label": "Scenario steps",
+      "value": 1629,
+      "unit": "steps",
+      "direction": "higher_is_better",
+      "source": "test-counts"
+    },
+    {
+      "key": "tests_javascript",
+      "label": "JavaScript/TypeScript tests",
+      "value": 14388,
+      "unit": "tests",
+      "direction": "higher_is_better",
+      "source": "test-counts"
+    },
+    {
+      "key": "tests_python",
+      "label": "Python tests",
+      "value": 6698,
+      "unit": "tests",
+      "direction": "higher_is_better",
+      "source": "test-counts"
+    },
+    {
+      "key": "tests_rust",
+      "label": "Rust tests",
+      "value": 5251,
+      "unit": "tests",
+      "direction": "higher_is_better",
+      "source": "test-counts"
+    },
+    {
+      "key": "tests_cpp",
+      "label": "C++ tests",
+      "value": 571,
+      "unit": "tests",
+      "direction": "higher_is_better",
+      "source": "test-counts"
+    },
+    {
+      "key": "test_change_findings",
+      "label": "Test-change findings",
+      "value": 59,
+      "unit": "findings",
+      "direction": "lower_is_better",
+      "source": "test-change-report"
+    },
+    {
+      "key": "test_files_deleted",
+      "label": "Deleted test files",
+      "value": 2,
+      "unit": "files",
+      "direction": "lower_is_better",
+      "source": "test-change-report"
+    },
+    {
+      "key": "test_fewer_tests_findings",
+      "label": "Files with fewer tests",
+      "value": 3,
+      "unit": "files",
+      "direction": "lower_is_better",
+      "source": "test-change-report"
+    },
+    {
+      "key": "test_skips_added",
+      "label": "Skip-added findings",
+      "value": 2,
+      "unit": "findings",
+      "direction": "lower_is_better",
+      "source": "test-change-report"
+    },
+    {
+      "key": "test_assertions_weakened",
+      "label": "Weakened or rewritten assertion findings",
+      "value": 38,
+      "unit": "findings",
+      "direction": "lower_is_better",
+      "source": "test-change-report"
+    },
+    {
+      "key": "test_configs_changed",
+      "label": "Changed test configs or shrinking snapshots",
+      "value": 14,
+      "unit": "findings",
+      "direction": "lower_is_better",
+      "source": "test-change-report"
+    },
+    {
+      "key": "test_files_changed",
+      "label": "Changed test files compared",
+      "value": 263,
+      "unit": "files",
+      "direction": "neutral",
+      "source": "test-change-report"
+    },
+    {
+      "key": "tests_net_delta",
+      "label": "Net test count change on branch",
+      "value": 610,
+      "unit": "tests",
+      "direction": "higher_is_better",
+      "source": "test-change-report"
+    },
+    {
+      "key": "coverage_lines_pct",
+      "label": "Line coverage",
+      "value": 94.57,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_statements_pct",
+      "label": "Statement coverage",
+      "value": 93.43,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_branches_pct",
+      "label": "Branch coverage",
+      "value": 88.57,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_functions_pct",
+      "label": "Function coverage",
+      "value": 96.12,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_lines.adapters",
+      "label": "Line coverage (adapters)",
+      "value": 100,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_statements.adapters",
+      "label": "Statement coverage (adapters)",
+      "value": 100,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_branches.adapters",
+      "label": "Branch coverage (adapters)",
+      "value": 96.12,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_functions.adapters",
+      "label": "Function coverage (adapters)",
+      "value": 100,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_lines.auth",
+      "label": "Line coverage (auth)",
+      "value": 98.55,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_statements.auth",
+      "label": "Statement coverage (auth)",
+      "value": 97.95,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_branches.auth",
+      "label": "Branch coverage (auth)",
+      "value": 94.91,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_functions.auth",
+      "label": "Function coverage (auth)",
+      "value": 97.08,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_lines.cli",
+      "label": "Line coverage (cli)",
+      "value": 87.64,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_statements.cli",
+      "label": "Statement coverage (cli)",
+      "value": 86.33,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_branches.cli",
+      "label": "Branch coverage (cli)",
+      "value": 79.04,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_functions.cli",
+      "label": "Function coverage (cli)",
+      "value": 92.21,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_lines.client",
+      "label": "Line coverage (client)",
+      "value": 94.56,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_statements.client",
+      "label": "Statement coverage (client)",
+      "value": 93.85,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_branches.client",
+      "label": "Branch coverage (client)",
+      "value": 87.33,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_functions.client",
+      "label": "Function coverage (client)",
+      "value": 95.45,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_lines.core",
+      "label": "Line coverage (core)",
+      "value": 94.55,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_statements.core",
+      "label": "Statement coverage (core)",
+      "value": 92.42,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_branches.core",
+      "label": "Branch coverage (core)",
+      "value": 87.31,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_functions.core",
+      "label": "Function coverage (core)",
+      "value": 93.78,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_lines.local-db",
+      "label": "Line coverage (local-db)",
+      "value": 98.1,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_statements.local-db",
+      "label": "Statement coverage (local-db)",
+      "value": 97.28,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_branches.local-db",
+      "label": "Branch coverage (local-db)",
+      "value": 91.94,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_functions.local-db",
+      "label": "Function coverage (local-db)",
+      "value": 96.18,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_lines.server",
+      "label": "Line coverage (server)",
+      "value": 96.56,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_statements.server",
+      "label": "Statement coverage (server)",
+      "value": 95.14,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_branches.server",
+      "label": "Branch coverage (server)",
+      "value": 92.12,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_functions.server",
+      "label": "Function coverage (server)",
+      "value": 97.57,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_lines.testing",
+      "label": "Line coverage (testing)",
+      "value": 94.92,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_statements.testing",
+      "label": "Statement coverage (testing)",
+      "value": 94.11,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_branches.testing",
+      "label": "Branch coverage (testing)",
+      "value": 86.87,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_functions.testing",
+      "label": "Function coverage (testing)",
+      "value": 96.44,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_lines.view-state",
+      "label": "Line coverage (view-state)",
+      "value": 96.09,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_statements.view-state",
+      "label": "Statement coverage (view-state)",
+      "value": 95.78,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_branches.view-state",
+      "label": "Branch coverage (view-state)",
+      "value": 95.18,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "coverage_functions.view-state",
+      "label": "Function coverage (view-state)",
+      "value": 99.2,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "source": "coverage"
+    },
+    {
+      "key": "alfred_lint_files_checked",
+      "label": "Alfred lint files checked",
+      "value": 1680,
+      "unit": "files",
+      "direction": "neutral",
+      "source": "alfred"
+    },
+    {
+      "key": "alfred_lint_errors",
+      "label": "Alfred lint errors",
+      "value": 35,
+      "unit": "errors",
+      "direction": "lower_is_better",
+      "source": "alfred"
+    },
+    {
+      "key": "alfred_lint_warnings",
+      "label": "Alfred lint warnings",
+      "value": 42,
+      "unit": "warnings",
+      "direction": "lower_is_better",
+      "source": "alfred"
+    },
+    {
+      "key": "alfred_lint_suppressed",
+      "label": "Alfred suppressed lint findings",
+      "value": 1,
+      "unit": "findings",
+      "direction": "lower_is_better",
+      "source": "alfred"
+    },
+    {
+      "key": "alfred_parity_gaps",
+      "label": "Alfred parity gaps",
+      "value": 355,
+      "unit": "gaps",
+      "direction": "lower_is_better",
+      "source": "alfred"
+    },
+    {
+      "key": "alfred_parity_name_gaps",
+      "label": "Alfred parity name gaps",
+      "value": 355,
+      "unit": "gaps",
+      "direction": "lower_is_better",
+      "source": "alfred"
+    },
+    {
+      "key": "alfred_parity_wire_gaps",
+      "label": "Alfred wire-fixture gaps",
+      "value": 0,
+      "unit": "gaps",
+      "direction": "lower_is_better",
+      "source": "alfred"
+    },
+    {
+      "key": "alfred_parity_vector_gaps",
+      "label": "Alfred behavior-vector gaps",
+      "value": 0,
+      "unit": "gaps",
+      "direction": "lower_is_better",
+      "source": "alfred"
+    },
+    {
+      "key": "alfred_parity_contract_gaps",
+      "label": "Alfred contract-version gaps",
+      "value": 0,
+      "unit": "gaps",
+      "direction": "lower_is_better",
+      "source": "alfred"
+    },
+    {
+      "key": "alfred_commands_scanned",
+      "label": "AFD commands scanned",
+      "value": 978,
+      "unit": "commands",
+      "direction": "neutral",
+      "source": "alfred"
+    },
+    {
+      "key": "alfred_quality_issues",
+      "label": "Alfred command quality issues",
+      "value": 2841,
+      "unit": "issues",
+      "direction": "lower_is_better",
+      "source": "alfred"
+    },
+    {
+      "key": "alfred_quality_warnings",
+      "label": "Alfred command quality warnings",
+      "value": 24,
+      "unit": "warnings",
+      "direction": "lower_is_better",
+      "source": "alfred"
+    }
+  ],
+  "summary": {
+    "passed": 9,
+    "failed": 0,
+    "warn": 1,
+    "skipped": 0,
+    "disabled": 0,
+    "unavailable": 0,
+    "error": 0
+  },
+  "verdict": {
+    "status": "passed",
+    "required_count": 9,
+    "blocking_count": 0
+  },
+  "effects": [
+    "target_read"
+  ],
+  "artifacts_written": []
+}
