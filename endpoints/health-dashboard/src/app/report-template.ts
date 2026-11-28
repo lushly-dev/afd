@@ -13,7 +13,7 @@ import {
 } from '../report/view';
 import type { Choice, ReportView, SummaryItem, TargetRow } from './report-view';
 
-const eventValue = (event: Event) =>
+export const eventValue = (event: Event) =>
 	String((event.target as { value?: unknown } | null)?.value ?? '');
 
 /** Status is always icon + words + color; the badge text is the accessible name. */
@@ -28,7 +28,7 @@ export const statusBadge = html<{ status: Status }>`<violet-badge
 
 const verdictIcon = (verdict: Verdict) => (verdict.passed ? 'health/passed' : 'health/failed');
 
-const optionTemplate = html<Choice>`<violet-option value="${(x) => x.value}"
+export const optionTemplate = html<Choice>`<violet-option value="${(x) => x.value}"
 	>${(x) => x.label}</violet-option
 >`;
 

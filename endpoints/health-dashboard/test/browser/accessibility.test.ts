@@ -92,6 +92,22 @@ describe('accessibility (axe-core, WCAG 2.2 AA)', () => {
 		}
 	);
 
+	it.each(['light', 'dark'] as const)(
+		'has no violations with a trend plot (%s)',
+		async (scheme) => {
+			const { context, page } = await fresh(scheme);
+			await loadFiles(
+				page,
+				['2026-01-01', '2026-01-02', '2026-01-03'].map((day) =>
+					fixturePath(`reports/trend-${day}.report.json`)
+				)
+			);
+			await page.waitForSelector('health-trend-plot svg');
+			expect(await axe(page)).toEqual([]);
+			await context.close();
+		}
+	);
+
 	it('uses landmarks, headings and semantic tables', async () => {
 		const { context, page } = await fresh();
 		await loadFiles(page, [fixturePath('reports/mixed-status.report.json')]);

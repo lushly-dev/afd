@@ -2,7 +2,7 @@
 
 A static, local page for reading Health audit reports (report schema 1.3). You pick
 or drop report files and it shows each report's targets, every check result and an
-overall verdict. It's an optional endpoint: Health audits and CI run without it, and
+overall verdict, and plots one measure across the reports you loaded. It's an optional endpoint: Health audits and CI run without it, and
 nothing here is installed with Health.
 
 > **Status:** `@lushly-dev/health-dashboard` 0.1.0 is `private: true` and quarantined in
@@ -67,6 +67,14 @@ its reasons, summary counts for all seven statuses, a targets table with a per-t
 table (status, check, target, severity, message, evidence, remediation) that you can
 filter by status and target and sort.
 
+- **Trend across reports.** When any loaded report carries measures, pick one by its label
+  (and target) and it is plotted across every loaded report, oldest first by `generated_at`,
+  with time to scale. The page states the measure's unit and, in words, whether higher or
+  lower is better, then sums up the latest change as better, worse or unchanged. A report
+  without the measure, or with it in another unit, is a gap marked on the time axis, never a
+  zero, and no line crosses it. A table lists every report's value or gap, so nothing depends
+  on the plot or on pointing at it. Load a run of `health-history` reports to watch AFD's
+  measures move.
 - **Statuses** `passed`, `failed`, `warn`, `skipped`, `disabled`, `unavailable` and
   `error` each have their own words, icon and color/fill, so none relies on color. Only
   `passed` uses the success treatment.
@@ -118,7 +126,8 @@ node endpoints/health-dashboard/scripts/verify-health-isolation.mjs
 `fixtures/reports/` is written by `pnpm -F @lushly-dev/health-dashboard fixtures`, which
 runs the real Health CLI (through uv and `endpoints/health`'s lock) on small plain
 repositories it creates in a temporary directory, then replaces each target path with
-`<fixture>/<id>` and pins `generated_at` to `2026-01-01T00:00:00Z`. `fixtures/invalid/` is hand-written. `fixtures:check` fails when the
+`<fixture>/<id>` and pins `generated_at` to `2026-01-01T00:00:00Z`, or, for the three
+`trend-<day>` reports, to that day. `fixtures/invalid/` is hand-written. `fixtures:check` fails when the
 committed reports differ from the CLI's output. `verify-health-isolation.mjs` builds
 Health's wheel from a copy of its sources and fails if it has an unconditional
 requirement or ships any frontend file.

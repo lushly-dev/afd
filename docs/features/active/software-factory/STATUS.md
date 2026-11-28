@@ -744,4 +744,4 @@ conflict when two branches change adjacent lines.
 
 - Test-change reports attached to cell/attempt records and the `gate-change` hold with `measure-approve` (`#1387` step 5; `checksRun` comparison waits on check-count reporting): merged in #2161.
 
-- Scheduled health reviews, anomalies, `factory-health`, `health-explain`, `improvement-propose`, `improvement-list`, `measure-change` holds and `checksRun` comparison: not done.
+- Scheduled health reviews, anomalies, `factory-health`, `health-explain`, `improvement-propose`, `improvement-list`, `measure-change` holds and `checksRun` comparison: not done. Naming (#2830): Health, the repository audit endpoint, keeps the `health` domain, its reports' **measures** and the Health dashboard. The factory's commands stay in the `factory` domain, so `factory-health` keeps its name, and it computes **metrics** from lane records. When built, `health-explain` becomes `factory-anomaly-explain` and the wake reason `health-review` becomes `factory-review`; the proposal and scenarios still use the old names.
