@@ -1222,13 +1222,13 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 			return kernelFailure(
 				'MOUNT_VIEWS_DISABLED',
 				`'${instance}' does not let the shell render its views`,
-				'Ask the deployer to set views = true on its entry in loam.deployment.toml'
+				"Ask the deployer to set views = true on its entry in loam.deployment.toml, or, on a managed desktop, in the plugin's engine.mount"
 			);
 		if (!host.deployment.sandbox_origin)
 			return kernelFailure(
 				'VIEW_SANDBOX_ORIGIN_INVALID',
 				'This deployment has no sandbox origin, so no view can render',
-				'Set sandbox_origin in loam.deployment.toml'
+				'Set [sandbox] origin in loam.deployment.toml and run deployment write; a managed desktop writes its own'
 			);
 		if (record.state !== 'ready' || !transport?.listResources || !transport.readResource)
 			return unavailable('it is not connected, or its lane reads no resources');

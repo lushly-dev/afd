@@ -181,6 +181,8 @@ pub struct ProposalEngineSummary {
     pub auth_mode: String,
     pub labels: String,
     pub approvals: String,
+    /// Whether `shell-open` may render the engine's `ui://` views (`engine.mount.views`, D169; amendment 7.2).
+    pub views: bool,
     pub previews: Vec<ProposalPreviewSummary>,
     pub exposed_commands: Vec<String>,
 }
@@ -501,6 +503,7 @@ pub fn inspect(
                 .unwrap_or(Approvals::None)
                 .as_str()
                 .to_owned();
+            let views = mount.and_then(|m| m.views) == Some(true);
             let mut previews = Vec::new();
             let mut exposed_commands = Vec::new();
             if let Some(cmds) = mount.and_then(|m| m.commands.as_ref()) {
@@ -535,6 +538,7 @@ pub fn inspect(
                 auth_mode: engine.auth.mode.as_str().to_owned(),
                 labels,
                 approvals,
+                views,
                 previews,
                 exposed_commands,
             };

@@ -611,6 +611,18 @@ fn engine_archive(
     bin_stem: &str,
     extra_text: &str,
 ) -> Vec<u8> {
+    engine_archive_with_views(plugin_id, app_id, version, bin_stem, extra_text, None)
+}
+
+/// [`engine_archive`], its `engine.mount.views` set to `views` (left out for `None`; D169).
+fn engine_archive_with_views(
+    plugin_id: &str,
+    app_id: &str,
+    version: &str,
+    bin_stem: &str,
+    extra_text: &str,
+    views: Option<bool>,
+) -> Vec<u8> {
     let target = Target::current().expect("supported target");
     let exe_bytes = std::fs::read(std::env::current_exe().expect("self exe")).expect("read exe");
     let exe_sha = sha256_hex(&exe_bytes);
@@ -620,7 +632,7 @@ fn engine_archive(
         bin_stem.to_owned()
     };
     let artifact_path = format!("engines/{}/{bin_name}", target.as_str());
-    let plugin_manifest = json!({
+    let mut plugin_manifest = json!({
         "plugin_manifest_version": 1,
         "plugin": {
             "id": plugin_id,
@@ -656,6 +668,9 @@ fn engine_archive(
             }
         }
     });
+    if let Some(views) = views {
+        plugin_manifest["engine"]["mount"]["views"] = json!(views);
+    }
     let app_manifest = json!({
         "manifest_version": 1,
         "protocol": 1,
@@ -1075,10 +1090,19 @@ fn test_engine_install_live_mounts_rotate_upgrade_rollback_uninstall() {
     let v1_path = tmp.path().join("sim-v1.loam-plugin");
     std::fs::write(
         &v1_path,
-        engine_archive("mail-sim", "simapp", "0.1.0", "loam-fixture", "v1"),
+        engine_archive_with_views(
+            "mail-sim",
+            "simapp",
+            "0.1.0",
+            "loam-fixture",
+            "v1",
+            Some(true),
+        ),
     )
     .unwrap();
     let prop1 = inspect(&host, &v1_path, &store).expect("inspect sim v1");
+    // The consent's engine summary carries the engine's views opt-in (D169, amendment 7.2).
+    assert!(prop1.engine.as_ref().expect("an engine").views);
     let inst1 = confirm(
         &host,
         &prop1.proposal_id,
@@ -1089,6 +1113,21 @@ fn test_engine_install_live_mounts_rotate_upgrade_rollback_uninstall() {
     .expect("confirm sim v1");
     let port = inst1.engine_port.expect("engine port");
     let tok1 = inst1.token_id.clone().expect("tokenId");
+    // And the installed manifest reaches the materializer: the mounted entry carries `views`.
+    let mounted_views = |data: &Path| -> Value {
+        let deployment: Value = serde_json::from_str(
+            &std::fs::read_to_string(data.join("site/deployment.json")).unwrap(),
+        )
+        .unwrap();
+        deployment["apps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|app| app["instance"] == "simapp")
+            .expect("the mounted entry")["views"]
+            .clone()
+    };
+    assert_eq!(mounted_views(&data), json!(true));
     assert!((17400..=17999).contains(&port));
     assert_eq!(kc_state.lock().unwrap().slots.len(), 1);
     let secret1 = kc_state
@@ -1202,6 +1241,7 @@ fn test_engine_install_live_mounts_rotate_upgrade_rollback_uninstall() {
     .unwrap();
     let prop2 = inspect(&host, &v2_path, &store).expect("inspect sim v2");
     assert_eq!(prop2.kind, "upgrade");
+    assert!(!prop2.engine.as_ref().expect("an engine").views);
     let inst2 = confirm(
         &host,
         &prop2.proposal_id,
@@ -1211,6 +1251,8 @@ fn test_engine_install_live_mounts_rotate_upgrade_rollback_uninstall() {
     )
     .expect("confirm sim v2");
     assert_eq!(inst2.engine_port, Some(port));
+    // An upgrade that leaves `views` out turns the opt-in off.
+    assert_eq!(mounted_views(&data), Value::Null);
     assert!(
         !data
             .join("plugins/mail-sim")

@@ -2619,6 +2619,7 @@ export interface PluginManifestV1 {
 			audience?: 'person';
 			labels?: 'whole' | 'per-part';
 			approvals?: 'none' | 'shell';
+			views?: boolean;
 			expose?: {
 				agent?: boolean;
 				palette?: boolean;

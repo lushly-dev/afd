@@ -113,13 +113,20 @@ fn install(data: &Path, golden: &Json) -> DesktopState {
                         ("auth", Json::obj([("mode", Json::str(auth))])),
                         (
                             "mount",
-                            Json::obj([
-                                ("audience", Json::str("person")),
-                                ("labels", mount.get("labels").unwrap().clone()),
-                                ("approvals", mount.get("approvals").unwrap().clone()),
-                                ("expose", mount.get("expose").unwrap().clone()),
-                                ("commands", mount.get("commands").unwrap().clone()),
-                            ]),
+                            Json::Obj(
+                                [
+                                    ("audience", Some(Json::str("person"))),
+                                    ("labels", mount.get("labels").cloned()),
+                                    ("approvals", mount.get("approvals").cloned()),
+                                    // The deployer's opt-in (D169), as the plugin's mount policy states it.
+                                    ("views", mount.get("views").cloned()),
+                                    ("expose", mount.get("expose").cloned()),
+                                    ("commands", mount.get("commands").cloned()),
+                                ]
+                                .into_iter()
+                                .filter_map(|(key, value)| Some((key.to_owned(), value?)))
+                                .collect(),
+                            ),
                         ),
                     ]),
                 ));
@@ -198,7 +205,7 @@ fn p5_s9_6_the_golden_projection_is_what_the_materializer_writes_byte_for_byte()
     // updates these with it.
     assert_eq!(
         hex(&Sha256::digest(built.deployment.as_bytes())),
-        "96452895012b0d6c9e5922f10890a8ad4a4fde7b95b133a0cd41cb288ae42058"
+        "2082e5e16379e6f25f2a02c5a73764522535be9e929da199428d3acc11604166"
     );
     assert_eq!(
         hex(&Sha256::digest(built.models.as_bytes())),
@@ -301,6 +308,88 @@ fn a_bare_desktop_frames_nothing_and_digests_as_the_cli_does() {
         "sha256-9f8e3376661857a156b33a9b6bc4a6c46ed82be16fdda7a8d3c4169965e964df"
     );
     assert!(!built.deployment.contains("\"copilot\""));
+}
+
+/// The golden fixture's mounted app alone, its mount's `views` set to `views` (left out for `None`).
+fn mounted_only(views: Option<bool>) -> Json {
+    let Json::Obj(top) = fixture() else {
+        panic!("the fixture is an object")
+    };
+    Json::Obj(
+        top.into_iter()
+            .map(|(key, value)| {
+                if key != "apps" {
+                    return (key, value);
+                }
+                let Json::Arr(apps) = value else {
+                    panic!("the fixture's apps")
+                };
+                let mail = apps
+                    .into_iter()
+                    .find(|app| app.get("instance") == Some(&Json::str("mail")))
+                    .expect("the mounted app");
+                let Json::Obj(entries) = mail else {
+                    panic!("an app is an object")
+                };
+                let entries = entries
+                    .into_iter()
+                    .map(|(name, item)| {
+                        if name != "mount" {
+                            return (name, item);
+                        }
+                        let Json::Obj(mut mount) = item.without("views") else {
+                            panic!("a mount is an object")
+                        };
+                        if let Some(views) = views {
+                            mount.push(("views".to_owned(), Json::Bool(views)));
+                        }
+                        (name, Json::Obj(mount))
+                    })
+                    .collect();
+                (key, Json::Arr(vec![Json::Obj(entries)]))
+            })
+            .collect(),
+    )
+}
+
+#[test]
+fn a_mounted_instance_that_lets_its_views_render_carries_views_and_frames_the_sandbox() {
+    // D169 (phase 5 specification, 9.3): with no view app and no provider, only the mounted instance's opt-in puts
+    // the sandbox origin in `frame-src`, as `deployment write` does; without it a managed desktop would refuse every
+    // mounted view with `MOUNT_VIEWS_DISABLED`.
+    for (views, carried, frame_src) in [
+        (Some(true), true, "loam-sandbox://localhost"),
+        (Some(false), false, "'none'"),
+        (None, false, "'none'"),
+    ] {
+        let golden = mounted_only(views);
+        let data = tempfile::tempdir().unwrap();
+        let mut state = install(data.path(), &golden);
+        state.copilot = None;
+        let built = project(data.path(), &state, &golden_profile(&golden)).unwrap();
+        let deployment = Json::parse(built.deployment.as_bytes()).unwrap();
+        let Some(Json::Arr(apps)) = deployment.get("apps") else {
+            panic!("the projection's apps")
+        };
+        assert_eq!(apps.len(), 1, "{views:?}");
+        // Written only when `true`, after `approvals` and before `expose`, as `projectionOf` orders it.
+        let keys: Vec<&str> = match &apps[0] {
+            Json::Obj(entries) => entries.iter().map(|(key, _)| key.as_str()).collect(),
+            _ => panic!("an app is an object"),
+        };
+        assert_eq!(
+            apps[0].get("views"),
+            carried.then_some(&Json::Bool(true)),
+            "{views:?}"
+        );
+        if carried {
+            let at = |key: &str| keys.iter().position(|name| *name == key).unwrap();
+            assert_eq!(at("views"), at("approvals") + 1, "{keys:?}");
+            assert_eq!(at("expose"), at("views") + 1, "{keys:?}");
+        }
+        assert_eq!(built.frame_src, frame_src, "{views:?}");
+        assert!(!built.deployment.contains("\"copilot\""));
+    }
 }
 
 #[test]

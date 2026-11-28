@@ -156,6 +156,8 @@ pub struct Mount {
     pub audience: Option<Audience>,
     pub labels: Option<Labels>,
     pub approvals: Option<Approvals>,
+    /// Whether `shell-open` may render the instance's `ui://` views (phase 5 specification, 9.3; D169).
+    pub views: Option<bool>,
     pub expose: Option<MountExpose>,
     pub commands: Option<BTreeMap<String, CommandOverride>>,
 }
@@ -426,6 +428,84 @@ mod tests {
                 && !bundle_path("apps//mail")
                 && !bundle_path("apps/./mail")
                 && !bundle_path("c:/x")
+        );
+    }
+
+    /// RFC 7386's merge patch, as `loam-plugin-cases.json` states each case: `null` removes a key, an object merges.
+    fn merge(target: Json, patch: &Json) -> Json {
+        let Json::Obj(entries) = patch else {
+            return patch.clone();
+        };
+        let mut merged = match target {
+            Json::Obj(existing) => existing,
+            _ => Vec::new(),
+        };
+        for (key, value) in entries {
+            let at = merged.iter().position(|(name, _)| name == key);
+            if *value == Json::Null {
+                if let Some(at) = at {
+                    merged.remove(at);
+                }
+                continue;
+            }
+            match at {
+                Some(at) => {
+                    let old = std::mem::replace(&mut merged[at].1, Json::Null);
+                    merged[at].1 = merge(old, value);
+                }
+                None => merged.push((key.clone(), merge(Json::Null, value))),
+            }
+        }
+        Json::Obj(merged)
+    }
+
+    /// `loam-plugin-cases.json`'s case named `name` in `list` (`valid` or `refused`), applied to its `base`.
+    fn shared_case(list: &str, name: &str) -> String {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../manifest/test/fixtures/loam-plugin-cases.json");
+        let cases = Json::parse(&std::fs::read(path).expect("the shared cases")).expect("JSON");
+        let Some(Json::Arr(listed)) = cases.get(list) else {
+            panic!("the cases' {list}")
+        };
+        let case = listed
+            .iter()
+            .find(|case| case.get("name") == Some(&Json::str(name)))
+            .unwrap_or_else(|| panic!("the case {name:?}"));
+        crate::js_json::pretty(&merge(
+            cases.get("base").unwrap().clone(),
+            case.get("patch").unwrap(),
+        ))
+    }
+
+    #[test]
+    fn reads_the_views_opt_in_as_a_boolean_and_refuses_any_other_value() {
+        // D169 on a managed desktop: `engine.mount.views`, the shared cases' accepted and refused manifests.
+        let (manifest, _) = read(
+            shared_case(
+                "valid",
+                "a mount that lets the shell render its views (D169)",
+            )
+            .as_bytes(),
+        )
+        .expect("the accepted case");
+        assert_eq!(
+            manifest
+                .engine
+                .and_then(|engine| engine.mount)
+                .and_then(|mount| mount.views),
+            Some(true)
+        );
+        let (base, _) = read(shared_case("valid", "a homepage with a query and a port").as_bytes())
+            .expect("a case without views");
+        assert_eq!(
+            base.engine
+                .and_then(|engine| engine.mount)
+                .and_then(|mount| mount.views),
+            None
+        );
+        assert!(
+            read(shared_case("refused", "a views opt-in that is not a boolean").as_bytes())
+                .is_none()
         );
     }
 }
