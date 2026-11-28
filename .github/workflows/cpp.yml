@@ -25,8 +25,8 @@ on:
       - 'packages/examples/todo/backends/cpp/**'
       - '.github/workflows/cpp.yml'
       - '.github/workflows/queue.yml'
-  # The macOS, Windows, TSan, packaging, benchmark, fuzz and Emscripten legs run daily and on
-  # demand rather than on every pull request and push.
+  # The macOS, MSVC release, clang-cl, TSan, packaging, benchmark, fuzz and Emscripten legs run
+  # daily and on demand rather than on every pull request and push; MSVC's dev leg runs on both.
   schedule:
     - cron: '41 7 * * *'
   workflow_dispatch:
@@ -83,8 +83,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pull requests and pushes build GCC, Clang with ASan+UBSan and the no-exceptions/no-RTTI
-        # unity build; the daily and manual runs add TSan, macOS, MSVC and clang-cl.
+        # Pull requests and pushes build GCC, Clang with ASan+UBSan, the no-exceptions/no-RTTI unity
+        # build and MSVC on the `dev` preset (warnings as errors), since Linux cannot see MSVC-only
+        # diagnostics such as C4702 (#2896, #2930); the daily and manual runs add TSan, macOS, MSVC
+        # release and clang-cl.
         include: >-
           ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '[
             {"name": "linux-gcc", "os": "ubuntu-latest", "preset": "release", "cxx": "g++"},
@@ -97,7 +99,8 @@ jobs:
           ]' || '[
             {"name": "linux-gcc", "os": "ubuntu-latest", "preset": "release", "cxx": "g++"},
             {"name": "linux-clang-sanitize", "os": "ubuntu-latest", "preset": "asan", "cxx": "clang++"},
-            {"name": "noexcept-nortti", "os": "ubuntu-latest", "preset": "noexcept-nortti", "cxx": "clang++"}
+            {"name": "noexcept-nortti", "os": "ubuntu-latest", "preset": "noexcept-nortti", "cxx": "clang++"},
+            {"name": "windows-msvc-dev", "os": "windows-latest", "preset": "dev", "cxx": ""}
           ]') }}
 
     defaults:

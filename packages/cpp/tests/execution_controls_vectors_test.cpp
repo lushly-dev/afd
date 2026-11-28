@@ -317,16 +317,16 @@ TEST_CASE("CommandRegistry snapshots timeout_ms and turns late exceptions into T
     CHECK((*cleared.error->details)["timeoutMs"] == 20);
 
 #if defined(__cpp_exceptions) || defined(_CPPUNWIND)
-    REQUIRE_FALSE(registry
-                      .register_command({.name = "work-late-throw",
-                                         .description = "Throws after deadline expires",
-                                         .handler =
-                                             [clock](const afd::Json&, afd::CommandContext&) {
-                                                 clock->advance(50);
-                                                 throw std::runtime_error("late failure");
-                                                 return afd::success(afd::Json{});
-                                             }})
-                      .has_value());
+    REQUIRE_FALSE(
+        registry
+            .register_command(
+                {.name = "work-late-throw",
+                 .description = "Throws after deadline expires",
+                 .handler = [clock](const afd::Json&, afd::CommandContext&) -> afd::CommandResult {
+                     clock->advance(50);
+                     throw std::runtime_error("late failure");
+                 }})
+            .has_value());
     const afd::CommandResult thrown =
         registry.execute("work-late-throw", afd::Json::object(), context);
     CHECK_FALSE(thrown.success);

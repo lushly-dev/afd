@@ -260,7 +260,7 @@ export const SUITES = [
 		"tools": [
 			"uv"
 		],
-		"remote": "Python 3.11 to 3.14, and the wheel install smoke test per extra",
+		"remote": "Python 3.11 to 3.14, the wheel install smoke test per extra, and the Windows test job",
 		"steps": [
 			{
 				"cwd": "python",
@@ -443,7 +443,7 @@ export const SUITES = [
 		"tools": [
 			"cargo"
 		],
-		"remote": "the wasm32 checks and tests, the MSRV matrix, and the docs.rs build",
+		"remote": "the wasm32 checks and tests, the MSRV matrix, the docs.rs build, and the Windows test job",
 		"steps": [
 			{
 				"cwd": "packages/rust",
@@ -761,7 +761,7 @@ export const SUITES = [
 		"tools": [
 			"cmake"
 		],
-		"remote": "clang-format, the sanitizer and no-exceptions legs; daily: TSan, Windows, MSVC, Emscripten, packaging, benchmarks and fuzz",
+		"remote": "clang-format, the sanitizer and no-exceptions legs, and MSVC on the dev preset; daily: TSan, macOS, MSVC release, clang-cl, Emscripten, packaging, benchmarks and fuzz",
 		"steps": [
 			{
 				"cwd": "packages/cpp",

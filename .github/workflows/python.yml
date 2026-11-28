@@ -117,3 +117,37 @@ jobs:
             fi
             echo "::endgroup::"
           done
+
+  # The tests on Windows, on the newest Python only: paths, temporary folders and subprocesses
+  # behave differently there, and the Linux matrix cannot see it (#2930). No lint, type check,
+  # wheel or smoke test here; the matrix above runs those. publish-python.yml calls this workflow,
+  # so a release waits on it too: a release that fails on Windows does not publish.
+  windows:
+    name: Python (Windows, test)
+    needs: queue
+    if: needs.queue.outputs.run == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: python
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: '3.14'
+          enable-cache: true
+          cache-dependency-glob: python/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --frozen --all-extras
+
+      - name: Test
+        run: uv run pytest -q
