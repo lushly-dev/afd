@@ -2,7 +2,9 @@
 /**
  * Builds unsigned desktop installers for the current operating system (phase 6 specification,
  * 10.7, 11.3, 14 and P6-D5), stages them into `dist-installers/`, writes `SHA256SUMS.txt`, and
- * records each installer's size in `test-results/installers-<platform>.json`.
+ * records each installer's size in `test-results/installers-<platform>.json`. Every installer carries the
+ * third-party notices (#2808): `build-notices.mjs` writes them first, and `tauri build` bundles them as resources
+ * beside the app through the `--config` it writes.
  *
  * Expects `dist/` to already contain the bundled empty shell (`pnpm build:site`).
  */
@@ -20,6 +22,7 @@ import {
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildNotices, TAURI_CONFIG } from './build-notices.mjs';
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const SRC_TAURI = join(PACKAGE, 'src-tauri');
@@ -97,10 +100,25 @@ const bundleRoot = join(targetDir, 'release', 'bundle');
 // Clean prior bundle outputs so a reused Cargo target directory can never stage an older version.
 rmSync(bundleRoot, { recursive: true, force: true });
 
+const notices = buildNotices();
+console.log(
+	`third-party notices: ${notices.crates} crates, ${notices.npm} npm and repository packages`
+);
+
 const tauriCli = join(PACKAGE, 'node_modules', '@tauri-apps', 'cli', 'tauri.js');
 run(
 	process.execPath,
-	[tauriCli, 'build', '--no-sign', '--bundles', bundles.join(','), '--', '--locked'],
+	[
+		tauriCli,
+		'build',
+		'--no-sign',
+		'--bundles',
+		bundles.join(','),
+		'--config',
+		TAURI_CONFIG,
+		'--',
+		'--locked',
+	],
 	{ env: tauriEnv }
 );
 

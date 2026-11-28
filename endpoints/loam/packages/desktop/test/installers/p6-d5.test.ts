@@ -6,6 +6,7 @@
  * 3. With an ephemeral test key and a local HTTPS feed backed by an ephemeral test CA, a signed
  *    update installs on this platform, while a tampered payload, wrong-key signature, untrusted
  *    CA, plain HTTP feed and plain HTTP download URL are each refused.
+ * And #2808: each installer carries the third-party notices `build-notices.mjs` wrote, byte for byte.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -64,11 +65,13 @@ function runChecked(
 	const result = spawnSync(command, args, {
 		encoding: 'utf8',
 		shell: false,
+		// An AppImage's `--appimage-extract` lists every file it writes.
+		maxBuffer: 64 * 1024 * 1024,
 		...options,
 	});
 	if (result.status !== 0) {
 		throw new Error(
-			`${command} ${args.join(' ')} exited ${result.status}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`
+			`${command} ${args.join(' ')} exited ${result.status}${result.error ? ` (${result.error.message})` : ''}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`
 		);
 	}
 	return result.stdout ?? '';
@@ -229,6 +232,66 @@ function buildUpdaterTestBinary(): string {
 
 const TAURI_CLI = join(PACKAGE, 'node_modules', '@tauri-apps', 'cli', 'tauri.js');
 
+/** #2808: the notice files `build-notices.mjs` writes and `tauri build` bundles beside the app. */
+const NOTICES = join(PACKAGE, 'dist-notices');
+const NOTICE_FILES = ['THIRD_PARTY_NOTICES.txt', 'RUST_STANDARD_LIBRARY_NOTICES.html'];
+
+/**
+ * Every file under `dir` named `name`, never through a symbolic link: a disk image's `Applications` link points at
+ * the machine's own `/Applications`, which `readdirSync`'s `recursive` follows (into Xcode, past `ENAMETOOLONG`).
+ */
+function filesNamed(dir: string, name: string): string[] {
+	const found: string[] = [];
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		const path = join(dir, entry.name);
+		if (entry.isSymbolicLink()) continue;
+		if (entry.isDirectory()) found.push(...filesNamed(path, name));
+		else if (entry.name === name) found.push(path);
+	}
+	return found;
+}
+
+/**
+ * Unpacks an installer's files into a fresh directory, without installing it: `dpkg-deb -x`, the AppImage's own
+ * `--appimage-extract`, `tar`, a read-only `hdiutil` mount, or an MSI administrative install (`msiexec /a`).
+ * Returns the directory to search and a cleanup for a mount.
+ */
+function unpackInstaller(name: string): { dir: string; done: () => void } {
+	const installer = join(OUT, name);
+	const dir = makeTempDir('loam-p6-d5-unpack-');
+	if (name.endsWith('.deb')) {
+		runChecked('dpkg-deb', ['-x', installer, dir]);
+	} else if (name.endsWith('.AppImage')) {
+		const copy = join(dir, name);
+		copyFileSync(installer, copy);
+		chmodSync(copy, 0o755);
+		const env = { ...process.env };
+		delete env.APPIMAGE_EXTRACT_AND_RUN;
+		runChecked(copy, ['--appimage-extract'], { cwd: dir, env });
+		rmSync(copy, { force: true });
+	} else if (name.endsWith('.tar.gz')) {
+		runChecked('tar', ['-xzf', installer, '-C', dir]);
+	} else if (name.endsWith('.dmg')) {
+		const mount = join(dir, 'mount');
+		mkdirSync(mount);
+		runChecked('hdiutil', [
+			'attach',
+			'-nobrowse',
+			'-readonly',
+			'-noautoopen',
+			'-mountpoint',
+			mount,
+			installer,
+		]);
+		return { dir: mount, done: () => runChecked('hdiutil', ['detach', mount, '-force']) };
+	} else if (name.endsWith('.msi')) {
+		runChecked('msiexec', ['/a', installer, '/qn', `TARGETDIR=${dir}`]);
+	} else {
+		throw new Error(`No way to unpack ${name}`);
+	}
+	return { dir, done: () => {} };
+}
+
 function generateMinisignKeypair(dir: string, name: string): { keyPath: string; pubkey: string } {
 	const keyPath = join(dir, `${name}.key`);
 	runChecked(
@@ -346,6 +409,43 @@ describe('P6-D5: installers and updates', () => {
 			process.stderr.write(
 				`P6-D5 installer (${process.platform}): ${entry.name} = ${size} bytes (${(size / (1024 * 1024)).toFixed(2)} MiB)\n`
 			);
+		}
+	});
+
+	it('#2808: every installer carries the third-party notices beside the app', () => {
+		const expected = NOTICE_FILES.map((file) => {
+			const path = join(NOTICES, file);
+			expect(existsSync(path), `${path} missing; build:installers writes it`).toBe(true);
+			return { file, bytes: readFileSync(path) };
+		});
+		// The polyfill the binary embeds, and entries only the builds' module records give: a crate, a bundled npm
+		// package, FAST-AF's Microsoft notice and the fonts' OFL.
+		const notices = expected[0]?.bytes.toString('utf8') ?? '';
+		for (const entry of [
+			/^@webcomponents\/scoped-custom-element-registry 0\.0\.10$/m,
+			/^tauri \d+\.\d+\.\d+$/m,
+			/^zod \d+\.\d+\.\d+$/m,
+			/^@lushly-dev\/fast-element .*\n(?: {2}.*\n)*? {2}\[\d+\] foundations\/fast-af\/packages\/element\/LICENSE$/m,
+			/^@lushly-dev\/loam-theme .*\n(?: {2}.*\n)*? {2}\[\d+\] endpoints\/loam\/packages\/theme\/fonts\/OFL-Inter\.txt$/m,
+		])
+			expect(notices).toMatch(entry);
+		const installers = readdirSync(OUT).filter((name) => name !== 'SHA256SUMS.txt');
+		expect(installers.length).toBeGreaterThan(0);
+		for (const name of installers) {
+			const { dir, done } = unpackInstaller(name);
+			try {
+				for (const { file, bytes } of expected) {
+					const found = filesNamed(dir, file);
+					expect(found, `${name} must carry ${file} once`).toHaveLength(1);
+					const [path = ''] = found;
+					expect(readFileSync(path).equals(bytes), `${name}: ${file} differs from ${NOTICES}`).toBe(
+						true
+					);
+					process.stderr.write(`#2808 ${name}: ${path.slice(dir.length + 1)}\n`);
+				}
+			} finally {
+				done();
+			}
 		}
 	});
 

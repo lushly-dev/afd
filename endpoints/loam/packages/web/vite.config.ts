@@ -1,6 +1,7 @@
 import { cpSync, existsSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
+import { recordModules } from './scripts/module-record.mjs';
 import { narrowZodFromJsonSchema, zodJitlessByDefault } from './scripts/narrow-zod.mjs';
 
 /**
@@ -18,7 +19,10 @@ function copilotFrame(): Plugin {
 				throw new Error(`Build @lushly-dev/loam-copilot first: ${from} is missing`);
 			const to = fileURLToPath(new URL('./dist/sandbox/copilot/', import.meta.url));
 			rmSync(to, { recursive: true, force: true });
-			cpSync(from, to, { recursive: true, filter: (path) => !path.endsWith('sizes.json') });
+			cpSync(from, to, {
+				recursive: true,
+				filter: (path) => !path.endsWith('sizes.json') && !path.endsWith('modules.json'),
+			});
 		},
 	};
 }
@@ -40,7 +44,16 @@ const STAGED_DOMAIN_CHUNKS: ReadonlyArray<readonly [suffix: string, chunkName: s
 
 export default defineConfig({
 	base: './',
-	plugins: [zodJitlessByDefault(), narrowZodFromJsonSchema(), copilotFrame()],
+	plugins: [
+		zodJitlessByDefault(),
+		narrowZodFromJsonSchema(),
+		copilotFrame(),
+		// What the shell ships, for the desktop's third-party notices (#2808); beside `dist/`, not in it.
+		recordModules(
+			fileURLToPath(new URL('./build-record/modules.json', import.meta.url)),
+			fileURLToPath(new URL('.', import.meta.url))
+		),
+	],
 	build: {
 		target: 'es2022',
 		outDir: 'dist',
