@@ -161,6 +161,15 @@ async function fakeTurn(options: { scripts?: Record<string, ModelScriptV1> } = {
 	return { ...setupResult, launcher, session, turn: sent.turn, agent, model, panel, run };
 }
 
+/** How long a test waits for a port message's effect: loaded lane hosts run slow (#2866, #3057). */
+const SETTLED = { timeout: 5_000 };
+
+/** The session's turns as `copilot-session-get` reads them, for waiting on a state a port message sets. */
+async function turnsOf(kernel: LoamKernel, session: string): Promise<CopilotTurnV1[]> {
+	return data<{ turns: CopilotTurnV1[] }>(await kernel.call('copilot-session-get', { session }))
+		.turns;
+}
+
 describe('the copilot commands (3.5)', () => {
 	it('starts a session in the active scope with the default provider', async () => {
 		const { kernel } = await setup();
@@ -895,11 +904,12 @@ describe('the agent port’s kernel half (3.2, P5-A2)', () => {
 			agent.post({ id: index + 1, key: 'call', name: 'shell-info-get', input: {} });
 			await agent.next();
 		}
-		const got = data<{ turns: CopilotTurnV1[] }>(
-			await kernel.call('copilot-session-get', { session })
-		);
-		expect(got.turns[0]).toMatchObject({ state: 'stopped', stoppedBy: 'limit' });
-		expect(got.turns[0]?.calls).toHaveLength(40);
+		// The 41st call is refused as the turn settles; the stored turn follows a moment later.
+		await vi.waitFor(async () => {
+			const [turn] = await turnsOf(kernel, session);
+			expect(turn).toMatchObject({ state: 'stopped', stoppedBy: 'limit' });
+			expect(turn?.calls).toHaveLength(40);
+		}, SETTLED);
 	});
 
 	it('gives the runtime the kernel’s history and provider, never a key or an endpoint', async () => {
@@ -916,7 +926,10 @@ describe('the agent port’s kernel half (3.2, P5-A2)', () => {
 			event: { type: 'TEXT_MESSAGE_CONTENT', messageId: 'm', delta: 'Reply one' },
 		});
 		panel.post({ key: 'end', runId: first.runId, state: 'done', code: 'RUN_ERROR' });
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		await vi.waitFor(
+			async () => expect((await turnsOf(kernel, session))[0]?.state).toBe('done'),
+			SETTLED
+		);
 		await kernel.call('copilot-message-send', { session, text: 'Second', wait: false });
 		const second = (await panel.next(
 			(message) => (message as { text?: string }).text === 'Second'
@@ -997,8 +1010,6 @@ describe('the model and panel ports’ halves (3.2, 4.2, 4.4)', () => {
 			toolCallName: 'x',
 			state: 'approval-requested',
 		});
-		// The runtime cannot draw its text as the person's (3.4).
-		post({ type: 'TEXT_MESSAGE_START', messageId: 'm2', role: 'user' });
 		post({ type: 'TEXT_MESSAGE_CONTENT', messageId: 'm', delta: '<b>bold</b>' }, 'run_other');
 		post({ type: 'MESSAGES_SNAPSHOT', messages: [] });
 		panel.post({
@@ -1007,12 +1018,18 @@ describe('the model and panel ports’ halves (3.2, 4.2, 4.4)', () => {
 			event: { type: 'TEXT_MESSAGE_CONTENT', delta: 'ok' },
 			extra: 1,
 		});
-		await new Promise((resolve) => setTimeout(resolve, 30));
-		expect(heard.map((item) => item.event)).toEqual([
-			{ type: 'RUN_FINISHED', runId: run.runId },
-			{ type: 'TOOL_CALL_START', toolCallId: 't1', toolCallName: 'x' },
-			{ type: 'TEXT_MESSAGE_START', messageId: 'm2', role: 'assistant' },
-		]);
+		// The runtime cannot draw its text as the person's (3.4). Posted last on the same port, it is
+		// forwarded only after every message above was handled, so the list below is complete.
+		post({ type: 'TEXT_MESSAGE_START', messageId: 'm2', role: 'user' });
+		await vi.waitFor(
+			() =>
+				expect(heard.map((item) => item.event)).toEqual([
+					{ type: 'RUN_FINISHED', runId: run.runId },
+					{ type: 'TOOL_CALL_START', toolCallId: 't1', toolCallName: 'x' },
+					{ type: 'TEXT_MESSAGE_START', messageId: 'm2', role: 'assistant' },
+				]),
+			SETTLED
+		);
 	});
 
 	it('takes one model request at a time, and stops the turn at its rounds, counted on the trusted side (4.4)', async () => {
@@ -1032,11 +1049,14 @@ describe('the model and panel ports’ halves (3.2, 4.2, 4.4)', () => {
 		expect(await model.next((message) => (message as { id?: number }).id === 99)).toMatchObject({
 			error: { code: 'COPILOT_PORT_REFUSED' },
 		});
-		await new Promise((resolve) => setTimeout(resolve, 20));
-		const got = data<{ turns: CopilotTurnV1[] }>(
-			await kernel.call('copilot-session-get', { session })
+		await vi.waitFor(
+			async () =>
+				expect((await turnsOf(kernel, session))[0]).toMatchObject({
+					state: 'stopped',
+					stoppedBy: 'limit',
+				}),
+			SETTLED
 		);
-		expect(got.turns[0]).toMatchObject({ state: 'stopped', stoppedBy: 'limit' });
 	});
 
 	it('fails a turn whose runtime keeps sending what its ports refuse, and stops journaling it', async () => {
@@ -1049,34 +1069,41 @@ describe('the model and panel ports’ halves (3.2, 4.2, 4.4)', () => {
 			(entry) => entry.command === 'copilot-port-refuse'
 		);
 		expect(journaled).toHaveLength(PORT_BUDGETS.refusals);
-		const got = data<{ turns: CopilotTurnV1[] }>(
-			await kernel.call('copilot-session-get', { session })
+		await vi.waitFor(
+			async () =>
+				expect((await turnsOf(kernel, session))[0]).toMatchObject({
+					state: 'failed',
+					failure: { code: 'COPILOT_PORT_REFUSED' },
+				}),
+			SETTLED
 		);
-		expect(got.turns[0]).toMatchObject({
-			state: 'failed',
-			failure: { code: 'COPILOT_PORT_REFUSED' },
-		});
 	});
 
 	it('ends every run as session-changed when the host is reset, as removing the frame does', async () => {
 		const { kernel, host, session, launcher } = await fakeTurn();
 		host.reset();
-		await new Promise((resolve) => setTimeout(resolve, 20));
-		const got = data<{ turns: CopilotTurnV1[] }>(
-			await kernel.call('copilot-session-get', { session })
+		await vi.waitFor(
+			async () =>
+				expect((await turnsOf(kernel, session))[0]).toMatchObject({
+					state: 'stopped',
+					stoppedBy: 'session-changed',
+				}),
+			SETTLED
 		);
-		expect(got.turns[0]).toMatchObject({ state: 'stopped', stoppedBy: 'session-changed' });
 		expect(launcher.resets).toBe(1);
 	});
 
 	it('fails a turn the runtime ends with an error, with its code', async () => {
 		const { kernel, panel, run, session } = await fakeTurn();
 		panel.post({ key: 'end', runId: run.runId, state: 'failed', code: 'MODEL_REFUSED' });
-		await new Promise((resolve) => setTimeout(resolve, 20));
-		const got = data<{ turns: CopilotTurnV1[] }>(
-			await kernel.call('copilot-session-get', { session })
+		await vi.waitFor(
+			async () =>
+				expect((await turnsOf(kernel, session))[0]).toMatchObject({
+					state: 'failed',
+					failure: { code: 'MODEL_REFUSED' },
+				}),
+			SETTLED
 		);
-		expect(got.turns[0]).toMatchObject({ state: 'failed', failure: { code: 'MODEL_REFUSED' } });
 	});
 });
 
