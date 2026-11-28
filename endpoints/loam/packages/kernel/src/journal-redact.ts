@@ -108,8 +108,8 @@ const unitResult = (record: JournalRecord): boolean => {
 /**
  * A single sign-on `auth-sign-in`'s `SIGN_IN_REDIRECT` warning, its authorize URL cut to its origin and path (#2786):
  * the query holds `state`, a single-use nonce the callback consumes, and the PKCE challenge, so the journal keeps where
- * sign-in continued and nothing a callback reads. A replay never follows the URL: its Mock signs in at once, so such an
- * entry diverges on replay whatever its URL holds (#2786's review).
+ * sign-in continued and nothing a callback reads. A replay never follows the URL: it drives its Mock to the same
+ * redirect outcome, leaving the session unchanged (#2954).
  */
 function withoutAuthorizeQuery(record: JournalRecord): JournalRecord {
 	const warnings = (record.result as { warnings?: unknown } | undefined)?.warnings;

@@ -4,7 +4,12 @@
  * reference workspace and the `probe` fixture app. No DOM dependency.
  */
 
-import { MockAuthAdapter, type User } from '@lushly-dev/afd-auth';
+import {
+	MockAuthAdapter,
+	type SignInOptions,
+	type SignInOutcome,
+	type User,
+} from '@lushly-dev/afd-auth';
 import {
 	type CommandContext,
 	type CommandResult,
@@ -206,6 +211,29 @@ export const REPLAY_RECORDED_QUERIES: readonly string[] = Object.freeze([
  */
 function historicalAgentSignIn(entry: JournalEntry): boolean {
 	return entry.command === 'auth-sign-in' && entry.contextDigest?.interface === 'agent';
+}
+
+/**
+ * The redirect outcome recorded on a single sign-on `auth-sign-in` entry, if any (#2954):
+ * returns `{ kind: 'redirect', url? }` for a successful `oauth` `auth-sign-in` carrying a
+ * `SIGN_IN_REDIRECT` warning. Driving the replay's Mock with this outcome lets the full command
+ * pipeline (interface check, schema validation, `provider`-mode `identity.methods`, `afd-auth`'s
+ * `incompleteSignIn` handler, and whole-result comparison) run while leaving the Mock's session
+ * state unchanged.
+ */
+function recordedRedirectOutcome(entry: JournalEntry | undefined): SignInOutcome | undefined {
+	if (
+		entry?.command !== 'auth-sign-in' ||
+		entry.result.success !== true ||
+		(entry.input as { method?: unknown } | undefined)?.method !== 'oauth' ||
+		!Array.isArray(entry.result.warnings)
+	) {
+		return undefined;
+	}
+	const warning = entry.result.warnings.find((candidate) => candidate?.code === 'SIGN_IN_REDIRECT');
+	if (!warning) return undefined;
+	const url = (warning.details as { url?: unknown } | undefined)?.url;
+	return typeof url === 'string' ? { kind: 'redirect', url } : { kind: 'redirect' };
 }
 
 /** Whether a replay answers `entry` from its record, because re-running it would prove nothing. */
@@ -606,7 +634,18 @@ export async function replayKernel(
 			return typeof origin === 'string' && answeredFromRecord(entry) ? [origin] : [];
 		})
 	);
-	const auth = new MockAuthAdapter();
+	let nextRedirect: SignInOutcome | undefined;
+	class ReplayAuthAdapter extends MockAuthAdapter {
+		override async signIn(options: SignInOptions): Promise<SignInOutcome> {
+			if (options.method === 'oauth' && nextRedirect !== undefined) {
+				const outcome = nextRedirect;
+				nextRedirect = undefined;
+				return outcome;
+			}
+			return super.signIn(options);
+		}
+	}
+	const auth = new ReplayAuthAdapter();
 	// The users the journal's `auth-*` results name, so a settled person reads back as they were recorded.
 	const users = new Map<string, User>();
 	for (const entry of ordered) {
@@ -838,9 +877,12 @@ export async function replayKernel(
 					}
 				}
 				let result: CommandResult;
+				nextRedirect =
+					entry?.context?.parent === undefined ? recordedRedirectOutcome(entry) : undefined;
 				try {
 					result = await registry.execute(name, input, context);
 				} finally {
+					nextRedirect = undefined;
 					if (replayPrincipal) parts.retirePrincipal?.(replayPrincipal);
 					if (restoreSession !== undefined) drive(restoreSession.had);
 				}
