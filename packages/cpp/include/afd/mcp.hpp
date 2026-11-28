@@ -24,17 +24,18 @@ std::string_view execution_time_name(ExecutionTime time) noexcept;
 /// The per-command `_meta` of a tool (spec/command-metadata.md, "Surfaces";
 /// spec/output-budgets.md, B1; spec/mcp-resources.md, T1): extra `tool_meta` entries (validated
 /// against T2 and omitted on meta-tools and `afd-context-*` tools), plus `category`, `requires`,
-/// `mutation`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema`, `contexts` and
-/// `dev.afd/outputBudget`, each only when the command sets it (meta-tools and `afd-context-*`
-/// tools never emit `dev.afd/outputBudget`). C++ booleans have no unset state, so `mutation`,
-/// `destructive` and `undoable` are reported when true. Never `confirmPrompt` or `title`, which
-/// are display text. `std::nullopt` when nothing is set.
+/// `mutation`, `idempotency`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema`,
+/// `contexts` and `dev.afd/outputBudget`, each only when the command sets it (meta-tools and
+/// `afd-context-*` tools never emit `dev.afd/outputBudget`). C++ booleans have no unset state, so
+/// `mutation`, `destructive` and `undoable` are reported when true. Never `confirmPrompt` or
+/// `title`, which are display text. `std::nullopt` when nothing is set.
 std::optional<Json> command_tool_meta(const CommandDefinition& command);
 
 /// MCP tool annotations (spec/command-metadata.md, "Annotations"): a mutation reports
 /// `readOnlyHint: false` and `destructiveHint`. C++ cannot tell an unset `mutation` from `false`,
-/// so a command that is not a mutation claims nothing (`std::nullopt`) rather than
-/// `readOnlyHint: true`.
+/// so a command that is not a mutation claims no `readOnlyHint`. A command declaring
+/// `IdempotencySupport::natural` adds `idempotentHint: true` (spec/idempotency.md, D2); nothing
+/// else reports it. `std::nullopt` when there is none.
 std::optional<Json> command_tool_annotations(const CommandDefinition& command);
 
 /// The MCP tool for `command`: `name`, `title` (only when set), `description`, `inputSchema`
@@ -54,11 +55,11 @@ std::vector<Json> commands_to_mcp_tools(const std::vector<CommandDefinition>& co
 
 /// `command` as afd-detail describes it (spec/command-metadata.md, "Surfaces";
 /// spec/output-budgets.md, B1): `name`, `title`, `description`, `category`, `tags`, `mutation`
-/// (always), `executionTime`, `errors`, `inputSchema`, `outputSchema`, `destructive`,
-/// `confirmPrompt`, `undoable`, `approval`, `handoff`, `handoffProtocol`, `version`, `requires`,
-/// `contexts`, `examples` and `outputBudget` (omitted on meta-tools and `afd-context-*` tools).
-/// Unset fields and empty arrays are omitted; `destructive`, `undoable` and `handoff` are reported
-/// when true.
+/// (always), `idempotency`, `executionTime`, `errors`, `inputSchema`, `outputSchema`,
+/// `destructive`, `confirmPrompt`, `undoable`, `approval`, `handoff`, `handoffProtocol`, `version`,
+/// `requires`, `contexts`, `examples` and `outputBudget` (omitted on meta-tools and `afd-context-*`
+/// tools). Unset fields and empty arrays are omitted; `destructive`, `undoable` and `handoff` are
+/// reported when true.
 Json to_json(const CommandDefinition& command);
 
 } // namespace afd

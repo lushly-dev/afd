@@ -96,9 +96,9 @@ cannot set `_meta` (#466, recorded in [`command-metadata.md`](./command-metadata
 - Its keys are `dev.afd/context`, `dev.afd/outputBudget` (an output-budget ask,
   [B2](./output-budgets.md#b2-the-ask)) and the declared fields' `_meta` keys.
   `dev.afd/idempotencyKey` joins them in each language that implements
-  [idempotency keys](./idempotency.md#the-key) (TypeScript so far). The `meta` argument's
+  [idempotency keys](./idempotency.md#the-key) (TypeScript and C++ so far). The `meta` argument's
   description in [`meta-tools.json`](./meta-tools.json), which every server lists, gains it once
-  every language accepts it ([#2676](https://github.com/lushly-dev/afd/issues/2676)). Other keys are
+  every language accepts it (Python [#2955](https://github.com/lushly-dev/afd/issues/2955), Rust [#2956](https://github.com/lushly-dev/afd/issues/2956)). Other keys are
   dropped, as undeclared `_meta` keys are. `null`, for `meta` or for a value in either place, is no
   value.
 - The server removes `meta` from the arguments and applies its keys as if the request had sent

@@ -72,6 +72,12 @@ public:
     /// 4. With a positive `context.timeout_ms`, the cancellation token carries the deadline, and a
     ///    call that finishes past it returns TIMEOUT. A synchronous handler is not interrupted.
     /// 5. Client middleware, then `CommandRegistry::execute`.
+    ///
+    /// To send an idempotency key (spec/idempotency.md, K1), set `context.idempotency_key`: the
+    /// registry checks its form and delivers it to the handler, and a registry with the
+    /// idempotency step answers a repeat of a `keyed` call from its store. A late finish whose key
+    /// the step reserved gets a `TIMEOUT` with a `retry` recovery (R3); repeat it with the same
+    /// key.
     [[nodiscard]] CommandResult call(std::string_view name, const Json& args = Json::object(),
                                      CommandContext context = {}) const;
 

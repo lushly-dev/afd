@@ -58,6 +58,7 @@ afd::CommandDefinition define(Command command, std::shared_ptr<TodoStore> store)
     definition.contexts = command.mutation ? edit_contexts : read_contexts;
     definition.errors = command.errors;
     definition.mutation = command.mutation;
+    definition.idempotency = command.idempotency;
     definition.destructive = command.destructive;
     definition.undoable = command.undoable;
     definition.confirm_prompt = command.confirm_prompt;

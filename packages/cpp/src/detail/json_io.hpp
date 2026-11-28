@@ -295,15 +295,22 @@ inline Json examples_json(const std::vector<CommandExample>& examples) {
     return out;
 }
 
-/// Shared late-finish `TIMEOUT` result (`spec/execution-controls.md`, #1766).
-inline CommandResult command_timed_out(std::string_view name, double timeout_ms) {
+/// Shared late-finish `TIMEOUT` result (`spec/execution-controls.md`, #1766). `keyed` when the
+/// idempotency step reserved the call's key: a repeat with that key is answered from its store, so
+/// the error carries a `retry` recovery (spec/idempotency.md, R3); anywhere else it carries none.
+inline CommandResult command_timed_out(std::string_view name, double timeout_ms,
+                                       bool keyed = false) {
     return failure(create_error(
         error_codes::TIMEOUT,
         "Command '" + truncate_name(name) + "' timed out after " + format_number(timeout_ms) + "ms",
         {.suggestion =
-             "Retry with a larger timeout. The command was signalled to abort but may have "
-             "completed, so check its effect before retrying a mutation.",
+             keyed ? "Repeat the call with the same idempotency key and input: this server "
+                     "answers it from the first call, so the change is not applied twice."
+                   : "Retry with a larger timeout. The command was signalled to abort but may have "
+                     "completed, so check its effect before retrying a mutation.",
          .retryable = true,
+         .recovery =
+             keyed ? std::optional<Recovery>(Recovery{.kind = RecoveryKind::retry}) : std::nullopt,
          .details =
              Json{{"command", std::string(name)}, {"timeoutMs", wire::number(timeout_ms)}}}));
 }

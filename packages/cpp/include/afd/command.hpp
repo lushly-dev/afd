@@ -3,6 +3,7 @@
 #pragma once
 
 #include "afd/actor.hpp"
+#include "afd/idempotency.hpp"
 #include "afd/json.hpp"
 #include "afd/output_budget.hpp"
 #include "afd/result.hpp"
@@ -32,6 +33,9 @@ struct ApprovalAdmission;
 struct RawOutputBudgetAsk;
 struct CallerAllow;
 struct DispatchIdAccess;
+struct IdempotencyKeyMark;
+struct IdempotencyConnection;
+struct IdempotencyNote;
 } // namespace detail
 
 /// The identity of a call's verified credentials (`spec/authorization.md`, M4/M8): `issuer`,
@@ -205,8 +209,32 @@ struct CommandContext {
     /// Plain `afd::mcp_stdio` leaves this unset.
     std::optional<PrincipalCredentials> credentials;
     /// Internal approver client call state (`afd::mcp_stdio`). Only the MCP server sets it; leave
-    /// unset. Last, so positional initializers written before it existed still compile.
+    /// unset.
     std::shared_ptr<detail::ApproverCall> approver_call;
+    /// The call's idempotency key (spec/idempotency.md, K1 to K6). An in-process caller, or
+    /// `DirectClient::call`'s context, sets it to send one; `afd::mcp_stdio` sets it from
+    /// `_meta["dev.afd/idempotencyKey"]` or a meta-tool's `meta` argument unless `context_hook`
+    /// set one. `CommandRegistry::execute` checks its form (K2: 1 to 200 of `A-Z a-z 0-9 . _ ~ -`)
+    /// before middleware runs and fails the call with VALIDATION_ERROR otherwise, then leaves the
+    /// key here for middleware and the handler (K3). A batch item or pipeline step runs under the
+    /// key derived from the request's (K4). A command the handler runs through the registry on
+    /// this context does not inherit it (K6): set a key of the nested call's own to key it. Never
+    /// read from a command's input.
+    std::optional<std::string> idempotency_key;
+    /// Internal: whether the engine set `idempotency_key` itself (a derived or restored key) or
+    /// delivered it to a handler (K4, K6). Set by the registry, batches, pipelines and replay;
+    /// leave it unset.
+    std::shared_ptr<const detail::IdempotencyKeyMark> idempotency_key_mark;
+    /// Internal: the stdio connection the call came on. The idempotency step scopes a key to it
+    /// when the call, as middleware left it, has no identity of its own (spec/idempotency.md, S3).
+    /// Only `afd::mcp_stdio` sets it.
+    std::shared_ptr<const detail::IdempotencyConnection> idempotency_connection;
+    /// Internal: where the registry notes that the idempotency step reserved the call's key, for
+    /// the surface that owns the call's deadline (`DirectClient`, `afd::mcp_stdio`) to give its
+    /// `TIMEOUT` a recovery (R3). The registry takes it off the context, so a nested call never
+    /// notes the outer one. Leave it unset.
+    std::shared_ptr<detail::IdempotencyNote> idempotency_note;
+    // The idempotency members are last, so positional initializers written before them compile.
 };
 
 /// Defaults for `with_context_defaults`.
@@ -394,6 +422,15 @@ struct CommandDefinition {
     /// Error codes the command can return.
     std::vector<std::string> errors;
     bool mutation = false;
+    /// What a repeat of a call is safe under (spec/idempotency.md, D1 to D5): `natural` when
+    /// repeating a call leaves the same state as making it once (reported as the MCP annotation
+    /// `idempotentHint: true`), `keyed` when a repeat that carries the same idempotency key and
+    /// input is safe, because the handler answers it or the registry has the idempotency step
+    /// (`CommandRegistryOptions::idempotency`). Unset claims nothing. Reported as
+    /// `_meta.idempotency`, by `afd-detail` and by `afd-help` (`full`). The retry middleware
+    /// repeats a `natural` command, a `keyed` one only when the call carries a key, and any other
+    /// unless it is a `mutation` (R1).
+    std::optional<IdempotencySupport> idempotency;
     bool destructive = false;
     std::optional<std::string> confirm_prompt;
     bool undoable = false;

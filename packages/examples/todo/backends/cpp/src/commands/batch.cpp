@@ -70,6 +70,7 @@ afd::CommandDefinition todo_create_batch(std::shared_ptr<TodoStore> store) {
     command.description = "Create multiple todos at once with partial failure support";
     command.tags = {"todo", "create", "write", "batch"};
     command.mutation = true;
+    command.idempotency = afd::IdempotencySupport::keyed;
     command.undoable = true;
     command.errors = {"VALIDATION_ERROR", "PARTIAL_FAILURE"};
     command.input = {{"type", "object"},
@@ -169,6 +170,7 @@ afd::CommandDefinition todo_delete_batch(std::shared_ptr<TodoStore> store) {
         "with todo-restore until todo-clear empties the deleted todos";
     command.tags = {"todo", "delete", "write", "batch", "destructive"};
     command.mutation = true;
+    command.idempotency = afd::IdempotencySupport::natural;
     command.destructive = true;
     // It can be undone, so it is not held for approval.
     command.undoable = true;
@@ -245,6 +247,7 @@ afd::CommandDefinition todo_toggle_batch(std::shared_ptr<TodoStore> store) {
                           "completed: true or false";
     command.tags = {"todo", "toggle", "write", "batch"};
     command.mutation = true;
+    command.idempotency = afd::IdempotencySupport::keyed;
     command.undoable = true;
     command.requires_first = {"todo-list"};
     command.errors = {"NOT_FOUND", "PARTIAL_FAILURE"};

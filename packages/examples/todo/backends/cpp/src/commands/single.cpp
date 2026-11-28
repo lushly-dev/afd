@@ -18,6 +18,7 @@ afd::CommandDefinition todo_create(std::shared_ptr<TodoStore> store) {
     command.description = "Create a new todo item";
     command.tags = {"todo", "create", "write", "single"};
     command.mutation = true;
+    command.idempotency = afd::IdempotencySupport::keyed;
     command.undoable = true;
     command.errors = {"VALIDATION_ERROR"};
     command.input = {{"type", "object"},
@@ -223,6 +224,7 @@ afd::CommandDefinition todo_update(std::shared_ptr<TodoStore> store) {
         "Update a todo's title, description, priority or completion; the result names the undo";
     command.tags = {"todo", "update", "write", "single"};
     command.mutation = true;
+    command.idempotency = afd::IdempotencySupport::keyed;
     command.undoable = true;
     command.errors = {"NOT_FOUND", "NO_CHANGES"};
     command.input = {
@@ -299,6 +301,7 @@ afd::CommandDefinition todo_toggle(std::shared_ptr<TodoStore> store) {
         "Set an open todo to done, or a done todo back to open; the result names the undo";
     command.tags = {"todo", "toggle", "write", "single"};
     command.mutation = true;
+    command.idempotency = afd::IdempotencySupport::keyed;
     command.undoable = true;
     command.errors = {"NOT_FOUND"};
     command.input = schema::id_input();
@@ -334,6 +337,7 @@ afd::CommandDefinition todo_delete(std::shared_ptr<TodoStore> store) {
                           "todo-restore brings it back until todo-clear empties them";
     command.tags = {"todo", "delete", "write", "single", "destructive"};
     command.mutation = true;
+    command.idempotency = afd::IdempotencySupport::natural;
     command.destructive = true;
     // It can be undone, so it is not held for approval.
     command.undoable = true;

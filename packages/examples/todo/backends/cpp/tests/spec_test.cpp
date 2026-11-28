@@ -104,6 +104,27 @@ TEST_CASE("each command declares the metadata in commands.schema.json") {
     }
 }
 
+TEST_CASE("each command declares the idempotency the spec gives it, and every mutation one") {
+    Fixture fixture;
+    for (const auto& command : fixture.todo_commands()) {
+        const auto& definition = command->definition;
+        CAPTURE(definition.name);
+        const auto& entry = spec()["commands"][definition.name];
+        std::optional<std::string> declared;
+        if (definition.idempotency) {
+            declared = std::string(afd::idempotency_support_name(*definition.idempotency));
+        }
+        std::optional<std::string> expected;
+        if (entry.contains("idempotency")) {
+            expected = entry["idempotency"].get<std::string>();
+        }
+        CHECK(declared == expected);
+        if (definition.mutation) {
+            CHECK(declared.has_value());
+        }
+    }
+}
+
 TEST_CASE("each input schema is the contract's, descriptions aside") {
     Fixture fixture;
     for (const auto& command : fixture.todo_commands()) {

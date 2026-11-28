@@ -67,6 +67,7 @@ add_library(
     src/dispatch_id.cpp
     src/errors.cpp
     src/handoff.cpp
+    src/idempotency.cpp
     src/journal.cpp
     src/journal_replay.cpp
     src/json.cpp

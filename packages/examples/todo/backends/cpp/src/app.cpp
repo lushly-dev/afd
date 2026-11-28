@@ -53,8 +53,14 @@ std::vector<afd::ContextConfig> todo_contexts() {
 
 afd::Expected<std::unique_ptr<afd::CommandRegistry>>
 make_registry(const std::shared_ptr<TodoStore>& store, RegistryOptions options) {
+    // The idempotency step answers a repeat of todo-create, todo-update, todo-toggle,
+    // todo-create-batch and todo-toggle-batch, which declare `keyed`, from an in-memory store
+    // (spec/idempotency.md, S1 to S13): a repeat with the same key and input gets the first
+    // result instead of applying the change again. The keys last as long as this process.
     auto registry = std::make_unique<afd::CommandRegistry>(
-        afd::CommandRegistryOptions{.clock = options.clock, .random = options.random});
+        afd::CommandRegistryOptions{.clock = options.clock,
+                                    .random = options.random,
+                                    .idempotency = afd::IdempotencyOptions{}});
     // With APPROVALS=off there is no approval middleware, and the registry refuses a command that
     // declares an approval policy without one (APPROVAL_UNAVAILABLE), so the commands are served
     // without their policies: todo-clear runs for every caller, and `_meta.approval` advertises

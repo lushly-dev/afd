@@ -13,6 +13,7 @@
 #include "detail/context_fields.hpp"
 #include "detail/dispatch_id.hpp"
 #include "detail/exceptions.hpp"
+#include "detail/idempotency.hpp"
 #include "detail/json_io.hpp"
 #include "detail/meta_keys.hpp"
 #include "detail/output_budget.hpp"
@@ -182,6 +183,15 @@ CommandRegistry::CommandRegistry(CommandRegistryOptions options) : options_(std:
     if (options_.max_validation_issues == 0) {
         options_error_ = "max_validation_issues must be at least 1";
         return;
+    }
+    if (options_.idempotency) {
+        if (auto problem = check_idempotency_options(*options_.idempotency)) {
+            options_error_ = std::move(problem);
+            return;
+        }
+        if (!options_.idempotency->store) {
+            options_.idempotency->store = std::make_shared<InMemoryIdempotencyStore>();
+        }
     }
     auto fields = detail::compile_context_fields(options_.context_fields);
     if (fields) {
@@ -448,6 +458,17 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
             {.suggestion = "The system random source failed; try again later", .retryable = true}));
     }
     detail::DispatchIdAccess::set(context.dispatch_id, std::move(*dispatch_id));
+    // The note this call's deadline owner reads for R3, taken off the context so a command the
+    // handler runs on it never notes this call (spec/idempotency.md, R3).
+    std::shared_ptr<detail::IdempotencyNote> note = std::move(context.idempotency_note);
+    context.idempotency_note.reset();
+    if (!note && options_.idempotency) {
+        note = std::make_shared<detail::IdempotencyNote>();
+    }
+    // The key as the caller sent it, decided once (spec/idempotency.md, K1 to K6), and put on this
+    // call's own context: a key it inherited from the handler that runs it is none.
+    const detail::CallIdempotencyKey key = detail::resolve_idempotency_key(context);
+    detail::deliver_idempotency_key(context, key);
     if (context.extra.is_object() && !context.extra.empty()) {
         context.extra.erase("dispatch_id");
         context.extra.erase("dispatchId");
@@ -581,6 +602,12 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
                                             : std::nullopt)}));
     }
 
+    // The key, between the context check and validation (spec/dispatch.md, "The idempotency
+    // step"): a malformed one fails the call before any middleware or handler (K2).
+    if (key.kind == detail::CallIdempotencyKey::Kind::invalid) {
+        return failure(invalid_idempotency_key_error());
+    }
+
     // 4. Validation.
     auto validated = command->input_schema.validate(input, options_.max_validation_issues);
     if (!validated) {
@@ -597,12 +624,45 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
         return std::move(*invalid);
     }
     context.journaled_fields = journaled_fields_;
+    // The call as the step compares it (S4): its declared context fields and validated input. The
+    // step acts only on a call that carries a key to a `keyed` command (S2).
+    std::optional<detail::PreparedIdempotencyCall> step_call;
+    if (options_.idempotency && key.kind == detail::CallIdempotencyKey::Kind::key &&
+        definition.idempotency == IdempotencySupport::keyed) {
+        Json fields = Json::object();
+        if (context.extra.is_object()) {
+            for (const auto& field : options_.context_fields) {
+                const auto value = context.extra.find(field.name);
+                if (value != context.extra.end() && !value->is_null()) {
+                    fields[field.name] = *value;
+                }
+            }
+        }
+        auto digest = detail::idempotency_digest(fields, *validated);
+        if (!digest) {
+            return failure(detail::input_not_canonical_error(definition.name));
+        }
+        // As the registry, DirectClient and afd::mcp_stdio arm the deadline: only a positive,
+        // finite one counts, rounded up and clamped, so the lease never overflows (S7).
+        const std::optional<double> effective =
+            context.timeout_ms.has_value() ? context.timeout_ms : context.default_timeout_ms;
+        step_call = detail::PreparedIdempotencyCall{
+            .command = definition.name,
+            .key = key.key,
+            .digest = std::move(*digest),
+            .timeout_ms = effective && std::isfinite(*effective) && *effective > 0
+                              ? std::optional<double>(
+                                    (std::min)(std::ceil(*effective), detail::max_timeout_ms))
+                              : std::nullopt};
+    }
     // This call's own admission record (approval_admission.hpp), replacing any the caller passed:
     // the command it runs, for the approval middleware to decide from, not yet admitted.
     auto admission = std::make_shared<detail::ApprovalAdmission>();
     admission->command = std::shared_ptr<const CommandDefinition>(command, &command->definition);
     // run_chain keeps it, so a dispatch takes only this record's admission.
     context.approval_admission = admission;
+    // The retry middleware repeats a `keyed` command only when the call carries a key (R1).
+    admission->carries_key = key.kind == detail::CallIdempotencyKey::Kind::key;
     // The record names a running call only until this call returns (the journal reads it).
     admission->running.store(true);
     struct EndAdmission {
@@ -644,7 +704,8 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
     bool threw = false;
 #if AFD_HAS_EXCEPTIONS
     try {
-        result = run_chain(*command, *validated, context, *admission, check_output_budget);
+        result = run_chain(*command, *validated, context, *admission, check_output_budget,
+                           step_call ? &*step_call : nullptr, note.get());
     } catch (const std::exception& error) {
         threw = true;
         report_error(error.what());
@@ -655,7 +716,8 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
         result = execution_failure("unknown exception", options_.dev_mode);
     }
 #else
-    result = run_chain(*command, *validated, context, *admission, check_output_budget);
+    result = run_chain(*command, *validated, context, *admission, check_output_budget,
+                       step_call ? &*step_call : nullptr, note.get());
 #endif
     // An approval hook's refusal on the last pass through the approval step (approval.cpp) fails
     // the call as a thrown middleware error does: to `on_error`, as COMMAND_EXECUTION_ERROR, and
@@ -668,8 +730,11 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
     }
 
     // Only this call's own deadline is a TIMEOUT; a cancelled caller keeps the handler's result.
+    // The handler's own result is already settled in the step's store (S7, an engine that waits):
+    // where the step reserved the key, the TIMEOUT says a repeat with it is safe (R3).
     if (deadline && deadline->token().deadline_passed()) {
-        result = detail::command_timed_out(definition.name, reported_timeout_ms);
+        result = detail::command_timed_out(definition.name, reported_timeout_ms,
+                                           note && note->step_acted.load());
     } else if (threw) {
         return result;
     }
@@ -709,14 +774,16 @@ bool is_registry_next(const CommandContext& context, const Next& next) {
            record->inherited.end();
 }
 
-std::optional<bool> live_mutation(const CommandContext& context, std::string_view name,
-                                  const Next& next) {
+std::optional<RepeatDeclaration> live_repeat_declaration(const CommandContext& context,
+                                                         std::string_view name, const Next& next) {
     const ApprovalAdmission* record = context.approval_admission.get();
     if (record == nullptr || !record->running.load() || !record->command ||
         record->command->name != name || !is_registry_next(context, next)) {
         return std::nullopt;
     }
-    return static_cast<bool>(record->command->mutation);
+    return RepeatDeclaration{.mutation = static_cast<bool>(record->command->mutation),
+                             .idempotency = record->command->idempotency,
+                             .carries_key = record->carries_key};
 }
 
 InheritRegistryNext::InheritRegistryNext(CommandContext& context, const Next& outer,
@@ -746,7 +813,9 @@ InheritRegistryNext::~InheritRegistryNext() {
 CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const Json& input,
                                          CommandContext& context,
                                          detail::ApprovalAdmission& admission,
-                                         bool check_output_budget) const {
+                                         bool check_output_budget,
+                                         const detail::PreparedIdempotencyCall* step_call,
+                                         detail::IdempotencyNote* note) const {
     std::vector<CommandMiddleware> middleware;
     {
         const std::shared_lock lock(mutex_);
@@ -756,6 +825,17 @@ CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const
     // Capture the B3 effective budget once before entering the chain so neither middleware nor a
     // handler mutating `context.output_budget` can bypass B5 on retry or raise the limit.
     const std::optional<std::uint64_t> effective_budget = context.output_budget;
+    // The step's options for this call, and when the chain, and the deadline the registry or the
+    // surface armed before it, started on the step's clock: a reservation's lease counts from
+    // that deadline (S7).
+    std::optional<detail::IdempotencyStep> idempotency_step;
+    std::int64_t chain_started_at = 0;
+    if (options_.idempotency) {
+        idempotency_step = detail::IdempotencyStep{.store = options_.idempotency->store,
+                                                   .ttl_ms = options_.idempotency->ttl_ms,
+                                                   .lease_ms = options_.idempotency->lease_ms};
+        chain_started_at = options_.clock->wall_ms();
+    }
 
     // The innermost step: run the handler, check its output budget (B5-B6) and stamp its result.
     const Next run_handler = [&]() -> CommandResult {
@@ -789,7 +869,29 @@ CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const
         // because middleware may replace it.
         const std::shared_ptr<const Clock> clock = context.clock ? context.clock : options_.clock;
         const double start = clock->steady_ms();
-        CommandResult result = definition.handler(input, context);
+        // The idempotency step sits here, between the admission check and the handler (S1). It
+        // settles the reservation from the handler's own result before this link returns, so a
+        // call that then gets TIMEOUT has its result stored already (S7).
+        CommandResult result =
+            idempotency_step
+                ? detail::run_idempotency_step(
+                      step_call ? std::optional<detail::PreparedIdempotencyCall>(*step_call)
+                                : std::nullopt,
+                      detail::IdempotencyRun{
+                          .step = *idempotency_step,
+                          .clock = *options_.clock,
+                          .context = context,
+                          .started_at = chain_started_at,
+                          .handler = [&]() { return definition.handler(input, context); },
+                          .on_reserved =
+                              [note]() {
+                                  if (note != nullptr) {
+                                      note->step_acted.store(true);
+                                  }
+                              },
+                          .report_error =
+                              [this](std::string_view message) { report_error(message); }})
+                : definition.handler(input, context);
         const double elapsed = clock->steady_ms() - start;
         if (check_output_budget && effective_budget) {
             result =

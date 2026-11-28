@@ -19,7 +19,7 @@ namespace {
 /// camelCase names of `CommandContext`'s own members (the digest uses the camelCase ones), and
 /// `source`, which `DirectClient` sets in `extra`, and the engine's dispatch id (spec/dispatch.md,
 /// "The dispatch id") in both spellings.
-constexpr std::array<std::string_view, 30> reserved_context_field_names = {
+constexpr std::array<std::string_view, 35> reserved_context_field_names = {
     // TypeScript's.
     "actor", "approval", "auth", "clock", "credentials", "interface", "random", "session", "signal",
     "timeout", "traceId", "outputBudget",
@@ -30,7 +30,10 @@ constexpr std::array<std::string_view, 30> reserved_context_field_names = {
     // DirectClient's `extra` key.
     "source",
     // The engine's dispatch id.
-    "dispatchId", "dispatch_id"};
+    "dispatchId", "dispatch_id",
+    // The call's idempotency key (spec/idempotency.md, K1), and its internal mark.
+    "idempotencyKey", "idempotency_key", "idempotency_key_mark", "idempotency_connection",
+    "idempotency_note"};
 
 bool is_meta_alpha(char c) noexcept {
     return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');

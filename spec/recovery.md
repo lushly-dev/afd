@@ -154,9 +154,8 @@ on this surface, which means:
 - it is admitted by any `allow` list;
 - it is visible under the server's authorization (rule 2).
 
-The idempotency step's rows ([idempotency](./idempotency.md#errors)) are TypeScript's so far;
-Python, Rust and C++ join them with their implementation
-([#2676](https://github.com/lushly-dev/afd/issues/2676)).
+The idempotency step's rows ([idempotency](./idempotency.md#errors)) are TypeScript's and C++'s
+so far; Python ([#2955](https://github.com/lushly-dev/afd/issues/2955)) and Rust ([#2956](https://github.com/lushly-dev/afd/issues/2956)) join them with their implementation.
 
 A meta-tool such as `afd-discover` is called as its own tool, not through `afd-call`, whose
 lookup holds only commands. Where the table says *none*, the engine sets no recovery: the step is

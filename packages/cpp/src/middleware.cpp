@@ -195,9 +195,21 @@ Expected<CommandMiddleware> create_retry_middleware(RetryOptions options) {
                               sleeper = std::move(sleeper)](std::string_view name, const Json&,
                                                             CommandContext& context,
                                                             const Next& next) -> CommandResult {
-        // Read before the first attempt, while the registry's record of the call is running.
-        const bool repeatable =
-            retry_mutations || detail::live_mutation(context, name, next) == std::optional(false);
+        // Read before the first attempt, while the registry's record of the call is running
+        // (spec/idempotency.md, R1): a `natural` command is repeated; a `keyed` one only when the
+        // call carries a key; any other unless it declares `mutation`. A declaration this
+        // middleware cannot read counts as a mutation that declares nothing.
+        const auto declaration = detail::live_repeat_declaration(context, name, next);
+        bool repeatable = retry_mutations;
+        if (!repeatable && declaration) {
+            if (declaration->idempotency == IdempotencySupport::natural) {
+                repeatable = true;
+            } else if (declaration->idempotency == IdempotencySupport::keyed) {
+                repeatable = declaration->carries_key;
+            } else {
+                repeatable = !declaration->mutation;
+            }
+        }
         CommandResult result = next();
         if (!repeatable) {
             return result;

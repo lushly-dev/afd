@@ -37,6 +37,9 @@ struct Command {
     std::string description;
     std::vector<std::string> tags;
     bool mutation = false;
+    /// What a repeat is safe under (spec/idempotency.md): `natural` or `keyed`. Every change
+    /// declares one, as commands.schema.json gives it.
+    std::optional<afd::IdempotencySupport> idempotency;
     /// Whether the command deletes data, sent to MCP clients as `destructiveHint`.
     bool destructive = false;
     /// Whether its result names an undo.

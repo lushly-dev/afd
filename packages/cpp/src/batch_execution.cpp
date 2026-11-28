@@ -7,6 +7,7 @@
 #include <mutex>
 
 #include "detail/exceptions.hpp"
+#include "detail/idempotency.hpp"
 #include "detail/json_io.hpp"
 #include "detail/utf8.hpp"
 
@@ -363,6 +364,9 @@ BatchResult execute_batch(const BatchRequest& request, const CommandExecutor& ex
         CommandContext command_context = context;
         command_context.cancellation = cancellation.token();
         command_context.trace_id = batch_trace + "-" + std::to_string(index);
+        // Each item runs under the key derived from the request's (spec/idempotency.md, K4).
+        detail::derive_item_idempotency_key(context, command_context, IdempotencyRequestKind::batch,
+                                            index);
         const Json input = command.input.value_or(Json());
         CommandResult result =
             settle(execute, command.command, input, command_context, options.dev_mode);

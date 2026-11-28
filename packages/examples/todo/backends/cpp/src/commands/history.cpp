@@ -43,6 +43,7 @@ afd::CommandDefinition todo_restore(std::shared_ptr<TodoStore> store) {
         "deleted: true }; a delete result names this command and its ids as its undo";
     command.tags = {"todo", "restore", "write", "batch", "undo"};
     command.mutation = true;
+    command.idempotency = afd::IdempotencySupport::natural;
     command.undoable = true;
     command.errors = {"NOT_FOUND"};
     command.input = schema::ids_input();

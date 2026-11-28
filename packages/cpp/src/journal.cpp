@@ -158,6 +158,7 @@ bool read_entry(const Json& value, JournalEntry& out, std::string& error) {
     }
     reader.string("timestamp", out.timestamp);
     reader.optional_string("traceId", out.trace_id);
+    reader.optional_string("idempotencyKey", out.idempotency_key);
     reader.string("command", out.command);
     if (const Json* input = reader.get("input", true)) {
         out.input = *input;
@@ -273,6 +274,7 @@ void to_json(Json& out, const JournalEntry& entry) {
     out["seq"] = entry.seq;
     out["timestamp"] = entry.timestamp;
     detail::put(out, "traceId", entry.trace_id);
+    detail::put(out, "idempotencyKey", entry.idempotency_key);
     out["command"] = entry.command;
     out["input"] = entry.input;
     detail::put(out, "actor", entry.actor);
@@ -387,6 +389,11 @@ JournalContextDigest create_context_digest(const CommandContext& context,
     if (omitted) {
         canonical["contextOmitted"] = *omitted;
     }
+    // The call's idempotency key is hashed as a member, never as a name in `keys`
+    // (spec/journal.md), so an entry without one hashes as before.
+    if (context.idempotency_key) {
+        canonical["idempotencyKey"] = *context.idempotency_key;
+    }
     canonical["interface"] = surface ? Json(*surface) : Json(nullptr);
     canonical["keys"] = keys;
     // Effective output budget (spec/output-budgets.md, B8): only present when the call had one,
@@ -404,9 +411,10 @@ JournalContextDigest create_context_digest(const CommandContext& context,
 std::string serialize_journal_entry(const JournalEntry& entry) {
     // The spec's key order for the entry and its actor, so lines read the same across
     // implementations up to the result.
-    return ordered_object(Json(entry), {"seq", "timestamp", "traceId", "command", "input", "actor",
-                                        "contextDigest", "context", "contextOmitted",
-                                        "outputBudget", "result", "durationMs", "tape"});
+    return ordered_object(Json(entry),
+                          {"seq", "timestamp", "traceId", "idempotencyKey", "command", "input",
+                           "actor", "contextDigest", "context", "contextOmitted", "outputBudget",
+                           "result", "durationMs", "tape"});
 }
 
 std::string serialize_journal(const std::vector<JournalEntry>& entries) {

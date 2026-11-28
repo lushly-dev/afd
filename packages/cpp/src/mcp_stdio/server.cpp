@@ -31,6 +31,7 @@
 #include "detail/canonical_json.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/hmac.hpp"
+#include "detail/idempotency.hpp"
 #include "detail/json_io.hpp"
 #include "detail/output_budget.hpp"
 #include "detail/sha256.hpp"
@@ -356,6 +357,9 @@ struct StdioServer::State {
     // Whether the caller explicitly supplied `options.clock` (if not, leave `context.clock` unset
     // so the registry's own clock applies).
     bool configured_clock = false;
+    // This connection, which tells apart a caller with no identity of its own (S3).
+    std::shared_ptr<const detail::IdempotencyConnection> connection =
+        detail::new_idempotency_connection();
 
     State(const CommandRegistry& source, StdioServerOptions settings, std::string secret,
           surface::ResourceService resources, bool has_configured_clock)
@@ -758,6 +762,9 @@ struct StdioServer::State {
         if (options.context_hook) {
             options.context_hook(context, info);
         }
+        // The idempotency key from `_meta` unless the hook set one (K1), and the caller's scope
+        // (S3).
+        detail::apply_stdio_idempotency(context, info.meta, connection);
         // Carry the server default separately from `context.timeout_ms` so default server
         // deadlines do not alter `JournalContextDigest` hashes (spec/journal.md, #1766).
         context.default_timeout_ms = options.default_timeout_ms;
@@ -932,15 +939,14 @@ struct StdioServer::State {
             call_ctx.cancellation = deadline->token();
             call_ctx.deadline_armed = true;
         }
-
         for (int rounds = 0;; ++rounds) {
             if (deadline && deadline->token().deadline_passed()) {
-                return tool_result(detail::command_timed_out(name, reported_timeout_ms));
+                return tool_result(detail::timed_out(name, reported_timeout_ms, call_ctx));
             }
             Attempt next = attempt(name, arguments, bound, valid, call_ctx, command, gated,
                                    acknowledged, can_elicit, round, binding, how);
             if (deadline && deadline->token().deadline_passed()) {
-                return tool_result(detail::command_timed_out(name, reported_timeout_ms));
+                return tool_result(detail::timed_out(name, reported_timeout_ms, call_ctx));
             }
             if (next.complete) {
                 return std::move(*next.complete);
@@ -959,7 +965,7 @@ struct StdioServer::State {
                  (*next.input_required)["inputRequests"].items()) {
                 const auto answer = ask_in_band(request, info, ask);
                 if (deadline && deadline->token().deadline_passed()) {
-                    return tool_result(detail::command_timed_out(name, reported_timeout_ms));
+                    return tool_result(detail::timed_out(name, reported_timeout_ms, call_ctx));
                 }
                 if (!answer) {
                     // Cancelled (serve sends no reply then), or the client went away, timed out
@@ -1587,6 +1593,10 @@ struct StdioServer::State {
             }
         }
         CommandContext context = call_context(info, cancellation, scope);
+        // The key's form, before any confirmation, middleware or handler (K2).
+        if (detail::stdio_idempotency_refused(context, info.meta)) {
+            return tool_result(failure(invalid_idempotency_key_error()));
+        }
         if (auto resolved = detail::resolve_stdio_approver(options.approver, context, raw_meta,
                                                            name, info.modern);
             resolved.internal_error) {
@@ -1621,54 +1631,6 @@ struct StdioServer::State {
     }
 
     // --- dispatch -----------------------------------------------------------------------------
-
-    /// Moves a meta-tool's `meta` argument into `info.meta`: `dev.afd/context` and
-    /// `dev.afd/outputBudget`, the keys `afd::mcp_stdio` reads from `_meta` that a client may be
-    /// unable to set. Other keys are dropped, as undeclared `_meta` keys are. A failure when
-    /// `meta` is not an object, or disagrees with `_meta`.
-    static std::optional<CommandResult> lift_meta_argument(Json& params, RequestInfo& info) {
-        const std::string tool = string_member(params, "name");
-        const bool meta_tool =
-            std::find(std::begin(afd_meta_tool_names), std::end(afd_meta_tool_names), tool) !=
-            std::end(afd_meta_tool_names);
-        if (!meta_tool || !params.contains("arguments") || !params["arguments"].is_object() ||
-            !params["arguments"].contains("meta")) {
-            return std::nullopt;
-        }
-        Json& arguments = params["arguments"];
-        const Json argument = arguments["meta"];
-        arguments.erase("meta");
-        if (argument.is_null()) {
-            return std::nullopt;
-        }
-        const std::array<std::string, 2> allowed_keys{std::string(context_meta_key),
-                                                      std::string(output_budget_meta_key)};
-        if (!argument.is_object()) {
-            return failure(
-                create_error(error_codes::VALIDATION_ERROR,
-                             "The meta argument of " + tool + " must be an object",
-                             {.suggestion = "Send meta as an object whose keys are _meta keys: " +
-                                            allowed_keys[0] + ", " + allowed_keys[1],
-                              .details = Json{{"argument", "meta"}}}));
-        }
-        for (const std::string& key : allowed_keys) {
-            const auto value = argument.find(key);
-            if (value == argument.end() || value->is_null()) {
-                continue;
-            }
-            const auto sent = info.meta.find(key);
-            if (sent != info.meta.end() && !sent->is_null() && *sent != *value) {
-                return failure(create_error(
-                    error_codes::VALIDATION_ERROR,
-                    "_meta[\"" + key + "\"] and the meta argument of " + tool + " disagree",
-                    {.suggestion = "Send " + key +
-                                   " in _meta or in the meta argument, or the same value in both",
-                     .details = Json{{"meta", key}}}));
-            }
-            info.meta[key] = *value;
-        }
-        return std::nullopt;
-    }
 
     std::optional<std::string> handle(std::string_view line, const ClientRequester& ask,
                                       const CancellationToken& cancellation) {
@@ -1747,7 +1709,7 @@ struct StdioServer::State {
                     return response(id,
                                     modern ? modern_result(std::move(result)) : std::move(result));
                 }
-                if (auto refused = lift_meta_argument(routed, info)) {
+                if (auto refused = surface::lift_meta_argument(routed, info.meta)) {
                     Json result = tool_result(*refused);
                     return response(id,
                                     modern ? modern_result(std::move(result)) : std::move(result));
@@ -1972,6 +1934,9 @@ Expected<std::unique_ptr<StdioServer>> StdioServer::create(const CommandRegistry
     const bool has_configured_clock = options.clock != nullptr;
     if (!options.clock) {
         options.clock = std::make_shared<SystemClock>();
+    }
+    if (auto problem = detail::check_stdio_idempotency(registry, options.default_timeout_ms)) {
+        return unexpected(std::move(*problem)); // S8, against this server's default deadline
     }
     options.state_secret.clear();
     return std::unique_ptr<StdioServer>(new StdioServer(
