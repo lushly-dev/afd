@@ -13,7 +13,7 @@ Epic: [#2677](https://github.com/lushly-dev/afd/issues/2677).
 Each step has its own line. A session edits only its own step's line, and marks it merged with
 the pull request's number.
 
-- **0. What each language records at a deadline today** ([#2678](https://github.com/lushly-dev/afd/issues/2678)): not started. Needs nothing else here; changes no behaviour.
+- **0. What each language records at a deadline today** ([#2678](https://github.com/lushly-dev/afd/issues/2678)): merged in #3040. [`spec/journal.md`](../../../../spec/journal.md#calls-that-end-at-a-deadline) ("Calls that end at a deadline") states it per language for `TIMEOUT`, `BATCH_TIMEOUT` and `PIPELINE_TIMEOUT`, and Python's `COMMAND_CANCELLED`; a test in each language pins it with a handler the test releases (`journal-deadline.test.ts`, `test_journal_deadline.py`, `journal_deadline.rs`, `journal_deadline_test.cpp`). No behaviour changed.
 
 - **1. Spec and vectors, the dispatch id and the approval hook** ([#2679](https://github.com/lushly-dev/afd/issues/2679)): merged in #2796. `spec/dispatch.md` ("The dispatch id", I1 to I4), `spec/command-metadata.md` ("The approval summary"), `spec/vectors/journal-seams.json` (12 and 12 cases, every language a documented gap) and `approvalId` on each binding of `approval-tokens.json`. Each language has a loader that skips every case.
 
@@ -29,6 +29,28 @@ Not to be started until the owner decides to build the layered product the entry
 for (J2).
 
 - **The entry members** ([#2725](https://github.com/lushly-dev/afd/issues/2725)): `ext` and `annotate` (S2), `recordAbandoned` (S4), and the `dispatchIds` stamp on results and entries (S1).
+
+  Differences step 0 found, for S4 to close (none fixed there):
+
+  - One timed-out call leaves an entry in TypeScript (once the handler settles) and C++ (when it
+    returns), none in Rust, and in Python one only if the handler catches the cancellation.
+  - Where there is an entry, the caller was given the deadline failure but the entry holds
+    something else: the handler's result (C++ whenever the handler ran; TypeScript, and Python for
+    a handler that catches the cancellation, when it finishes late); `COMMAND_EXECUTION_ERROR` in
+    Python for a handler that raises on the cancellation (with `record_failures`); and
+    `COMMAND_CANCELLED` in TypeScript and C++ (with `recordFailures`) when the deadline passes
+    before the handler starts, at any of the three deadlines.
+  - Python: a chain task that ends cancelled before an armed deadline gives `COMMAND_CANCELLED` and
+    no entry.
+  - The recorder's `append` counts against the deadline in TypeScript, Python and C++, and against
+    Rust's batch, pipeline and `DirectClient` deadlines but not its command deadline:
+    a finished call with a slow sink gives the caller the deadline failure, TypeScript and C++
+    still write the entry, and in Python, and at Rust's other deadlines, the `append` is cancelled or dropped.
+
+  Observations outside S4, which excludes a client's own deadline: Python's and Rust's
+  `DirectClient` read the clock after the registry returns, so a handler that blocks the thread past
+  the client's `timeout` is recorded with its result while the caller is given `TIMEOUT` (pinned
+  in both). Rust's D208 record (no entry for a timed-out call) matches the Rust row.
 
 - **The worked example** ([#2683](https://github.com/lushly-dev/afd/issues/2683)): the `pond` example chained by hash. Needs the entry members.
 

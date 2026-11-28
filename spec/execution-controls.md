@@ -38,7 +38,9 @@ TypeScript, Python, Rust and C++.
   `recovery: { "kind": "retry" }` and its suggestion says to repeat the call with the same key
   ([idempotency, R3](./idempotency.md#retrying)). TypeScript does so far.
 - **Cooperative interruption.** A handler may continue running after the engine stops waiting; a
-  `TIMEOUT` does not prove that the command had no side effects or roll them back.
+  `TIMEOUT` does not prove that the command had no side effects or roll them back. What the
+  journal holds for such a call differs by language
+  ([journal](./journal.md#calls-that-end-at-a-deadline)).
 
 ## The retry middleware and mutations
 

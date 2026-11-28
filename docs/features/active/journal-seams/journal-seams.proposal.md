@@ -208,8 +208,9 @@ pipeline's (`PIPELINE_TIMEOUT`) or a stream's (`STREAM_TIMEOUT`). With the recor
   entry with the same `dispatchId` and the handler's result, marked `late: true`.
 
 Three cases are out of scope. A batch item or pipeline step that never started did not run, so
-having no entry is correct. A client's own `TIMEOUT` or `STREAM_TIMEOUT` never reaches the
-engine, so the entry holds the handler's result. A task stopped at its token's expiry
+having no entry is correct. A client's own `TIMEOUT` or `STREAM_TIMEOUT` is the client's,
+not the engine's; what the journal holds then is stated in
+[`spec/journal.md`](../../../../spec/journal.md), "Calls that end at a deadline". A task stopped at its token's expiry
 (`TASK_TOKEN_EXPIRED`) has the same mismatch between its entry and what its caller is told, but
 the caller reads a task's outcome from the task; the held issue ([#2725](https://github.com/lushly-dev/afd/issues/2725)) decides whether to mark it.
 Caller cancellation is not part of this either. After a handler starts, cancellation is cooperative
