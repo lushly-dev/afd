@@ -663,8 +663,8 @@ explicitly authorizes one retry. JSON or noninteractive calls remain held withou
 ## Related
 
 - [AFD TypeScript](../packages/) - Original TypeScript implementation
-- [AFD Philosophy](../.claude/skills/afd/references/philosophy.md) - Why AFD?
-- [Command Schema Guide](../.claude/skills/afd/references/command-schema.md) - Designing commands
+- [AFD Whitepaper](https://github.com/lushly-dev/afd/blob/main/docs/whitepaper/AFD-Whitepaper.md) - Why AFD?
+- [Command metadata](https://github.com/lushly-dev/afd/blob/main/spec/command-metadata.md) - What a command declares, in every language
 
 ## License
 

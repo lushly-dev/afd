@@ -8,7 +8,8 @@
  *
  *   - the inventory itself: a published word on a published unit, the npm tag and version shape
  *     each word implies, and the PyPI `Development Status` classifier each word maps to;
- *   - the generated blocks (the README's map and ladder, and llms.txt's map), between
+ *   - the generated blocks (the README's map and ladder, llms.txt's map, and the map the site's
+ *     two home pages draw), between
  *     `<!-- generated:maturity:<name>:start -->` and `:end -->` markers;
  *   - every README table row and llms.txt line that names a part, which must state its word;
  *   - every site element carrying `data-maturity="<part>"`, whose text must open with its word.
@@ -220,6 +221,109 @@ export function checkInventory(root, inventory) {
 
 const mermaidId = (id) => id.replace(/[^a-z0-9]/gi, '');
 
+const REGISTRY_NAMES = { npm: 'npm', pypi: 'PyPI', crates: 'crates.io', source: 'a git tag' };
+
+/** The status label's text: the word, then where a published part can be installed from. */
+export function statusText(part) {
+	const word = rung(part.maturity);
+	if (!word.published) return word.label;
+	const registry = part.members
+		.filter((unit) => unit.maturity === part.maturity)
+		.flatMap((unit) => unit.distributions)
+		.find((distribution) => !distribution.private)?.registry;
+	const where = REGISTRY_NAMES[registry];
+	if (!where) return word.label;
+	return `${word.label}, ${registry === 'source' ? 'as' : 'on'} ${where}`;
+}
+
+const escapeHtml = (text) =>
+	text
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;');
+
+/** A summary's text as HTML: escaped, with `code` spans. */
+const summaryHtml = (text) => escapeHtml(text).replace(/`([^`]+)`/g, '<code>$1</code>');
+
+/** Where the site pages are, and the pages that draw the map: their side and heading levels. */
+export const SITE_MAP_PAGES = Object.freeze({
+	'site/index.html': { side: 'dev', base: '', group: 'h4', part: 'h5' },
+	'site/design/index.html': { side: 'design', base: 'design/', group: 'h3', part: 'h4' },
+});
+
+const GITHUB_TREE = 'https://github.com/lushly-dev/afd/tree/main/';
+
+/**
+ * The map as the site draws it: the four groups in order, each part with its summary, its
+ * status label (checked like every other site label) and a link to its page on this side, or
+ * to its folder on GitHub. A standalone part says so in words as well as in its outline.
+ */
+export function renderSiteMap(map, file) {
+	const page = SITE_MAP_PAGES[file];
+	const tabs = (count) => '\t'.repeat(count);
+	const relative = (target) => {
+		if (page.base && target.startsWith(page.base)) return target.slice(page.base.length);
+		return `${'../'.repeat(page.base.split('/').filter(Boolean).length)}${target}`;
+	};
+	const lines = ['<div class="family-map">'];
+	for (const group of map.groups) {
+		lines.push(`${tabs(1)}<div class="family-group">`);
+		lines.push(
+			`${tabs(2)}<${page.group} class="family-group-name">${escapeHtml(group.label)}</${page.group}>`
+		);
+		lines.push(`${tabs(2)}<ul class="family-list">`);
+		for (const part of group.parts) {
+			const word = rung(part.maturity);
+			const site = part.site?.[page.side];
+			const href = site ? relative(site.page) : `${GITHUB_TREE}${part.path}`;
+			const action = site?.action ?? 'Read more';
+			const icon = site ? 'right' : 'out';
+			lines.push(`${tabs(3)}<li${part.standalone ? ' class="family-part--standalone"' : ''}>`);
+			lines.push(
+				`${tabs(4)}<${page.part} class="family-name">${escapeHtml(part.name)}</${page.part}>`
+			);
+			lines.push(`${tabs(4)}<p>${summaryHtml(part.summary ?? '')}</p>`);
+			lines.push(`${tabs(4)}<p class="family-state">`);
+			lines.push(
+				`${tabs(5)}<span data-maturity="${part.id}" class="mono family-status${word.published ? ' family-status--out' : ''}">${escapeHtml(statusText(part))}</span>`
+			);
+			if (part.standalone)
+				lines.push(`${tabs(5)}<span class="mono family-alone">Stands alone</span>`);
+			lines.push(`${tabs(4)}</p>`);
+			lines.push(
+				`${tabs(4)}<a href="${escapeHtml(href)}" aria-label="${escapeHtml(`${part.name}: ${action.toLowerCase()}`)}">${escapeHtml(action)} <i class="icon icon--${icon}" aria-hidden="true"></i></a>`
+			);
+			lines.push(`${tabs(3)}</li>`);
+		}
+		lines.push(`${tabs(2)}</ul>`);
+		lines.push(`${tabs(1)}</div>`);
+	}
+	lines.push('</div>');
+	if (map.parts.some((part) => part.standalone))
+		lines.push(
+			'<p class="family-key">A part that <b>stands alone</b> has foundation packages that depend on nothing in AFD, so it can be adopted on its own; its CLI, server and command packages add AFD on top.</p>'
+		);
+	return lines.join('\n');
+}
+
+/** Each part's site page, on each side, exists. */
+export function checkSitePages(root, map) {
+	const errors = [];
+	for (const part of map.parts) {
+		if (!part.summary) errors.push(`map part ${part.id} has no summary for the site`);
+		for (const [side, site] of Object.entries(part.site ?? {})) {
+			if (!['dev', 'design'].includes(side))
+				errors.push(`map part ${part.id}: site side must be dev or design, not ${side}`);
+			if (!site?.page?.endsWith('/') || !site.action)
+				errors.push(`map part ${part.id}: site.${side} needs a page ending in / and an action`);
+			else if (!existsSync(join(root, 'site', site.page, 'index.html')))
+				errors.push(`map part ${part.id}: site/${site.page}index.html does not exist`);
+		}
+	}
+	return errors;
+}
+
 /** The generated blocks, keyed by marker name and file. */
 export function renderBlocks(map) {
 	const nodes = map.groups.map((group) =>
@@ -270,6 +374,9 @@ export function renderBlocks(map) {
 	return {
 		'README.md': { map: readmeMap, ladder: readmeLadder },
 		'site/llms.txt': { map: llmsMap },
+		...Object.fromEntries(
+			Object.keys(SITE_MAP_PAGES).map((file) => [file, { map: renderSiteMap(map, file) }])
+		),
 	};
 }
 
@@ -298,7 +405,14 @@ export function applyBlocks(text, blocks, file) {
 			continue;
 		}
 		seen.add(name);
-		output += `${text.slice(cursor, start.index + start[0].length)}\n${blocks[name]}\n`;
+		// The block takes the start marker's indentation, so it sits inside nested HTML.
+		const before = text.slice(text.lastIndexOf('\n', start.index) + 1, start.index);
+		const indent = /^[ \t]*$/.test(before) ? before : '';
+		const block = blocks[name]
+			.split('\n')
+			.map((line) => (line ? indent + line : line))
+			.join('\n');
+		output += `${text.slice(cursor, start.index + start[0].length)}\n${block}\n${indent}`;
 		cursor = end.index;
 	}
 	output += text.slice(cursor);
@@ -436,6 +550,7 @@ export function checkRepository(root = REPO_ROOT, { write = false } = {}) {
 	const errors = [...map.errors];
 	if (errors.length) return { errors, map };
 	errors.push(...checkInventory(root, inventory));
+	errors.push(...checkSitePages(root, map));
 	for (const [file, blocks] of Object.entries(renderBlocks(map))) {
 		const path = join(root, file);
 		const text = readFileSync(path, 'utf8');

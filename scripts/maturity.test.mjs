@@ -10,10 +10,13 @@ import {
 	checkReadmeRows,
 	checkRegistries,
 	checkRepository,
+	checkSitePages,
 	checkSiteText,
 	LADDER,
 	renderBlocks,
+	renderSiteMap,
 	resolveMap,
+	statusText,
 	visibleText,
 } from './maturity.mjs';
 
@@ -262,6 +265,124 @@ describe('generated blocks', () => {
 		assert.match(applyBlocks(`${end}\n`, {}, 'f').errors[0], /an end marker without a start/);
 		const unknown = `${marker('other', 'start')}\n${marker('other', 'end')}`;
 		assert.match(applyBlocks(unknown, {}, 'f').errors[0], /unknown generated block: other/);
+	});
+
+	it("indent a block to its start marker's indentation", () => {
+		const marker = (edge) => `<!-- generated:maturity:map:${edge} -->`;
+		const text = `<div>\n\t\t${marker('start')}\n\t\t${marker('end')}\n</div>`;
+		const { output, errors } = applyBlocks(text, { map: '<ul>\n\t<li>x</li>\n</ul>' }, 'f');
+		assert.deepEqual(errors, []);
+		assert.equal(
+			output,
+			`<div>\n\t\t${marker('start')}\n\t\t<ul>\n\t\t\t<li>x</li>\n\t\t</ul>\n\t\t${marker('end')}\n</div>`
+		);
+		assert.equal(applyBlocks(output, { map: '<ul>\n\t<li>x</li>\n</ul>' }, 'f').output, output);
+	});
+});
+
+describe('the site map', () => {
+	const npm = { registry: 'npm', name: '@x/a' };
+	const map = resolveMap({
+		units: [
+			unit('a', { maturity: 'preview', distTag: 'preview', distributions: [npm] }),
+			unit('b', { maturity: 'internal', state: 'quarantined' }),
+		],
+		map: {
+			groups: [
+				{
+					id: 'design',
+					label: 'Design <for> agents',
+					parts: [
+						{
+							id: 'violet',
+							name: 'Violet',
+							path: 'foundations/violet',
+							units: ['a'],
+							standalone: true,
+							summary: 'Tokens, with `code`.',
+							site: {
+								dev: { page: 'violet/', action: 'Open it' },
+								design: { page: 'design/violet/', action: 'Try it' },
+							},
+						},
+					],
+				},
+				{
+					id: 'tools',
+					label: 'Tools',
+					parts: [
+						{ id: 'alfred', name: 'Alfred', path: 'alfred', units: ['b'], summary: 'A bot.' },
+					],
+				},
+			],
+		},
+	});
+
+	it('states the word and where a published part installs from', () => {
+		assert.equal(statusText(map.parts[0]), 'Preview, on npm');
+		assert.equal(statusText(map.parts[1]), 'Internal');
+	});
+
+	it('draws every group and part, with labels the site check reads', () => {
+		const dev = renderSiteMap(map, 'site/index.html');
+		assert.match(dev, /<h4 class="family-group-name">Design &lt;for&gt; agents<\/h4>/);
+		assert.match(dev, /<h5 class="family-name">Violet<\/h5>/);
+		assert.match(dev, /<p>Tokens, with <code>code<\/code>\.<\/p>/);
+		assert.match(dev, /<li class="family-part--standalone">/);
+		assert.match(dev, /Stands alone/);
+		assert.match(dev, /<a href="violet\/" aria-label="Violet: open it">Open it /);
+		assert.match(dev, /href="https:\/\/github\.com\/lushly-dev\/afd\/tree\/main\/alfred"/);
+		assert.deepEqual(checkSiteText('site/index.html', dev, map.parts).errors, []);
+		assert.equal(checkSiteText('site/index.html', dev, map.parts).checked, 2);
+		const design = renderSiteMap(map, 'site/design/index.html');
+		assert.match(design, /<h3 class="family-group-name">/);
+		assert.match(design, /<a href="violet\/" aria-label="Violet: try it">/);
+	});
+
+	it('links a page on the other side relative to the drawing page', () => {
+		const other = resolveMap({
+			units: [unit('a')],
+			map: {
+				groups: [
+					{
+						id: 'g',
+						label: 'G',
+						parts: [
+							{
+								id: 'p',
+								name: 'P',
+								path: 'p',
+								units: ['a'],
+								summary: 's',
+								site: { design: { page: 'p/', action: 'Go' } },
+							},
+						],
+					},
+				],
+			},
+		});
+		assert.match(renderSiteMap(other, 'site/design/index.html'), /href="\.\.\/p\/"/);
+	});
+
+	it('refuses a missing summary, a bad side and a page that does not exist', () => {
+		const root = mkdtempSync(join(tmpdir(), 'maturity-site-'));
+		try {
+			mkdirSync(join(root, 'site/violet'), { recursive: true });
+			writeFileSync(join(root, 'site/violet/index.html'), '');
+			const parts = [
+				{ id: 'ok', summary: 's', site: { dev: { page: 'violet/', action: 'Go' } } },
+				{ id: 'bare' },
+				{ id: 'side', summary: 's', site: { web: { page: 'violet/', action: 'Go' } } },
+				{ id: 'gone', summary: 's', site: { dev: { page: 'nowhere/', action: 'Go' } } },
+			];
+			const errors = checkSitePages(root, { parts });
+			assert.equal(errors.length, 3);
+			assert.match(errors[0], /bare has no summary/);
+			assert.match(errors[1], /side: site side must be dev or design/);
+			assert.match(errors[2], /site\/nowhere\/index\.html does not exist/);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 });
 

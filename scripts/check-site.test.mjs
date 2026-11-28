@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test, { after } from 'node:test';
-import { checkSite, isIndexable, pageUrl } from './check-site.mjs';
+import { checkSite, isIndexable, noindex, pageUrl } from './check-site.mjs';
 
 const temps = [];
 after(() => {
@@ -105,4 +105,13 @@ test('pages map to the URLs GitHub Pages serves', () => {
 		false
 	);
 	assert.equal(isIndexable('a.html', page('<script>location.replace("/")</script>')), true);
+});
+
+test('noindex reads the robots tag in any attribute order and quoting', () => {
+	assert.ok(noindex('<meta name="robots" content="noindex">'));
+	assert.ok(noindex(`<meta content='noindex, follow' name=robots>`));
+	assert.ok(noindex('<META NAME="Robots" CONTENT="NOINDEX">'));
+	assert.ok(!noindex('<meta name="description" content="noindex">'));
+	assert.ok(!noindex('<meta name="robots" content="index, follow">'));
+	assert.equal(isIndexable('a.html', page('', `<meta content="noindex" name="robots">`)), false);
 });

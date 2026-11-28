@@ -27,10 +27,13 @@ A tool's page has the same address on both sides (`site/violet/` and
 carries `data-side="dev"` or `data-side="design"`. Give a tool a page on both sides
 only when each has something of its own to say.
 
-**Status.** The two-site design is a proposal on the branch `lush/site-two-doors`:
-`index.html` (the dev home, formerly `manifesto-3.html`, which now redirects to it),
-`design/` (the design home) and the tools' pages. The rules below hold for
-all of them unless a line says which.
+**Public and working pages.** Every page is public (listed in `site/sitemap.xml`, no
+`noindex`, a title naming Agent-First Development or Agent-First Design) except the
+redirects, `404.html` and the working pages (`styleguide.html`, `fast-af/review/`), which
+carry `noindex`; a working page says "A working page" where a visitor reads it.
+`scripts/check-site.mjs` keeps the sitemap equal to the indexable pages and
+`scripts/site-indexing.test.mjs` checks what each public page says; a new page goes in the
+sitemap or in that test's `NOT_PUBLIC` list. A tool's page says what AFD is under its crumb (`.crumb-about`).
 
 ## Files
 
@@ -52,7 +55,8 @@ all of them unless a line says which.
 | `site/<tool>/` beside the page | What the tool wrote for the page, unedited: Specimen's `captures/` and `pack/`, Umbel's and Botcore's `runs.json`, FAST-AF's `library.json`. |
 | `site/js/widows.js`, `statements.js` | No one-word last lines; statements that light up. Every page imports both. |
 | `scripts/build-site-*.mjs` | Build a vendor bundle (Violet, FAST-AF), the captures and the pack (Specimen), a recorded run (Umbel, Botcore), or the social preview image (`og`, `site/og.png`). |
-| `site/styleguide.html` | Living style guide. Reads tokens and draws samples from the real CSS, so it can't drift. |
+| `site/styleguide.html` | Living style guide, a working page. Reads tokens and draws samples from the real CSS, so it can't drift. |
+| The family map on both homes | Generated from `scripts/release/inventory.json` (each map part's `summary` and `site` links) between `generated:maturity:map` markers; edit the inventory and run `pnpm maturity:sync`, never the block. |
 
 Stylesheet order on a tool's page: `tokens-m2`, `manifesto-2`, `manifesto-3`, `area`,
 `area-kit`, then `design` (design side only), then the tool's own.

@@ -1,6 +1,6 @@
 # AFD — Agent-First Development
 
-> AFD is a methodology plus TypeScript, Python, Rust and C++ libraries for building software where AI agents are first-class users. Commands are the product: define each capability as a typed command, validate it through the CLI, and only then build UI as a thin surface over it. Humans, scripts and agents (over MCP or in-process) all call the same commands and get the same CommandResult.
+> Agent-First Development (AFD) is a methodology plus TypeScript, Python, Rust and C++ libraries for building software where AI agents are first-class users. It is about software agents can use, not agents writing code. Commands are the product: define each capability as a typed command, validate it through the CLI, and only then build UI as a thin surface over it. Humans, scripts and agents (over MCP or in-process) all call the same commands and get the same CommandResult.
 
 Contract: 1.0-rc (the shared specification in `spec/`; each package keeps its own version)
 License: MIT
@@ -13,11 +13,12 @@ The same repository holds the rest of the AFD family: Violet, FAST-AF, Specimen,
 - The honesty check: "If it can't be done via CLI, the architecture is wrong." No UI-only code paths.
 - Jobs first: a feature starts from the jobs it serves, each written as a scenario file before its commands are specified.
 - Workflow per command: Define (typed schema, named errors) → Validate (call it from the terminal, cover edge cases) → Surface (UI wraps a command that already passes).
-- CommandResult: every command returns `success` plus `data` or `error`, and can add trust signals: `confidence` (0–1), `reasoning`, `warnings`, `suggestions`, `sources`, `plan`, `alternatives`.
+- CommandResult: every command returns `success` plus `data` or `error`, and can add trust signals: `confidence` (0–1, supplied by the command's author; not a calibrated probability and never permission to act), `reasoning`, `warnings`, `suggestions`, `sources`, `plan`, `alternatives`.
 - Errors carry `code`, `message`, `suggestion` and `retryable`, so an agent can recover instead of stalling.
 - Command naming is `domain-action` kebab-case: `todo-create`, `user-get`, `order-list`.
 - Testing targets the job, not the UI: YAML JTBD scenarios call commands step by step, and surface validation audits the command set for collisions, schema drift and prompt injection.
 - One contract across languages: a 50-case conformance suite runs in CI against TypeScript, Python, Rust and C++ backends.
+- Not tied to MCP: MCP is one way in; the same commands run from the CLI and in-process (DirectClient). The honesty check covers behaviour and state, not pixels: in a canvas or a game, commands cover the actions and the scene, and the UI still renders.
 - AFD is UX design for non-human users. Each classic interface pattern has an agent equivalent that AFD ships as command metadata (see "Agent UX" below).
 
 ## Install
@@ -71,8 +72,10 @@ Full walkthrough: [5-minute quickstart](https://github.com/lushly-dev/afd#quicks
 The repo ships agent skills (SKILL.md format, read by Claude Code, Codex and others): afd, afd-typescript, afd-python, afd-rust, afd-cpp, afd-auth, afd-directclient. Add one to a project with:
 
 ```bash
-npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd
+npx degit "lushly-dev/afd/.claude/skills/afd#@lushly-dev/afd-core@2.5.0" .claude/skills/afd
 ```
+
+The `#` part pins the skill to a release tag; use the newest `@lushly-dev/afd-core@<version>` tag. Without it, degit copies whatever `main` holds.
 
 Recommended loop: edit a command handler, `afd call` it, read `error.suggestion`, fix, then `afd scenario run scenarios/ --server <url>`.
 
@@ -80,7 +83,7 @@ Recommended loop: edit a command handler, `afd call` it, read `error.suggestion`
 
 - [@lushly-dev/afd-core](https://www.npmjs.com/package/@lushly-dev/afd-core): CommandResult, CommandError, batching, streaming, pipelines
 - [@lushly-dev/afd-server](https://www.npmjs.com/package/@lushly-dev/afd-server): Zod commands, MCP server factory, middleware, and a browser-safe in-process registry (`/direct`)
-- [@lushly-dev/afd-client](https://www.npmjs.com/package/@lushly-dev/afd-client): MCP client over Streamable HTTP (the older SSE transport still works), and DirectClient (~0.03 ms in-process calls)
+- [@lushly-dev/afd-client](https://www.npmjs.com/package/@lushly-dev/afd-client): MCP client over Streamable HTTP (the older SSE transport still works), and DirectClient (in-process calls, no transport)
 - [@lushly-dev/afd-cli](https://www.npmjs.com/package/@lushly-dev/afd-cli): connect, call, validate and explore commands
 - [@lushly-dev/afd-testing](https://www.npmjs.com/package/@lushly-dev/afd-testing): JTBD scenario runner, surface validation, mock servers
 - [@lushly-dev/afd-auth](https://www.npmjs.com/package/@lushly-dev/afd-auth): provider-agnostic auth adapter, middleware, session sync
@@ -105,11 +108,11 @@ Status words. Stable: published on the default tag at 1.0 or later, on a final (
 <!-- generated:maturity:map:end -->
 
 - [Violet](https://github.com/lushly-dev/afd/tree/main/foundations/violet): a hierarchical design token engine. Nodes inherit tokens from their parents and add, override or remove them; exports CSS, SCSS, TypeScript, JSON, Swift, Kotlin, Dart, Tailwind and Lua. Includes a browser runtime, a `violet` CLI and a `violet-mcp` server. Status: Preview. `npm install @lushly-dev/violet-core@preview`.
-- [FAST-AF](https://github.com/lushly-dev/afd/tree/main/foundations/fast-af): a web component runtime, `@lushly-dev/fast-element`, and a component library built on it, `@lushly-dev/violet-elements`. Every component's stories run on Specimen, and each component has a pack record of what an agent writing a page needs to know. Status: Preview. `npm install @lushly-dev/violet-elements@preview @lushly-dev/fast-element@preview`.
+- [FAST-AF](https://github.com/lushly-dev/afd/tree/main/foundations/fast-af): a web component runtime, `@lushly-dev/fast-element`, and a component library built on it, `@lushly-dev/violet-elements`, which is part of FAST-AF (named for the Violet tokens it reads), not of Violet. Every component's stories run on Specimen, and each component has a pack record of what an agent writing a page needs to know. Status: Preview. `npm install @lushly-dev/violet-elements@preview @lushly-dev/fast-element@preview`.
 - [Specimen](https://github.com/lushly-dev/afd/tree/main/foundations/specimen): a component observation bench. Renders a component in Chromium and records geometry, computed styles, native control state, open shadow DOM and ARIA snapshots, so two renders can be compared. Runs Storybook-format stories without Storybook. Status: Preview. `npm install @lushly-dev/specimen@preview`, with `@lushly-dev/specimen-cli@preview` (the `specimen` JSON CLI), `@lushly-dev/specimen-afd@preview` (`specimen-*` AFD commands) and `@lushly-dev/specimen-fast-af@preview` (FAST-AF plugin).
 - [Umbel](https://github.com/lushly-dev/afd/tree/main/endpoints/umbel): an empty Rust host for capability plugins, over MCP (stdio and Streamable HTTP) and as a CLI. Knowledge, memory and context are first-party plugins; one deployment holds several isolated spaces. Status: In development. [Status file](https://github.com/lushly-dev/afd/blob/main/endpoints/umbel/docs/STATUS.md).
 - [Loam](https://github.com/lushly-dev/afd/tree/main/endpoints/loam): an application shell in TypeScript. Apps land as plugins and share sign-in, projects, documents and a command palette; the shell's own state is commands. Its chrome is FAST-AF components on a Violet theme. Status: In development. [Status file](https://github.com/lushly-dev/afd/blob/main/endpoints/loam/docs/STATUS.md).
-- [Botcore](https://github.com/lushly-dev/afd/tree/main/endpoints/botcore): shared agent tooling (commands, skills, configuration, plugins) built on AFD. Status: Beta. `pip install lushly-botcore`; its plugins are in development.
+- [Botcore](https://github.com/lushly-dev/afd/tree/main/endpoints/botcore): a Python package of developer tooling a repository installs for the agents coding in it (lint, test and skill commands, configuration, plugins), built on AFD. Unlike Umbel, it is not a server you run for knowledge or memory. Status: Beta. `pip install lushly-botcore`; its plugins are in development.
 - [Alfred](https://github.com/lushly-dev/afd/tree/main/alfred): this repository's own quality bot: architecture lint, cross-language parity and command description quality. Status: Internal.
 - [Health](https://github.com/lushly-dev/afd/tree/main/endpoints/health): repository health audits with a versioned JSON report, and a static dashboard to read it. Status: Internal.
 
@@ -117,6 +120,7 @@ Status words. Stable: published on the default tag at 1.0 or later, on a final (
 
 - [README](https://github.com/lushly-dev/afd/blob/main/README.md): overview and getting started
 - [Whitepaper](https://github.com/lushly-dev/afd/blob/main/docs/whitepaper/AFD-Whitepaper.md): the full argument for agent-first development
+- [Questions people ask](https://github.com/lushly-dev/afd#questions-people-ask): MCP, `confidence`, where commands stop, and how AFD is built
 - [Command schema guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-schema.md): designing commands for good agent UX
 - [Shipped features](https://github.com/lushly-dev/afd/tree/main/docs/features/complete): pipelines, handoff, exposure and undo, trust config, prerequisites, middleware defaults, lazy discovery
 - [The AFD contract](https://github.com/lushly-dev/afd/tree/main/spec): the specification every language implements

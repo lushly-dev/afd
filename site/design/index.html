@@ -3,11 +3,10 @@
 	<head>
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
-		<title>AFD — Agent-First Design (proposal)</title>
-		<meta name="robots" content="noindex">
+		<title>Agent-First Design — the design side of Agent-First Development (AFD)</title>
 		<meta
 			name="description"
-			content="Agents are users too. Agent-First Design is the design side of AFD: patterns, tokens, components and guidance for software that people and agents both use."
+			content="Agent-First Design is the second half of Agent-First Development: patterns, tokens, components and guidance for software that people and agents both use."
 		>
 		<meta name="theme-color" content="#a3ebcd">
 		<link rel="icon" href="../svg/favicon.svg" type="image/svg+xml">
@@ -56,7 +55,7 @@
 				<div class="wrap">
 					<div class="opening-label">
 						<h1>Agent-First Design</h1>
-						<span data-maturity="none" class="edition">The design side of AFD</span>
+						<span data-maturity="none" class="edition">The design side of Agent-First Development</span>
 					</div>
 					<div class="opening-statement">
 						<p class="display">
@@ -68,8 +67,8 @@
 						<div class="opening-footer">
 							<p>
 								<b>Agent-First Design</b> is designing a product for two users: the person who
-								asks and the agent that acts. It is the design side of AFD, an open-source way of
-								building software around commands.
+								asks and the agent that acts. It is the second half of Agent-First Development, an
+								open-source way of building software as commands that people and agents both call. It is about software agents can use, not agents writing your code.
 							</p>
 							<div class="opening-way">
 								<div class="opening-actions">
@@ -89,7 +88,7 @@
 							</div>
 							<div>
 								<dt>Five tools</dt>
-								<dd>Tokens, components, evidence, application chrome and memory, each with a design side.</dd>
+								<dd>Tokens, components, evidence, application chrome and memory: the parts of the family with a design side.</dd>
 							</div>
 							<div>
 								<dt>One character</dt>
@@ -259,70 +258,136 @@
 				<div class="wrap">
 					<div class="editorial-heading">
 						<span class="section-index"><span class="fig-chip">Fig. 03</span>The family</span>
-						<h2>The practice lives<br><span>in five tools.</span></h2>
+						<h2>The practice lives<br><span>in every part of the family.</span></h2>
 					</div>
 					<p class="d-lead">
-						The same idea, taken to tokens, components, evidence, application chrome and memory.
-						Each has a design side and a dev side.
+						The same idea, taken from commands to tokens, components, evidence, application
+						chrome, memory and agent tooling, and arranged by what you want to do.
 					</p>
-					<ul class="family-list">
-						<li>
-							<h4>Violet</h4>
-							<p>
-								Design tokens on a tree. A brand, a product and a theme each inherit, override or
-								remove, and one source exports to CSS, Swift, Kotlin and more.
-							</p>
-							<span data-maturity="violet" class="mono family-status family-status--out">Preview, on npm</span>
-							<a href="violet/" aria-label="Violet: try the token tree"
-								>Try the tree <i class="icon icon--right" aria-hidden="true"></i></a
-							>
-						</li>
-						<li>
-							<h4>FAST-AF</h4>
-							<p>
-								A component library where each component has a record an agent reads before it
-								uses one.
-							</p>
-							<span data-maturity="fast-af" class="mono family-status family-status--out">Preview, on npm</span>
-							<a href="../fast-af/" aria-label="FAST-AF: see every component"
-								>See every component <i class="icon icon--right" aria-hidden="true"></i></a
-							>
-						</li>
-						<li>
-							<h4>Specimen</h4>
-							<p>
-								A bench that shows what actually rendered, so two versions of a component are
-								compared on evidence.
-							</p>
-							<span data-maturity="specimen" class="mono family-status family-status--out">Preview, on npm</span>
-							<a href="specimen/" aria-label="Specimen: compare two versions"
-								>Compare two versions <i class="icon icon--right" aria-hidden="true"></i></a
-							>
-						</li>
-						<li>
-							<h4>Loam</h4>
-							<p>
-								One application chrome for many apps: layout, a command palette and a shared UX
-								library, on a Violet theme.
-							</p>
-							<span data-maturity="loam" class="mono family-status">In development</span>
-							<a
-								href="https://github.com/lushly-dev/afd/tree/main/endpoints/loam"
-								aria-label="Read more about Loam"
-								>Read more <i class="icon icon--out" aria-hidden="true"></i></a
-							>
-						</li>
-						<li>
-							<h4>Umbel</h4>
-							<p>
-								One MCP server for your repo's agents. Guidance and memory they can cite, with every answer traceable to its source.
-							</p>
-							<span data-maturity="umbel" class="mono family-status">In development</span>
-							<a href="umbel/" aria-label="Umbel: read a real answer"
-								>Read a real answer <i class="icon icon--right" aria-hidden="true"></i></a
-							>
-						</li>
-					</ul>
+					<!-- generated:maturity:map:start -->
+					<div class="family-map">
+						<div class="family-group">
+							<h3 class="family-group-name">Build commands</h3>
+							<ul class="family-list">
+								<li>
+									<h4 class="family-name">TypeScript</h4>
+									<p>The reference library: commands, an MCP server, a CLI and an in-process client, as nine npm packages.</p>
+									<p class="family-state">
+										<span data-maturity="typescript" class="mono family-status family-status--out">Beta, on npm</span>
+									</p>
+									<a href="https://github.com/lushly-dev/afd/tree/main/packages" aria-label="TypeScript: read more">Read more <i class="icon icon--out" aria-hidden="true"></i></a>
+								</li>
+								<li>
+									<h4 class="family-name">Python</h4>
+									<p>The <code>afd</code> package: commands, an MCP server and a CLI, on the same contract.</p>
+									<p class="family-state">
+										<span data-maturity="python" class="mono family-status family-status--out">Beta, on PyPI</span>
+									</p>
+									<a href="https://github.com/lushly-dev/afd/tree/main/python" aria-label="Python: read more">Read more <i class="icon icon--out" aria-hidden="true"></i></a>
+								</li>
+								<li>
+									<h4 class="family-name">Rust</h4>
+									<p>The <code>afd</code> crate: commands, an optional MCP server, and a build for WebAssembly.</p>
+									<p class="family-state">
+										<span data-maturity="rust" class="mono family-status family-status--out">Preview, on crates.io</span>
+									</p>
+									<a href="https://github.com/lushly-dev/afd/tree/main/packages/rust" aria-label="Rust: read more">Read more <i class="icon icon--out" aria-hidden="true"></i></a>
+								</li>
+								<li>
+									<h4 class="family-name">C++</h4>
+									<p>A C++20 library for running commands inside an application, engine or tool.</p>
+									<p class="family-state">
+										<span data-maturity="cpp" class="mono family-status family-status--out">Preview, as a git tag</span>
+									</p>
+									<a href="https://github.com/lushly-dev/afd/tree/main/packages/cpp" aria-label="C++: read more">Read more <i class="icon icon--out" aria-hidden="true"></i></a>
+								</li>
+							</ul>
+						</div>
+						<div class="family-group">
+							<h3 class="family-group-name">Design for agents</h3>
+							<ul class="family-list">
+								<li class="family-part--standalone">
+									<h4 class="family-name">Violet</h4>
+									<p>A design token engine. Tokens live on a tree; each node inherits, overrides or removes, and one source exports to CSS, Swift, Kotlin and more.</p>
+									<p class="family-state">
+										<span data-maturity="violet" class="mono family-status family-status--out">Preview, on npm</span>
+										<span class="mono family-alone">Stands alone</span>
+									</p>
+									<a href="violet/" aria-label="Violet: try the tree">Try the tree <i class="icon icon--right" aria-hidden="true"></i></a>
+								</li>
+								<li class="family-part--standalone">
+									<h4 class="family-name">FAST-AF</h4>
+									<p>A web component runtime and the component library built on it, <code>violet-elements</code>. The library is part of FAST-AF; it takes its look from Violet tokens. Each component has a record an agent reads before using it.</p>
+									<p class="family-state">
+										<span data-maturity="fast-af" class="mono family-status family-status--out">Preview, on npm</span>
+										<span class="mono family-alone">Stands alone</span>
+									</p>
+									<a href="../fast-af/" aria-label="FAST-AF: see every component">See every component <i class="icon icon--right" aria-hidden="true"></i></a>
+								</li>
+								<li class="family-part--standalone">
+									<h4 class="family-name">Specimen</h4>
+									<p>A component bench. It renders in Chromium and records what actually happened, so two versions are compared on evidence.</p>
+									<p class="family-state">
+										<span data-maturity="specimen" class="mono family-status family-status--out">Preview, on npm</span>
+										<span class="mono family-alone">Stands alone</span>
+									</p>
+									<a href="specimen/" aria-label="Specimen: compare two versions">Compare two versions <i class="icon icon--right" aria-hidden="true"></i></a>
+								</li>
+							</ul>
+						</div>
+						<div class="family-group">
+							<h3 class="family-group-name">Run and operate</h3>
+							<ul class="family-list">
+								<li>
+									<h4 class="family-name">Umbel</h4>
+									<p>A server you run for agents, built from plugins: knowledge, memory and your own commands, over MCP and a command line, with every answer traced to its source.</p>
+									<p class="family-state">
+										<span data-maturity="umbel" class="mono family-status">In development</span>
+									</p>
+									<a href="umbel/" aria-label="Umbel: read a real answer">Read a real answer <i class="icon icon--right" aria-hidden="true"></i></a>
+								</li>
+								<li>
+									<h4 class="family-name">Loam</h4>
+									<p>An application shell. Apps land in one chrome as plugins, and the shell's own state is commands, so agents drive it the way people do.</p>
+									<p class="family-state">
+										<span data-maturity="loam" class="mono family-status">In development</span>
+									</p>
+									<a href="https://github.com/lushly-dev/afd/tree/main/endpoints/loam" aria-label="Loam: read more">Read more <i class="icon icon--out" aria-hidden="true"></i></a>
+								</li>
+								<li>
+									<h4 class="family-name">Botcore</h4>
+									<p>A Python package of developer tooling. A repository installs it so its coding agent gets the same lint, test and skill commands as every other repository.</p>
+									<p class="family-state">
+										<span data-maturity="botcore" class="mono family-status family-status--out">Beta, on PyPI</span>
+									</p>
+									<a href="../botcore/" aria-label="Botcore: see a real session">See a real session <i class="icon icon--right" aria-hidden="true"></i></a>
+								</li>
+							</ul>
+						</div>
+						<div class="family-group">
+							<h3 class="family-group-name">This repository's tools</h3>
+							<ul class="family-list">
+								<li>
+									<h4 class="family-name">Alfred</h4>
+									<p>This repository's quality bot: architecture, language parity and command-description checks.</p>
+									<p class="family-state">
+										<span data-maturity="alfred" class="mono family-status">Internal</span>
+									</p>
+									<a href="https://github.com/lushly-dev/afd/tree/main/alfred" aria-label="Alfred: read more">Read more <i class="icon icon--out" aria-hidden="true"></i></a>
+								</li>
+								<li>
+									<h4 class="family-name">Health</h4>
+									<p>Repository health audits with a versioned JSON report and a static dashboard.</p>
+									<p class="family-state">
+										<span data-maturity="health" class="mono family-status">Internal</span>
+									</p>
+									<a href="https://github.com/lushly-dev/afd/tree/main/endpoints/health" aria-label="Health: read more">Read more <i class="icon icon--out" aria-hidden="true"></i></a>
+								</li>
+							</ul>
+						</div>
+					</div>
+					<p class="family-key">A part that <b>stands alone</b> has foundation packages that depend on nothing in AFD, so it can be adopted on its own; its CLI, server and command packages add AFD on top.</p>
+					<!-- generated:maturity:map:end -->
 				</div>
 			</section>
 
@@ -402,7 +467,7 @@
 				><a href="https://github.com/lushly-dev/afd">Source</a
 				><a href="../styleguide.html">Style guide</a>
 			</nav>
-			<span class="footer-edition">AGENT-FIRST DESIGN / PROPOSAL</span>
+			<span class="footer-edition">AGENT-FIRST DESIGN</span>
 		</footer>
 	</body>
 </html>

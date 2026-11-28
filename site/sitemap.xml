@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Every indexable page on afd.dev. scripts/check-site.mjs refuses a page missing here,
-     or one listed that is noindex, a redirect or gone. -->
+<!-- Every indexable page on afd.dev. scripts/check-site.mjs refuses a page missing here, or one
+     listed that is noindex, a redirect or gone; scripts/site-indexing.test.mjs checks what a
+     public page must say. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 	<url><loc>https://afd.dev/</loc></url>
+	<url><loc>https://afd.dev/design/</loc></url>
+	<url><loc>https://afd.dev/botcore/</loc></url>
+	<url><loc>https://afd.dev/fast-af/</loc></url>
+	<url><loc>https://afd.dev/specimen/</loc></url>
+	<url><loc>https://afd.dev/umbel/</loc></url>
+	<url><loc>https://afd.dev/violet/</loc></url>
+	<url><loc>https://afd.dev/design/specimen/</loc></url>
+	<url><loc>https://afd.dev/design/umbel/</loc></url>
+	<url><loc>https://afd.dev/design/violet/</loc></url>
 </urlset>

@@ -1421,4 +1421,22 @@ blockquote {
 		grid-column: 1 / -1;
 		grid-template-columns: subgrid;
 	}
+
+	/* The map's groups share one set of columns, so every row lines up across groups. */
+	.family-map {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 2.6fr) auto auto;
+		column-gap: var(--space-6);
+	}
+
+	.family-map .family-group,
+	.family-map .family-list:not(.runs-list) {
+		display: grid;
+		grid-column: 1 / -1;
+		grid-template-columns: subgrid;
+	}
+
+	.family-map .family-group-name {
+		grid-column: 1 / -1;
+	}
 }

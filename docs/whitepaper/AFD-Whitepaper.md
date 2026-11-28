@@ -1,6 +1,6 @@
 # Agent-First Development: Building Software for Human-AI Collaboration
 
-**Reducing Integration Complexity by 80% Through Command-First Architecture**
+**The Case for Building Every Capability as a Command Before Any Interface**
 
 **A Technical Whitepaper**
 
@@ -10,28 +10,25 @@
 
 ## Executive Summary
 
-The rise of AI agents (autonomous systems that can perform tasks on behalf of users) has exposed a critical flaw in how we build software. Traditional applications lock capabilities behind visual interfaces, making them nearly inaccessible to machine automation. Organizations attempting to integrate AI agents into existing systems face months of reverse-engineering, fragile browser automation, and ongoing maintenance as UIs change.
+The rise of AI agents (autonomous systems that can perform tasks on behalf of users) has exposed a critical flaw in how we build software. Traditional applications lock capabilities behind visual interfaces, making them nearly inaccessible to machine automation. Organizations attempting to integrate AI agents into existing systems face reverse-engineering, fragile browser automation, and ongoing maintenance as UIs change.
 
 **Agent-First Development (AFD)** is a software methodology that inverts the traditional development flow. Instead of building UI first and retrofitting agent access, AFD establishes a **command layer** as the source of truth, then builds UI as one of many optional surfaces.
 
-**Key findings from production implementations:**
+**What this repository shows.** Each row below can be checked in the AFD repository (https://github.com/lushly-dev/afd):
 
-| Metric | Traditional Approach | Agent-First Approach |
-|--------|---------------------|---------------------|
-| Agent integration time | 3-6 months | 1-2 weeks |
-| UI iteration cycle | 2-4 week sprints | Hours to days |
-| Surface count supported | 1-2 (web, API) | 5+ (CLI, MCP, REST, UI, plugins) |
-| Backend changes per new surface | Significant | Zero |
-| Test coverage at launch | 40-60% | 80%+ (command-validated) |
+| Property | How AFD provides it | Where to check |
+|----------|--------------------|----------------|
+| One registry behind every surface | The CLI, MCP servers and in-process callers (`DirectClient`) call the same registered commands | `packages/server`, `packages/cli`, `packages/client` |
+| One contract in four languages | A shared specification, implemented in TypeScript, Python, Rust and C++ | `spec/`, `packages/core`, `python/`, `packages/rust`, `packages/cpp` |
+| Parity checked, not assumed | The todo example has a backend in each of the four languages, and CI runs one shared conformance suite against all of them | `packages/examples/todo`, `.github/workflows/conformance.yml` |
+| Inputs validated before handlers run | Each command advertises a JSON Schema for its input (derived from Zod in TypeScript and Pydantic in Python), and one specification fixes how every language validates against it | `spec/validation.md` |
+| Behavior tested as user jobs | Scenarios written in YAML call commands and check their results | `packages/testing`, `*.scenario.yaml` files |
 
-**The hidden accelerator:** AFD isn't just designed for agents to *use* software; it's optimized for agents to *build* software. The same structured contracts that make applications agent-accessible also make them agent-buildable. With AI coding assistants, features that traditionally take weeks compress to hours:
+The other projects in this repository are built with AFD: Loam, Umbel, Botcore, Alfred and the examples. They show the approach in use. They are not a measurement of its effect, and this paper reports no such measurement.
 
-| Development Phase | Human Time | Agent-Assisted (AFD) | Compression |
-|------------------|-----------|---------------------|-------------|
-| Full feature (CRUD + UI) | 1-2 weeks | 1-3 hours | 50-100x |
-| New integration surface | 2-4 weeks | 1 day | 10-20x |
+**The second aim:** AFD is designed for agents to *use* software and also to *build* it. The same structured contracts that make an application agent-accessible give a coding agent a precise target and a quick way to check its work: a schema to implement and a CLI call that returns a structured result. We expect this to shorten development. We have not measured by how much; section 8 explains why we expect it.
 
-**The bottom line:** AFD turns AI integration from a multi-month project into a configuration exercise. And here's the kicker: the same structure that makes software agent-usable also makes it agent-buildable. Weeks become hours.
+**The bottom line:** with AFD, agent access is not a separate integration project. Every capability is a command from the start, so an agent reaches it the same way a person or a script does.
 
 ---
 
@@ -44,7 +41,7 @@ The rise of AI agents (autonomous systems that can perform tasks on behalf of us
 5. [The Define-Validate-Surface Workflow](#5-the-define-validate-surface-workflow)
 6. [Trust Through Validation](#6-trust-through-validation)
 7. [Implementation Roadmap](#7-implementation-roadmap)
-8. [Agent-Accelerated Development: From Weeks to Minutes](#8-agent-accelerated-development-from-weeks-to-minutes)
+8. [Agent-Accelerated Development](#8-agent-accelerated-development)
 9. [Case Study: Multi-Surface Validation](#9-case-study-multi-surface-validation)
 10. [Build vs. Buy: The Internal Development Trap](#10-build-vs-buy-the-internal-development-trap)
 11. [Production Considerations](#11-production-considerations)
@@ -97,17 +94,17 @@ This approach fails because:
 
 ### The Integration Tax
 
-Want to add AI agents to an existing app? Here's the bill:
+Want to add AI agents to an existing app? Here's what the work involves:
 
-| Cost Category | Typical Investment |
+| Cost Category | What It Involves |
 |--------------|-------------------|
-| Reverse-engineering UI flows | 4-8 weeks |
-| Building automation layer | 4-6 weeks |
-| Error handling and recovery | 2-4 weeks |
-| Ongoing maintenance | 20-40% of original effort annually |
+| Reverse-engineering UI flows | Working out what each screen does and in what order |
+| Building automation layer | Scripts that drive the UI or call internal endpoints never meant to be public |
+| Error handling and recovery | Detecting failures the UI shows only visually |
+| Ongoing maintenance | Repairing the automation each time the UI changes |
 | Testing and validation | Continuous |
 
-**Total first-year cost for a medium-complexity app: 4-6 engineer-months**
+The size of the bill depends on the app. This paper does not estimate it.
 
 And you pay it again for the next agent. And the next workflow. And the next integration partner.
 
@@ -136,7 +133,7 @@ All application functionality is exposed as **commands** (tools) with well-defin
 ```typescript
 // Every action is a command with explicit inputs and outputs
 const createDocument = {
-  name: 'document.create',
+  name: 'document-create',
   description: 'Creates a new document with the specified title and content',
   input: z.object({
     title: z.string().min(1).max(200),
@@ -492,7 +489,7 @@ Before any UI work begins, apply the Honesty Check:
 
 ```bash
 # Can I do this via CLI?
-$ afd call document.create '{"title": "Test Document"}'
+$ npx afd call document-create '{"title": "Test Document"}'
 
 # If YES: Proceed to UI
 # If NO:  Fix the architecture first
@@ -617,7 +614,7 @@ With these fields, users can:
 
 ## 7. Implementation Roadmap
 
-Four phases. Each builds on the last. Don't skip ahead.
+Four phases. Each builds on the last. Don't skip ahead. The week ranges below are a suggested pace, not measured durations. The right pace depends on the product and the team.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -666,15 +663,15 @@ Four phases. Each builds on the last. Don't skip ahead.
 |-------------|-------------|
 | Full command set | Commands for all application features |
 | MCP server | Agent-accessible command interface |
-| Test suite | Automated tests with 80%+ coverage |
+| Test suite | Automated tests for every command, covering success and each documented error |
 | API layer | REST/GraphQL wrapping commands |
 
 **Schema focus:** Add UX-enabling fields (`confidence`, `sources`, `plan`)
 
 **Exit criteria:**
-- [ ] 90%+ feature coverage via commands
+- [ ] Every application feature is reachable through a command
 - [ ] MCP server functional
-- [ ] Test coverage > 80%
+- [ ] Every command has a test for success and for each documented error
 - [ ] AI commands include confidence scores
 
 ### Phase 3: Experience Refinement (Weeks 9-12)
@@ -709,11 +706,11 @@ Four phases. Each builds on the last. Don't skip ahead.
 
 ---
 
-## 8. Agent-Accelerated Development: From Weeks to Minutes
+## 8. Agent-Accelerated Development
 
-Those timelines above? That's human time. Developers writing code, running tests, iterating manually.
+Those timelines above assume people writing the code, running the tests and iterating by hand.
 
-But here's what we discovered: AFD isn't just designed for agents to *use* your software. It's accidentally perfect for agents to *build* your software.
+AFD isn't just designed for agents to *use* your software. The same structure suits agents that *build* your software. This section explains why we expect that to speed development up. It reports no measurement of how much.
 
 ### The Virtuous Cycle
 
@@ -730,7 +727,7 @@ This creates a loop that feeds itself:
 │    │                          ↓                              │     │
 │    │   2. Agents can BUILD with it (structured contracts)    │     │
 │    │                          ↓                              │     │
-│    │   3. Development accelerates (minutes, not weeks)       │     │
+│    │   3. Development speeds up                              │     │
 │    │                          ↓                              │     │
 │    │   4. Better software for agents emerges                 │     │
 │    │                          ↓                              │     │
@@ -762,18 +759,17 @@ Give an AI coding assistant an AFD codebase and it gets:
 3. **Structured iteration:** Define → Test → Fix is a tight loop agents excel at
 4. **Composable understanding:** Each command is self-contained with explicit dependencies
 
-### Time Compression in Practice
+### The Workflow from the Agent's Side
 
-Watch what happens when an AI agent runs the Define-Validate-Surface workflow:
+Here is what each step of the Define-Validate-Surface workflow gives an AI agent:
 
-| Phase | Human Time | Agent-Assisted Time | Compression |
-|-------|-----------|---------------------|-------------|
-| **Define** (schema, types) | 2-4 hours | 5-15 minutes | 10-20x |
-| **Validate** (implement, CLI test) | 1-3 days | 15-60 minutes | 20-50x |
-| **Surface** (UI component) | 2-5 days | 30-90 minutes | 30-100x |
-| **Full feature** | 1-2 weeks | 1-3 hours | 50-100x |
+| Phase | What the Agent Works From | How It Checks Its Work |
+|-------|--------------------------|------------------------|
+| **Define** (schema, types) | The job the command serves | The schema compiles and states every input, output and error |
+| **Validate** (implement, CLI test) | The schema | `afd call` and scenario tests return structured results |
+| **Surface** (UI component) | The command's schema and error catalog | The UI calls the same command the CLI already proved |
 
-**Why?**
+**Why should this be faster?**
 
 1. **Schema = Specification:** The agent doesn't guess what to build; the schema IS the spec
 2. **CLI = Instant Feedback:** No waiting for hot reload, no clicking through UI, no browser state
@@ -796,7 +792,7 @@ Human Developer Inner Loop:
 8. Switch back to editor
 9. Repeat
 
-Time per iteration: 2-5 minutes
+Each iteration needs a running app, a browser and someone to click.
 ```
 
 An AI agent's inner loop with AFD:
@@ -809,22 +805,14 @@ Agent Inner Loop:
 4. If error: read error.suggestion, fix, goto 2
 5. If success: proceed to next requirement
 
-Time per iteration: 10-30 seconds
+Each iteration is one process call and one JSON result.
 ```
 
 **The agent never leaves the terminal.** No browser. No UI state. No waiting for humans. Just code → test → iterate.
 
-### Real-World Impact
+### Where This Is Used
 
-Features that used to take sprints now take a pairing session:
-
-| Feature | Traditional Timeline | Agent-Assisted (AFD) |
-|---------|---------------------|---------------------|
-| CRUD operations for new entity | 1-2 weeks | 1-2 hours |
-| Search with filters | 1-2 weeks | 2-3 hours |
-| Batch operations | 1 week | 1 hour |
-| Export/import functionality | 2-3 weeks | 2-4 hours |
-| New integration surface | 2-4 weeks | 1 day |
+The projects in the AFD repository are built this way, with coding agents doing implementation work: Loam, Umbel, Botcore, Alfred and the examples in `packages/examples`. The commit history records which changes an agent helped with. It does not record how long the same work would have taken by hand, so this paper makes no claim about time saved.
 
 ### UI Built Right the First Time
 
@@ -861,35 +849,9 @@ function DocumentList() {
 }
 ```
 
-### The New Timeline Reality
+### The Timeline
 
-The phases stay the same. The calendar shrinks:
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│              HUMAN VS. AGENT-ASSISTED TIMELINES                      │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  Human Development:                                                  │
-│  ┌──────────┬──────────┬──────────┬──────────┐                      │
-│  │ Phase 1  │ Phase 2  │ Phase 3  │ Phase 4  │                      │
-│  │ Weeks    │ Weeks    │ Weeks    │ Ongoing  │                      │
-│  │ 1-4      │ 5-8      │ 9-12     │          │                      │
-│  └──────────┴──────────┴──────────┴──────────┘                      │
-│  Total: 12+ weeks to production-ready                                │
-│                                                                      │
-│  Agent-Assisted Development:                                         │
-│  ┌──────────┬──────────┬──────────┬──────────┐                      │
-│  │ Phase 1  │ Phase 2  │ Phase 3  │ Phase 4  │                      │
-│  │ Days     │ Days     │ Days     │ Ongoing  │                      │
-│  │ 2-3      │ 3-5      │ 3-5      │          │                      │
-│  └──────────┴──────────┴──────────┴──────────┘                      │
-│  Total: 2-3 weeks to production-ready                                │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-**The same methodology, 5-10x faster execution.**
+The phases stay the same with agents doing the implementation. We expect each phase to take less calendar time. We have not measured by how much, and the answer will depend on the product, the team and the agents.
 
 ### Implications for Team Structure
 
@@ -911,17 +873,21 @@ The acceleration **compounds**:
 3. **Third feature:** Agent suggests improvements based on pattern recognition
 4. **Nth feature:** Agent implements with minimal guidance, human focuses on design decisions
 
-This isn't theoretical. Teams using AFD with AI coding assistants report this pattern consistently. The first feature is slow. The fifth feature feels like cheating.
+This is what we have seen building the projects in this repository. It is experience, not a measured result.
 
 ---
 
 ## 9. Case Study: Multi-Surface Validation
 
-Talk is cheap. Here's what actually happened.
+Two cases follow. The first can be checked in this repository. The second is an account from a project built outside it.
+
+### In This Repository: Four Backends, One Suite
+
+The todo example (`packages/examples/todo`) defines its commands once in a shared specification and implements them in four backends: TypeScript, Python, Rust and C++. The conformance workflow (`.github/workflows/conformance.yml`) runs the same suite of cases (`packages/examples/todo/spec/test-cases.json`) against each backend. Two web frontends, one in React and one in FAST-AF, call the same commands over MCP, the protocol agents use, rather than through an API of their own. A backend that drifts from the contract fails CI.
 
 ### Noisett: 5 Surfaces, Zero Backend Changes
 
-**Noisett** is an AI image generation application built using AFD methodology. It exposes 19 commands through **5 different surfaces**:
+**Noisett** is an AI image generation application built using AFD methodology. Its code is not in this repository, so the details below are the project's own account and cannot be checked here. It exposes 19 commands through **5 different surfaces**:
 
 | Surface | Technology | Backend Changes Required |
 |---------|------------|-------------------------|
@@ -966,15 +932,15 @@ Phase 5: Figma Plugin
 **Challenge:** Handling Zod's distinction between input and output types with optional fields that have defaults.
 
 ```typescript
-// ❌ Wrong - handler receives raw input, not parsed
-async handler(input: z.output<typeof InputSchema>) {
-  // input.priority might be undefined!
+// ❌ Wrong - typing the handler with the schema's input type, then parsing again
+async handler(rawInput: z.input<typeof InputSchema>) {
+  const input = InputSchema.parse(rawInput); // redundant: the registry already did this
 }
 
-// ✅ Correct - parse inside handler to apply defaults
-async handler(rawInput: z.input<typeof InputSchema>) {
-  const input = InputSchema.parse(rawInput);
-  // input.priority is guaranteed to have default value
+// ✅ Correct - the registry validates the input and applies defaults before the
+// handler runs (spec/validation.md), so the handler takes the schema's output type
+async handler(input: z.output<typeof InputSchema>) {
+  // input.priority already has its default value
 }
 ```
 
@@ -1002,7 +968,7 @@ const ValueSchema = z.union([
 
 #### Key Takeaways
 
-1. **Parse inside handlers:** Don't trust TypeScript to know Zod has applied defaults
+1. **Let the registry validate:** handlers receive the validated input with defaults applied, on every surface; type them with `z.output` and don't parse again
 2. **Order unions carefully:** Most specific schemas first, most permissive last
 3. **Use `.strict()` on objects:** Prevents silent property stripping
 4. **Test with complex data:** Object values, nested structures, edge cases
@@ -1015,16 +981,16 @@ const ValueSchema = z.union([
 
 ### The Hidden Costs of Internal Development
 
-| Cost Category | Typical Internal Investment | Notes |
-|---------------|----------------------------|-------|
-| **Initial Design** | 4-6 weeks senior architect time | Command schema design, error taxonomy |
-| **Core Implementation** | 8-12 weeks engineering | Registry, validation, middleware |
-| **CLI Tooling** | 4-6 weeks engineering | `afd` equivalent with validation |
-| **MCP Integration** | 4-8 weeks engineering | Protocol implementation, transport |
-| **Testing Framework** | 4-6 weeks engineering | JTBD scenarios, conformance tests |
-| **Documentation** | 2-4 weeks continuous | Living documentation maintenance |
+| Cost Category | What You Would Build | Notes |
+|---------------|----------------------|-------|
+| **Initial Design** | Senior architect time | Command schema design, error taxonomy |
+| **Core Implementation** | Engineering | Registry, validation, middleware |
+| **CLI Tooling** | Engineering | `afd` equivalent with validation |
+| **MCP Integration** | Engineering, repeated as the protocol changes | Protocol implementation, transport |
+| **Testing Framework** | Engineering | JTBD scenarios, conformance tests |
+| **Documentation** | Continuous | Living documentation maintenance |
 
-**Total: 26-42 weeks before you write a single business command**
+**All of this comes before you write a single business command.** How long it takes depends on the team; this paper does not estimate it.
 
 ### What You're Really Building
 
@@ -1032,13 +998,12 @@ Teams building internally usually skip:
 
 | Capability | AFD Provides | Internal Builds Often Skip |
 |------------|--------------|---------------------------|
-| Schema validation | Full Zod integration with type inference | Basic JSON Schema |
-| Error taxonomy | 20+ standard codes with factory functions | Custom per-project |
+| Schema validation | Zod in TypeScript and Pydantic in Python, one validation contract in all four languages (`spec/validation.md`) | Basic JSON Schema |
+| Error taxonomy | A shared catalog of error codes (`spec/vectors/error-codes.json`), defined in every language, with helper functions | Custom per-project |
 | UX-enabling fields | Confidence, reasoning, sources, alternatives | Success/error only |
 | Batch operations | Built-in with partial failure handling | Single-item only |
-| Streaming support | SSE endpoint, CLI streaming | Not implemented |
-| Conformance testing | Multi-language scenario runner | Per-project tests |
-| Performance testing | Built-in baselines and regression detection | Manual benchmarking |
+| Streaming support | HTTP `/stream` route, CLI `stream` command | Not implemented |
+| Conformance testing | One suite run against backends in four languages | Per-project tests |
 
 ### The Maintenance Burden
 
@@ -1047,7 +1012,7 @@ AFD evolves. We handle:
 - **MCP protocol updates:** Handled by framework maintainers
 - **New UX patterns:** Incorporated into CommandResult schema
 - **Security best practices:** Updated in documentation
-- **Multi-language support:** TypeScript, Python, Rust implementations
+- **Multi-language support:** TypeScript, Python, Rust and C++ implementations
 
 Build it yourself? You own the maintenance forever.
 
@@ -1165,34 +1130,34 @@ span.setAttribute('command.duration_ms', result.metadata.durationMs);
 ### Installation
 
 ```bash
-# Install the AFD CLI
-npm install -g @afd/cli
+# Install the server library, the CLI and Zod
+npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod
 
-# Or use npx
-npx @afd/cli --help
+# The CLI runs with npx
+npx afd --help
 ```
 
 ### Quick Start
 
 ```bash
 # 1. Connect to an MCP server (or start your own)
-afd connect http://localhost:3100/sse
+npx afd connect http://localhost:3100/mcp
 
-# 2. List available commands
-afd tools
+# 2. List what an agent sees
+npx afd tools
 
 # 3. Call a command
-afd call document.create '{"title": "My First Document"}'
+npx afd call document-create '{"title": "My First Document"}'
 
-# 4. Validate command behavior
-afd validate
+# 4. Lint the command set an agent sees
+npx afd validate --surface
 ```
 
 ### Creating Your First Command
 
 ```typescript
 import { z } from 'zod';
-import { defineCommand, success, failure } from '@afd/server';
+import { defineCommand, success } from '@lushly-dev/afd-server';
 
 // Define schema
 const CreateDocumentInput = z.object({
@@ -1208,18 +1173,15 @@ const CreateDocumentOutput = z.object({
 
 // Define command
 export const createDocument = defineCommand({
-  name: 'document.create',
+  name: 'document-create',
   description: 'Creates a new document',
   input: CreateDocumentInput,
   output: CreateDocumentOutput,
   handler: async (input) => {
-    // Validate and apply defaults
-    const parsed = CreateDocumentInput.parse(input);
-    
-    // Business logic
+    // The registry has already validated the input and applied defaults
     const doc = await db.documents.create({
-      title: parsed.title,
-      content: parsed.content ?? '',
+      title: input.title,
+      content: input.content ?? '',
     });
     
     return success({
@@ -1235,7 +1197,7 @@ export const createDocument = defineCommand({
 
 ```bash
 # Test the command
-$ afd call document.create '{"title": "Test Document"}'
+$ npx afd call document-create '{"title": "Test Document"}'
 
 {
   "success": true,
@@ -1252,8 +1214,9 @@ $ afd call document.create '{"title": "Test Document"}'
 | Resource | Link |
 |----------|------|
 | GitHub Repository | https://github.com/lushly-dev/afd |
-| Philosophy Deep Dive | .claude/skills/afd/references/philosophy.md |
-| Command Schema Guide | .claude/skills/afd/references/command-schema.md |
+| Quickstart | https://github.com/lushly-dev/afd#quickstart |
+| Questions people ask | https://github.com/lushly-dev/afd#questions-people-ask |
+| The AFD contract | https://github.com/lushly-dev/afd/tree/main/spec |
 
 ---
 
@@ -1264,8 +1227,8 @@ Agent-First Development changes how we build software. Rather than treating agen
 ### What You Get
 
 **For Engineering:**
-- **80%+ test coverage at launch:** CLI validation ensures testability
-- **Zero backend changes for new surfaces:** Proven in production (5 surfaces, 1 backend)
+- **Testable from the first command:** every command can be called from the CLI and from YAML scenarios before any UI exists
+- **One backend behind every surface:** the CLI, MCP and in-process callers share one command registry
 - **Reduced integration complexity:** Commands are inherently agent-accessible
 - **Faster iteration:** UI becomes a thin, swappable layer
 

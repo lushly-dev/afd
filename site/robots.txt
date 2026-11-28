@@ -1,3 +1,6 @@
+# Every public page may be indexed. Working pages (the style guide, FAST-AF's review sheets),
+# redirects and 404.html carry <meta name="robots" content="noindex"> instead of a Disallow
+# line here, so a crawler can read that tag; a disallowed page can still be indexed from links.
 User-agent: *
 Allow: /
 
