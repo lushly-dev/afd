@@ -18,6 +18,11 @@
  * whose runs to read, `pull_request` (the default) or `merge_group`;
  *   node scripts/ci-verdict.mjs
  * Exit 0 passed, 1 a workflow did not pass or the wait timed out, 2 a failed read.
+ *
+ * Not shared with Lushly's `scripts/ci-verdict.mjs`, which has the same name and another job
+ * (#2834): it checks one workflow's `needs` results against its `ci-selection` artifact and a job
+ * map, while this one waits on every workflow run a commit started. They share no function, so a
+ * single seeded source would hold two programs.
  */
 
 import { readdirSync, readFileSync } from 'node:fs';

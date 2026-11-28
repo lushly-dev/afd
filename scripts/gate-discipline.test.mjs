@@ -13,6 +13,7 @@ import { compareTestFile, LANGUAGES } from './report-test-changes.mjs';
 
 const scripts = dirname(fileURLToPath(import.meta.url));
 const GATE_SCRIPTS = [
+	'check-portability.mjs',
 	'check-test-configs.mjs',
 	'check-test-discovery.mjs',
 	'check-test-quarantine.mjs',
@@ -102,6 +103,7 @@ test('all check scripts run their check when started through a symlinked folder'
 		'scripts/policy/test-discovery.json': JSON.stringify({ unrun: [] }),
 		'src/a.test.ts': "it.only('a', () => {});\n",
 		'vitest.config.ts': config("\t\tpassWithNoTests: true,\n\t\tinclude: ['other/**/*.test.ts'],"),
+		'src/home.ts': `export const home = '${['C:', 'Users', 'dev'].join(String.fromCharCode(92))}';\n`,
 	});
 	const copy = join(root, 'skill-scripts');
 	mkdirSync(copy, { recursive: true });
@@ -109,6 +111,7 @@ test('all check scripts run their check when started through a symlinked folder'
 	const link = join(root, 'linked-scripts');
 	symlinkSync(copy, link, 'junction');
 	for (const script of [
+		'check-portability.mjs',
 		'check-test-quarantine.mjs',
 		'check-test-configs.mjs',
 		'check-test-discovery.mjs',

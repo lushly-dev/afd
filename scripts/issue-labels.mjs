@@ -28,6 +28,13 @@
  *
  * Exit codes: 0 clean; 1 a violation or difference; 2 usage, file or gh failure.
  * A failed read is exit 2, never an empty, clean result.
+ *
+ * Not shared with Lushly's copy (#2834). The engine is the same, but every difference between
+ * the two is the repository's triage policy: the labels file's format, `priority:0` against
+ * `priority:p0`, Lushly's `type:log` rule and this repository's factory `dispatch`. This one's
+ * twin is the factory plugin's `labels.py`, named above, so a seeded copy would be a third to keep
+ * in step, and Botcore seeds no triage skill to carry it. Revisit, with the policy as
+ * configuration, if a third repository takes up the factory's labels.
  */
 
 import { execFileSync } from 'node:child_process';

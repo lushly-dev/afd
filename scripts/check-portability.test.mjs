@@ -179,3 +179,109 @@ test('pre-commit portability glob in lefthook.yml covers .mjs, .cjs, and .tsx sc
 		);
 	}
 });
+
+// The converged script (#2834): one source for AFD and Lushly, each repository's scope in a config.
+
+const backslash = String.fromCharCode(92);
+const winHome = ['C:', 'Users', 'dev', 'repo'].join(backslash);
+
+test('a config scopes the scan: include, exclude and skipped segments', () => {
+	const dir = makeFixture({
+		'scripts/policy/portability.json': JSON.stringify({
+			include: ['src/', 'README.md'],
+			exclude: ['src/vendor/'],
+			skipSegments: ['generated'],
+		}),
+		'src/a.ts': `export const a = '${winHome}';\n`,
+		'src/vendor/b.ts': `export const b = '${winHome}';\n`,
+		'src/generated/c.ts': `export const c = '${winHome}';\n`,
+		'other/d.ts': `export const d = '${winHome}';\n`,
+	});
+	const result = runCheck(dir);
+	assert.equal(result.status, 1, result.stderr);
+	assert.match(result.stderr, /src\/a\.ts:1 {2}Windows user-home absolute path detected/);
+	assert.doesNotMatch(result.stderr, /vendor|generated|other\//);
+	// The drive-path and user-home patterns both match it.
+	assert.match(result.stderr, /2 portability error\(s\) across 1 file\(s\)/);
+	// Explicit files take the same filters, so a hook's staged files outside the scope pass.
+	assert.equal(runCheck(dir, ['other/d.ts', 'src/vendor/b.ts']).status, 0);
+});
+
+test('Markdown is skipped by default and checked with markdown: "scan"', () => {
+	const files = { 'docs/setup.md': `* Clone into ${winHome}\n` };
+	assert.equal(runCheck(makeFixture(files), ['docs/setup.md']).status, 0);
+	const scanned = makeFixture({
+		...files,
+		'scripts/policy/portability.json': JSON.stringify({ markdown: 'scan' }),
+	});
+	const result = runCheck(scanned, ['docs/setup.md']);
+	assert.equal(result.status, 1, result.stderr);
+	assert.match(result.stderr, /docs\/setup\.md:1/);
+});
+
+test('comment lines are skipped by default and checked with comments: "scan"', () => {
+	const files = {
+		'src/a.ts': `// cloned into ${winHome}
+export const a = 1;
+`,
+	};
+	assert.equal(runCheck(makeFixture(files), ['src/a.ts']).status, 0);
+	const scanned = makeFixture({
+		...files,
+		'scripts/policy/portability.json': JSON.stringify({ comments: 'scan' }),
+	});
+	const result = runCheck(scanned, ['src/a.ts']);
+	assert.equal(result.status, 1, result.stderr);
+	assert.match(result.stderr, /src\/a\.ts:1 {2}Windows/);
+});
+
+test('names the configured spawn suggestion, and a --config path wins over the default', () => {
+	const dir = makeFixture({
+		'tools/run.mjs': `${launch('execFileSync', 'pnpm', "['build']")};\n`,
+		'portability.json': JSON.stringify({ spawnSuggestion: 'Use the house helper.' }),
+	});
+	const result = runCheck(dir, ['--config', 'portability.json', 'tools/run.mjs']);
+	assert.equal(result.status, 1);
+	assert.match(result.stderr, /Use the house helper\./);
+});
+
+test('refuses a full scan that finds no file, but not a hook call whose files are all skipped', () => {
+	const dir = makeFixture({ 'notes.txt': `${winHome}\n` });
+	const result = runCheck(dir);
+	assert.equal(result.status, 1);
+	assert.match(result.stderr, /refusing a vacuous pass/);
+	assert.equal(runCheck(dir, ['notes.txt']).status, 0);
+});
+
+test('lists files from git, so an ignored file is never scanned', () => {
+	const dir = makeFixture({
+		'.gitignore': 'build/\n',
+		'build/out.json': JSON.stringify({ path: winHome }),
+		'src/ok.ts': 'export const ok = true;\n',
+	});
+	spawnSync('git', ['init', '-q'], { cwd: dir });
+	const result = runCheck(dir);
+	assert.equal(result.status, 0, result.stderr);
+	assert.match(result.stdout, /across 1 file\(s\)/);
+});
+
+test('refuses an unknown config key or a bad value with exit 2', () => {
+	for (const config of [
+		{ includes: [] },
+		{ markdown: 'yes' },
+		{ comments: 'no' },
+		{ include: 'src/' },
+	]) {
+		const dir = makeFixture({ 'portability.json': JSON.stringify(config), 'a.ts': '' });
+		const result = runCheck(dir, ['--config', 'portability.json']);
+		assert.equal(result.status, 2, JSON.stringify(config));
+	}
+});
+
+test('a copy of the script, such as the seeded skill mirror, is never scanned as a violation', () => {
+	const dir = makeFixture({
+		'skills/gate-discipline/scripts/check-portability.mjs': readFileSync(script, 'utf8'),
+		'src/ok.ts': 'export const ok = true;\n',
+	});
+	assert.equal(runCheck(dir).status, 0);
+});
