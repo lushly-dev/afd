@@ -6,8 +6,9 @@
  *
  * The fixture repositories have no AFD, Botcore, Health or FAST-AF dependency. Each
  * report's caller-local `targets[].path` is replaced by `<fixture>/<id>` so committed
- * fixtures carry no machine path, and `generated_at` is pinned to FIXTURE_TIME so they
- * are reproducible; nothing else is edited. `--check` regenerates into
+ * fixtures carry no machine path, and `generated_at` is pinned (to FIXTURE_TIME, or the
+ * fixture's own `generatedAt` for the dated trend series) so they are reproducible; nothing
+ * else is edited. `--check` regenerates into
  * memory and fails when a committed fixture differs.
  */
 import { spawnSync } from 'node:child_process';
@@ -129,6 +130,48 @@ const fixtures = {
 	},
 };
 
+/**
+ * Three dated reports for the trend: `line_coverage` in all three, `files_over_warn` in the
+ * first and last only, so the middle report is a gap. Listed out of date order on purpose.
+ */
+const trendMeasures = (coverage, filesOverWarn) => ({
+	schema_version: '1.0',
+	source: 'fixture-producer',
+	measures: [
+		...(filesOverWarn === undefined
+			? []
+			: [
+					{
+						key: 'files_over_warn',
+						label: 'Files over size warning',
+						value: filesOverWarn,
+						unit: 'files',
+						direction: 'lower_is_better',
+					},
+				]),
+		{
+			key: 'line_coverage',
+			label: 'Line coverage',
+			value: coverage,
+			unit: 'percent',
+			direction: 'higher_is_better',
+			target: 'tidy-lib',
+		},
+	],
+});
+const trendPolicy = { checks: ['gitattributes_lf', 'lefthook_configured', 'linter_strict'] };
+for (const [day, coverage, filesOverWarn] of [
+	['2026-01-03', 91.5, 2],
+	['2026-01-01', 90, 4],
+	['2026-01-02', 90.75, undefined],
+])
+	fixtures[`trend-${day}`] = {
+		targets: [['tidy-lib', 'python']],
+		policy: trendPolicy,
+		measures: trendMeasures(coverage, filesOverWarn),
+		generatedAt: `${day}T06:00:00Z`,
+	};
+
 function audit(workspace, name, fixture) {
 	const targets = fixture.targets.map(([id, language, unit]) =>
 		unit
@@ -182,7 +225,7 @@ function audit(workspace, name, fixture) {
 		target.path = `<fixture>/${target.id}`;
 		if (target.repository_root) target.repository_root = '<fixture>/repository';
 	}
-	report.generated_at = FIXTURE_TIME;
+	report.generated_at = fixture.generatedAt ?? FIXTURE_TIME;
 	const text = `${JSON.stringify(report, null, '\t')}\n`;
 	for (const root of new Set([workspace, realpathSync(workspace)]))
 		if (text.includes(root)) throw new Error(`${name}: a machine path survived sanitizing`);

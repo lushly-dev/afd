@@ -280,3 +280,70 @@ describe('?report= loading (Chromium, loopback server)', () => {
 		await context.close();
 	});
 });
+
+describe('trend across reports (Chromium, file://)', () => {
+	const TREND = ['2026-01-03', '2026-01-01', '2026-01-02'].map((day) =>
+		fixturePath(`reports/trend-${day}.report.json`)
+	);
+
+	it('plots the chosen measure in date order with its unit, direction and a gap', async () => {
+		const { context, page, errors, cspViolations } = await fresh();
+		await loadFiles(page, TREND);
+		const trend = page.locator('section.trend');
+		await expect(trend.count()).resolves.toBe(1);
+		// The first measure by label: files over the size warning, lower is better.
+		await expect(trend.locator('.trend-unit-text').innerText()).resolves.toBe('files');
+		await expect(trend.locator('.trend-direction').innerText()).resolves.toBe('Lower is better');
+		await expect(trend.locator('.trend-summary').innerText()).resolves.toBe(
+			'Files over size warning is 2 files, down 2 since 2026-01-01: better (2 of 3 reports).'
+		);
+		const rows = await trend
+			.locator('table.trend-points tbody tr')
+			.evaluateAll((items) =>
+				items.map((row) => [...row.children].map((cell) => cell.textContent?.trim()))
+			);
+		expect(rows).toEqual([
+			['2026-01-01 06:00:00 UTC', 'trend-2026-01-01.report.json', '4 files'],
+			['2026-01-02 06:00:00 UTC', 'trend-2026-01-02.report.json', 'Not in this report'],
+			['2026-01-03 06:00:00 UTC', 'trend-2026-01-03.report.json', '2 files'],
+		]);
+		const plot = trend.locator('health-trend-plot svg');
+		await expect(plot.getAttribute('role')).resolves.toBe('img');
+		await expect(plot.getAttribute('aria-label')).resolves.toContain('Files over size warning');
+		await expect(plot.locator('circle.trend-marker').count()).resolves.toBe(2);
+		await expect(plot.locator('line.trend-gap').count()).resolves.toBe(1);
+		// The two points sit either side of the gap, so no line joins them.
+		await expect(plot.locator('path.trend-line').count()).resolves.toBe(0);
+
+		await page.evaluate(() => {
+			const dashboard = document.querySelector('health-dashboard') as unknown as {
+				trend: { select(id: string): void };
+			};
+			dashboard.trend.select('line_coverage@tidy-lib');
+		});
+		await page.waitForFunction(
+			() => document.querySelector('.trend-direction')?.textContent?.trim() === 'Higher is better'
+		);
+		await expect(plot.locator('circle.trend-marker').count()).resolves.toBe(3);
+		await expect(trend.locator('health-trend-plot path.trend-line').count()).resolves.toBe(1);
+
+		// Pointing at the plot reads out the nearest report's value.
+		const box = await trend.locator('health-trend-plot svg').boundingBox();
+		if (!box) throw new Error('The plot has no box');
+		await page.mouse.move(box.x + box.width - 30, box.y + box.height / 2);
+		await expect(trend.locator('.trend-readout').innerText()).resolves.toBe(
+			'2026-01-03 06:00:00 UTC: 91.5 percent (trend-2026-01-03.report.json)'
+		);
+		await page.screenshot({ path: join(ARTIFACTS, 'trend.png'), fullPage: true });
+		expect(errors).toEqual([]);
+		expect(cspViolations).toEqual([]);
+		await context.close();
+	});
+
+	it('shows no trend for reports without measures', async () => {
+		const { context, page } = await fresh();
+		await loadFiles(page, [fixturePath('reports/mixed-status.report.json')]);
+		await expect(page.locator('section.trend').count()).resolves.toBe(0);
+		await context.close();
+	});
+});

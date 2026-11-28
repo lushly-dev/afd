@@ -14,6 +14,8 @@ import {
 import { plural } from '../report/view';
 import { reportTemplate } from './report-template';
 import { ReportView } from './report-view';
+import { trendTemplate } from './trend-template';
+import { TrendView } from './trend-view';
 
 const AUDIT_EXAMPLE =
 	'python -m lushly_health audit --targets targets.toml --policy policy.toml --output-dir health-reports';
@@ -80,6 +82,7 @@ const template = html<HealthDashboard>`
 				</violet-empty-state>
 			`
 		)}
+		${repeat((x) => (x.trend ? [x.trend] : []), trendTemplate)}
 		${repeat((x) => x.reports, reportTemplate)}
 	</main>
 	<footer class="footer">
@@ -94,6 +97,8 @@ export class HealthDashboard extends FASTElement {
 	declare reports: ReportView[];
 	declare failures: LoadFailure[];
 	declare loading: boolean;
+	/** Shown when any loaded report carries a measure. */
+	declare trend: TrendView | null;
 	#fileResults: LoadResult[] = [];
 	#urlResults: LoadResult[] = [];
 	#views = new Map<LoadResult, ReportView>();
@@ -104,6 +109,7 @@ export class HealthDashboard extends FASTElement {
 		this.reports = [];
 		this.failures = [];
 		this.loading = false;
+		this.trend = null;
 	}
 
 	get statusText(): string {
@@ -152,12 +158,17 @@ export class HealthDashboard extends FASTElement {
 		this.#views = views;
 		this.reports = [...views.values()];
 		this.failures = results.flatMap(({ result }) => (result.ok ? [] : [result]));
+		const sources = this.reports.map(({ source, report }) => ({ source, report }));
+		this.trend = sources.some(({ report }) => report.measures.length > 0)
+			? new TrendView(sources, this.trend?.selected)
+			: null;
 	}
 }
 
 observable(HealthDashboard.prototype, 'reports');
 observable(HealthDashboard.prototype, 'failures');
 observable(HealthDashboard.prototype, 'loading');
+observable(HealthDashboard.prototype, 'trend');
 
 export async function defineHealthDashboard(): Promise<void> {
 	if (customElements.get('health-dashboard')) return;

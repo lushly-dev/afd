@@ -105,7 +105,8 @@ pre {
 
 .load,
 .failures,
-.report {
+.report,
+.trend {
 	display: grid;
 	gap: 0.75rem;
 	padding: 1.25rem;
@@ -320,7 +321,129 @@ tbody th {
 	margin: 0;
 }
 
+/*
+ * The trend plot: one series, so one ink (the primary action colour) for line and markers,
+ * a surface ring on each marker, and recessive grid and axis. Text stays in text inks.
+ */
+.trend-facts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem 1.5rem;
+	margin: 0;
+}
+
+.trend-facts div {
+	display: flex;
+	gap: 0.5rem;
+}
+
+.trend-facts dt {
+	color: var(--text-secondary);
+}
+
+.trend-facts dd {
+	margin: 0;
+	font-weight: 600;
+}
+
+.trend-summary {
+	margin: 0;
+}
+
+health-trend-plot {
+	display: block;
+}
+
+.trend-svg {
+	display: block;
+	inline-size: 100%;
+	block-size: auto;
+	max-block-size: 18rem;
+	overflow: visible;
+}
+
+.trend-grid {
+	stroke: var(--border);
+	stroke-width: 1;
+}
+
+.trend-axis {
+	stroke: var(--violet-color-border-strong);
+	stroke-width: 1;
+}
+
+.trend-tick,
+.trend-unit {
+	fill: var(--text-secondary);
+	font-family: var(--violet-font-family-body);
+	font-size: 12px;
+}
+
+.trend-line {
+	fill: none;
+	stroke: var(--violet-color-action-primary-background);
+	stroke-width: 2;
+	stroke-linejoin: round;
+	stroke-linecap: round;
+}
+
+.trend-marker {
+	fill: var(--violet-color-action-primary-background);
+	stroke: var(--card-bg);
+	stroke-width: 2;
+}
+
+.trend-gap {
+	stroke: var(--text-secondary);
+	stroke-width: 2;
+	stroke-dasharray: 2 2;
+}
+
+.trend-crosshair {
+	stroke: var(--violet-color-border-strong);
+	stroke-width: 1;
+	stroke-dasharray: 3 3;
+	pointer-events: none;
+}
+
+.trend-focus {
+	fill: none;
+	stroke: var(--violet-color-action-primary-background);
+	stroke-width: 2;
+	pointer-events: none;
+}
+
+.trend-readout {
+	margin: 0.25rem 0 0;
+	min-block-size: 1.5em;
+	color: var(--text-secondary);
+	font-size: 0.92em;
+}
+
+.trend-points tr[data-gap="true"] .trend-value {
+	color: var(--text-secondary);
+	font-style: italic;
+}
+
 @media (forced-colors: active) {
+	.trend-line,
+	.trend-focus,
+	.trend-axis,
+	.trend-crosshair,
+	.trend-gap {
+		stroke: CanvasText;
+	}
+
+	.trend-marker {
+		fill: CanvasText;
+		stroke: Canvas;
+	}
+
+	.trend-tick,
+	.trend-unit {
+		fill: CanvasText;
+	}
+
 	.verdict,
 	.verdict[data-passed="true"] {
 		border-color: CanvasText;

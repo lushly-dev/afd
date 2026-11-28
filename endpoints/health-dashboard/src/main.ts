@@ -3,11 +3,13 @@ import '@lushly-dev/violet-elements';
 import { defineHealthDashboard, type HealthDashboard } from './app/health-dashboard';
 import { registerStatusIcons } from './app/icons';
 import { applyTheme } from './app/theme';
+import { defineHealthTrendPlot } from './app/trend-plot';
 import { reportRequests } from './report/url';
 import './styles.css';
 
 await applyTheme();
 registerStatusIcons();
+await defineHealthTrendPlot();
 await defineHealthDashboard();
 const app = document.querySelector<HealthDashboard>('health-dashboard');
 await app?.loadRequests(reportRequests(location.search, location.href));
