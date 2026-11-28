@@ -20,6 +20,7 @@ export const SERVER_COMMANDS = Object.freeze([
 	'agent-member-remove',
 	'agent-member-confirm',
 	'agent-member-decline',
+	'agent-member-withdraw',
 	'trust-record-snapshot',
 ] as const);
 

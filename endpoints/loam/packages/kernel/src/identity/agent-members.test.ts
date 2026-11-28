@@ -20,7 +20,7 @@ import {
 	scopedPorts,
 } from '../scope/fixtures.js';
 import type { AgentMemberV1, ProjectV1 } from '../scope/records.js';
-import { AGENT_MEMBER_TABLE } from '../scope/tables.js';
+import { AGENT_MEMBER_TABLE, AGENT_MEMBER_UNDO_TABLE } from '../scope/tables.js';
 import { replayKernel } from '../testing.js';
 import { documentsDeployment, documentsPorts } from '../testing-documents.js';
 import type { LoamKernel } from '../types.js';
@@ -309,6 +309,7 @@ describe('P3-E5: an owner adds an agent member, and its sponsor confirms (8.2, 8
 			['agent-member-remove', { agent: AGENT }],
 			['agent-member-confirm', { agent: AGENT }],
 			['agent-member-decline', { agent: AGENT }],
+			['agent-member-withdraw', { agent: AGENT }],
 		] as const) {
 			expect((await made.kernel.agent.call(name, input)).error?.code, name).toBe('HUMAN_REQUIRED');
 		}
@@ -326,6 +327,7 @@ describe('P3-E5: an owner adds an agent member, and its sponsor confirms (8.2, 8
 			'agent-member-remove',
 			'agent-member-confirm',
 			'agent-member-decline',
+			'agent-member-withdraw',
 			'membership-settle',
 			'agent-member-settle',
 		]) {
@@ -1310,5 +1312,282 @@ describe("P3-E8's kernel half: connected agents, from the provider's table (9.2,
 			'OWNER_REQUIRED'
 		);
 		expect(made.removeAgent).toHaveBeenCalledTimes(2);
+	});
+
+	it('P3-E8: a connected agent is not withdrawn: its sponsor is told to disconnect it, and the provider is not written (#2781)', async () => {
+		const made = await withConnected();
+		await signIn(made.kernel, 'bea@example.com');
+		const refused = await made.kernel.call('agent-member-withdraw', { agent: CONNECTED });
+		expect(refused.error).toMatchObject({ code: 'AGENT_MEMBER_NOT_FOUND' });
+		expect(refused.error?.suggestion).toContain('account-agent-disconnect');
+		expect(made.disconnectAgent).not.toHaveBeenCalled();
+		expect(made.removeAgent).not.toHaveBeenCalled();
+	});
+});
+
+describe('#2781: a sponsor withdraws an active agent member (8.2, 8.3)', () => {
+	const at = (project = ATLAS) => ({ workspace: 'personal', project });
+
+	it('#2781: the sponsor withdraws it: suspended, saying why, its access kept, with no undo, and line 4 refuses it at once', async () => {
+		const made = await provider({ agents: [agentMember()] });
+		await signIn(made.kernel, 'bea@example.com');
+		expect((await asAgentMember(made, 'dual-where', {}, at())).success).toBe(true);
+		const withdrawn = await made.kernel.call<AgentMemberRowV1>('agent-member-withdraw', {
+			agent: AGENT,
+		});
+		expect(withdrawn.success, JSON.stringify(withdrawn.error)).toBe(true);
+		expect(withdrawn.data).toMatchObject({
+			status: 'suspended',
+			suspended: 'sponsor-withdrew',
+			access: { workspace: false, projects: [ATLAS] },
+			updatedBy: BEA,
+		});
+		// No undo: undoing would give access back without the sponsor confirming again.
+		expect(withdrawn.undoCommand).toBeUndefined();
+		expect(await stored(made)).toMatchObject({
+			status: 'suspended',
+			suspended: 'sponsor-withdrew',
+			installedBy: OLU,
+		});
+		expect((await asAgentMember(made, 'dual-where', {}, at())).error?.code).toBe(
+			'PROJECT_NOT_FOUND'
+		);
+		const listed = await made.kernel.call<{ agents: AgentMemberRowV1[] }>('agent-member-list', {
+			status: 'suspended',
+		});
+		expect(listed.data?.agents.map((agent) => [agent.id, agent.suspended])).toEqual([
+			[AGENT, 'sponsor-withdrew'],
+		]);
+	});
+
+	it('#2781: only the sponsor withdraws it: an owner who is not its sponsor, and another member, are refused', async () => {
+		const made = await provider({ agents: [agentMember()] });
+		await signIn(made.kernel, 'olu@example.com');
+		for (const email of ['olu@example.com', 'cy@example.com']) {
+			await switchTo(made.kernel, email);
+			const refused = await made.kernel.call('agent-member-withdraw', { agent: AGENT });
+			expect(refused.error, email).toMatchObject({ code: 'AGENT_MEMBER_SPONSOR_ONLY' });
+			expect(refused.error?.suggestion).toContain('withdraws');
+		}
+		expect((await stored(made))?.status).toBe('active');
+	});
+
+	it('#2781: only an active one is withdrawn; a pending or suspended one is AGENT_MEMBER_NOT_ACTIVE, unchanged', async () => {
+		const made = await provider({
+			agents: [
+				agentMember({ status: 'pending' }),
+				agentMember({ id: OTHER, status: 'suspended', suspended: 'sponsor-left' }),
+			],
+		});
+		await signIn(made.kernel, 'bea@example.com');
+		for (const [agent, status] of [
+			[AGENT, 'pending'],
+			[OTHER, 'suspended'],
+		] as const) {
+			const refused = await made.kernel.call('agent-member-withdraw', { agent });
+			expect(refused.error, agent).toMatchObject({ code: 'AGENT_MEMBER_NOT_ACTIVE' });
+			expect(refused.error?.suggestion).toContain('agent-member-update');
+			expect((await stored(made, agent))?.status).toBe(status);
+		}
+		expect((await stored(made, OTHER))?.suspended).toBe('sponsor-left');
+		const missing = await made.kernel.call('agent-member-withdraw', {
+			agent: 'agt_dddddddddddddddddddd',
+		});
+		expect(missing.error?.code).toBe('AGENT_MEMBER_NOT_FOUND');
+	});
+
+	it('#2781: an agent member acting for its sponsor cannot withdraw itself or another, on any interface', async () => {
+		const made = await provider({
+			agents: [
+				agentMember({ access: { workspace: true, projects: 'sponsor' } }),
+				agentMember({ id: OTHER, name: 'Writer' }),
+			],
+		});
+		await signIn(made.kernel, 'bea@example.com');
+		for (const agent of [AGENT, OTHER]) {
+			expect((await asAgentMember(made, 'agent-member-withdraw', { agent })).error?.code).toBe(
+				'HUMAN_REQUIRED'
+			);
+			expect((await stored(made, agent))?.status).toBe('active');
+		}
+	});
+
+	it('#2781: a withdrawn one comes back only when an owner names a sponsor, who confirms again', async () => {
+		const made = await provider({ agents: [agentMember()] });
+		await signIn(made.kernel, 'bea@example.com');
+		await made.kernel.call('agent-member-withdraw', { agent: AGENT });
+		await switchTo(made.kernel, 'olu@example.com');
+		// An owner's change that names no sponsor leaves it withdrawn, wider access included.
+		const widened = await made.kernel.call<AgentMemberRowV1>('agent-member-update', {
+			agent: AGENT,
+			name: 'Critic',
+			access: { workspace: true, projects: [ATLAS] },
+		});
+		expect(widened.data).toMatchObject({ status: 'suspended', suspended: 'sponsor-withdrew' });
+		// Undoing that change restores the withdrawn record, never an active one.
+		const undone = await made.kernel.call<AgentMemberRowV1>(
+			widened.undoCommand as string,
+			widened.undoArgs
+		);
+		expect(undone.data).toMatchObject({ status: 'suspended', suspended: 'sponsor-withdrew' });
+		// Naming Bea again asks her: pending until she confirms.
+		const named = await made.kernel.call<AgentMemberRowV1>('agent-member-update', {
+			agent: AGENT,
+			sponsor: BEA,
+		});
+		expect(named.data?.status).toBe('pending');
+		await switchTo(made.kernel, 'bea@example.com');
+		expect((await asAgentMember(made, 'dual-where', {}, at())).error?.code).toBe(
+			'PROJECT_NOT_FOUND'
+		);
+		const confirmed = await made.kernel.call<AgentMemberRowV1>('agent-member-confirm', {
+			agent: AGENT,
+		});
+		expect(confirmed.data?.status).toBe('active');
+	});
+
+	it('#2781: a withdrawal is never lost to an owner change that read the record before it (the review)', async () => {
+		// Olu, an owner, sponsors it. His undo of a rename reads the active record, then its kept record; at that read
+		// his withdrawal starts, as another person's call does on the server's kernel. Each write reads, decides and
+		// writes before the next starts, so the undo cannot write the record back active after the withdrawal.
+		const made = await provider({ agents: [agentMember({ sponsor: OLU })] });
+		await signIn(made.kernel, 'olu@example.com');
+		const renamed = await made.kernel.call('agent-member-update', { agent: AGENT, name: 'Critic' });
+		expect(renamed.success, JSON.stringify(renamed.error)).toBe(true);
+		const get = made.store.get.bind(made.store);
+		let reads = 0;
+		let withdrawing: Promise<unknown> | undefined;
+		vi.spyOn(made.store, 'get').mockImplementation((async (table: string, id: string) => {
+			// The first read of the kept record is the sponsor read before the call; the second is the handler's own.
+			if (table === AGENT_MEMBER_UNDO_TABLE && ++reads === 2) {
+				withdrawing = made.kernel.call('agent-member-withdraw', { agent: AGENT });
+				await Promise.race([withdrawing, new Promise((resolve) => setTimeout(resolve, 100))]);
+			}
+			return get(table, id);
+		}) as typeof made.store.get);
+		const undone = await made.kernel.call(renamed.undoCommand as string, renamed.undoArgs);
+		expect(undone.success, JSON.stringify(undone.error)).toBe(true);
+		expect(withdrawing).toBeDefined();
+		const withdrawn = (await withdrawing) as { success: boolean; error?: unknown };
+		expect(withdrawn.success, JSON.stringify(withdrawn.error)).toBe(true);
+		expect(await stored(made)).toMatchObject({
+			name: 'Reviewer',
+			status: 'suspended',
+			suspended: 'sponsor-withdrew',
+		});
+	});
+
+	it("#2781: undoing an owner's earlier change of sponsor never reactivates it in the withdrawing sponsor's name", async () => {
+		// Olu hands his agent member to Bea; she confirms, then withdraws. Undoing the hand-over names Olu again, the
+		// owner calling, who confirms by doing it (D111): active, in Olu's name, never Bea's.
+		const made = await provider({ agents: [agentMember({ sponsor: OLU })] });
+		await signIn(made.kernel, 'olu@example.com');
+		const handed = await made.kernel.call('agent-member-update', { agent: AGENT, sponsor: BEA });
+		expect((handed.data as AgentMemberRowV1 | undefined)?.status).toBe('pending');
+		await switchTo(made.kernel, 'bea@example.com');
+		await made.kernel.call('agent-member-confirm', { agent: AGENT });
+		await made.kernel.call('agent-member-withdraw', { agent: AGENT });
+		await switchTo(made.kernel, 'olu@example.com');
+		const undone = await made.kernel.call<AgentMemberRowV1>(
+			handed.undoCommand as string,
+			handed.undoArgs
+		);
+		expect(undone.data).toMatchObject({ sponsor: OLU, status: 'active', updatedBy: OLU });
+		expect(undone.data).not.toHaveProperty('suspended');
+	});
+
+	it('#2781: undoing a change of sponsor that restores another person asks them again', async () => {
+		// Olu hands Bea's agent member to Cy; Cy confirms, then withdraws. Undoing the hand-over names Bea, not the
+		// owner calling: pending until she confirms.
+		const made = await provider({ agents: [agentMember()] });
+		await signIn(made.kernel, 'olu@example.com');
+		const handed = await made.kernel.call('agent-member-update', { agent: AGENT, sponsor: CY });
+		expect(handed.success, JSON.stringify(handed.error)).toBe(true);
+		await switchTo(made.kernel, 'cy@example.com');
+		await made.kernel.call('agent-member-confirm', { agent: AGENT });
+		await made.kernel.call('agent-member-withdraw', { agent: AGENT });
+		await switchTo(made.kernel, 'olu@example.com');
+		const undone = await made.kernel.call<AgentMemberRowV1>(
+			handed.undoCommand as string,
+			handed.undoArgs
+		);
+		expect(undone.data).toMatchObject({ sponsor: BEA, status: 'pending' });
+	});
+
+	it("#2781: an owner's removal of a connected agent waits on the provider outside the write turn", async () => {
+		// The provider never answers Olu's removal of a connected agent; his withdrawal of his own installed one still runs.
+		const made = await provider({ agents: [agentMember({ sponsor: OLU })] });
+		const CONNECTED = 'agt_cccccccccccccccccccc';
+		let answer = () => {};
+		Object.assign(made.account, {
+			agents: vi.fn(async () => [
+				{
+					...agentMember({ id: CONNECTED, kind: 'connected', name: 'Claude Code' }),
+					scopes: [],
+				},
+			]),
+			removeAgent: vi.fn(
+				() =>
+					new Promise<void>((resolve) => {
+						answer = resolve;
+					})
+			),
+		});
+		await signIn(made.kernel, 'olu@example.com');
+		const removing = made.kernel.call('agent-member-remove', { agent: CONNECTED });
+		await vi.waitFor(() => expect(made.account.removeAgent).toHaveBeenCalled());
+		const withdrawn = await Promise.race([
+			made.kernel.call('agent-member-withdraw', { agent: AGENT }),
+			new Promise<'held'>((resolve) => setTimeout(() => resolve('held'), 1000)),
+		]);
+		expect(withdrawn).toMatchObject({ success: true });
+		answer();
+		expect((await removing).success).toBe(true);
+	});
+
+	it('#2781: removing a withdrawn one, then undoing it, asks its sponsor again', async () => {
+		const made = await provider({ agents: [agentMember()] });
+		await signIn(made.kernel, 'bea@example.com');
+		await made.kernel.call('agent-member-withdraw', { agent: AGENT });
+		await switchTo(made.kernel, 'olu@example.com');
+		const removed = await made.kernel.call('agent-member-remove', { agent: AGENT });
+		expect(removed.success, JSON.stringify(removed.error)).toBe(true);
+		const restored = await made.kernel.call<AgentMemberRowV1>(
+			removed.undoCommand as string,
+			removed.undoArgs
+		);
+		expect(restored.data?.status).toBe('pending');
+	});
+
+	it('#2781: the journal replays the withdrawal to the same record, reaching no provider', async () => {
+		const made = await provider({ agents: [agentMember()] });
+		await signIn(made.kernel, 'bea@example.com');
+		await made.kernel.call('agent-member-withdraw', { agent: AGENT });
+		const entries = await journalOf(made);
+		const entry = entries.find((each) => each.command === 'agent-member-withdraw');
+		expect(entry?.result?.success).toBe(true);
+		// A write of Loam's store: re-run in a replay, never answered from its entry (3.4).
+		expect(entry?.context?.replay).not.toBe('recorded');
+		const members = vi.mocked(made.account.members).mock.calls.length;
+		// The replay's store holds what the original's did before the journal began.
+		const store = new MemoryAdapter();
+		for (const project of [...SCOPED_PROJECTS, VAULT_PROJECT, DEN_PROJECT])
+			await store.create('project', project);
+		await store.create(AGENT_MEMBER_TABLE, agentMember());
+		const { report, kernel } = await replayKernel(entries, {
+			deployment: scopedDeployment(),
+			ports: scopedPorts(),
+			identity: PROVIDER,
+			membership: ACME(),
+			store,
+			keep: true,
+		});
+		if (kernel) kernels.push(kernel);
+		expect(report.diverged, JSON.stringify(report)).toBe(false);
+		expect(vi.mocked(made.account.members).mock.calls.length).toBe(members);
+		expect(await store.get<AgentMemberV1>(AGENT_MEMBER_TABLE, AGENT)).toMatchObject({
+			status: 'suspended',
+			suspended: 'sponsor-withdrew',
+		});
 	});
 });

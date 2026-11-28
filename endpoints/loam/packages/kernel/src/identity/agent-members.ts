@@ -9,7 +9,8 @@
  *   `onBehalfOf` only in the chain (step 5's B1), so nothing here keys on the actor before the chain.
  * - **Line 4** is `decideAccess`'s; this part keeps the table it reads (`scope.agents`) in step with the store.
  * - **The sponsor confirms** (D111): a record naming another person is `pending` until they run `agent-member-confirm`,
- *   and a new sponsor or wider access asks again; an owner naming themselves confirms by doing it.
+ *   and a new sponsor or wider access asks again; an owner naming themselves confirms by doing it. The sponsor may
+ *   withdraw an active one (`agent-member-withdraw`), which only takes access away (#2781).
  *
  * Everything a first-paint or `late` module holds reaches this chunk through its deps, so first paint's shared modules
  * are not parted into a chunk of their own (13).
@@ -127,9 +128,11 @@ export interface AgentMembersDeps {
 
 const SUGGESTIONS: Readonly<Partial<Record<LoamKernelErrorCode, string>>> = {
 	AGENT_MEMBER_NOT_FOUND: 'List the agent members with agent-member-list and name one of them',
-	AGENT_MEMBER_SPONSOR_ONLY: 'Only its sponsor confirms or declines it; ask them',
+	AGENT_MEMBER_SPONSOR_ONLY: 'Only its sponsor confirms, declines or withdraws it; ask them',
 	AGENT_MEMBER_NOT_PENDING:
 		'Only a pending agent member is confirmed or declined; an owner names its sponsor again with agent-member-update',
+	AGENT_MEMBER_NOT_ACTIVE:
+		'Only an active agent member is withdrawn: decline a pending one with agent-member-decline; a suspended one can do nothing until an owner names its sponsor again with agent-member-update',
 	OWNER_REQUIRED: 'Ask an owner of the workspace to do this',
 };
 
@@ -561,6 +564,24 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 	const askedOf = (context: CommandContext, sponsor: string): AgentMemberV1['status'] =>
 		sponsor === personOf(context) ? 'active' : 'pending';
 
+	/**
+	 * The agent-member writes run one at a time, in call order, each from its read to its write (#2781's review): calls
+	 * run concurrently, and the server's kernel serves several people at once, so a change that read an active record
+	 * before its sponsor withdrew it must not write it back active after. No write calls another while it holds the turn,
+	 * and `agent-member-remove` reaches the provider for a connected agent outside it.
+	 */
+	let tail: Promise<unknown> = Promise.resolve();
+	const serial = <T>(run: () => Promise<T>): Promise<T> => {
+		const next = tail.then(run, run);
+		tail = next.catch(() => {});
+		return next;
+	};
+	const defineWrite: typeof kit.define = (definition) =>
+		kit.define({
+			...definition,
+			handler: (input, context) => serial(() => definition.handler(input, context)),
+		});
+
 	/** The whole record, put as one write: a field cleared is gone, which a patch would keep (8.1). */
 	const write = async (record: AgentMemberV1) => {
 		// The store's `PUT` merges, so the row is deleted and put again in one atomic batch.
@@ -643,7 +664,7 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		z.strictObject({ undo: undoString }),
 		z.strictObject({ name, sponsor: id, access, description, guidance }),
 	]);
-	const add = kit.define<typeof addInput, AgentMemberRowV1>({
+	const add = defineWrite<typeof addInput, AgentMemberRowV1>({
 		name: 'agent-member-add',
 		title: 'Add an agent member',
 		description:
@@ -739,7 +760,7 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		sponsor: z.optional(id),
 		undo: undoRef,
 	});
-	const update = kit.define<typeof updateInput, AgentMemberRowV1>({
+	const update = defineWrite<typeof updateInput, AgentMemberRowV1>({
 		name: 'agent-member-update',
 		title: 'Change an agent member',
 		description:
@@ -859,10 +880,10 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		async handler(input, context) {
 			const refused = ownerRefusal(context);
 			if (refused) return refused;
-			const before = await recordOf(input.agent);
-			if (!before) {
+			if (!(await recordOf(input.agent))) {
 				// A connected agent, not in the kernel's table, is removed at the provider (9.2): kept `suspended: 'owner'`,
-				// or deleted with `forget`. Recorded, so a replay answers it from its entry; no undo.
+				// or deleted with `forget`. Recorded, so a replay answers it from its entry; no undo. Outside the write
+				// turn: it writes nothing of the kernel's, and a provider that never answers then holds no other write.
 				const removeAgent = accountOf(context)?.removeAgent;
 				try {
 					const connected = removeAgent
@@ -875,14 +896,19 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 				}
 				return kit.success({ removed: true as const });
 			}
-			const undo = await keep(before, context);
-			await store.remove(AGENT_MEMBER_TABLE, before.id);
-			cache.drop(before.id);
-			// Undo adds the record again by the id it was kept under, naming nothing else (8.2; I3).
-			return kit.success(
-				{ removed: true as const },
-				{ undoCommand: 'agent-member-add', undoArgs: { undo } }
-			);
+			// An installed one, read again in the write turn.
+			return serial(async () => {
+				const before = await recordOf(input.agent);
+				if (!before) return notFound();
+				const undo = await keep(before, context);
+				await store.remove(AGENT_MEMBER_TABLE, before.id);
+				cache.drop(before.id);
+				// Undo adds the record again by the id it was kept under, naming nothing else (8.2; I3).
+				return kit.success(
+					{ removed: true as const },
+					{ undoCommand: 'agent-member-add', undoArgs: { undo } }
+				);
+			});
 		},
 	});
 
@@ -948,44 +974,66 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		},
 	});
 
-	/** `agent-member-confirm` and `-decline`: the sponsor alone, of a pending record (8.2, D111). */
-	const answerAsSponsor = (verb: 'confirm' | 'decline') =>
-		kit.define<typeof agentInput, AgentMemberRowV1>({
+	/**
+	 * `agent-member-confirm` and `-decline`, the sponsor alone, of a pending record (8.2, D111); and `-withdraw`, the
+	 * sponsor alone, of an active one (#2781). Withdrawing only takes access away: the record is suspended and says why,
+	 * keeps its access as it was, and has no undo; an owner reactivates it only by naming a sponsor, who confirms (8.3).
+	 * A connected agent is not in the kernel's table: its person disconnects it with `account-agent-disconnect` (5.3).
+	 */
+	const answerAsSponsor = (verb: 'confirm' | 'decline' | 'withdraw') =>
+		defineWrite<typeof agentInput, AgentMemberRowV1>({
 			name: `agent-member-${verb}`,
 			title:
 				verb === 'confirm'
 					? 'Confirm an agent member you sponsor'
-					: 'Decline to sponsor an agent member',
+					: verb === 'decline'
+						? 'Decline to sponsor an agent member'
+						: 'Withdraw an agent member you sponsor',
 			description:
 				verb === 'confirm'
 					? 'As its sponsor, confirm an agent member an owner named you for: it may then act within its access and yours'
-					: 'As its sponsor, decline an agent member an owner named you for: it is suspended and allowed nothing',
+					: verb === 'decline'
+						? 'As its sponsor, decline an agent member an owner named you for: it is suspended and allowed nothing'
+						: 'As its sponsor, withdraw an active agent member: it is suspended and allowed nothing until an owner names a sponsor again, who confirms',
 			category: 'member',
 			mutation: true,
-			...(verb === 'decline' ? { destructive: true } : {}),
+			...(verb === 'confirm' ? {} : { destructive: true }),
 			executionTime: 'fast',
 			input: agentInput,
 			jsonSchema: AGENT_JSON,
 			async handler(input, context) {
 				const before = await recordOf(input.agent);
-				if (!before) return notFound();
+				if (!before) {
+					return verb === 'withdraw'
+						? fail(
+								'AGENT_MEMBER_NOT_FOUND',
+								'No installed agent member has this id',
+								'List them with agent-member-list; disconnect a connected agent of yours with account-agent-disconnect'
+							)
+						: notFound();
+				}
 				if (before.sponsor !== personOf(context)) {
 					return fail(
 						'AGENT_MEMBER_SPONSOR_ONLY',
 						`Only the agent member's sponsor can ${verb} it`
 					);
 				}
-				if (before.status !== 'pending') {
+				const from = verb === 'withdraw' ? 'active' : 'pending';
+				if (before.status !== from) {
 					return fail(
-						'AGENT_MEMBER_NOT_PENDING',
-						`This agent member is ${before.status}, not pending`
+						from === 'active' ? 'AGENT_MEMBER_NOT_ACTIVE' : 'AGENT_MEMBER_NOT_PENDING',
+						`This agent member is ${before.status}, not ${from}`
 					);
 				}
 				const { suspended: _suspended, ...unchanged } = before;
 				const next: AgentMemberV1 =
 					verb === 'confirm'
 						? { ...unchanged, status: 'active' }
-						: { ...unchanged, status: 'suspended', suspended: 'sponsor-declined' };
+						: {
+								...unchanged,
+								status: 'suspended',
+								suspended: verb === 'decline' ? 'sponsor-declined' : 'sponsor-withdrew',
+							};
 				next.updatedAt = kit.callNow(context);
 				next.updatedBy = personOf(context);
 				await write(next);
@@ -1045,7 +1093,7 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 			.check(z.minLength(1), z.maxLength(1000)),
 	});
 	/** `agent-member-settle` (8.3): suspensions a membership read found, persisted so the record says why. */
-	const agentSettle = kit.define<typeof agentSettleInput, { suspended: string[] }>({
+	const agentSettle = defineWrite<typeof agentSettleInput, { suspended: string[] }>({
 		name: 'agent-member-settle',
 		description: "The kernel's own: agent members whose sponsor left, suspended",
 		category: 'member',
@@ -1104,6 +1152,7 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 			remove,
 			answerAsSponsor('confirm'),
 			answerAsSponsor('decline'),
+			answerAsSponsor('withdraw'),
 			membershipSettle,
 			agentSettle,
 		] as unknown as ZodCommandDefinition[],

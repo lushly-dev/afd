@@ -74,7 +74,7 @@ async function membersTab(page: Page): Promise<void> {
 }
 
 describe('P3-E5: an agent member installed by an owner appears with its sponsor and cannot sign in, through a test-only auth host', () => {
-	it('P3-E5: an owner adds one with Bea as sponsor: pending, "Agent · Sponsored by Bea", confirmed by Bea; the provider holds no account for it', async () => {
+	it('P3-E5: an owner adds one with Bea as sponsor: pending, "Agent · Sponsored by Bea", confirmed by Bea, then withdrawn by her; the provider holds no account for it', async () => {
 		const shell = await openShell(browser, site.root);
 		opened.push(shell);
 		const { page } = shell;
@@ -168,5 +168,57 @@ describe('P3-E5: an agent member installed by an owner appears with its sponsor 
 			(host().db().prepare('SELECT count(*) AS n FROM user WHERE id = ?').get(id) as { n: number })
 				.n
 		).toBe(0);
+
+		// #2781: the owner, who is not its sponsor, has no withdraw control on the active row.
+		await kernelCall(page, 'auth-sign-out');
+		await signIn(page, 'olu@example.com');
+		await membersTab(page);
+		const ownerActive = section(page).getByRole('row', { name: /Reviewer/ });
+		await expect.poll(async () => (await ownerActive.textContent()) ?? '').toContain('Active');
+		expect(await ownerActive.getByRole('button', { name: 'Remove Reviewer' }).count()).toBe(1);
+		expect(await ownerActive.getByRole('button', { name: 'Withdraw Reviewer' }).count()).toBe(0);
+		await kernelCall(page, 'auth-sign-out');
+		await signIn(page, 'bea@example.com');
+		await membersTab(page);
+
+		// Bea withdraws it from its row, in a native modal that says what follows; her agent may not.
+		expect(
+			(
+				(await agentCall(page, 'agent-member-withdraw', { agent: id })) as {
+					error?: { code: string };
+				}
+			).error?.code
+		).toBe('HUMAN_REQUIRED');
+		const active = section(page).getByRole('row', { name: /Reviewer/ });
+		await expect
+			.poll(() => active.getByRole('button', { name: 'Withdraw Reviewer' }).count())
+			.toBe(1);
+		await active.getByRole('button', { name: 'Withdraw Reviewer' }).click();
+		const withdraw = section(page).getByRole('dialog', { name: 'Withdraw Reviewer?' });
+		await expect.poll(() => withdraw.count()).toBe(1);
+		expect(await withdraw.textContent()).toContain('can do nothing more in your name');
+		expect(await axe(page)).toEqual([]);
+		await withdraw.getByRole('button', { name: 'Withdraw', exact: true }).click();
+		await expect
+			.poll(() => section(page).locator('.status').textContent())
+			.toBe('You withdrew Reviewer.');
+		const withdrawnRow = section(page).getByRole('row', { name: /Reviewer/ });
+		await expect
+			.poll(async () => (await withdrawnRow.textContent()) ?? '')
+			.toContain('Suspended: its sponsor withdrew it');
+		expect(await withdrawnRow.getByRole('button', { name: 'Withdraw Reviewer' }).count()).toBe(0);
+		const withdrawn = (await kernelCall(page, 'agent-member-get', { agent: id })) as {
+			data: { status: string; suspended: string };
+		};
+		expect(withdrawn.data).toMatchObject({ status: 'suspended', suspended: 'sponsor-withdrew' });
+
+		// The owner, who is not its sponsor, has no withdraw control.
+		await kernelCall(page, 'auth-sign-out');
+		await signIn(page, 'olu@example.com');
+		await membersTab(page);
+		const ownerRow = section(page).getByRole('row', { name: /Reviewer/ });
+		await expect.poll(async () => (await ownerRow.textContent()) ?? '').toContain('Suspended');
+		expect(await ownerRow.getByRole('button', { name: 'Withdraw Reviewer' }).count()).toBe(0);
+		expect(await ownerRow.getByRole('button', { name: 'Remove Reviewer' }).count()).toBe(1);
 	});
 });

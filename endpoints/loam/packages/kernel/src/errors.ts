@@ -158,6 +158,8 @@ export type LoamKernelErrorCode =
 	| 'AGENT_SPONSOR_INVALID'
 	| 'AGENT_MEMBER_SPONSOR_ONLY'
 	| 'AGENT_MEMBER_NOT_PENDING'
+	// `agent-member-withdraw` of a record that is not active (8.2, #2781).
+	| 'AGENT_MEMBER_NOT_ACTIVE'
 	// Step 7's identity over MCP (9.2, 9.5): a token's client with no active connected agent, a client an owner removed
 	// for this person, and a principal-gated kernel built for a `local` deployment.
 	| 'AGENT_NOT_CONNECTED'

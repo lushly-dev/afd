@@ -114,6 +114,7 @@ export const SHELL_COMMAND_NAMES = [
 	'agent-member-remove',
 	'agent-member-confirm',
 	'agent-member-decline',
+	'agent-member-withdraw',
 	// Phase 5's step 1 (3.5): the copilot's sessions and turns, its providers and approval health.
 	'copilot-session-start',
 	'copilot-message-send',

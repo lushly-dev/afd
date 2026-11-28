@@ -24,6 +24,9 @@ import {
 } from '../scenarios/runner.js';
 import { P4_PERSON, P4_PROJECTS, P4_SEED, SEEDS, type SeededKernel } from '../scenarios/seeds.js';
 
+const PHASE_3 = fileURLToPath(
+	new URL('../../../docs/phases/3-identity/scenarios/', import.meta.url)
+);
 const PHASE_4 = fileURLToPath(
 	new URL('../../../docs/phases/4-settings/scenarios/', import.meta.url)
 );
@@ -58,6 +61,17 @@ const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
 	// Its steps push notices against the fixed rate of `notification-push`, step 5's, which has merged; step 10's own
 	// limits are P4-E10's units and Chromium (`late/limits.test.ts`, `web/test/browser/limits.test.ts`).
 	'limit-refuses-call': 'now',
+});
+
+/**
+ * Phase 3's files: it exited before its jobs were written as files, so each is a later change's. #2781 wrote
+ * `sponsor-withdraws-agent` with `agent-member-withdraw`, on `p4-base`, a local workspace whose one person is an owner.
+ * #2784's `narrow-connected-agent` needs a hosted provider with a connected agent, which no seed holds: it is not tagged
+ * `loam-runner`, and `identity/src/mcp-identity.test.ts` (P3-E8) runs its steps against a real provider.
+ */
+const RUNS_3: Readonly<Record<string, string>> = Object.freeze({
+	'sponsor-withdraws-agent': 'now',
+	'narrow-connected-agent': 'P3-E8, identity/src/mcp-identity.test.ts',
 });
 
 /**
@@ -151,6 +165,7 @@ const P4_ROWS_OF: Readonly<Record<string, string>> = Object.freeze({
 const SLICE = new Set(namesTagged(PHASE_5, 'slice'));
 
 for (const [phase, directory, runs, fallback, row] of [
+	['phase 3', PHASE_3, RUNS_3, 'p4-base', ''],
 	['phase 4', PHASE_4, RUNS_4, 'p4-base', 'P4-E16: '],
 	['phase 5', PHASE_5, RUNS, 'p5-base', ''],
 ] as const) {

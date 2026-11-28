@@ -134,6 +134,7 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'agent-member-remove': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
 	'agent-member-confirm': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
 	'agent-member-decline': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
+	'agent-member-withdraw': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
 	// Phase 5's step 1: the copilot's commands, with a session no one holds.
 	'copilot-session-start': {},
 	'copilot-message-send': { session: 'cps_0000000000000000', text: 'Hello' },
