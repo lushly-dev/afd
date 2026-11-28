@@ -1,5 +1,5 @@
 {
-	"description": "The desktop's golden projection (phase 5 no-terminal amendment, 9.3; D168): one input, and what `loam deployment write --host desktop` (@lushly-dev/loam-cli's desktop-golden.test.ts) and loam-desktop's Rust materializer (step 9b) each write from it. `apps` is in the projection's order, which is the materializer's (plugin id, then app id); each names the plugin that brings it. An expected file's bytes are its object here, keys in the order written, serialized with tab indentation and a trailing newline. The mounted app lets its views render (`views`, D169), which the materializer reads from `engine.mount` and the CLI from the entry. `mounts` lists the fields both write; the CLI adds `bearer`, the materializer `bearer_keychain` and `proof_key`, which each test asserts apart.",
+	"description": "The desktop's golden projection (phase 5 no-terminal amendment, 9.3; D168): one input, and what `loam deployment write --host desktop` (@lushly-dev/loam-cli's desktop-golden.test.ts) and loam-desktop's Rust materializer (step 9b) each write from it. `apps` is in the projection's order, which is the materializer's (plugin id, then app id); each names the plugin that brings it. An expected file's bytes are its object here, keys in the order written, serialized with tab indentation and a trailing newline. The mounted app lets its views render (`views`, D169), which the materializer reads from `engine.mount` and the CLI from the entry. `mounts` lists the fields both write; the CLI adds `bearer`, the materializer `bearer_keychain` and `proof_key`, which each test asserts apart. `variants` are further inputs, each the input above with its `patch` applied as an RFC 7386 JSON merge patch (null removes a key; an array is replaced whole), and what both write from it: the same input on Windows, whose sandbox origin differs; and a desktop with no view and no provider, so `frame-src 'none'`, whose engine authenticates nothing and leaves `labels` and `approvals` to their defaults, and mounts its app as an instance, `inbox`, whose id is not its package's, `mail`.",
 	"platform": "linux",
 	"workspace": {
 		"id": "personal",
@@ -240,5 +240,284 @@
 			"inbound": true
 		},
 		"frameSrc": "loam-sandbox://localhost"
-	}
+	},
+	"variants": [
+		{
+			"name": "the same input on Windows",
+			"patch": {
+				"platform": "win32"
+			},
+			"expected": {
+				"deployment": {
+					"deployment_version": 4,
+					"generation": "sha256-b79537aa46b0d1e764677aa76857b6aa3a3d718dc054ef8e79e0ce40513bec95",
+					"workspace": {
+						"id": "personal",
+						"name": "Personal"
+					},
+					"sandbox_origin": "http://loam-sandbox.localhost",
+					"identity": {
+						"mode": "local"
+					},
+					"host": {
+						"kind": "desktop"
+					},
+					"copilot": {
+						"default": "claude",
+						"providers": [
+							{
+								"id": "claude",
+								"kind": "anthropic",
+								"model": "claude-sonnet-4-5"
+							}
+						]
+					},
+					"apps": [
+						{
+							"instance": "board",
+							"app": "board",
+							"package": "apps/board/",
+							"boot": {
+								"title": "An app",
+								"kind": "view",
+								"icon": "system/folder",
+								"order": 100,
+								"scope_levels": ["workspace"],
+								"rail": true,
+								"parts": [],
+								"layout": {},
+								"refusal": null
+							}
+						},
+						{
+							"instance": "mail",
+							"app": "mail",
+							"package": "apps/mail/",
+							"prefix": "mail",
+							"audience": "person",
+							"transport": "http",
+							"route": "mounts/mail/mcp",
+							"labels": "per-part",
+							"approvals": "shell",
+							"views": true,
+							"expose": {
+								"agent": true,
+								"palette": true
+							},
+							"commands": {
+								"mail-draft-send": {
+									"expose": {
+										"agent": true,
+										"apps": true
+									},
+									"preview": {
+										"command": "mail-draft-show",
+										"input": ["draft", "revision"]
+									}
+								},
+								"mail-draft-show": {
+									"expose": {
+										"agent": true,
+										"palette": true,
+										"apps": true
+									}
+								}
+							},
+							"boot": {
+								"title": "An app",
+								"kind": "mounted",
+								"icon": "system/folder",
+								"order": 100,
+								"scope_levels": ["workspace"],
+								"rail": true,
+								"parts": [],
+								"layout": {},
+								"refusal": null
+							}
+						},
+						{
+							"instance": "mailapp",
+							"app": "mailapp",
+							"package": "apps/mailapp/",
+							"boot": {
+								"title": "An app",
+								"kind": "native",
+								"icon": "system/folder",
+								"order": 100,
+								"scope_levels": ["workspace"],
+								"rail": true,
+								"parts": [],
+								"layout": {},
+								"refusal": null
+							}
+						}
+					]
+				},
+				"models": {
+					"providers": [
+						{
+							"id": "claude",
+							"kind": "anthropic",
+							"model": "claude-sonnet-4-5",
+							"key": {
+								"keychain": "loam-copilot",
+								"account": "claude"
+							}
+						}
+					]
+				},
+				"mounts": {
+					"mounts": [
+						{
+							"instance": "mail",
+							"url": "http://127.0.0.1:17400/mcp"
+						}
+					],
+					"inbound": true
+				},
+				"frameSrc": "http://loam-sandbox.localhost"
+			}
+		},
+		{
+			"name": "an unauthenticated engine's renamed instance, no view and no provider",
+			"patch": {
+				"copilot": null,
+				"apps": [
+					{
+						"plugin": "mail",
+						"instance": "inbox",
+						"manifest": {
+							"manifest_version": 1,
+							"protocol": 1,
+							"plugin": {
+								"title": "An app",
+								"version": "0.1.0",
+								"description": "An app, for the desktop's golden projection.",
+								"id": "mail",
+								"kind": "mounted",
+								"domains": ["mail"]
+							},
+							"mount": {
+								"prefix": "mail",
+								"transport": "http"
+							}
+						},
+						"mount": {
+							"port": 17401,
+							"auth": "none",
+							"expose": {
+								"agent": true
+							},
+							"commands": {
+								"mail-thread-show": {
+									"expose": {
+										"agent": true,
+										"apps": true
+									}
+								}
+							}
+						}
+					},
+					{
+						"plugin": "notes",
+						"instance": "notes",
+						"manifest": {
+							"manifest_version": 1,
+							"protocol": 1,
+							"plugin": {
+								"title": "An app",
+								"version": "0.1.0",
+								"description": "An app, for the desktop's golden projection.",
+								"id": "notes",
+								"kind": "native",
+								"domains": ["notes"]
+							},
+							"native": {
+								"entry": "dist/native.js"
+							}
+						}
+					}
+				]
+			},
+			"expected": {
+				"deployment": {
+					"deployment_version": 4,
+					"generation": "sha256-5f491c1a85e8ddaec62fa1207f109b2c105eac49e0bdb8d75df52a32eb63846f",
+					"workspace": {
+						"id": "personal",
+						"name": "Personal"
+					},
+					"sandbox_origin": "loam-sandbox://localhost",
+					"identity": {
+						"mode": "local"
+					},
+					"host": {
+						"kind": "desktop"
+					},
+					"apps": [
+						{
+							"instance": "inbox",
+							"app": "mail",
+							"package": "apps/inbox/",
+							"prefix": "mail",
+							"audience": "person",
+							"transport": "http",
+							"route": "mounts/inbox/mcp",
+							"expose": {
+								"agent": true
+							},
+							"commands": {
+								"mail-thread-show": {
+									"expose": {
+										"agent": true,
+										"apps": true
+									}
+								}
+							},
+							"boot": {
+								"title": "An app",
+								"kind": "mounted",
+								"icon": "system/folder",
+								"order": 100,
+								"scope_levels": ["workspace"],
+								"rail": true,
+								"parts": [],
+								"layout": {},
+								"refusal": null
+							}
+						},
+						{
+							"instance": "notes",
+							"app": "notes",
+							"package": "apps/notes/",
+							"boot": {
+								"title": "An app",
+								"kind": "native",
+								"icon": "system/folder",
+								"order": 100,
+								"scope_levels": ["workspace"],
+								"rail": true,
+								"parts": [],
+								"layout": {},
+								"refusal": null
+							}
+						}
+					]
+				},
+				"models": {
+					"providers": []
+				},
+				"mounts": {
+					"mounts": [
+						{
+							"instance": "inbox",
+							"url": "http://127.0.0.1:17401/mcp"
+						}
+					],
+					"inbound": true
+				},
+				"frameSrc": "'none'"
+			}
+		}
+	]
 }

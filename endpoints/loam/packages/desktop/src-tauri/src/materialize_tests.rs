@@ -18,6 +18,55 @@ fn fixture() -> Json {
         .expect("the golden fixture is JSON")
 }
 
+/// RFC 7386, as `desktop-golden.test.ts` applies a variant's patch: `null` removes a key, an object merges (a key it
+/// already has keeps its place), anything else replaces.
+fn merge_patch(target: &Json, patch: &Json) -> Json {
+    let Json::Obj(changes) = patch else {
+        return patch.clone();
+    };
+    let mut out = match target {
+        Json::Obj(entries) => entries.clone(),
+        _ => Vec::new(),
+    };
+    for (key, change) in changes {
+        let at = out.iter().position(|(name, _)| name == key);
+        match (change, at) {
+            (Json::Null, Some(at)) => {
+                out.remove(at);
+            }
+            (Json::Null, None) => {}
+            (change, Some(at)) => out[at].1 = merge_patch(&out[at].1, change),
+            (change, None) => out.push((key.clone(), merge_patch(&Json::Null, change))),
+        }
+    }
+    Json::Obj(out)
+}
+
+/// The fixture's input and each of its variants, by name, each with the `expected` both writers are held to.
+fn scenarios() -> Vec<(String, Json)> {
+    let golden = fixture();
+    let input = golden.without("description").without("variants");
+    let mut scenarios = vec![("the input".to_owned(), input.clone())];
+    let Some(Json::Arr(variants)) = golden.get("variants") else {
+        panic!("the fixture's variants")
+    };
+    for variant in variants {
+        let patched = merge_patch(&input.without("expected"), variant.get("patch").unwrap());
+        let Json::Obj(mut entries) = patched else {
+            panic!("a scenario is an object")
+        };
+        entries.push((
+            "expected".to_owned(),
+            variant.get("expected").unwrap().clone(),
+        ));
+        scenarios.push((
+            text(variant.get("name").unwrap()).to_owned(),
+            Json::Obj(entries),
+        ));
+    }
+    scenarios
+}
+
 fn text(value: &Json) -> &str {
     value.as_str().expect("a string")
 }
@@ -153,7 +202,6 @@ fn install(data: &Path, golden: &Json) -> DesktopState {
         });
     }
     let workspace = golden.get("workspace").unwrap();
-    let copilot = golden.get("copilot").unwrap();
     let Some(Json::Bool(inbound)) = golden.get("inbound") else {
         panic!("the inbound switch")
     };
@@ -164,7 +212,7 @@ fn install(data: &Path, golden: &Json) -> DesktopState {
             name: text(workspace.get("name").unwrap()).to_owned(),
         },
         inbound: *inbound,
-        copilot: Some(Copilot {
+        copilot: golden.get("copilot").map(|copilot| Copilot {
             default: copilot
                 .get("default")
                 .map(|default| text(default).to_owned()),
@@ -188,18 +236,85 @@ fn golden_profile(golden: &Json) -> Profile<'static> {
     }
 }
 
-#[test]
-fn p5_s9_6_the_golden_projection_is_what_the_materializer_writes_byte_for_byte() {
-    let golden = fixture();
+/// What the materializer writes from one scenario, held to its `expected`: `deployment.json`, `models.json`,
+/// `frame-src`, the generation, and `mounts.json`'s shared fields, with a keychain slot and proof key exactly for an
+/// engine that authenticates.
+fn assert_golden(name: &str, golden: &Json) -> Materialized {
     let expected = golden.get("expected").unwrap();
     let data = tempfile::tempdir().unwrap();
-    let state = install(data.path(), &golden);
-    let built = project(data.path(), &state, &golden_profile(&golden)).unwrap();
+    let state = install(data.path(), golden);
+    let built = project(data.path(), &state, &golden_profile(golden)).unwrap();
 
     assert_eq!(
         built.deployment,
-        js_json::pretty(expected.get("deployment").unwrap())
+        js_json::pretty(expected.get("deployment").unwrap()),
+        "{name}"
     );
+    assert_eq!(
+        built.models,
+        js_json::pretty(expected.get("models").unwrap()),
+        "{name}"
+    );
+    assert_eq!(
+        built.frame_src,
+        text(expected.get("frameSrc").unwrap()),
+        "{name}"
+    );
+    assert_eq!(
+        Some(&Json::str(&built.generation)),
+        expected.get("deployment").unwrap().get("generation"),
+        "{name}"
+    );
+
+    // The fields both write; the materializer's credential is a keychain slot and the proof key, never a bearer.
+    let mounts = Json::parse(built.mounts.as_bytes()).unwrap();
+    let shared = expected.get("mounts").unwrap();
+    assert_eq!(mounts.get("inbound"), shared.get("inbound"), "{name}");
+    let (Some(Json::Arr(written)), Some(Json::Arr(wanted))) =
+        (mounts.get("mounts"), shared.get("mounts"))
+    else {
+        panic!("both list mounts")
+    };
+    let Some(Json::Arr(apps)) = golden.get("apps") else {
+        panic!("the scenario's apps")
+    };
+    assert_eq!(written.len(), wanted.len(), "{name}");
+    for (entry, wanted) in written.iter().zip(wanted) {
+        assert_eq!(
+            &entry.without("bearer_keychain").without("proof_key"),
+            wanted,
+            "{name}"
+        );
+        assert_eq!(entry.get("bearer"), None, "{name}");
+        let instance = text(entry.get("instance").unwrap());
+        let authenticates = apps
+            .iter()
+            .find(|app| app.get("instance") == Some(&Json::str(instance)))
+            .and_then(|app| app.get("mount"))
+            .and_then(|mount| mount.get("auth"))
+            != Some(&Json::str("none"));
+        assert_eq!(
+            entry.get("bearer_keychain"),
+            authenticates
+                .then(|| Json::obj([
+                    ("keychain", Json::str(MOUNT_KEYCHAIN)),
+                    ("account", Json::Str(format!("{instance}.{TOKEN_ID}"))),
+                ]))
+                .as_ref(),
+            "{name}"
+        );
+        assert_eq!(
+            entry.get("proof_key"),
+            authenticates.then(|| Json::Str(proof_key())).as_ref(),
+            "{name}"
+        );
+    }
+    built
+}
+
+#[test]
+fn p5_s9_6_the_golden_projection_is_what_the_materializer_writes_byte_for_byte() {
+    let built = assert_golden("the input", &fixture());
     // And the CLI's own bytes, apart from this crate's printer: Node 26's SHA-256 of
     // `JSON.stringify(expected.deployment, null, '\t') + '\n'`, and of `expected.models` likewise. A fixture change
     // updates these with it.
@@ -211,41 +326,17 @@ fn p5_s9_6_the_golden_projection_is_what_the_materializer_writes_byte_for_byte()
         hex(&Sha256::digest(built.models.as_bytes())),
         "5893361da3b227624cb551b689db6b2d1a70264a36d9a5182b5678f175857251"
     );
-    assert_eq!(
-        built.models,
-        js_json::pretty(expected.get("models").unwrap())
-    );
-    assert_eq!(built.frame_src, text(expected.get("frameSrc").unwrap()));
-    assert_eq!(
-        Some(&Json::str(&built.generation)),
-        expected.get("deployment").unwrap().get("generation")
-    );
+}
 
-    // The fields both write; the materializer's credential is a keychain slot and the proof key, never a bearer.
-    let mounts = Json::parse(built.mounts.as_bytes()).unwrap();
-    let shared = expected.get("mounts").unwrap();
-    assert_eq!(mounts.get("inbound"), shared.get("inbound"));
-    let (Some(Json::Arr(written)), Some(Json::Arr(wanted))) =
-        (mounts.get("mounts"), shared.get("mounts"))
-    else {
-        panic!("both list mounts")
-    };
-    assert_eq!(written.len(), wanted.len());
-    for (entry, wanted) in written.iter().zip(wanted) {
-        assert_eq!(
-            &entry.without("bearer_keychain").without("proof_key"),
-            wanted
-        );
-        assert_eq!(entry.get("bearer"), None);
-        let instance = text(entry.get("instance").unwrap());
-        assert_eq!(
-            entry.get("bearer_keychain"),
-            Some(&Json::obj([
-                ("keychain", Json::str(MOUNT_KEYCHAIN)),
-                ("account", Json::Str(format!("{instance}.{TOKEN_ID}"))),
-            ]))
-        );
-        assert_eq!(entry.get("proof_key"), Some(&Json::Str(proof_key())));
+#[test]
+fn p5_s9_6_each_golden_variant_is_what_the_materializer_writes_byte_for_byte() {
+    // Windows' sandbox origin; and a bare desktop whose unauthenticated engine leaves `labels` and `approvals` to
+    // their defaults and mounts an instance whose id is not its package's, so a swap of the two, or a default
+    // written out, cannot match.
+    let scenarios = scenarios();
+    assert_eq!(scenarios.len(), 3);
+    for (name, golden) in &scenarios[1..] {
+        assert_golden(name, golden);
     }
 }
 

@@ -701,6 +701,14 @@ pub fn parse_packed_app_manifest(bytes: &[u8]) -> Result<PackedAppSummary, &'sta
     })
 }
 
+/// `apps[i]`'s packed `app-manifest.json` read as inspect reads it: a manifest it cannot read, one whose title or
+/// description hides a character from the consent screen among them, is `PLUGIN_MANIFEST_INVALID` at `key`
+/// (`apps[i].path`), as `read-plugin.ts`'s `pluginAppsRefusals` keys it.
+pub fn read_packed_app(bytes: &[u8], key: &str) -> Result<PackedAppSummary, ValidationRefusal> {
+    parse_packed_app_manifest(bytes)
+        .map_err(|why| ValidationRefusal::new(PLUGIN_MANIFEST_INVALID, key, "bundle", why))
+}
+
 fn normalize_package_path(path: &str) -> String {
     let mut parts: Vec<&str> = Vec::new();
     for seg in path.split('/') {

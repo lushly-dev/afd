@@ -7,8 +7,8 @@
  */
 
 import { createHash } from 'node:crypto';
-import { createReadStream, existsSync } from 'node:fs';
-import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { lstat, readdir, realpath } from 'node:fs/promises';
 import { join, posix, resolve } from 'node:path';
 import {
 	bundlePathProblem,
@@ -23,6 +23,16 @@ import { parse as parseToml } from 'smol-toml';
 import type { Finding } from './check.js';
 import { builtPaths } from './file-rules.js';
 import { checkPluginArchive, PLUGIN_ARCHIVE_EXTENSION } from './plugin-archive.js';
+import {
+	bytesSeen,
+	dirChain,
+	dirsUnchanged,
+	lstatExact,
+	readSeen,
+	type SeenDir,
+	type SeenFile,
+	type SeenRead,
+} from './seen-file.js';
 import { OUTPUT_MARKER } from './tree.js';
 
 export const PLUGIN_SOURCE = 'loam-plugin.toml';
@@ -66,14 +76,15 @@ export const packedManifestText = (manifest: PluginManifestV1): string =>
 
 const sha256 = (bytes: string | Buffer): string => createHash('sha256').update(bytes).digest('hex');
 
-function fileSha256(path: string): Promise<string> {
-	return new Promise((done, fail) => {
-		const hash = createHash('sha256');
-		createReadStream(path)
-			.on('data', (chunk) => hash.update(chunk))
-			.on('error', fail)
-			.on('end', () => done(hash.digest('hex')));
-	});
+/** `readSeen`'s SHA-256, or why it could not be read. */
+async function sha256Seen(
+	source: string,
+	seen: SeenFile,
+	dirs: readonly SeenDir[]
+): Promise<{ ok: true; sha256: string } | Exclude<SeenRead, { ok: true }>> {
+	const hash = createHash('sha256');
+	const read = await readSeen(source, seen, (chunk) => hash.update(chunk), dirs);
+	return read.ok ? { ok: true, sha256: hash.digest('hex') } : read;
 }
 
 /**
@@ -147,16 +158,43 @@ class Budget {
 	}
 }
 
-type Listed = { path: string; source: string; size: number };
+/** A file listed, as `lstat` saw it, and the directories it is reached through, as they were listed. */
+type Listed = { path: string; source: string; size: number; seen: SeenFile; dirs: SeenDir[] };
 
-/** Every file below `prefix`, as bundle paths; links, devices and bad names refused; it stops past the budget. */
+/** A file or directory that was not the one listed by the time it was read. */
+const changedRefusal = (key: string, path: string): Finding =>
+	placeRefusal(key, `\`${path}\` changed while it was read, or is or passes through a link.`);
+
+/** What a failed `readSeen` is: a change, or a file that cannot be read, said as what it is. */
+const readRefusal = (key: string, path: string, read: Exclude<SeenRead, { ok: true }>): Finding =>
+	read.changed
+		? changedRefusal(key, path)
+		: finding(
+				'PLUGIN_MANIFEST_INVALID',
+				key,
+				`\`${path}\` could not be read (${read.error}).`,
+				'Make the file readable by you, then check again.'
+			);
+
+/**
+ * Every file below `prefix`, as bundle paths; links, devices and bad names refused; it stops past the budget. Each
+ * directory on the way is held by its identity (`dirs`, from the root down): a real directory, not a link, before it is
+ * read and still the same one once all below it is listed, or nothing below it is listed and it is refused.
+ */
 async function listFiles(
 	root: string,
 	prefix: string,
 	key: string,
 	refusals: Finding[],
-	budget?: Budget
+	budget?: Budget,
+	parents?: SeenDir[]
 ): Promise<Listed[]> {
+	const dirs = parents ?? (await dirChain(root, prefix));
+	const unchanged = async () => dirs !== undefined && (await dirsUnchanged(dirs)).ok;
+	if (!dirs || !(await unchanged())) {
+		refusals.push(changedRefusal(key, prefix === '' ? '(root)' : prefix));
+		return [];
+	}
 	const found: Listed[] = [];
 	const entries = await readdir(join(root, ...prefix.split('/')), { withFileTypes: true });
 	for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
@@ -169,13 +207,28 @@ async function listFiles(
 			continue;
 		}
 		if (entry.isSymbolicLink()) refusals.push(placeRefusal(key, `\`${path}\` is a symbolic link.`));
-		else if (entry.isDirectory())
-			found.push(...(await listFiles(root, path, key, refusals, budget)));
-		else if (entry.isFile()) {
-			const { size } = await lstat(source);
-			found.push({ path, source, size });
-			budget?.take(size);
+		else if (entry.isDirectory()) {
+			const seen = await lstatExact(source);
+			if (!seen.isDirectory() || seen.isSymbolicLink()) {
+				refusals.push(changedRefusal(key, path));
+				continue;
+			}
+			const below = [...dirs, { path: source, dev: seen.dev, ino: seen.ino }];
+			found.push(...(await listFiles(root, path, key, refusals, budget, below)));
+		} else if (entry.isFile()) {
+			const seen = await lstatExact(source);
+			if (!seen.isFile() || seen.isSymbolicLink()) {
+				refusals.push(changedRefusal(key, path));
+				continue;
+			}
+			found.push({ path, source, size: Number(seen.size), seen, dirs });
+			budget?.take(Number(seen.size));
 		} else refusals.push(placeRefusal(key, `\`${path}\` is not a regular file.`));
+	}
+	// Swapped for a link, or for another directory, while it was listed: what was listed may not be the bundle's.
+	if (!(await unchanged())) {
+		refusals.push(changedRefusal(key, prefix === '' ? '(root)' : prefix));
+		return [];
 	}
 	return found;
 }
@@ -228,9 +281,14 @@ async function manifestSource(
 	const name = source ? PLUGIN_SOURCE : PLUGIN_MANIFEST;
 	const problem = await placeProblem(root, name, 'file');
 	if (problem) return no(placeRefusal(name, `\`${name}\` ${problem}.`));
-	if ((await lstat(join(root, name))).size > PLUGIN_BUNDLE_LIMITS.manifestBytes)
-		return no(tooLarge(name));
-	const bytes = await readFile(join(root, name));
+	const seen = await lstatExact(join(root, name));
+	if (seen.size > BigInt(PLUGIN_BUNDLE_LIMITS.manifestBytes)) return no(tooLarge(name));
+	const dirs = await dirChain(root, '');
+	const read = dirs
+		? await bytesSeen(join(root, name), seen, dirs)
+		: ({ ok: false, changed: true } as const);
+	if (!read.ok) return no(readRefusal(name, name, read));
+	const { bytes } = read;
 	try {
 		return {
 			ok: true,
@@ -336,9 +394,14 @@ async function appFiles(
 			);
 			continue;
 		}
+		const packedRead = await bytesSeen(packed.source, packed.seen, packed.dirs);
+		if (!packedRead.ok) {
+			refusals.push(readRefusal(key, packed.path, packedRead));
+			continue;
+		}
 		let json: unknown;
 		try {
-			json = JSON.parse(UTF8.decode(await readFile(packed.source)));
+			json = JSON.parse(UTF8.decode(packedRead.bytes));
 		} catch {
 			json = undefined;
 		}
@@ -405,9 +468,18 @@ async function engineFiles(
 			continue;
 		}
 		const source = join(root, ...artifact.path.split('/'));
-		const { size } = await lstat(source);
+		const seen = await lstatExact(source);
+		const size = Number(seen.size);
 		if (!budget.take(size)) break;
-		const digest = await fileSha256(source);
+		const dirs = await dirChain(root, posix.dirname(artifact.path));
+		const read = dirs
+			? await sha256Seen(source, seen, dirs)
+			: ({ ok: false, changed: true } as const);
+		if (!read.ok) {
+			refusals.push(readRefusal(key, artifact.path, read));
+			continue;
+		}
+		const digest = read.sha256;
 		if (digest !== artifact.sha256) {
 			refusals.push(
 				finding(
@@ -562,7 +634,11 @@ export async function pluginCheck(options: { dir?: string } = {}): Promise<Plugi
 	if (refusals.length > 0) return refused(unique(refusals), { form: found.form, manifest });
 
 	const files: BundleFile[] = [];
-	for (const file of appListed) files.push({ ...file, sha256: await fileSha256(file.source) });
+	for (const { path, source: at, size, seen, dirs } of appListed) {
+		const read = await sha256Seen(at, seen, dirs);
+		if (!read.ok) return refused([readRefusal(path, path, read)], { form: found.form, manifest });
+		files.push({ path, source: at, size, sha256: read.sha256 });
+	}
 	files.push(...engineListed);
 	files.sort((a, b) => Buffer.compare(Buffer.from(a.path), Buffer.from(b.path)));
 	return {

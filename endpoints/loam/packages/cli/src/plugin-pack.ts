@@ -18,7 +18,7 @@ import {
 	rm,
 	writeFile,
 } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, posix, resolve } from 'node:path';
 import type { Finding } from './check.js';
 import { archiveOf, checkPluginArchive, PLUGIN_ARCHIVE_EXTENSION } from './plugin-archive.js';
 import {
@@ -28,7 +28,8 @@ import {
 	packedManifestText,
 	pluginCheck,
 } from './plugin-check.js';
-import { copyListed, isWithin, realish } from './tree.js';
+import { bytesSeen, dirChain, lstatExact } from './seen-file.js';
+import { isWithin, realish } from './tree.js';
 
 export interface PluginPackOptions {
 	/** The plugin's source, holding `loam-plugin.toml`; the working directory when left out. */
@@ -170,10 +171,38 @@ export async function pluginPack(options: PluginPackOptions): Promise<PluginPack
 	try {
 		await mkdir(staging, { recursive: true, mode: 0o700 });
 		await writeFile(join(staging, PLUGIN_MANIFEST), packedManifestText(report.manifest));
-		await copyListed(
-			report.files.map(({ path, source }) => ({ path: join(...path.split('/')), source })),
-			staging
-		);
+		// Each file is read as `plugin check` read it, never through a link, below directories that are still the real
+		// ones, and only while it is the size checked; the bundle written is then checked again, to the source's digest.
+		for (const { path, source, size } of report.files) {
+			const seen = await lstatExact(source);
+			const dirs = await dirChain(root, posix.dirname(path));
+			const read =
+				dirs && seen.isFile() && seen.size === BigInt(size)
+					? await bytesSeen(source, seen, dirs)
+					: ({ ok: false, changed: true } as const);
+			if (!read.ok) {
+				return failed([
+					read.changed
+						? {
+								code: 'PLUGIN_PATH_ESCAPE',
+								key: path,
+								message: `\`${path}\` changed while it was packed, or is or passes through a link.`,
+								suggestion:
+									'A bundle holds regular files only: leave the source as it is while it is packed, then pack again.',
+							}
+						: {
+								code: 'PLUGIN_PACK_FAILED',
+								key: path,
+								message: `\`${path}\` could not be read (${read.error}).`,
+								suggestion: 'Make the file readable by you, then pack again.',
+							},
+				]);
+			}
+			const data = read.bytes;
+			const target = join(staging, ...path.split('/'));
+			await mkdir(dirname(target), { recursive: true });
+			await writeFile(target, data, { flag: 'wx' });
+		}
 		// An engine is a program the desktop runs; the rest are data.
 		if (process.platform !== 'win32') {
 			for (const { path } of report.engines ?? [])

@@ -424,8 +424,30 @@ export function pluginAppsRefusals(
 ): PluginRefusal[] {
 	const refusals: PluginRefusal[] = [];
 	const mountApp = manifest.engine?.mount_app;
+	// The consent screen shows each bundled app's title and description too, under the plugin's own rule 2. An app
+	// manifest refuses only control characters (`Cc`), so a bidirectional override or a zero-width one is refused here,
+	// keyed and handled as the desktop's inspect handles an app manifest it cannot read: refused at its path, and then
+	// left out of every rule below, as an app with no manifest is.
+	const readable = new Map(apps);
 	manifest.apps.forEach((entry, index) => {
 		const app = apps.get(entry.id);
+		if (!app) return;
+		const hidden = (['title', 'description'] as const).filter((key) => {
+			const value: unknown = app.plugin[key];
+			return typeof value === 'string' && HIDES_TEXT.test(value);
+		});
+		if (hidden.length === 0) return;
+		readable.delete(entry.id);
+		refusals.push(
+			invalid(
+				`/apps/${index}/path`,
+				`Its \`app-manifest.json\`'s ${hidden.map((key) => `\`plugin.${key}\``).join(' and ')} holds a control, invisible or line-separating character, and the consent screen shows it.`,
+				'Remove the character from the app manifest, then pack the app again.'
+			)
+		);
+	});
+	manifest.apps.forEach((entry, index) => {
+		const app = readable.get(entry.id);
 		if (!app) return;
 		const { kind, id } = app.plugin;
 		if ((kind === 'native' || kind === 'view') && id !== entry.id) {
@@ -452,7 +474,7 @@ export function pluginAppsRefusals(
 	// One domain per instance (D66): a native or view app's is its id, a mounted one's its prefix, and no two share one.
 	const domains = new Map<string, number>();
 	manifest.apps.forEach((entry, index) => {
-		const app = apps.get(entry.id);
+		const app = readable.get(entry.id);
 		if (!app) return;
 		const domain = app.plugin.kind === 'mounted' ? app.mount?.prefix : app.plugin.id;
 		if (domain === undefined) return;
@@ -470,7 +492,7 @@ export function pluginAppsRefusals(
 		);
 	});
 	if (!manifest.engine || mountApp === undefined) return refusals;
-	const app = apps.get(mountApp);
+	const app = readable.get(mountApp);
 	if (!app) return refusals;
 	if (app.plugin.kind !== 'mounted' || app.mount?.transport !== 'http') {
 		refusals.push(

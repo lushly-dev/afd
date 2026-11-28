@@ -302,6 +302,32 @@ describe("an archive's size allowance (4.4, rule 3)", () => {
 	});
 });
 
+describe('reading an archive', () => {
+	const base = () =>
+		archiveOf(archives.valid.find(({ entries = [] }) => entries.length === 0) as ArchiveCase);
+
+	it('reads it exactly as a directory bundle reads a file: refusing a link, saying an unreadable one is unreadable', async () => {
+		const path = await written(base());
+		expect((await pluginCheck({ dir: path })).ok).toBe(true);
+		const link = `${path}.link${PLUGIN_ARCHIVE_EXTENSION}`;
+		await symlink(path, link);
+		// Handed a link itself, as `pluginCheck` never hands one, the archive reader refuses it.
+		expect(codes(await checkPluginArchive(link, pluginCheck, PLUGIN_BUNDLE_LIMITS))).toEqual([
+			'PLUGIN_PATH_ESCAPE (archive)',
+		]);
+		// Windows has no mode bits to take away, and root reads a file whatever its mode.
+		if (process.platform === 'win32' || process.getuid?.() === 0) return;
+		await chmod(path, 0o000);
+		try {
+			const report = await checkPluginArchive(path, pluginCheck, PLUGIN_BUNDLE_LIMITS);
+			expect(codes(report)).toEqual(['PLUGIN_MANIFEST_INVALID (archive)']);
+			expect(report.refusals[0]?.message).toBe('The archive could not be read (EACCES).');
+		} finally {
+			await chmod(path, 0o644);
+		}
+	});
+});
+
 describe('staging an archive', () => {
 	it('stages a path at the 768-byte bound under the temporary root on every system', async () => {
 		const deep = `apps/sketch/${['a', 'b', 'c'].map((c) => c.repeat(200)).join('/')}/${'d'.repeat(153)}`;
