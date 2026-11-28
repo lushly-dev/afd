@@ -798,7 +798,8 @@ says which role.
   `mail-status` counts it.
 - The junk and trash mailboxes are **header-only**: their bodies are fetched only when someone
   opens a message. They are shown apart, and are in no story and in no count the person did not
-  ask for. Their headers still count toward a burst ([7.4](#74-bursts)).
+  ask for. Their headers still count toward a burst ([7.4](#74-bursts)). On Gmail their headers
+  come from the metadata form, without a header block ([5.5](#55-gmail)).
 
 ### 5.4 Messages listed and not returned
 
@@ -826,27 +827,77 @@ three times leaves the note for a person.
 
 ### 5.5 Gmail
 
-**Step B0 comes first.** Nothing here was observed. Before any Gmail code, step B0 runs a probe
-against the owner's account and records: the quota a sync spends and the rate it reaches; one
-history sync, and what an expired history cursor returns; which scopes a read-only sync, a label
-change and a send each need; whether an OAuth client in testing status expires its refresh token
-in a week; whether a batch label change can move messages to trash; whether a sent message is
-kept in the sent mailbox without an append; and whether a message's header block can be fetched
-as bytes without the whole message. This section is then corrected in the same pull request.
+**Step B0's probe.** Before any Gmail code, step B0 probes the owner's account read-only with
+[`prototype/gmail_probe.py`](../../../../../docs/features/active/mail/prototype/README.md#the-gmail-api-probe):
+first on 2026-11-24 ([the counts](../../../../../docs/features/active/mail/prototype/gmail-probe.results.json)),
+then again a week after signing in. What it has not observed is marked "not verified".
 
-The design the probe tests:
+What the first run observed, on an account of 18 247 messages in 17 372 threads, one request
+at a time:
+
+- **Sign-in.** A Desktop app client of the owner's own, in a Google Cloud project whose consent
+  screen the owner set to testing status (the owner's word; the record cannot show it), signed in through the system browser and a loopback redirect on
+  127.0.0.1 with PKCE, and Google issued a refresh token for `gmail.readonly` alone. That scope
+  reads the profile, the labels, the listing, a message in raw and in metadata form, and the
+  history. Whether a client in testing status expires its refresh token in a week: not verified;
+  the second run answers it.
+- **Rate.** Listing ids, 500 a page, read 1 495 ids a second. Fetching a message in raw form
+  took about 0.23 seconds a request for the newest 200 messages (10.6 MB in all) and about 1.4
+  seconds for 20 messages over 1 MiB (116 MB in all), refused requests included. Gmail refused
+  12 of the 232 raw-form requests with `403` and the reason `rateLimitExceeded`, about one in
+  19, with requests made one at a time; every one was answered on a retry with backoff, and no
+  other kind of request was refused. Whether the limit is per user, per project or per kind of
+  request, and whether more requests in flight raise or lower the rate reached: not verified.
+- **Quota.** Gmail does not report what a call costs. By Google's published cost of each
+  method, a first sync of this account spends about 185 units listing and 91 235 fetching each
+  message in raw form.
+- **History.** A sync from a history id 12 300 behind the current one returned 678 records,
+  202 of them adding messages. A history id far older than any history kept (1, against a
+  current id 2 384 409) returned `404` with the status `NOT_FOUND` and the reason `notFound`.
+  Google documents `404` for a history id that is out of date; one that once worked and then
+  expired was not observed, and how long Gmail keeps history: not verified.
+- **Header blocks.** The metadata form returns a message's headers by name and value, not its
+  header block as bytes. Its names matched the raw form's, in order, in all 220 messages
+  compared; after unfolding and collapsing spaces, its values matched in 84 of the 200 newest
+  and in none of the 20 over 1 MiB. Why the others differ was not examined; Gmail may decode
+  them. Of Gmail's four forms (full, metadata, minimal and raw), only raw holds the message's
+  bytes, so a header block can be had as bytes only by fetching the whole message.
+- **Labels.** The account has 14 system labels (among them `INBOX`, `SENT`, `TRASH`, `SPAM` and
+  the five categories) and 2 of the owner's.
+
+Not yet probed, because each changes the mailbox and needs a wider scope and the owner's
+approval: which scope a label change and a send each need (`gmail.modify` and `gmail.send` are
+expected; not verified), whether a batch label change can move messages to trash, and whether a
+sent message is kept in the sent mailbox without an append. They wait for the owner to approve
+the wider scopes and a message to change.
+
+The design:
 
 - **Sign-in.** OAuth with the person's own client, through the system browser and a loopback
   redirect that the command line runs. The refresh token goes to the keychain. Phase B asks for
   read access only; phase D adds the scopes to modify and to send.
 - **Identity in a mailbox.** Gmail's message id and thread id. Labels are mailboxes; a message
   has one observation per label.
-- **First sync.** List message ids, newest first, then fetch each in raw form.
-- **Large messages.** Gmail's raw form is the whole message or nothing. Until step B0 finds a
-  way to fetch a header block as bytes, a Gmail message is fetched whole whatever its size, and
+- **First sync.** List message ids, newest first, then fetch each in raw form. The rate is
+  Gmail's to set, not the engine's: a request Gmail refuses for its rate (`429`, or `403` with
+  `rateLimitExceeded` or `userRateLimitExceeded`) is retried with backoff and does not count
+  toward giving up the pass, up to a bound: the backoff doubles to a ceiling, and refusals for
+  the rate with no request answered in between end the pass with `PROVIDER_UNAVAILABLE` after a
+  time. Step B6 sets the ceiling and the time. At the first run's rate, one request at a time,
+  a first sync of the owner's account takes about two hours: 18 247 raw requests at 0.23
+  seconds is 71 minutes, and the backoff added about half to the time in requests. The inbox and the
+  sent mailbox go first ([5.3](#53-order-and-fairness)).
+- **Large messages.** Gmail's raw form is the whole message or nothing, and the metadata form
+  gives headers, not their bytes, so a Gmail message is fetched whole whatever its size, and
   M20 applies to IMAP alone. The census found 143 Gmail messages over 1 MiB.
-- **Later syncs.** The history from the stored history id. If Gmail says the id is too old, the
-  engine lists ids again and compares, fetching only what it lacks.
+- **Header-only mailboxes.** Gmail's spam and trash are header-only ([5.3](#53-order-and-fairness))
+  and cannot have a header block without the whole message. Their messages are held from the
+  metadata form, as headers by name and value with no header block, and fetched whole when
+  someone opens one. What reads a header block (the evidence of [6.1](#61-what-is-read))
+  reads those headers instead for these messages; step B6 says what that changes. A message
+  that also carries a label of a mailbox that is not header-only is held whole.
+- **Later syncs.** The history from the stored history id. If Gmail answers `404` for it, the
+  id is too old: the engine lists ids again and compares, fetching only what it lacks.
 - **Threads** are Gmail's own.
 
 ### 5.6 Threads on IMAP
@@ -871,8 +922,9 @@ the last successful pass, and the last error.
 
 - A mailbox is **listed** when every listed message has headers or is unreturned.
 - A mailbox is **synced** when it is listed and every message the engine means to hold is held:
-  on IMAP, whole when it is 1 MiB or less and in parts when it is larger. A header-only mailbox
-  is synced when it is listed. `mail-status` counts a message held in parts among its bodies
+  on IMAP, whole when it is 1 MiB or less and in parts when it is larger; on Gmail, whole
+  whatever its size. A header-only mailbox is synced when it is listed; on Gmail, when every
+  listed message's headers are held from the metadata form ([5.5](#55-gmail)). `mail-status` counts a message held in parts among its bodies
   held.
 - An account is synced when its mailboxes are.
 
@@ -2547,8 +2599,8 @@ can at a terminal. The Loam app's approval (L7) is the stronger assurance; wheth
 this fully depends on the keychain point in [3.5](#35-commands-only-a-person-may-run), which is
 not verified.
 
-Still needed from the owner: an OAuth client created in Google's console for step B0, and the
-account and period of the flood for step C3. Loam's L8 comes as step B1's pull request.
+Still needed from the owner: the account and period of the flood for step C3. The OAuth client
+for step B0 was created in Google's console on 2026-11-22. Loam's L8 comes as step B1's pull request.
 
 ## 17. Out of scope
 

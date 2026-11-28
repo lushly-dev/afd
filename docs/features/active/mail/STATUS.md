@@ -69,7 +69,7 @@ A blank line parts them, because git reports a conflict when two branches change
 Phases F and G have one line each until their steps are planned. A half of a merged step that
 waits for Gmail has a line of its own.
 
-- B0: The Gmail API probe. Not started. It waits for an OAuth client the owner creates in Google's console; on 2026-11-14 the owner deferred the Gmail steps (B0, B6 and B7's Gmail half) and asked to go on with iCloud.
+- B0: The Gmail API probe. In progress in [#2374](https://github.com/lushly-dev/afd/pull/2374). The owner deferred the Gmail steps on 2026-11-14; B0 resumed on 2026-11-22 with a Desktop app OAuth client in its own Google Cloud project, its consent screen in testing status by the owner's word. The read-only probe signed in and ran on the owner's account on 2026-11-24, and the specification's 5.5 is corrected from it. The second run, on or after 2026-12-01, answers whether the refresh token expires in a week; the probes that change the mailbox wait for the owner to approve the wider scopes and a message to change.
 
 - B1: the plugin folder, the engine crate's skeleton, the `loam-plugins.yml` workflow, L8. Merged as [#1003](https://github.com/lushly-dev/afd/pull/1003).
 
@@ -203,6 +203,10 @@ the top of its phase's list, and a phase that starts adds its heading above the 
 
 ### Verified: phase B
 
+- 2026-11-24 for step B0's first run: `gmail_probe.py probe` on the owner's Gmail account, read-only with `gmail.readonly`, complete in about 3 minutes, straight after `signin`; the counts are in `prototype/gmail-probe.results.json`.
+
+- 2026-11-23 against `main` at `577af473` for step B0's probe: `python3 -m unittest test_census test_gmail_probe` on Python 3.12.13, offline against a fake Gmail API, token endpoint and browser on 127.0.0.1, and Ruff clean. Nothing live was run: no sign-in, no call to Google.
+
 - 2026-11-13 against `main` at `381add98` for the iCloud half of step B7: the crate was built, linted and tested on macOS with Rust 1.98.0, and the release build's `serve` synced the owner's iCloud account from empty to synced in the real data directory, reading only, then read it from the command line and by an agent over MCP and measured the limits of the specification's 4.4 (counts and milliseconds in the plugin's `docs/live-icloud-b7.results.json`).
 - 2026-11-13 against `main` at `e4c972a5` for the third part of step B5: the crate was built, linted and tested on macOS with Rust 1.98.0, removing an account tested against two scripted IMAP servers, and passes of sync run against the owner's iCloud account, reading only, before and after a pass took one request a mailbox (counts and milliseconds in the plugin's `docs/live-icloud-b5.results.json`).
 - 2026-11-13 against `main` at `1024546b` for the second part of step B5: the crate was built, linted and tested on macOS with Rust 1.98.0, the server's work tested against the scripted IMAP server in process. Nothing live was run.
@@ -315,6 +319,7 @@ A session adds its row at the end of its area's table. The last table holds ever
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-23 UTC | Step B0, the probe ([#1985](https://github.com/lushly-dev/afd/issues/1985)) | Added `prototype/gmail_probe.py` and its offline tests: a read-only Gmail API probe with its own Desktop OAuth client (loopback, PKCE, `gmail.readonly` alone). Reviewed by Opus 5.5 and Gemini 4 Neon; both found a token-endpoint outage recorded as an expired token and a token folder left open, fixed with the rest. The live run waits for the owner's console setup |
 
 ### Sessions: phase C, relationships and stream stories
 

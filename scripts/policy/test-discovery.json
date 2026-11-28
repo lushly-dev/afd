@@ -54,6 +54,12 @@
 			"owner": "Falkicon",
 			"reason": "Standalone design-phase prototype test run manually via unittest while the mail proposal is active",
 			"issue": "#1519"
+		},
+		{
+			"path": "docs/features/active/mail/prototype/test_gmail_probe.py",
+			"owner": "Falkicon",
+			"reason": "Standalone prototype test for the Gmail API probe (mail step B0), run manually via unittest beside the census",
+			"issue": "#1985"
 		}
 	]
 }

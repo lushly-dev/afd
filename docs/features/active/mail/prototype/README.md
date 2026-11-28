@@ -7,6 +7,7 @@ asks for before any specification is written. They are not the engine.
 | --- | --- | --- |
 | [`census.py`](census.py) | 0.1 and 0.2: counts from a real mailbox, and what the provider offers | Run on the owner's iCloud account 2026-11-10 and Gmail account 2026-11-11 |
 | [`store-bench/`](store-bench/src/main.rs) | 0.3: a local store at mailbox size | Run with a default shape and with the iCloud census's shape; every threshold met |
+| [`gmail_probe.py`](gmail_probe.py) | The engine's step B0: what Gmail's API does, read-only | Run on the owner's Gmail account 2026-11-24; the week's second run is due |
 
 ## The census
 
@@ -138,6 +139,79 @@ and its own extensions, and not QRESYNC.
 Q1 is under one in ten in two runs and between the thresholds in one. Q2 is met in two runs and
 missed in one. What follows from that is the owner's decision in step 0.4.
 
+## The Gmail API probe
+
+`gmail_probe.py` is the engine's step B0 ([section 5.5](../../../../../endpoints/loam/plugins/mail/docs/engine.spec.md#55-gmail)).
+It signs in to one Gmail account with the person's own OAuth client and reads it through the
+Gmail API, then writes a file of counts. Python 3.10 or later, standard library only.
+
+```sh
+# Once. Opens the system browser and receives Google's answer on a loopback port.
+# This starts the refresh token's clock.
+python3 gmail_probe.py signin --client-file ~/.config/loam-mail/gmail-client.json
+# Then, and again seven days or more after signing in:
+python3 gmail_probe.py probe --client-file ~/.config/loam-mail/gmail-client.json --out gmail-probe.results.json
+```
+
+**The client.** A Desktop app client from Google's console, in a project whose consent screen is
+in testing status with the owner as a test user and `gmail.readonly` among its scopes. The client
+file and the token file (by default `~/.config/loam-mail/gmail-probe-token.json`, readable by the
+user alone) are read from disk, never from arguments. Signing in again over a kept token needs
+`--replace`, because it restarts the clock the second run measures. The probe makes its own folder
+private; a folder named with `--token-file` that others can open is refused before the browser
+opens.
+
+**What it cannot change.** It asks for `gmail.readonly` alone and refuses a grant of more. Its HTTP
+layer refuses any request to the Gmail API's host that is not a `GET` of the API, and any other
+request but a `POST` to Google's token endpoint, before it is sent. A client file that names a
+sign-in or token address other than Google's is refused, since the secret is sent there.
+
+**What it answers.** The calls and the quota a sync spends, from Google's published cost of each
+method, since Gmail does not report one, and the rate listing and fetching reach (`--workers`
+sets how many requests are in flight); rate-limit answers, retried and counted; one history sync
+from the current history id and from the newest and oldest sampled messages, and what a history
+id too old returns; whether the metadata form's headers match the raw form's header block, the
+question of whether a header block can be had without the whole message, by size, with up to
+`--large-sample` messages over 1 MiB found by a search (`larger:1M`), since the newest mail is
+mostly small; and, on a second run, whether the refresh token still works and how old it is.
+The comparison is made after unfolding and collapsing spaces, so `same` is not byte-exact.
+
+**The refresh token's outcome.** `ok`; `refused`, Google's `invalid_grant`, which is the token
+refused or expired; or `client_refused`, the client itself refused. Both refusals write the
+record and exit 4. An outage, a rate limit or an answer that cannot be read at the token endpoint
+says nothing about the token: it exits 5 and records nothing. A failure after a good refresh
+writes what was learned, with `complete: false`, and exits 5.
+
+**What it leaves for later.** Which scopes a label change and a send need, whether a batch label
+change moves mail to trash, and whether a sent message lands in Sent without an append. Each
+changes the mailbox and waits for the owner's approval and the wider scopes.
+
+**What it writes.** Counts, timings, status codes and error reasons. No address, subject, label
+name, message id, thread id or token.
+
+## The Gmail API run
+
+Run 2026-11-24 on the owner's Gmail account with version 1 of the probe, one request at a time,
+straight after signing in. The record is [`gmail-probe.results.json`](gmail-probe.results.json):
+complete, no errors, in about 3 minutes by the terminal's clock.
+
+| Measure | Result |
+| --- | --- |
+| Messages and threads | 18 247 and 17 372 |
+| Listing ids, 500 a page | 1 495 a second |
+| A message in raw form, a request | about 0.23 s for the newest 200 (10.6 MB); about 1.4 s for 20 over 1 MiB (116 MB) |
+| Refused for the rate | 12 of 232 raw-form requests, `403 rateLimitExceeded`, each retried and answered |
+| Quota of a first sync, by Google's published costs | about 185 units listing and 91 235 fetching |
+| History from 12 300 behind the current id | 678 records, 202 adding messages |
+| History from an id far too old | `404`, `NOT_FOUND`, `notFound` |
+| Metadata headers against the raw header block | names the same in all 220; values the same in 84 of the newest 200 and none of the 20 large |
+
+What follows for the engine is in [section 5.5 of its specification](../../../../../endpoints/loam/plugins/mail/docs/engine.spec.md#55-gmail):
+a header block comes only with the whole message, an expired history id answers `404`, and the
+rate is Gmail's to set: it refused one raw-form request in 19 at one request at a time, for a
+reason the record cannot narrow to the user, the project or the kind of request. The refresh
+token's expiry waits for the second run, on or after 2026-12-01.
+
 ## The store measurement
 
 `store-bench` imports synthetic messages into SQLite tables shaped for mail and a tantivy index, then
@@ -182,12 +256,16 @@ half its limit, so these gaps would have to matter a great deal to change the an
 ## Tests
 
 ```sh
-python3 -m unittest test_census -v
+python3 -m unittest test_census test_gmail_probe -v
 ```
 
-They cover the fingerprints, the response splitter, the aggregation, and whole runs against a fake
+The probe's tests run it against a fake Gmail API, a fake token endpoint and a fake browser on
+127.0.0.1: the sign-in with PKCE and its state, a broader grant refused and not kept, the read-only
+guard, the private token file, outages told apart from an expired token, rate limits retried,
+history too old, the large-message search, and no address, subject, label name, id or token in
+the output. The census's tests cover the fingerprints, the response splitter, the aggregation, and whole runs against a fake
 connection: an iCloud-like and a Gmail-like account, a mailbox name sent as a literal, a dropped
 connection that recovers and one that does not, a mailbox that cannot be listed or opened,
 structures that cannot be fetched, a message listed but not returned, a mailbox left out by size, and the byte cap. They assert that only commands
 that cannot change anything are sent, and that no address, subject, mailbox name or hash reaches
-the output. They use no network.
+the output. They use no network beyond 127.0.0.1.
