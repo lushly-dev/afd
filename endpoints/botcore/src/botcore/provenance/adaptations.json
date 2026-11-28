@@ -1665,10 +1665,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "3329f45406bfffa57029c1e75ea11a650dedef29568122e10234cbd0ce237cde",
+      "current_import_sha256": "3a883550905b760a9be45ea26e799c165de6cd4b91c813f3fbdae2c4d0495435",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory gateway: issue types and parents through issue-create and issue-set (#2729); Factory gateway: an unanswered unkeyed issue-create or issue-comment is not retryable (#2850)"
+      "import_reason": "Factory gateway: issue types and parents through issue-create and issue-set (#2729); Factory gateway: an unanswered unkeyed issue-create or issue-comment is not retryable (#2850); Put the unanswered filing's title search in details, never in a command line (#2907)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/records.py",
@@ -2127,10 +2127,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "6f0a055daf2479d4a0426a203fbc17f92595c85900b82809cd813c0e18de2a6e",
+      "current_import_sha256": "bd1fdd8504c742cce598c66f0a945f34a88b72c141e46ec5c01179794e6282ab",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413); Gateway journal keeps only audit fields; journal behind the host needs redact (afd-python secret); Factory gateway: pr-merge cancel reports and journals whether it dequeued the pull request (#2809); Factory gateway: issue types and parents through issue-create and issue-set (#2729); Factory gateway: an unanswered unkeyed issue-create or issue-comment is not retryable (#2850)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413); Gateway journal keeps only audit fields; journal behind the host needs redact (afd-python secret); Factory gateway: pr-merge cancel reports and journals whether it dequeued the pull request (#2809); Factory gateway: issue types and parents through issue-create and issue-set (#2729); Factory gateway: an unanswered unkeyed issue-create or issue-comment is not retryable (#2850); Put the unanswered filing's title search in details, never in a command line (#2907)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_gateway_scenarios.py",

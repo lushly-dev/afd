@@ -55,21 +55,28 @@ const ISSUE_URL = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+$/u;
 /**
  * The GitHub writes the gateway serves, as text: the CLI's (`gh issue edit`, with `--repo`, any
  * spacing or backslash continuations), the REST API's writes (a write method, or fields without
- * `GET`, to the issue, pull, label, comment, check, status, variable and ref endpoints) and GraphQL
- * mutations beside `mutation`, `gh api graphql` or `(input:`.
+ * `GET`, to the issue, pull, label, comment, check, status, variable and branch endpoints) and
+ * GraphQL mutations beside `mutation`, `gh api graphql` or `(input:`. A branch is written through
+ * `branch-push` only, so the API ways to move, merge into, rename or commit to one that these
+ * lists name (refs, commits, trees, contents, merges, merge-upstream, a rename) are writes too.
+ * A method may be quoted (`-X 'GET'`).
  */
 export const DOOR_PATTERNS = [
 	'\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+issue[\\s\\\\]+(?:edit|comment|create)\\b',
-	'\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+pr[\\s\\\\]+(?:create|merge|edit|ready|comment)\\b',
+	'\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+pr[\\s\\\\]+(?:create|merge|edit|ready|comment|update-branch)\\b',
+	// `gh repo sync` with a repository syncs that fork's branch on GitHub; without one it only
+	// updates the local clone.
+	'\\bgh[\\s\\\\]+repo[\\s\\\\]+sync\\b(?=(?:\\\\\\n|[^\\n;&|`])*\\s[\\w.-]+/[\\w.-]+)',
 	'\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+variable[\\s\\\\]+set\\b',
-	'\\bgh[\\s\\\\]+api\\b(?!(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])[Gg][Ee][Tt]\\b)(?=(?:\\\\\\n|[^\\n;&|`])*/(?:issues|pulls|labels|comments|assignees|check-runs|statuses|variables|merges|git/refs)\\b)(?=(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])(?:[Pp][Oo][Ss][Tt]|[Pp][Aa][Tt][Cc][Hh]|[Pp][Uu][Tt]|[Dd][Ee][Ll][Ee][Tt][Ee])\\b|(?:\\\\\\n|[^\\n;&|`])*\\s(?:-[fF]|--field|--raw-field|--input)[\\s=])(?:\\\\\\n|[^\\n;&|`])*',
-	'(?:\\bmutation\\b|\\bgh[\\s\\\\]+api[\\s\\\\]+graphql\\b)(?:\\\\\\n|[^\\n])*\\b(?:enqueuePullRequest|dequeuePullRequest|enablePullRequestAutoMerge|disablePullRequestAutoMerge|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|clearLabelsFromLabelable|createRef|updateRef|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue|updateIssueIssueType|addSubIssue|removeSubIssue)\\b|\\b(?:enqueuePullRequest|dequeuePullRequest|enablePullRequestAutoMerge|disablePullRequestAutoMerge|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|clearLabelsFromLabelable|createRef|updateRef|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue|updateIssueIssueType|addSubIssue|removeSubIssue)\\s*\\(\\s*input\\s*:',
+	'\\bgh[\\s\\\\]+api\\b(?!(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])["\']?[Gg][Ee][Tt]\\b)(?=(?:\\\\\\n|[^\\n;&|`])*/(?:issues|pulls|labels|comments|assignees|check-runs|statuses|variables|merges|git/refs|git/commits|git/trees|contents|merge-upstream|branches/\\S+?/rename)\\b)(?=(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])["\']?(?:[Pp][Oo][Ss][Tt]|[Pp][Aa][Tt][Cc][Hh]|[Pp][Uu][Tt]|[Dd][Ee][Ll][Ee][Tt][Ee])\\b|(?:\\\\\\n|[^\\n;&|`])*\\s(?:-[fF]|--field|--raw-field|--input)[\\s=])(?:\\\\\\n|[^\\n;&|`])*',
+	'(?:\\bmutation\\b|\\bgh[\\s\\\\]+api[\\s\\\\]+graphql\\b)(?:\\\\\\n|[^\\n])*\\b(?:enqueuePullRequest|dequeuePullRequest|enablePullRequestAutoMerge|disablePullRequestAutoMerge|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|clearLabelsFromLabelable|createRef|updateRef|updateRefs|deleteRef|createCommitOnBranch|mergeBranch|updatePullRequestBranch|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue|updateIssueIssueType|addSubIssue|removeSubIssue)\\b|\\b(?:enqueuePullRequest|dequeuePullRequest|enablePullRequestAutoMerge|disablePullRequestAutoMerge|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|clearLabelsFromLabelable|createRef|updateRef|updateRefs|deleteRef|createCommitOnBranch|mergeBranch|updatePullRequestBranch|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue|updateIssueIssueType|addSubIssue|removeSubIssue)\\s*\\(\\s*input\\s*:',
 ];
 
 /** The CLI's writes as an argument list (`['gh', 'pr', 'merge']`), across lines too. */
 export const DOOR_ARGV_PATTERNS = [
 	'["\'`]issue["\'`]\\s*,\\s*["\'`](?:edit|comment|create)["\'`]',
-	'["\'`]pr["\'`]\\s*,\\s*["\'`](?:create|merge|edit|ready|comment)["\'`]',
+	'["\'`]pr["\'`]\\s*,\\s*["\'`](?:create|merge|edit|ready|comment|update-branch)["\'`]',
+	'["\'`]repo["\'`]\\s*,\\s*["\'`]sync["\'`]',
 	'["\'`]variable["\'`]\\s*,\\s*["\'`]set["\'`]',
 ];
 

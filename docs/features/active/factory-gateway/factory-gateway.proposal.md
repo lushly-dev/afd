@@ -423,7 +423,8 @@ its own repositories. If GitHub refuses to attach an issue `issue-create` has ju
 refusal names the issue's number, and a retry with the same `dedupe_key` finishes the attach. If
 GitHub does not answer that attach, the `GITHUB_UNAVAILABLE` names the number too, and, like any
 unanswered write without a `dedupe_key` ([Writes that can be retried](#writes-that-can-be-retried)),
-it is retryable only with one: repeating a filing without one files a second issue.
+it is retryable only with one, even when the attach never reached GitHub: the issue is filed
+either way, and repeating a filing without a key files a second one.
 GitHub's own limits (an issue as its own parent, a cycle, 100 sub-issues) come back as
 `GITHUB_REFUSED`. The gateway does not enforce triage's two levels; that stays the skill's rule.
 
@@ -515,7 +516,8 @@ must pass, the process it changes and its exit.
   (cells and the foreman) run as an operating-system user, or on a machine, where no gateway token
   of another class and no `gh` sign-in is readable; the lane runs a branch's validation as a user
   with no token at all, so code under validation cannot reach a credential; the read-only token and
-  the G1 hooks are retired.
+  the G1 hooks are retired. With them goes the read that an unanswered `issue-create` without a
+  `dedupe_key` suggests (`gh issue list --search`), so a gateway issue search replaces it.
 - **Jobs:** the `boundary` property of job 15 (a cell's token pushes only its own queue ref), shown
   by the plugin's unit tests, and the exit below.
 - **Process:** the factory's cell start, Lushly's `run-fleet` and `lushly-worktree-discipline`,

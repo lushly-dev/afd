@@ -90,9 +90,12 @@ def issue_create(  # noqa: PLR0913 - the command's inputs
         number = unkeyed(
             lambda: gateway.github.create_issue(repo, title, body, labels, kind),
             "the filing",
-            f"look for an open issue titled as this one, with gh issue list --search "
-            f"'in:title {title}' (a read), before filing again{attach}",
+            "look for an open issue titled as this one before filing again, with a read that "
+            f"passes details.search as one argument to `gh issue list --repo {repo} --state open "
+            '--search` (in Windows PowerShell 5.1, write each double quote in it as \\")'
+            f"{attach}",
             title=title,
+            search=title_search(title),
         )
     if parent is not None:
         _attach(gateway, repo, number, parent, dedupe_key)
@@ -100,6 +103,15 @@ def issue_create(  # noqa: PLR0913 - the command's inputs
         {"number": number, "created": True, "type": kind, "parent": parent},
         reasoning=f"Filed issue {number}" + (f" under {parent}" if parent is not None else ""),
     )
+
+
+def title_search(title: str) -> str:
+    """The search that finds an issue by its title as one phrase. It goes in the refusal's
+    details, never into a command line: no quoting is safe in every shell an agent pastes into
+    (PowerShell 5.1 drops a double quote it passes to a program). GitHub's search has no escape
+    for a double quote inside a phrase, so one becomes a space, as does a line break. G4 retires
+    `gh` for agents, and a gateway issue search replaces this read then."""
+    return 'in:title "' + " ".join(title.replace('"', " ").splitlines()) + '"'
 
 
 def _attach(gateway: Gateway, repo: str, number: int, parent: int, dedupe_key: str | None) -> None:
