@@ -322,6 +322,7 @@ status changes.
 | 2026-11-22 | Phase 6 step 11b | `test/macos/inbound.test.ts`'s `[host] inbound = false` case waits five seconds for the host's setup; give it a signal to wait on | Open |
 | 2026-11-22 | Phase 6 step 11b | Whether the desktop's inbound results should carry phase 5's 5.1 labels, so an outside agent can tell content from Loam's own claims; taint marks only a copilot session, whose model Loam holds (step 11b's deviation 10) | Open, for phase 5 |
 | 2026-11-26 | Phase 3 step 10 | The rows of 2026-11-21 "`startDevHost`'s `resources` and `accessTokenTtlSeconds`" and "E8's listed-slug `project-create` over MCP": `createLoamAuthOptions` takes `otherResources` and `accessTokenSeconds` (tests only), `startDevHost` passes them, and P3-H5(b) is the case ([phase 3's step 10](phases/3-identity/spec.md#status)) | Done in phase 3's step 10 |
+| 2026-11-27 | [#2808](https://github.com/lushly-dev/afd/issues/2808) | Three rows dated 2026-11-27 in the [specification's follow-ups](phases/6-hosts/spec.md#follow-ups): the installers' third-party notices, done; reading them from inside the app, and the system libraries the AppImage bundles, open | Open |
 
 ### Follow-ups: every other area
 

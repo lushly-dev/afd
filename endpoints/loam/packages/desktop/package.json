@@ -11,8 +11,9 @@
 	"scripts": {
 		"build:site": "node scripts/build-site.mjs",
 		"build:app": "node scripts/build-app.mjs",
+		"build:notices": "node scripts/build-notices.mjs",
 		"build:installers": "node scripts/build-installers.mjs",
-		"clean": "rimraf dist dist-installers coverage",
+		"clean": "rimraf dist dist-installers dist-notices coverage",
 		"typecheck": "tsc -p tsconfig.json",
 		"test:desktop": "vitest run --config vitest.desktop.config.ts",
 		"test:installers": "vitest run --config vitest.installers.config.ts",

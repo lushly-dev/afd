@@ -17,6 +17,6 @@ Section 12 sends Lushly's AI client interfaces, its command-to-tool bridge and i
 ## Commands
 
 ```bash
-pnpm -F @lushly-dev/loam-copilot build   # tsc, then dist/frame/ and its sizes.json
+pnpm -F @lushly-dev/loam-copilot build   # tsc, then dist/frame/, its sizes.json and modules.json (#2808)
 pnpm -F @lushly-dev/loam-copilot test    # the context builder, the test provider and a runtime turn over MessagePorts
 ```
