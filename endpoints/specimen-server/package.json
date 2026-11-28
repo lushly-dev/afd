@@ -33,10 +33,10 @@
 	"devDependencies": {
 		"@lushly-dev/specimen-cli": "workspace:^",
 		"@modelcontextprotocol/sdk": "^1.31.0",
-		"@types/node": "^26.6.6",
-		"@vitest/coverage-v8": "^5.1.1",
+		"@types/node": "^26.6.10",
+		"@vitest/coverage-v8": "^5.1.2",
 		"rimraf": "^6.1.4",
 		"typescript": "^7.0.2",
-		"vitest": "^5.1.1"
+		"vitest": "^5.1.2"
 	}
 }

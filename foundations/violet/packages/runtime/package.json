@@ -49,12 +49,12 @@
 		"clean": "rm -rf dist *.tsbuildinfo"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.6.8",
-		"@types/node": "^26.6.6",
-		"@vitest/coverage-v8": "^5.1.1",
+		"@biomejs/biome": "^2.6.9",
+		"@types/node": "^26.6.10",
+		"@vitest/coverage-v8": "^5.1.2",
 		"happy-dom": "^21.0.4",
 		"typescript": "^7.0.2",
-		"vitest": "^5.1.1"
+		"vitest": "^5.1.2"
 	},
 	"files": [
 		"dist",

@@ -39,12 +39,12 @@
 	"devDependencies": {
 		"@lushly-dev/afd-client": "workspace:*",
 		"@lushly-dev/local-db": "workspace:*",
-		"@types/node": "^26.6.6",
-		"@vitest/coverage-v8": "^5.1.1",
+		"@types/node": "^26.6.10",
+		"@vitest/coverage-v8": "^5.1.2",
 		"rimraf": "^6.1.4",
 		"tsx": "4.23.15",
 		"typescript": "^7.0.2",
-		"vitest": "^5.1.1",
+		"vitest": "^5.1.2",
 		"zod": "^4.6.7"
 	},
 	"repository": {

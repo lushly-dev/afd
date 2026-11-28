@@ -54,10 +54,10 @@
 		"@lushly-dev/violet-runtime": "workspace:*",
 		"@modelcontextprotocol/ext-apps": "2.0.4",
 		"@modelcontextprotocol/server": "2.4.0",
-		"@types/node": "^26.6.6",
-		"@vitest/browser": "5.1.1",
-		"@vitest/browser-playwright": "^5.1.1",
-		"@vitest/coverage-v8": "^5.1.1",
+		"@types/node": "^26.6.10",
+		"@vitest/browser": "5.1.2",
+		"@vitest/browser-playwright": "^5.1.2",
+		"@vitest/coverage-v8": "^5.1.2",
 		"axe-core": "4.14.0",
 		"better-auth": "1.7.26",
 		"fake-indexeddb": "^6.2.8",
@@ -65,7 +65,7 @@
 		"rimraf": "^6.1.4",
 		"typescript": "^7.0.2",
 		"vite": "^8.3.0",
-		"vitest": "^5.1.1"
+		"vitest": "^5.1.2"
 	},
 	"repository": {
 		"type": "git",

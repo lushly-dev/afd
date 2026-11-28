@@ -17,13 +17,13 @@
 	},
 	"devDependencies": {
 		"@afd/example-todo-ts": "workspace:*",
-		"@types/node": "^26.6.6",
-		"@types/react": "^19.3.0",
+		"@types/node": "^26.6.10",
+		"@types/react": "^19.3.2",
 		"@types/react-dom": "^19.3.0",
 		"@vitejs/plugin-react": "^6.3.0",
 		"typescript": "^7.0.2",
 		"vite": "^8.3.0",
-		"vitest": "^5.1.1"
+		"vitest": "^5.1.2"
 	},
 	"description": "The to-do page in React 19 on violet-elements"
 }

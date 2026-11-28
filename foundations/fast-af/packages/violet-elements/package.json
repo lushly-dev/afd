@@ -863,18 +863,18 @@
     "README.md"
   ],
   "devDependencies": {
-    "@biomejs/biome": "^2.6.8",
+    "@biomejs/biome": "^2.6.9",
     "@custom-elements-manifest/analyzer": "^0.11.0",
     "@lushly-dev/fast-element": "workspace:*",
     "@lushly-dev/specimen": "workspace:*",
     "@lushly-dev/specimen-fast-af": "workspace:*",
     "@typescript/typescript6": "^6.0.2",
-    "@vitest/browser-playwright": "^5.1.1",
-    "@vitest/coverage-v8": "^5.1.1",
+    "@vitest/browser-playwright": "^5.1.2",
+    "@vitest/coverage-v8": "^5.1.2",
     "playwright": "^1.64.1",
     "rimraf": "^6.1.4",
     "typescript": "^7.0.2",
     "vite": "8.3.5",
-    "vitest": "^5.1.1"
+    "vitest": "^5.1.2"
   }
 }

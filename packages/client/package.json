@@ -61,10 +61,10 @@
 	"devDependencies": {
 		"@modelcontextprotocol/node": "^2.1.2",
 		"@modelcontextprotocol/server": "^2.4.0",
-		"@vitest/coverage-v8": "^5.1.1",
+		"@vitest/coverage-v8": "^5.1.2",
 		"rimraf": "^6.1.4",
 		"typescript": "^7.0.2",
-		"vitest": "^5.1.1"
+		"vitest": "^5.1.2"
 	},
 	"publishConfig": {
 		"access": "public"
