@@ -73,7 +73,10 @@ pub fn copy_database(path: &Path, dest: &Path) -> Result<(), StoreError> {
     })
     .map_err(|e| io(&e))
     .and_then(|()| {
-        std::fs::File::open(&partial)
+        // Opened to write: Windows refuses to flush a handle opened only to read.
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&partial)
             .and_then(|file| file.sync_all())
             .map_err(|e| io(&e))
     })

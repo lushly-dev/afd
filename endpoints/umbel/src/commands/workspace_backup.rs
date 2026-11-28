@@ -164,6 +164,7 @@ fn backup(
     }
     // Created here and only here, so a failure removes this backup's directory and never one
     // another backup to the same path made first.
+    #[cfg_attr(not(unix), allow(unused_mut))]
     let mut builder = fs::DirBuilder::new();
     #[cfg(unix)]
     std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
