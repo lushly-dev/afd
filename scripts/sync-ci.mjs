@@ -230,7 +230,7 @@ const SUITE_CONFIG = [
 	{
 		workflow: 'python.yml',
 		tools: ['uv'],
-		remote: 'Python 3.11 to 3.14, and the wheel install smoke test per extra',
+		remote: 'Python 3.11 to 3.14, the wheel install smoke test per extra, and the Windows test job',
 		extract(wf) {
 			return extractUvSteps(wf, 'test', { includeRuffFormat: true });
 		},
@@ -294,7 +294,8 @@ const SUITE_CONFIG = [
 	{
 		workflow: 'rust.yml',
 		tools: ['cargo'],
-		remote: 'the wasm32 checks and tests, the MSRV matrix, and the docs.rs build',
+		remote:
+			'the wasm32 checks and tests, the MSRV matrix, the docs.rs build, and the Windows test job',
 		extract(wf) {
 			return extractCargoSteps(wf, 'check', {
 				skip: (cmd) =>
@@ -430,7 +431,7 @@ const SUITE_CONFIG = [
 		workflow: 'cpp.yml',
 		tools: ['cmake'],
 		remote:
-			'clang-format, the sanitizer and no-exceptions legs; daily: TSan, Windows, MSVC, Emscripten, packaging, benchmarks and fuzz',
+			'clang-format, the sanitizer and no-exceptions legs, and MSVC on the dev preset; daily: TSan, macOS, MSVC release, clang-cl, Emscripten, packaging, benchmarks and fuzz',
 		extract(wf) {
 			const buildStep = findStep(wf, 'build', (s) => s.run.includes('cmake --build --preset'));
 			const testStep = findStep(wf, 'build', (s) => s.run.includes('ctest --preset'));

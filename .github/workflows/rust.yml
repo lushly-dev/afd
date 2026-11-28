@@ -171,6 +171,41 @@ jobs:
           cargo test --locked --target wasm32-unknown-unknown --no-default-features --test wasm_runtime
           cargo test --locked --target wasm32-unknown-unknown --no-default-features --features wasm,approval --test wasm_runtime
 
+  # The crate's tests on Windows, default features only: path handling, file locks and process
+  # behaviour differ there, and the Linux job cannot see it (#2930). No clippy, feature matrix or
+  # WebAssembly here. aws-lc-rs is a dev-dependency, so its C build runs here too, and on Windows
+  # it needs NASM, which the runner lacks: aws-lc-sys's prebuilt NASM stands in.
+  windows:
+    name: Rust (Windows, test)
+    needs: queue
+    if: needs.queue.outputs.run == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      AWS_LC_SYS_PREBUILT_NASM: '1'
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: packages/rust
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: packages/rust
+
+      - name: Test (default features)
+        run: cargo test --locked --no-fail-fast
+
   msrv:
     # One job per declared MSRV tier (packages/rust/Cargo.toml): 1.85 for the core and default
     # features, 1.88 for `server` and `server-auth`, and 1.89 for `journal-file-shared`.
