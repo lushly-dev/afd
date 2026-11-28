@@ -14,6 +14,63 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Findings
 
+### Week of receipts and tier 2 rollout, 2026-11-27 (#1693, #1694, #1902)
+
+All GB figures below use botcore's GB (2^30 bytes); `du` sizes are in MiB.
+
+- **Version.** All three machines run `lushly-botcore` `0.10.0` (Air and Random from PyPI; Hero
+  from `afd@9050eb4b9`), which includes `#1824` (`#1814`) and `#1923` (`#1902`).
+- **macOS consent stalls and Don't Allow on Random (#1902).** Both Macs hit the macOS
+  removable-volume prompt on their first unattended scheduled reclaims (Air waited 2 h 22 min on
+  2026-11-21; Random waited 3 h 16 min and received **Don't Allow** on 2026-11-22 01:47Z, leaving
+  both repos at `count: 0, complete: false`). The owner enabled Removable Volumes for the job's
+  `python3.14` on Random at 2026-11-22 02:10Z, and its forced run at 2026-11-22 02:14Z succeeded
+  (14 done, `complete: true`). On 2026-11-27, `sh ~/.local/share/botcore-probes/tcc-probe.sh`
+  returned `ok 92 entries` on the Air and `ok 31 entries` on Random before and after
+  `disk-setup --remove-landed`.
+- **Air Cargo `build-dir`.** The Air now sets
+  `build-dir = "/Volumes/Dev/cargo-build/{workspace-path-hash}"` in `~/.cargo/config.toml`,
+  covered by `[[aged]]` `/Volumes/Dev/cargo-build/*` in `~/.config/botcore/disk.toml` (initially
+  7 days, now `max_age_days = 2.0`, `max_gb = 150.0` after `#2373`), superseding the 2026-11-20
+  Air Cargo note below.
+- **Week of receipts:**
+  - **MacBook Air:** four daily applies since the 2026-11-23 `#2285`/`#2373` fixes
+    (2026-11-24 21:27Z, 2026-11-25 21:47Z, 2026-11-26 21:01Z, 2026-11-27 21:07Z),
+    `still_low: []` on every run (`/` 126.93–153.40 GB vs 46, `/Volumes/Dev` 466.75–564.38 GB vs
+    93). The 679 `partial` actions on 2026-11-25 and 7 on 2026-11-27 were kept git-checkout test
+    fixtures under `/Volumes/Dev/tmp/*` (`#2625`, reclassified from failure to warning in `#2761`,
+    shipped in `0.11.0`; on `0.10.0`, `disk-status` still reads `healthy: false` from the 7
+    `partial`s on 2026-11-27). The incomplete idle scan on 2026-11-26 (`lushly` 31, `afd` 0) hit
+    the 180 s budget under active Rust builds (40 lock-skipped `/Volumes/Dev/tmp/*` actions in the
+    same run), not a TCC denial; 2026-11-27 returned `complete: true` (`lushly` 120, `afd` 49).
+  - **Random:** four daily applies since the 2026-11-23 `#2285`/`#2373` fixes
+    (2026-11-24 23:09Z, 2026-11-25 22:25Z, 2026-11-26 21:51Z, 2026-11-27 21:54Z),
+    `still_low: []` on every run (`/` 41.97–52.13 GB vs 23, `/Volumes/Dev` 519.99–593.72 GB vs
+    93). The 1 `partial` on 2026-11-27 was a kept git checkout at
+    `/Volumes/Dev/cleanup-reports/2026-11-12-random/afd/archives/t3-5dc41800/restore-probe` (same
+    `#2625`/`#2761` behavior under `0.10.0`, leaving `disk-status` `healthy: false` until
+    `0.11.0`). The incomplete idle scan on 2026-11-26 (`lushly` 11, `afd` 0) hit the 180 s budget
+    while `/Volumes/Dev/cargo-build/*` freed 19.37 GB in that run; 2026-11-27 returned
+    `complete: true` (`lushly` 12, `afd` 33).
+  - **Hero:** eight daily applies (2026-11-20 23:43Z through 2026-11-27 22:47Z), 0 failures,
+    `still_low: []` on every run (minimum `free_after` `C:\` 2,649.72 GB and `D:\` 1,658.10 GB vs
+    100), `disk-status` `healthy: true`. The `afd` idle scan on 2026-11-26 hit the 180 s budget
+    at 50; 2026-11-27 returned `complete: true` (`lushly` 27, `afd` 90).
+- **Tier 2 (`disk-setup --remove-landed`).** Dry runs (`disk-reclaim --tier 2 --json`) planned
+  one removal per machine; all three were verified by hand (landed on `origin/main`, neither T3
+  Code's nor Factory's, no running processes, empty `git status --porcelain`, and confirmed in
+  `removal.py` that `--apply` pins `refs/botcore/removed/`):
+  - **MacBook Air** (18.79 GB planned across 51 actions):
+    `/Users/jasfalk/.cache/afd-specimens/t02-20261031/afd-cdfbbfb7` (38 MiB, detached HEAD
+    `cdfbbfb7b` in `origin/main`).
+  - **Random** (3.31 GB planned across 298 actions): `/Volumes/Dev/tmp/afd-main` (78 MiB, detached
+    HEAD `c40fd8470` in `origin/main`).
+  - **Hero** (35.79 GB planned across 796 actions):
+    `C:\Users\falki\afd\.claude\worktrees\agent-a494c2276920858ce` (branch `lush/mail-f-spec`,
+    HEAD `eac95de39` matching squash-merged `#1652`, merge commit `1c2168f35` in `origin/main`).
+  Running `botcore disk-setup --remove-landed` on all three produced a single-line `disk.toml`
+  diff (`remove_landed = true`, `changed_tools: {}`).
+
 ### Hero's view and its first week of receipts, 2026-11-26 (#1693)
 
 - **`--unclassified` on Hero** (botcore 0.8.0, `C:\Users\falki\afd`, 129 worktrees, 132 s,
@@ -223,7 +280,8 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
   with `git bundle verify`). `DELETION-20261121.json` in that folder lists each deleted tar and its
   SHA-256. The three 2026-11-20 run folders are `[[aged]]` folders on the Air at 30 days, so the
   hourly job clears them around 2026-12-21. The 2026-11-13 and 2026-11-16 runs (~53 GiB) wait
-  for the owner.
+  for the owner (superseded 2026-11-22: both now have 30-day `[[aged]]` expiries; see `#1687`
+  below).
 
 ### The machines before prevention, 2026-11-20 (#1695)
 
@@ -234,10 +292,11 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 - **Idle worktrees** (3 days or more): Air Lushly 120 of 148, afd 29 of 46; Random Lushly 37 of
   55, afd 20 of 28. Most are T3 Code's. With the limit at 20 the warning fires for three of the
   four until #1686's rules are on.
-- **Cargo:** the Air sets nothing, so output stays inside each worktree. Random's `build-dir` is
-  `/Volumes/Dev/cargo-build/{workspace-path-hash}`, which its `[[aged]]` folder covers; its
-  192 GiB were all under 7 days old (the largest, `afd-p4`, 85 GB at two days). Hero could not
-  be reached to check.
+- **Cargo:** the Air sets nothing, so output stays inside each worktree (superseded: see the
+  2026-11-27 finding above — the Air now sets `build-dir` on `/Volumes/Dev/cargo-build`).
+  Random's `build-dir` is `/Volumes/Dev/cargo-build/{workspace-path-hash}`, which its `[[aged]]`
+  folder covers; its 192 GiB were all under 7 days old (the largest, `afd-p4`, 85 GB at two
+  days). Hero could not be reached to check.
 - **Factory's lane slots** (`<repository>.factory-slots/`) are detached worktrees that git
   lists. Tier 2 could have removed an idle one, a parked slot's validation record with it; they
   are now `managed_by: "factory"`.
@@ -303,8 +362,10 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 - T3 Code's storage cleanup on each machine (#1686): turned on on all three machines, as the
   owner confirmed on 2026-11-22.
 
-- The old cleanup agent's archives (#1687): the full payloads deleted 2026-11-21, the rest
-  kept 30 days (see Findings); the two older runs wait for the owner.
+- The old cleanup agent's archives (#1687): closed 2026-11-22; all five cleanup-agent run folders
+  on the Air have 30-day `[[aged]]` expiries (the 2026-11-13 and 2026-11-16 runs hold only ignored
+  files of landed worktrees; `#1687`'s last comment has the detail, including that the
+  hand-started agent removed 18 worktrees at 2026-11-21 22:04Z using the 2026-11-16 tars).
 
 ## Phase 1. Report and the safe tiers
 
@@ -322,7 +383,11 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 - Adoption in Lushly ([lushly#2697](https://github.com/lushly-dev/lushly/issues/2697)): after the release.
 
-- Rollout to the Air, Random and Hero, and retiring the cleanup agent (#1693): rolled out 2026-11-20; afd's `regenerable` list finished and Random set up again 2026-11-22, Air verified 2026-11-23, Hero verified 2026-11-24, Hero's list and dry run rechecked 2026-11-26 (see Findings); the Air and Random rechecked against the new list (Hero's cell cannot reach them), a week of receipts on each, then the cleanup agent is retired.
+- Rollout to the Air, Random and Hero, and retiring the cleanup agent (#1693): rolled out
+  2026-11-20; afd's `regenerable` list finished and Random set up again 2026-11-22, Air verified
+  2026-11-23, Hero verified 2026-11-24, Hero's list and dry run rechecked 2026-11-26; week of
+  receipts verified and tier 2 enabled on the Air, Random and Hero on 2026-11-27 (see Findings);
+  closed 2026-11-27 and the hand-started cleanup agent retired.
 
 - A scheduled run that waits for ever (#1902): merged in #1923.
 
@@ -332,13 +397,13 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Phase 3. Removing finished worktrees
 
-- Tier 2, `disk-keep` and `disk-restore` (#1694): merged in #1723 on 2026-11-20; off on every machine until `disk-setup --remove-landed`.
+- Tier 2, `disk-keep` and `disk-restore` (#1694): merged in #1723 on 2026-11-20; `remove_landed = true` enabled on the Air, Random and Hero on 2026-11-27.
 
 ## Phase 4. Prevention
 
 - One Rust build arrangement, the idle-worktree warning, one T3 Code worktree folder (#1695): merged in #1728 on 2026-11-21.
 
-- `git gc` no longer makes every worktree look active (#1814): in this pull request.
+- `git gc` no longer makes every worktree look active (#1814): merged in #1824 on 2026-11-21.
 
 - Cargo `build-dir` defaults, per-workspace bucket eviction, scoped Rust build protection, and `[[aged]]` low-space pressure escalation (#2373): merged in #2377.
 
