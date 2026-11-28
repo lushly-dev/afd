@@ -106,7 +106,40 @@ const unitResult = (record: JournalRecord): boolean => {
 };
 
 /**
- * Remove `input.password` from an `auth-sign-in` record, a unit's text from its submit's (7.3), and mark a thrown
+ * A single sign-on `auth-sign-in`'s `SIGN_IN_REDIRECT` warning, its authorize URL cut to its origin and path (#2786):
+ * the query holds `state`, a single-use nonce the callback consumes, and the PKCE challenge, so the journal keeps where
+ * sign-in continued and nothing a callback reads. A replay never follows the URL: its Mock signs in at once, so such an
+ * entry diverges on replay whatever its URL holds (#2786's review).
+ */
+function withoutAuthorizeQuery(record: JournalRecord): JournalRecord {
+	const warnings = (record.result as { warnings?: unknown } | undefined)?.warnings;
+	if (!Array.isArray(warnings)) return record;
+	let changed = false;
+	const cut = warnings.map((warning: unknown) => {
+		const shaped = warning as { code?: unknown; details?: { url?: unknown } } | null;
+		const details = shaped?.details;
+		if (shaped?.code !== 'SIGN_IN_REDIRECT' || typeof details?.url !== 'string') return warning;
+		changed = true;
+		return { ...(warning as object), details: { ...details, url: authorizeBase(details.url) } };
+	});
+	return changed
+		? ({ ...record, result: { ...record.result, warnings: cut } } as JournalRecord)
+		: record;
+}
+
+/** An `http:` or `https:` URL less its query and fragment; any other, or one that does not parse, withheld whole. */
+function authorizeBase(url: string): string {
+	try {
+		const parsed = new URL(url);
+		if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return 'withheld';
+		return `${parsed.origin}${parsed.pathname}`;
+	} catch {
+		return 'withheld';
+	}
+}
+
+/**
+ * Remove `input.password` and the authorize URL's query from an `auth-sign-in` record, a unit's text from its submit's (7.3), and mark a thrown
  * error caught by the journal (`threw === true`) lossy so a replay stops there instead of diverging (#2300). A handler
  * that explicitly returns a `COMMAND_EXECUTION_ERROR` failure without throwing stays replayable.
  */
@@ -155,6 +188,7 @@ export function redactJournalRecord(
 			const { password: _password, ...rest } = input as Record<string, unknown>;
 			clean = { ...record, input: rest };
 		}
+		clean = withoutAuthorizeQuery(clean);
 	}
 	// A handler or store throw caught by the journal as `COMMAND_EXECUTION_ERROR` cannot be reproduced by a healthy
 	// replay store, while a deterministic refusal explicitly returned by a handler stays replayable (#2300).
