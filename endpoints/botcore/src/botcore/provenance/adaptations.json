@@ -3679,11 +3679,11 @@
       "path": "src/botcore/host.py",
       "upstream_sha256": null,
       "staged_sha256": "d8ecdd977b3e243f030834d4508e8f60e9dd660d4d0ff9280a1f5b3b75b545ba",
-      "current_import_sha256": "e08b7506a13559f2eb7c59accd9b4814ad4f13f85552c852aa39cf992f358f00",
+      "current_import_sha256": "929b5eedc29f96b5959b3c9f26b38e73fefee2473e43a7180b692558be3273e0",
       "stage_classification": "added-in-staging",
       "stage_reason": "Add shared dispatch, effects policy and quality-verdict adapters",
       "import_classification": "modified-after-staging",
-      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection; resolve either spelling of a command name with closest-name refusals, serve kebab-case names on request, validate typed inputs, build a context per call, admit effects by profile; Fix Batch 5 P0/P1 bugs (#1871-#1875); Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Format Botcore, add mypy type checking and py.typed marker (#1757); Format and type-check botcore after base sync (#1757); Replace production assert statements with explicit runtime checks and assert botcore/py.typed ships in wheel (#1757); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); CommandPolicy declares secret; CommandHost binds it for AFD's journal with afd.core.open_dispatch and runs a secret call off tape (#2590); Serve the managed host's bundled and plugin skills over MCP's Skills extension (#2504); Retire the managed host's -start, -call and -docs aliases for AFD's tools and docs_topic (#2505); Retire the managed host's -start, -call and -docs aliases for AFD's tools, info_catalog and info_docs (#2505); Require afd>=0.14.0 and drop the pre-0.14 secret and alias-schema fallbacks (lushly-dev/afd#2695)"
+      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection; resolve either spelling of a command name with closest-name refusals, serve kebab-case names on request, validate typed inputs, build a context per call, admit effects by profile; Fix Batch 5 P0/P1 bugs (#1871-#1875); Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Format Botcore, add mypy type checking and py.typed marker (#1757); Format and type-check botcore after base sync (#1757); Replace production assert statements with explicit runtime checks and assert botcore/py.typed ships in wheel (#1757); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); CommandPolicy declares secret; CommandHost binds it for AFD's journal with afd.core.open_dispatch and runs a secret call off tape (#2590); Serve the managed host's bundled and plugin skills over MCP's Skills extension (#2504); Retire the managed host's -start, -call and -docs aliases for AFD's tools and docs_topic (#2505); Retire the managed host's -start, -call and -docs aliases for AFD's tools, info_catalog and info_docs (#2505); Require afd>=0.14.0 and drop the pre-0.14 secret and alias-schema fallbacks (lushly-dev/afd#2695); Use afd.direct.DirectContext, not the CommandContext alias afd 0.15.0 removes, with an import test (lushly-dev/afd#2952)"
     },
     {
       "path": "src/botcore/host_http.py",
@@ -7074,6 +7074,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483); Count fix commits in every touched unit and separate records from source (#2551)"
+    },
+    {
+      "path": "tests/test_afd_aliases.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "23346630119eb27314faceaac03342702680fd184d1c2010cdf3b7f9a0527dc9",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Use afd.direct.DirectContext, not the CommandContext alias afd 0.15.0 removes, with an import test (lushly-dev/afd#2952)"
     },
     {
       "path": "tests/test_batch.py",
