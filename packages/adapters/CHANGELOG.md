@@ -1,5 +1,12 @@
 # @lushly-dev/afd-adapters
 
+## 3.0.0
+
+### Patch Changes
+
+- Updated dependencies [[`3f13a98`](https://github.com/lushly-dev/afd/commit/3f13a984e9857444a3ebb1bd5f58299d14050924), [`e179b98`](https://github.com/lushly-dev/afd/commit/e179b98aff85f0ee7d17e55cdc4fca6cb13d85bc), [`b96288b`](https://github.com/lushly-dev/afd/commit/b96288b7e861937029f14f295c6c1484e51ee0e7), [`7f994c7`](https://github.com/lushly-dev/afd/commit/7f994c7e4e32c94a210e90669e59824cac0b4221), [`3917a96`](https://github.com/lushly-dev/afd/commit/3917a966cff1cdef93dde68b9cef3ace0d676c19), [`0dc9bde`](https://github.com/lushly-dev/afd/commit/0dc9bde2e8da5670ce24b5b8f87d00a5a636f68f), [`67f32e8`](https://github.com/lushly-dev/afd/commit/67f32e875872c6da44205e6170bc5dd2d392a609), [`5c9ebec`](https://github.com/lushly-dev/afd/commit/5c9ebec174e8cad39e15ef4f1d99e966bbca38a8)]:
+  - @lushly-dev/afd-core@3.0.0
+
 ## 2.5.0
 
 No changes in this release.

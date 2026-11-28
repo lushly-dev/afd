@@ -1,5 +1,15 @@
 # @lushly-dev/local-db
 
+## 3.0.0
+
+### Minor Changes
+
+- [#2643](https://github.com/lushly-dev/afd/pull/2643) [`c34838d`](https://github.com/lushly-dev/afd/commit/c34838d71a7f780667dcb46f3746d11c6ff16c14) Thanks [@Falkicon](https://github.com/Falkicon)! - IndexedDbAdapter can take a read-only snapshot of every table in a single IndexedDB transaction for local backups.
+
+### Patch Changes
+
+- [#2993](https://github.com/lushly-dev/afd/pull/2993) [`cb09d91`](https://github.com/lushly-dev/afd/commit/cb09d918b7829425a5f0a73b8fb1e67210ec38df) Thanks [@Falkicon](https://github.com/Falkicon)! - `SqliteAdapter` waits for another connection's write lock when it switches a database to WAL, instead of failing at once as `SQLite failed to open the database: database is locked` ([#2250](https://github.com/lushly-dev/afd/issues/2250)). SQLite refuses that switch without calling its busy handler while another connection holds a write lock, so two processes opening one new file together could fail; the switch now retries until `busyTimeoutMs`.
+
 ## 2.5.0
 
 ### Minor Changes
