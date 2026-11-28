@@ -448,16 +448,17 @@ impl Engine {
     }
 
     /// Appends a redacted record to the engine's journal when this process owns
-    /// the store. Failures are reported via [`Self::report`] and never fail the
+    /// the store, `secret` when its command declares it, as the recorder would
+    /// read it. Failures are reported via [`Self::report`] and never fail the
     /// completed action, matching [`afd::JournalRecorder`].
-    pub(crate) async fn append_journal(&self, record: afd::JournalRecord) {
+    pub(crate) async fn append_journal(&self, record: afd::JournalRecord, secret: bool) {
         if !self.owns_store() {
             return;
         }
         let Some(sink) = self.journal_sink() else {
             return;
         };
-        let Some(redacted) = crate::journal::redact(record) else {
+        let Some(redacted) = crate::journal::redact(record, secret) else {
             return;
         };
         if sink.append(redacted).await.is_err() {

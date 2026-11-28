@@ -521,8 +521,29 @@ async fn a_new_token_is_named_once_and_never_journaled() {
     .await;
     assert_eq!(again.error.unwrap().code, "INVALID_INPUT");
 
+    // The command declares its secret, so the journal redacts it by the
+    // declaration, not by its name (#2588).
+    assert!(
+        setup.registry.get("mail-token-create").unwrap().secret,
+        "mail-token-create declares secret"
+    );
     let journal = std::fs::read_to_string(loam_mail::journal::path(&setup.home)).unwrap();
     assert!(journal.contains("mail-token-create"), "{journal}");
+    // Each successful call is kept with its input and without its result's
+    // data or its tape.
+    let mut made = 0;
+    for line in journal.lines() {
+        let entry: Value = serde_json::from_str(line).unwrap();
+        if entry["command"] == json!("mail-token-create")
+            && entry["result"]["success"] == json!(true)
+        {
+            made += 1;
+            assert_eq!(entry["input"]["name"], json!("claude"), "{line}");
+            assert!(entry["result"].get("data").is_none(), "{line}");
+            assert!(entry.get("tape").is_none(), "{line}");
+        }
+    }
+    assert_eq!(made, 1, "{journal}");
     assert!(
         !journal.contains(&secret),
         "the new token is in the journal"
