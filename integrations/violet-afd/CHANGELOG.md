@@ -1,5 +1,11 @@
 # @lushly-dev/violet-afd
 
+## 0.3.0-preview.8
+
+### Patch Changes
+
+- [#3014](https://github.com/lushly-dev/afd/pull/3014) [`7b529fb`](https://github.com/lushly-dev/afd/commit/7b529fb09d15fd60e79a40e0baf9158f6f4f8383) Thanks [@Falkicon](https://github.com/Falkicon)! - `@lushly-dev/violet-afd` now accepts AFD 3 as well as AFD 2: its `@lushly-dev/afd-core` dependency widens from `^2.2.0` to `^2.2.0 || ^3.0.0`, so an application on either major still shares one AFD core with the integration ([#2885](https://github.com/lushly-dev/afd/issues/2885)).
+
 ## 0.3.0-preview.7
 
 ### Minor Changes
