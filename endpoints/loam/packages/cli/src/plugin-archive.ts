@@ -8,8 +8,7 @@
  * engines.
  */
 
-import { constants } from 'node:fs';
-import { lstat, mkdir, mkdtemp, open, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -19,6 +18,7 @@ import {
 } from '@lushly-dev/loam-manifest/plugin';
 import type { Finding } from './check.js';
 import type { PluginCheckReport } from './plugin-check.js';
+import { bytesSeen, lstatExact } from './seen-file.js';
 import { readZip, writeZip, type ZipEntry } from './zip.js';
 
 /** A packed bundle's archive: what `plugin pack --out <name>.loam-plugin` writes and `plugin check` reads. */
@@ -154,30 +154,34 @@ export async function checkPluginArchive(
 		refusals,
 		form: 'archive',
 	});
-	const seen = await lstat(path);
+	const seen = await lstatExact(path);
 	if (seen.isSymbolicLink() || !seen.isFile())
 		return refused([escaped('archive-file', '(archive)', 'The archive is not a regular file.')]);
-	if (seen.size > limits.bytes + archiveAllowance(limits))
+	if (seen.size > BigInt(limits.bytes + archiveAllowance(limits)))
 		return refused([tooLarge('archive-size', `the file is ${seen.size} bytes`)]);
-	// Opened without following a link, and checked to be the file `lstat` saw.
-	let bytes: Buffer;
-	try {
-		const handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-		try {
-			const opened = await handle.stat();
-			if (!opened.isFile() || opened.ino !== seen.ino || opened.dev !== seen.dev)
-				return refused([
-					escaped('archive-file', '(archive)', 'The archive changed while it was read.'),
-				]);
-			bytes = await handle.readFile();
-		} finally {
-			await handle.close();
-		}
-	} catch {
+	// Read as a directory bundle's files are: without following a link, only while it is the file `lstat` saw, and
+	// exactly its size.
+	const read = await bytesSeen(path, seen);
+	if (!read.ok) {
 		return refused([
-			escaped('archive-file', '(archive)', 'The archive changed while it was read, or is a link.'),
+			read.changed
+				? escaped(
+						'archive-file',
+						'(archive)',
+						'The archive changed while it was read, or is a link.'
+					)
+				: {
+						...finding(
+							'PLUGIN_MANIFEST_INVALID',
+							'(archive)',
+							`The archive could not be read (${read.error}).`,
+							'Make the file readable by you, then check again.'
+						),
+						reason: 'archive-file',
+					},
 		]);
 	}
+	const { bytes } = read;
 	// The entry count's bound is the file limit's: a canonical archive holds files only.
 	const zip = readZip(bytes, limits.bytes, limits.files);
 	if (!zip.ok) {

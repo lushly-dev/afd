@@ -8,7 +8,7 @@ use crate::plugin_manifest::{PluginManifest, Target};
 use crate::plugin_validate::{
     BUNDLE_BYTES_MAX, BUNDLE_FILES_MAX, BUNDLE_PATH_MAX_BYTES, MANIFEST_MAX_BYTES,
     PackedAppSummary, ValidationRefusal, bundle_digest, bundle_path_problem, check_path_collisions,
-    parse_packed_app_manifest, sha256_hex, validate_plugin_apps, validate_plugin_manifest,
+    read_packed_app, sha256_hex, validate_plugin_apps, validate_plugin_manifest,
 };
 use crate::plugins_error::{
     PLUGIN_BUNDLE_TOO_LARGE, PLUGIN_HASH_MISMATCH, PLUGIN_MANIFEST_INVALID,
@@ -1161,15 +1161,10 @@ pub fn validate_staged_directory(
             ));
             continue;
         };
-        let summary = match parse_packed_app_manifest(&app_bytes) {
+        let summary = match read_packed_app(&app_bytes, &key) {
             Ok(s) => s,
-            Err(why) => {
-                refusals.push(ValidationRefusal::new(
-                    PLUGIN_MANIFEST_INVALID,
-                    key,
-                    "bundle",
-                    why,
-                ));
+            Err(refusal) => {
+                refusals.push(refusal);
                 continue;
             }
         };

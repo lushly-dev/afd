@@ -1586,6 +1586,189 @@
 					"key": "apps[1].id"
 				}
 			]
+		},
+		{
+			"name": "bundled apps titled in plain Unicode",
+			"patch": {},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted",
+						"title": "Courrier \u00e9lectronique",
+						"description": "Bo\u00eete \u2014 r\u00e9ponses."
+					},
+					"mount": {
+						"prefix": "mail",
+						"transport": "http"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailapp",
+						"kind": "native",
+						"title": "\u90f5\u4fbf"
+					}
+				}
+			},
+			"refusals": []
+		},
+		{
+			"name": "a bundled app whose title holds a bidirectional override",
+			"patch": {},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted"
+					},
+					"mount": {
+						"prefix": "mail",
+						"transport": "http"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailapp",
+						"kind": "native",
+						"title": "Mail\u202eppa"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[1].path"
+				}
+			]
+		},
+		{
+			"name": "a bundled app whose description holds a zero-width space",
+			"patch": {},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted"
+					},
+					"mount": {
+						"prefix": "mail",
+						"transport": "http"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailapp",
+						"kind": "native",
+						"description": "Reads\u200b mail."
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[1].path"
+				}
+			]
+		},
+		{
+			"name": "the mounted app's title holds a directional isolate",
+			"patch": {},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted",
+						"title": "\u2066Mail\u2069"
+					},
+					"mount": {
+						"prefix": "mail",
+						"transport": "http"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailapp",
+						"kind": "native"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[0].path"
+				}
+			]
+		},
+		{
+			"name": "a hidden title on an app whose instance is not its id: refused once, at its path",
+			"patch": {},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted"
+					},
+					"mount": {
+						"prefix": "mail",
+						"transport": "http"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailui",
+						"kind": "native",
+						"title": "Mail\u202eppa"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[1].path"
+				}
+			]
+		},
+		{
+			"name": "a hidden title on the mount app, which names a command of another prefix: refused once, at its path",
+			"patch": {
+				"engine": {
+					"mount": {
+						"commands": {
+							"notes-page-create": {
+								"expose": {
+									"agent": true
+								}
+							}
+						}
+					}
+				}
+			},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted",
+						"title": "Ma\u200bil"
+					},
+					"mount": {
+						"prefix": "mail",
+						"transport": "http"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailapp",
+						"kind": "native"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[0].path"
+				}
+			]
 		}
 	],
 	"bundleDigest": {

@@ -1,7 +1,7 @@
 use super::*;
 use crate::plugin_validate::{
-    bundle_digest, bundle_path_problem, fold_bundle_path, parse_packed_app_manifest,
-    says_shell_name, sha256_hex, validate_plugin_apps, validate_plugin_manifest,
+    bundle_digest, bundle_path_problem, fold_bundle_path, read_packed_app, says_shell_name,
+    sha256_hex, validate_plugin_apps, validate_plugin_manifest,
 };
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -532,9 +532,9 @@ fn p5_s9_2_shared_manifest_cases_valid_refused_app_cases_and_bundle_digest() {
         );
     }
 
-    // 3. All 9 appCases with exact (code, key) parity.
+    // 3. Every appCase with exact (code, key) parity.
     let app_cases = cases["appCases"].as_array().unwrap();
-    assert!(app_cases.len() >= 9);
+    assert!(app_cases.len() >= 13);
     for entry in app_cases {
         let name = entry["name"].as_str().unwrap();
         let doc = merge_patch(base, &entry["patch"]);
@@ -542,7 +542,12 @@ fn p5_s9_2_shared_manifest_cases_valid_refused_app_cases_and_bundle_digest() {
         let (manifest, _) = validate_plugin_manifest(&bytes)
             .unwrap_or_else(|e| panic!("appCase `{name}` manifest failed: {e:?}"));
         let mut apps = HashMap::new();
-        for (app_id, app_val) in entry["apps"].as_object().unwrap() {
+        let mut got = Vec::new();
+        for (index, app_ref) in manifest.apps.iter().enumerate() {
+            let app_id = &app_ref.id;
+            let Some(app_val) = entry["apps"].get(app_id) else {
+                continue;
+            };
             let plugin = &app_val["plugin"];
             let mount = app_val.get("mount");
             let id = plugin["id"].as_str().unwrap().to_owned();
@@ -556,9 +561,9 @@ fn p5_s9_2_shared_manifest_cases_valid_refused_app_cases_and_bundle_digest() {
                 "protocol": 1,
                 "plugin": {
                     "id": id,
-                    "title": "App",
+                    "title": plugin.get("title").cloned().unwrap_or_else(|| "App".into()),
                     "version": "0.1.0",
-                    "description": "App.",
+                    "description": plugin.get("description").cloned().unwrap_or_else(|| "App.".into()),
                     "kind": kind,
                     "domains": [mount_prefix.clone().unwrap_or_else(|| id.clone())],
                 },
@@ -574,11 +579,18 @@ fn p5_s9_2_shared_manifest_cases_valid_refused_app_cases_and_bundle_digest() {
                     serde_json::json!({ "entry": "dist/entry.js" }),
                 );
             }
-            let parsed =
-                parse_packed_app_manifest(&serde_json::to_vec(&full_map).unwrap()).unwrap();
-            apps.insert(app_id.clone(), parsed);
+            // As inspect reads each app's package: one it cannot read is refused at its path and left out.
+            match read_packed_app(
+                &serde_json::to_vec(&full_map).unwrap(),
+                &format!("apps[{index}].path"),
+            ) {
+                Ok(parsed) => {
+                    apps.insert(app_id.clone(), parsed);
+                }
+                Err(refusal) => got.push(refusal),
+            }
         }
-        let got = validate_plugin_apps(&manifest, &apps);
+        got.extend(validate_plugin_apps(&manifest, &apps));
         assert_eq!(
             sorted_code_keys(&got),
             expected_code_keys(entry["refusals"].as_array().unwrap()),

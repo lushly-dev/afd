@@ -7,9 +7,18 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { chmod, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import {
+	appendFile,
+	chmod,
+	mkdir,
+	readFile,
+	rename,
+	rm,
+	symlink,
+	writeFile,
+} from 'node:fs/promises';
+import { dirname, join, sep } from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
 import { runCli } from './cli.js';
 import {
 	bundleDigest,
@@ -18,7 +27,39 @@ import {
 	pluginCheck,
 } from './plugin-check.js';
 import { pluginPack } from './plugin-pack.js';
+import { lstatExact, readSeen } from './seen-file.js';
 import { temporaryDirectory } from './test-support.js';
+
+/**
+ * A seam in the readers' `lstat`: once `swap.path`'s `lstat` has returned for the `swap.after`th time, `swap.change` runs
+ * before the reader goes on, as another process could change the file between its `lstat` and its open. `swap.opened`
+ * records each path the readers open.
+ */
+const swap = vi.hoisted(() => ({
+	path: undefined as string | undefined,
+	after: 1,
+	change: undefined as (() => Promise<void>) | undefined,
+	opened: [] as string[],
+}));
+vi.mock('node:fs/promises', async (actual) => {
+	const fs = await actual<typeof import('node:fs/promises')>();
+	return {
+		...fs,
+		lstat: async (...args: Parameters<typeof fs.lstat>) => {
+			const stats = await fs.lstat(...args);
+			if (swap.path !== undefined && String(args[0]) === swap.path && --swap.after === 0) {
+				const change = swap.change;
+				swap.path = undefined;
+				await change?.();
+			}
+			return stats;
+		},
+		open: async (...args: Parameters<typeof fs.open>) => {
+			swap.opened.push(String(args[0]));
+			return fs.open(...args);
+		},
+	};
+});
 
 const CASES = join(import.meta.dirname, '../../manifest/test/fixtures/loam-plugin-cases.json');
 /** A program that would leave a mark if anything ran it. */
@@ -198,6 +239,148 @@ describe('loam plugin check', () => {
 		await mkdir(join(elsewhere, 'mail'));
 		await symlink(join(elsewhere, 'mail'), join(dir, 'apps/mail'));
 		expect(codes(await pluginCheck({ dir }))).toContain('PLUGIN_PATH_ESCAPE apps[0].path');
+	});
+
+	it('refuses a file swapped for a link, or for another file, after it was listed and before it was read', async () => {
+		const elsewhere = await temporaryDirectory();
+		await write(elsewhere, 'native.js', 'export default {};\n');
+		await write(elsewhere, 'app-manifest.json', JSON.stringify(native));
+		for (const [path, key, after, to] of [
+			['apps/mailapp/dist/native.js', 'apps/mailapp/dist/native.js', 1, 'link'],
+			['apps/mailapp/dist/native.js', 'apps/mailapp/dist/native.js', 1, 'file'],
+			['apps/mailapp/app-manifest.json', 'apps[1].path', 1, 'link'],
+			// The engine's path is checked a segment at a time first, then its size taken.
+			['engines/linux-x64/loam-mail', 'engine.artifacts["linux-x64"].path', 2, 'link'],
+		] as const) {
+			const { dir, engine } = await source();
+			await write(elsewhere, 'loam-mail', engine);
+			const at = join(dir, ...path.split('/'));
+			const name = path.split('/').at(-1) as string;
+			Object.assign(swap, {
+				path: at,
+				after,
+				// The same bytes either way, so only the open handle can tell.
+				change: async () => {
+					if (to === 'link') {
+						await rm(at);
+						await symlink(join(elsewhere, name), at);
+					} else {
+						const copy = `${at}.copy`;
+						await writeFile(copy, await readFile(at));
+						await rename(copy, at);
+					}
+				},
+			});
+			const report = await pluginCheck({ dir });
+			expect(swap.path, path).toBeUndefined();
+			expect(codes(report), `${path} as a ${to}`).toEqual([`PLUGIN_PATH_ESCAPE ${key}`]);
+			expect(report.refusals[0]?.message).toContain('changed while it was read');
+		}
+	});
+
+	it('refuses a directory swapped for a link while it is listed or before its files are read, and reads nothing through it', async () => {
+		const elsewhere = await temporaryDirectory();
+		await write(elsewhere, 'native.js', 'export default "from outside the plugin";\n');
+		// `dist`'s `lstat`s: its parent's listing (1), its own check before (2) and after (3) it is listed, then each read
+		// below it. A swap after 1 is seen before it is listed, after 2 once it is listed, after 3 when a file is read.
+		for (const after of [1, 2, 3]) {
+			const { dir } = await source();
+			const dist = join(dir, 'apps/mailapp/dist');
+			const held = join(dir, '..', 'held-dist');
+			Object.assign(swap, {
+				path: dist,
+				after,
+				change: async () => {
+					await rename(dist, held);
+					await symlink(elsewhere, dist);
+				},
+			});
+			swap.opened = [];
+			const report = await pluginCheck({ dir });
+			expect(swap.path, `after ${after}`).toBeUndefined();
+			expect(report.ok, `after ${after}`).toBe(false);
+			expect(
+				report.refusals
+					.filter(({ code }) => code === 'PLUGIN_PATH_ESCAPE')
+					.map(({ message }) => message),
+				`after ${after}`
+			).toEqual([
+				expect.stringContaining('changed while it was read, or is or passes through a link'),
+			]);
+			expect(
+				swap.opened.filter((path) => path.startsWith(`${dist}${sep}`)),
+				`after ${after}`
+			).toEqual([]);
+		}
+	});
+
+	it('says a file it cannot read is unreadable, not changed', async () => {
+		// Windows has no mode bits to take away, and root reads a file whatever its mode.
+		if (process.platform === 'win32' || process.getuid?.() === 0) return;
+		const { dir } = await source();
+		const at = join(dir, 'apps/mailapp/dist/native.js');
+		await chmod(at, 0o000);
+		try {
+			const report = await pluginCheck({ dir });
+			expect(codes(report)).toEqual(['PLUGIN_MANIFEST_INVALID apps/mailapp/dist/native.js']);
+			expect(report.refusals[0]?.message).toBe(
+				'`apps/mailapp/dist/native.js` could not be read (EACCES).'
+			);
+		} finally {
+			await chmod(at, 0o644);
+		}
+	});
+
+	it('reads a listed file only while it is the one `lstat` saw', async () => {
+		const dir = await temporaryDirectory();
+		const at = join(dir, 'a.txt');
+		await writeFile(at, 'four');
+		let seen = await lstatExact(at);
+		const read = async () => {
+			const chunks: Buffer[] = [];
+			const { ok } = await readSeen(at, seen, (chunk) => chunks.push(Buffer.from(chunk)));
+			return ok ? Buffer.concat(chunks).toString() : undefined;
+		};
+		expect(await read()).toBe('four');
+		await appendFile(at, '+');
+		expect(await read()).toBeUndefined();
+		seen = await lstatExact(at);
+		await writeFile(join(dir, 'b.txt'), 'four+');
+		await rename(join(dir, 'b.txt'), at);
+		expect(await read()).toBeUndefined();
+		seen = await lstatExact(at);
+		await rm(at);
+		await writeFile(join(dir, 'c.txt'), 'four+');
+		await symlink(join(dir, 'c.txt'), at);
+		expect(await read()).toBeUndefined();
+	});
+
+	it('calls a file swapped for a directory a change, not an unreadable file', async () => {
+		const dir = await temporaryDirectory();
+		const at = join(dir, 'a.txt');
+		await writeFile(at, 'four');
+		const seen = await lstatExact(at);
+		await rm(at);
+		await mkdir(at);
+		// POSIX opens the directory and its `fstat` is not a regular file; Windows refuses the open with `EISDIR`.
+		expect(await readSeen(at, seen, () => {})).toEqual({ ok: false, changed: true });
+	});
+
+	it('refuses a bundled app whose title or description hides a character from the consent screen', async () => {
+		for (const [key, text] of [
+			['title', 'Mail\u202eppa'],
+			['description', 'Reads\u200b mail.'],
+		] as const) {
+			const { dir } = await source();
+			await write(
+				dir,
+				'apps/mailapp/app-manifest.json',
+				JSON.stringify({ ...native, plugin: { ...native.plugin, [key]: text } })
+			);
+			expect(codes(await pluginCheck({ dir })), key).toEqual([
+				'PLUGIN_MANIFEST_INVALID apps[1].path',
+			]);
+		}
 	});
 
 	it('reads a source through a link to it', async () => {
@@ -403,6 +586,29 @@ describe('loam plugin pack', () => {
 		if (process.platform !== 'win32')
 			expect(statSync(join(out, 'engines/linux-x64/loam-mail')).mode & 0o777).toBe(0o755);
 		expect(existsSync(mark)).toBe(false);
+	});
+
+	it('refuses a file swapped for a link after it was checked and before it was copied', async () => {
+		const { dir } = await source();
+		const out = join(dir, '..', 'bundle');
+		const elsewhere = await temporaryDirectory();
+		await write(elsewhere, 'native.js', 'export default {};\n');
+		const at = join(dir, 'apps/mailapp/dist/native.js');
+		// Listed by the check, then taken again by the copy, which this swap follows.
+		Object.assign(swap, {
+			path: at,
+			after: 2,
+			change: async () => {
+				await rm(at);
+				await symlink(join(elsewhere, 'native.js'), at);
+			},
+		});
+		const packed = await pluginPack({ dir, out });
+		expect(swap.path).toBeUndefined();
+		expect(packed.out).toBeUndefined();
+		expect(codes(packed.report)).toEqual(['PLUGIN_PATH_ESCAPE apps/mailapp/dist/native.js']);
+		expect(existsSync(out)).toBe(false);
+		expect(readdirSync(join(dir, '..')).filter((name) => name.includes('loam-pack'))).toEqual([]);
 	});
 
 	it('packs a plugin with no engine', async () => {
