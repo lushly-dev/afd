@@ -40,6 +40,7 @@ import {
 	el,
 	ROLE_NAMES,
 } from './account-parts.js';
+import { type AgentAccess, accessText, askAccess } from './agent-access.js';
 import { agentMembersPart } from './agent-members.js';
 
 export {
@@ -510,7 +511,10 @@ export class LoamAccountSection extends AccountElement {
 		];
 	}
 
-	/** The agents tab (5.3): the external agents the person connected over MCP, each with Disconnect (9.2). */
+	/**
+	 * The agents tab (5.3): the external agents the person connected over MCP, each with where it may act, Change access
+	 * (9.2, #2784) and Disconnect.
+	 */
 	async #agents(kernel: LoamKernel): Promise<Node[]> {
 		type Row = {
 			agent: string;
@@ -518,17 +522,23 @@ export class LoamAccountSection extends AccountElement {
 			clientHost: string;
 			scopes: string[];
 			connectedAt: string;
+			access: AgentAccess;
 			status: 'active' | 'suspended';
 			suspended?: string;
 		};
-		const read = (await kernel.call<{ agents: Row[] }>('account-agent-list')) as Answer<{
-			agents: Row[];
-		}>;
+		// Archived projects too: one the person may still open stays theirs to keep in an agent's access.
+		const [read, listed] = (await Promise.all([
+			kernel.call<{ agents: Row[] }>('account-agent-list'),
+			kernel.call('project-list', { status: 'all' }),
+		])) as [Answer<{ agents: Row[] }>, Answer<{ projects: { id: string; name: string }[] }>];
 		if (!read.success || !read.data) return [el('p', {}, this.#failed(read))];
+		// With no project list, no access is offered for change: saving would leave out every project it names.
+		const projects = listed.success ? (listed.data?.projects ?? []) : undefined;
+		const names = new Map((projects ?? []).map((project) => [project.id, project.name]));
 		const intro = el(
 			'p',
 			{},
-			'Apps you connected over MCP act for you, within what you may do, and owners see each one. Disconnecting one ends its access within 10 minutes.'
+			'Apps you connected over MCP act for you, within what you may do, and owners see each one. You choose where each can act. Disconnecting one ends its access within 10 minutes.'
 		);
 		if (read.data.agents.length === 0)
 			return [intro, el('p', {}, 'You have not connected any app.')];
@@ -541,6 +551,55 @@ export class LoamAccountSection extends AccountElement {
 		const rows = read.data.agents.map((row) => {
 			// One an owner removed stays removed until an owner allows it again (9.2): nothing to disconnect.
 			const removed = row.status === 'suspended' && row.suspended === 'owner';
+			const label = `Change access for ${row.name}`;
+			const change = button(
+				label,
+				async () => {
+					if (!projects) return;
+					const root = this.shadowRoot as ShadowRoot;
+					const access = await askAccess(root, row.name, row.access, projects);
+					if (!access) return;
+					// What the dialog showed: a change made since, in another tab, is refused rather than overwritten.
+					const answer = (await kernel.call('account-agent-update', {
+						agent: row.agent,
+						access,
+						expected: row.access,
+					})) as Answer<{ access: AgentAccess }>;
+					// The read builds the row again: focus returns to its Change access, by the agent's id, not to the page (14).
+					// A row with no such button now (an owner removed the agent, it was disconnected elsewhere, a read failed)
+					// sends focus to the section's heading instead.
+					const refocus = () => {
+						const again = root.querySelector<HTMLButtonElement>(
+							`button[data-agent="${CSS.escape(row.agent)}"]`
+						);
+						if (again) again.focus();
+						else this.focusHeading();
+					};
+					// Changed elsewhere since this tab read it (another tab, an agent's person in another window): the tab reads
+					// it again and says so, rather than leaving a row every retry is refused on (15).
+					if (answer.error?.code === 'AGENT_ACCESS_CHANGED') {
+						await this.read();
+						this.#say(
+							`${row.name}'s access changed elsewhere. It is shown as it is now; choose again.`
+						);
+						refocus();
+						return;
+					}
+					// Any other refusal about the record itself is stale state too: read again, then say why.
+					const stale =
+						answer.error?.code === 'AGENT_MEMBER_NOT_FOUND' ||
+						answer.error?.code === 'AGENT_DISCONNECTED_BY_OWNER' ||
+						answer.error?.code === 'PROJECT_NOT_FOUND';
+					if (answer.success || stale) await this.read();
+					this.#say(
+						answer.success && answer.data
+							? `${row.name} can act in: ${accessText(answer.data.access, names)}.`
+							: this.#failed(answer)
+					);
+					if (answer.success || stale) refocus();
+				},
+				{ 'data-agent': row.agent }
+			);
 			const disconnect = button(`Disconnect ${row.name}`, async () => {
 				const sure = await confirmIn(
 					this.shadowRoot as ShadowRoot,
@@ -561,13 +620,29 @@ export class LoamAccountSection extends AccountElement {
 				el('th', { scope: 'row' }, `${row.name} (name given by the app)`),
 				el('td', {}, row.clientHost || 'Registered by the deployer'),
 				el('td', {}, row.scopes.includes('loam:write') ? 'Read and change' : 'Read'),
+				el('td', {}, accessText(row.access, names)),
 				el('td', {}, dateText(row.connectedAt)),
 				el('td', {}, statusOf(row)),
-				el('td', {}, ...(removed ? ['Ask an owner to allow it again'] : [disconnect]))
+				el(
+					'td',
+					{},
+					...(removed
+						? ['Ask an owner to allow it again']
+						: [el('div', { class: 'row' }, ...(projects ? [change] : []), disconnect)])
+				)
 			);
 		});
 		return [
 			intro,
+			...(projects
+				? []
+				: [
+						el(
+							'p',
+							{ role: 'note' },
+							`Where your apps can act cannot be changed now. ${this.#failed(listed)}`
+						),
+					]),
 			el(
 				'table',
 				{},
@@ -581,6 +656,7 @@ export class LoamAccountSection extends AccountElement {
 						el('th', { scope: 'col' }, 'App'),
 						el('th', { scope: 'col' }, 'From'),
 						el('th', { scope: 'col' }, 'Access'),
+						el('th', { scope: 'col' }, 'Can act in'),
 						el('th', { scope: 'col' }, 'Connected'),
 						el('th', { scope: 'col' }, 'Status'),
 						el('th', { scope: 'col' }, 'Actions')

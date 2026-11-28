@@ -243,6 +243,7 @@ const SERVED: Record<string, string> = {
 		"9.2: the workspace's connected agents, to a member; scopes only for their own",
 	'/loam/connected-agents/disconnect': "5.3: the sponsor's own, never one an owner removed",
 	'/loam/connected-agents/remove': "9.2: an owner's, kept `suspended: 'owner'` or forgotten",
+	'/loam/connected-agents/update': "9.2: the sponsor's own access, never one an owner removed",
 };
 
 /**

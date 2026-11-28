@@ -432,6 +432,10 @@ describe('P3-E6: owners (7.1, 7.2)', () => {
 			'account-invitation-accept': { invitation: 'inv-1' },
 			'account-invitation-reject': { invitation: 'inv-1' },
 			'account-agent-disconnect': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
+			'account-agent-update': {
+				agent: 'agt_aaaaaaaaaaaaaaaaaaaa',
+				access: { workspace: true, projects: 'sponsor' },
+			},
 			'member-invite': { email: 'x@example.com', role: 'member' },
 			'member-invitation-cancel': { invitation: 'inv-2' },
 			'member-remove': { member: BEA },

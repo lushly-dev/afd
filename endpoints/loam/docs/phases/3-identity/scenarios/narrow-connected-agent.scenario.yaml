@@ -1,0 +1,76 @@
+# JTBD scenario for #2784 (phase 3 specification, 9.2: "unless its person narrowed it"), written before
+# `account-agent-update`. Not tagged `loam-runner`: it needs a hosted provider deployment with a connected
+# agent, which no seed holds. `identity/src/mcp-identity.test.ts` (P3-E8) runs these steps against a real
+# provider and server kernel: the person's calls through the person's kernel, and the steps marked
+# "[connected agent]" over MCP with that agent's token. The data is invented.
+name: Keep a connected agent to one project
+description: >-
+  When I connected an external agent for work in one project, I want to limit it to that project
+  myself, so that its next call anywhere else is refused, and I can widen it again when I choose.
+job: narrow-connected-agent
+steps:
+  - description: I find the agent I connected, with the access it has now
+    command: account-agent-list
+    input: {}
+    expect:
+      success: true
+      data:
+        agents:
+          '0':
+            name: Claude Code
+            access: { workspace: true, projects: sponsor }
+  - description: I limit it to Atlas, by its slug, and keep its workspace-wide work (reads and changes outside any project)
+    command: account-agent-update
+    input:
+      agent: "${{ steps[0].data.agents.0.agent }}"
+      access: { workspace: true, projects: [atlas] }
+    expect:
+      success: true
+      data:
+        access: { workspace: true, projects: [prj_atlas] }
+        previous: { workspace: true, projects: sponsor }
+  - description: "[connected agent] [scope: prj_atlas] It still works in Atlas"
+    command: project-get
+    input: { project: atlas }
+    expect:
+      success: true
+  - description: "[connected agent] [scope: prj_citadel] Its call in another project is refused, naming nothing"
+    command: project-get
+    input: { project: citadel }
+    expect:
+      success: false
+      error:
+        code: PROJECT_NOT_FOUND
+  - description: A project I cannot open is refused as a missing one, so I learn nothing of it
+    command: account-agent-update
+    input:
+      agent: "${{ steps[0].data.agents.0.agent }}"
+      access: { workspace: true, projects: [vault] }
+    expect:
+      success: false
+      error:
+        code: PROJECT_NOT_FOUND
+        suggestion: { contains: project-list }
+  - description: "[agent] No agent changes an agent's access, its own included (over MCP the command is not served)"
+    command: account-agent-update
+    input:
+      agent: "${{ steps[0].data.agents.0.agent }}"
+      access: { workspace: true, projects: sponsor }
+    expect:
+      success: false
+      error:
+        code: HUMAN_REQUIRED
+  - description: I widen it again to whatever I may open
+    command: account-agent-update
+    input:
+      agent: "${{ steps[0].data.agents.0.agent }}"
+      access: { workspace: true, projects: sponsor }
+    expect:
+      success: true
+      data:
+        access: { workspace: true, projects: sponsor }
+  - description: "[connected agent] [scope: prj_citadel] Its call in the other project works again"
+    command: project-get
+    input: { project: citadel }
+    expect:
+      success: true

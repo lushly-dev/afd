@@ -389,7 +389,7 @@ sequenceDiagram
   `notification-act`; `confirmation-get`, `confirmation-withdraw`;
   phase 3's identity commands (its [specification](phases/3-identity/spec.md), sections 4 to 8:
   `auth-sign-in` with passkeys; `session-list`, `session-revoke`; `account-get`, `account-update`,
-  `account-passkey-*`, `account-invitation-*`, `account-agent-list`, `account-agent-disconnect`;
+  `account-passkey-*`, `account-invitation-*`, `account-agent-list`, `account-agent-disconnect`, `account-agent-update`;
   `persona-list`, `persona-create`, `persona-update`, `persona-remove`, `persona-set`; `member-list`,
   `member-invite`, `member-invitation-list`, `member-invitation-cancel`, `member-remove`,
   `member-role-set`, `member-leave`; `agent-member-add`, `agent-member-list`, `agent-member-get`,

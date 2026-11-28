@@ -183,7 +183,8 @@ export const STYLES = `
 		line-height: var(--violet-type-body-line);
 		font-weight: var(--violet-type-body-weight);
 	}
-	input[type='checkbox'] {
+	input[type='checkbox'],
+	input[type='radio'] {
 		inline-size: var(--violet-size-target-compact);
 		block-size: var(--violet-size-target-compact);
 		min-block-size: var(--violet-size-target-compact);

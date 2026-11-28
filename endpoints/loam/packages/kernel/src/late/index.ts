@@ -455,6 +455,19 @@ export async function createLateParts(
 		identity: deps.identity,
 		kit: { ...DOCUMENT_KIT, personKey, isOwner },
 		membership: (context) => deps.scope.membershipOf(context),
+		// `account-agent-update`'s projects (9.2, #2784): one the call's person may enter, by id or slug, else none.
+		enterable: (ref, context) => {
+			const found = deps.scope.project(ref);
+			const person = personKey(context.actor as AccessActorV1);
+			return found &&
+				person !== undefined &&
+				deps.scope.allows(
+					{ kind: 'human', id: person },
+					{ workspace: deps.scope.workspace.id, project: found.id }
+				)
+				? found.id
+				: undefined;
+		},
 		gated: deps.gated === true,
 		agents: agentMembers,
 		// Step 5's persona, built below: what other members see, and the active persona's id (step 5's deviation 8).

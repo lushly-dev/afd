@@ -211,6 +211,135 @@ describe('P3-E20: the consent page (9.4)', () => {
 	});
 });
 
+describe("#2784: the agents tab changes a connected agent's access (9.2, 5.3)", () => {
+	it('#2784: Change access asks in a labelled dialog; "Only these projects" writes the ids, Escape changes nothing, and "Every project" widens it again', async () => {
+		// Bea's agent: the consent case above connects it; run alone, this case connects it itself, in a page of its own.
+		const connected = () =>
+			host()
+				.db()
+				.prepare('SELECT agentId FROM loam_connected_agent WHERE sponsor = ?')
+				.get(host().people['bea@example.com'] as string);
+		if (!connected()) {
+			const consent = (await signedIn('bea@example.com')).page;
+			await arrive(consent, 'consent');
+			const back = consent.waitForRequest((request) => request.url().startsWith(REDIRECT));
+			await consent.locator('loam-oauth-page button', { hasText: 'Connect' }).click();
+			await back;
+		}
+		expect(connected()).toBeTruthy();
+		const shell = await signedIn('bea@example.com');
+		const { page } = shell;
+		const atlas = (await kernelCall(page, 'project-create', { name: 'Atlas' })) as {
+			success: boolean;
+			data?: { id: string };
+		};
+		expect(atlas.success).toBe(true);
+		expect(
+			((await kernelCall(page, 'project-create', { name: 'Beacon' })) as { success: boolean })
+				.success
+		).toBe(true);
+		const access = () =>
+			JSON.parse(
+				(
+					host()
+						.db()
+						.prepare('SELECT access FROM loam_connected_agent WHERE sponsor = ?')
+						.get(host().people['bea@example.com'] as string) as { access: string }
+				).access
+			);
+		expect(access()).toEqual({ workspace: true, projects: 'sponsor' });
+		await kernelCall(page, 'section-open', { section: 'account', path: 'agents' });
+		const section = page.locator('loam-shell').locator('loam-main loam-account-section');
+		const cells = () => section.locator('td').allTextContents();
+		const whole = 'Every project you can open, and workspace-wide work';
+		await expect.poll(cells).toContain(whole);
+		const change = section.getByRole('button', { name: 'Change access for Claude Code' });
+		const dialog = section.getByRole('dialog', { name: 'Where can Claude Code act?' });
+
+		await change.click();
+		await dialog.waitFor();
+		// Focus starts on the choice that holds now; the project list is disabled until "Only these projects".
+		await expect
+			.poll(async () => {
+				const { tag, hosts } = await focused(page);
+				const id = await page.evaluate(() => {
+					let element: Element | null = document.activeElement;
+					while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+					return element?.id ?? '';
+				});
+				return [tag, hosts.at(-1), id];
+			})
+			.toEqual(['input', 'loam-account-section', 'access-all']);
+		await expect
+			.poll(() => dialog.getByRole('radio', { name: 'Every project you can open' }).isChecked())
+			.toBe(true);
+		expect(await dialog.getByRole('checkbox', { name: 'Atlas' }).isDisabled()).toBe(true);
+		expect(await axe(page)).toEqual([]);
+		await dialog.getByRole('radio', { name: 'Only these projects' }).check();
+		await dialog.getByRole('checkbox', { name: 'Atlas' }).check();
+		await dialog.getByRole('button', { name: 'Save access' }).click();
+		await expect
+			.poll(() => section.locator('.status').textContent())
+			.toBe('Claude Code can act in: Workspace-wide work, and only Atlas.');
+		// Focus returns to the row's Change access, built again by the read.
+		await expect
+			.poll(async () => (await focused(page)).label)
+			.toBe('Change access for Claude Code');
+		await expect.poll(cells).toContain('Workspace-wide work, and only Atlas');
+		expect(access()).toEqual({ workspace: true, projects: [atlas.data?.id] });
+
+		// Escape cancels: nothing is written.
+		await change.click();
+		await dialog.waitFor();
+		expect(await dialog.getByRole('checkbox', { name: 'Atlas' }).isChecked()).toBe(true);
+		await page.keyboard.press('Escape');
+		await expect.poll(() => dialog.count()).toBe(0);
+		expect(access()).toEqual({ workspace: true, projects: [atlas.data?.id] });
+
+		// Changed elsewhere while the dialog is open (another tab): Save is refused, nothing is written, and the tab
+		// reads it again and says so.
+		await change.click();
+		await dialog.getByRole('radio', { name: 'Every project you can open' }).check();
+		const elsewhere = (await kernelCall(page, 'account-agent-update', {
+			agent: (connected() as { agentId: string }).agentId,
+			access: { workspace: false, projects: [] },
+		})) as { success: boolean };
+		expect(elsewhere.success).toBe(true);
+		await dialog.getByRole('button', { name: 'Save access' }).click();
+		await expect
+			.poll(() => section.locator('.status').textContent())
+			.toBe("Claude Code's access changed elsewhere. It is shown as it is now; choose again.");
+		await expect.poll(cells).toContain('Nothing');
+		expect(access()).toEqual({ workspace: false, projects: [] });
+		await expect
+			.poll(async () => (await focused(page)).label)
+			.toBe('Change access for Claude Code');
+
+		await change.click();
+		await dialog.getByRole('radio', { name: 'Every project you can open' }).check();
+		await dialog.getByRole('checkbox', { name: /^Workspace-wide work too/ }).check();
+		await dialog.getByRole('button', { name: 'Save access' }).click();
+		await expect.poll(cells).toContain(whole);
+		expect(access()).toEqual({ workspace: true, projects: 'sponsor' });
+
+		// Disconnected elsewhere while the dialog is open: Save is refused, the tab reads again (the row is gone), and
+		// focus goes to the section's heading rather than to the page.
+		await change.click();
+		await dialog.getByRole('radio', { name: 'Every project you can open' }).check();
+		const gone = (await kernelCall(page, 'account-agent-disconnect', {
+			agent: (connected() as { agentId: string }).agentId,
+		})) as { success: boolean };
+		expect(gone.success).toBe(true);
+		await dialog.getByRole('button', { name: 'Save access' }).click();
+		await expect.poll(() => change.count()).toBe(0);
+		await expect.poll(async () => (await focused(page)).tag).toBe('h1');
+		expect(await section.locator('.status').textContent()).toMatch(/connected agent/i);
+		expect(await axe(page)).toEqual([]);
+		expect(shell.errors).toEqual([]);
+		expect(shell.violations).toEqual([]);
+	});
+});
+
 describe('P3-E11: the consent page by keyboard (9.4, 14)', () => {
 	it('P3-E11: focus starts on the heading; Tab reaches Connect, then Deny; Enter on Deny returns `access_denied`', async () => {
 		const { page } = await signedIn('cy@example.com');

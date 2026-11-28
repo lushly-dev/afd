@@ -11,6 +11,8 @@
  *   refresh tokens, so they may reconnect; an owner by `agent-member-remove`, which keeps the record as
  *   `suspended: 'owner'` so the person cannot simply reconnect it, or with `forget` deletes it. Its last access token
  *   lives out its 10 minutes (S86).
+ * - **Narrowing:** the person by `account-agent-update` (9.2, #2784), which writes the record's `access` and revokes
+ *   nothing: the next request reads the new record (9.5), and line 4 intersects it with the person's own access.
  * - **Ending a person's connections** (`revoke-person`'s `all`, recovery): their consents deleted and refresh tokens
  *   revoked, and on recovery their connected agents suspended (`disconnected`).
  */
@@ -85,10 +87,47 @@ export interface ConnectedAgentV1 {
 	createdAt: number;
 	updatedAt: number;
 	updatedBy: string;
+	/**
+	 * How many projects `access` names that this answer leaves out: the list endpoint names another person's agent's
+	 * projects to no one but its sponsor, since the provider cannot tell which projects a caller may see (#2784).
+	 */
+	withheldProjects?: number;
 }
 
 /** A connected agent's access unless its person narrowed it (9.2): whatever its person may enter. */
 export const CONNECTED_ACCESS = Object.freeze({ workspace: true, projects: 'sponsor' as const });
+
+/** Most projects a connected agent's `access` names, as the kernel's `AGENT_PROJECTS_MAX` (8.1). */
+export const CONNECTED_PROJECTS_MAX = 200;
+
+/** Two accesses alike: the same flag and the same projects, in any order. */
+function sameAccess(a: ConnectedAgentV1['access'], b: ConnectedAgentV1['access']): boolean {
+	if (a.workspace !== b.workspace) return false;
+	if (a.projects === 'sponsor' || b.projects === 'sponsor') return a.projects === b.projects;
+	const held = new Set(a.projects);
+	return held.size === new Set(b.projects).size && b.projects.every((id) => held.has(id));
+}
+
+/**
+ * `access` as a request gives it, or undefined when it is not `{ workspace: boolean; projects: string[] | 'sponsor' }`
+ * with at most {@link CONNECTED_PROJECTS_MAX} distinct ids of 1 to 256 characters. The kernel has resolved each one
+ * to a project its person may enter; one sent past it grants nothing, since line 4 intersects it with theirs.
+ */
+export function requestedAccess(value: unknown): ConnectedAgentV1['access'] | undefined {
+	const asked = value as { workspace?: unknown; projects?: unknown } | null | undefined;
+	if (typeof asked !== 'object' || asked === null || Array.isArray(asked)) return undefined;
+	if (Object.keys(asked).some((key) => key !== 'workspace' && key !== 'projects')) return undefined;
+	const { workspace, projects } = asked;
+	if (typeof workspace !== 'boolean') return undefined;
+	if (projects === 'sponsor') return { workspace, projects };
+	if (
+		!Array.isArray(projects) ||
+		projects.length > CONNECTED_PROJECTS_MAX ||
+		!projects.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 256)
+	)
+		return undefined;
+	return { workspace, projects: [...new Set(projects as string[])] };
+}
 
 type Where = { field: string; value: unknown; operator?: string }[];
 /** The slice of Better Auth's adapter these writes use. */
@@ -481,6 +520,13 @@ async function ownerOf(adapter: ConnectionAdapter, workspace: string, person: st
  * - `POST <path>/loam/connected-agents/disconnect { agent }`: the person's own, deleting the record, the client's
  *   consent and its refresh tokens (5.3). Another person's is `AGENT_MEMBER_SPONSOR_ONLY`, and one an owner removed
  *   `AGENT_DISCONNECTED_BY_OWNER`; nothing changes for either.
+ * - `POST <path>/loam/connected-agents/update { agent, access, previous? }`: the person's own (9.2, #2784), to a member:
+ *   its `access`, `updatedAt` and `updatedBy` written, no token revoked. The write is conditional on the record as read,
+ *   so an owner's removal or another change between the read and the write refuses it; and with `previous`, the access
+ *   the kernel read, a record that has changed since is `AGENT_ACCESS_CHANGED` (409). The kernel refuses an undo of a
+ *   change already replaced itself, by the access the undo expects. A non-member is `WORKSPACE_NOT_MEMBER`, another person's agent
+ *   `AGENT_MEMBER_SPONSOR_ONLY`, one an owner removed `AGENT_DISCONNECTED_BY_OWNER`, and a malformed `access` or
+ *   `previous` `VALIDATION_ERROR`; nothing changes for any of them.
  * - `POST <path>/loam/connected-agents/remove { agent, forget? }`: an owner's (9.2): the record kept as
  *   `suspended: 'owner'`, or deleted with `forget`, and its person's consent and refresh tokens for the client ended.
  *   A non-owner's is `OWNER_REQUIRED`, and nothing changes.
@@ -501,6 +547,11 @@ export function connectedAgentEndpoints(deps: { workspace: string }) {
 			'AGENT_MEMBER_NOT_FOUND',
 			'No connected agent with that id in this workspace'
 		);
+	const accessChanged = () =>
+		APIError.from('CONFLICT', {
+			code: 'AGENT_ACCESS_CHANGED',
+			message: "This agent's access changed since it was read. Read it again, then choose again",
+		});
 	return {
 		loamConnectedAgents: createAuthEndpoint(
 			'/loam/connected-agents',
@@ -510,11 +561,23 @@ export function connectedAgentEndpoints(deps: { workspace: string }) {
 				const person = ctx.context.session.user.id;
 				if (!(await membershipOf(adapter, deps.workspace, person))) throw notMember();
 				const rows = await connectedAgentRows(adapter, deps.workspace);
-				// The scopes a person approved are theirs to see; the kernel filters the rest for the caller (8.2).
+				// The scopes a person approved, and the projects they named (#2784), are theirs alone to see: the provider
+				// cannot tell which projects another member may see, so it names none and counts them (8.2).
 				return ctx.json({
 					agents: rows.map((row) => {
 						const agent = connectedAgentOf(row);
-						return row.sponsor === person ? agent : { ...agent, scopes: [] };
+						if (row.sponsor === person) return agent;
+						const { projects } = agent.access;
+						return {
+							...agent,
+							scopes: [],
+							...(projects === 'sponsor'
+								? {}
+								: {
+										access: { workspace: agent.access.workspace, projects: [] },
+										withheldProjects: projects.length,
+									}),
+						};
 					}),
 				});
 			}
@@ -544,6 +607,58 @@ export function connectedAgentEndpoints(deps: { workspace: string }) {
 					where: [{ field: 'id', value: row.id }],
 				});
 				return ctx.json({ disconnected: true });
+			}
+		),
+		loamConnectedAgentUpdate: createAuthEndpoint(
+			'/loam/connected-agents/update',
+			{ method: 'POST', use: [sessionMiddleware] },
+			async (ctx) => {
+				const adapter = ctx.context.adapter as unknown as ConnectionAdapter;
+				const person = ctx.context.session.user.id;
+				// A member alone, as the list: no one else learns whether an id is someone's agent.
+				if (!(await membershipOf(adapter, deps.workspace, person))) throw notMember();
+				const agent = named(ctx.body);
+				const body = (ctx.body ?? {}) as { access?: unknown; previous?: unknown };
+				const access = requestedAccess(body.access);
+				const previous = body.previous === undefined ? undefined : requestedAccess(body.previous);
+				if (!access || (body.previous !== undefined && !previous)) {
+					throw refusal(
+						'BAD_REQUEST',
+						'VALIDATION_ERROR',
+						`access and previous are { workspace: boolean; projects: string[] | "sponsor" }, naming up to ${CONNECTED_PROJECTS_MAX} projects`
+					);
+				}
+				const row = await rowById(adapter, deps.workspace, agent);
+				if (!row) throw notFound();
+				if (row.sponsor !== person) {
+					throw refusal(
+						'FORBIDDEN',
+						'AGENT_MEMBER_SPONSOR_ONLY',
+						'Only the person who connected this agent can change its access; an owner removes it from the members tab'
+					);
+				}
+				// An owner's removal stands as the owner left it (9.2): its sponsor changes nothing of it.
+				if (row.status === 'suspended' && row.suspended === 'owner') throw disconnectedByOwner();
+				if (previous && !sameAccess(previous, connectedAgentOf(row).access)) throw accessChanged();
+				const update = { access: JSON.stringify(access), updatedAt: new Date(), updatedBy: person };
+				// Only the record as read: an owner's removal, a disconnect or another change in between matches nothing.
+				const written = await adapter.update({
+					model: CONNECTED_AGENT_MODEL,
+					where: [
+						{ field: 'id', value: row.id },
+						{ field: 'access', value: row.access },
+						{ field: 'status', value: row.status },
+						...(row.status === 'suspended' ? [{ field: 'suspended', value: row.suspended }] : []),
+					],
+					update,
+				});
+				if (!written) {
+					const now = await rowById(adapter, deps.workspace, agent);
+					if (!now) throw notFound();
+					if (now.status === 'suspended' && now.suspended === 'owner') throw disconnectedByOwner();
+					throw accessChanged();
+				}
+				return ctx.json({ agent: connectedAgentOf({ ...row, ...update }) });
 			}
 		),
 		loamConnectedAgentRemove: createAuthEndpoint(

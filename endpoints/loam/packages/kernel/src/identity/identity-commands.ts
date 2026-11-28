@@ -42,6 +42,7 @@ export const HUMAN_COMMANDS: readonly string[] = Object.freeze([
 	'account-invitation-reject',
 	'account-agent-list',
 	'account-agent-disconnect',
+	'account-agent-update',
 	'session-list',
 	'session-revoke',
 	'persona-create',
