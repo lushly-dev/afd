@@ -23,7 +23,7 @@
 	"devDependencies": {
 		"@afd/example-todo-ts": "workspace:*",
 		"@lushly-dev/afd-testing": "workspace:*",
-		"@types/node": "^26.6.6",
+		"@types/node": "^26.6.10",
 		"axe-core": "4.14.0",
 		"playwright": "^1.64.1",
 		"typescript": "^7.0.2",

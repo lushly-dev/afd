@@ -60,15 +60,15 @@
 		"test:violet": "pnpm -F \"@lushly-dev/violet-cli...\" -F @lushly-dev/violet-runtime -F @lushly-dev/afd-core build && pnpm -F @lushly-dev/violet-core -F @lushly-dev/violet-afd test:db && node tests/consumers/violet/verify-artifacts.mjs"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.6.8",
+		"@biomejs/biome": "^2.6.9",
 		"@changesets/changelog-github": "^1.0.1",
 		"@changesets/cli": "^3.0.3",
 		"@commitlint/cli": "^21.2.4",
 		"@commitlint/config-conventional": "^21.2.4",
-		"@types/node": "^26.6.6",
+		"@types/node": "^26.6.10",
 		"@typescript/typescript6": "^6.0.2",
 		"@vitest/coverage-v8": "^5.1.1",
-		"knip": "^6.46.1",
+		"knip": "^6.48.0",
 		"lefthook": "^2.1.14",
 		"prettier": "^3.10.1",
 		"rimraf": "^6.1.4",

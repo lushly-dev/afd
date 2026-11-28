@@ -68,11 +68,11 @@
 		"@lushly-dev/violet-core": "workspace:^"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.6.8",
+		"@biomejs/biome": "^2.6.9",
 		"@lushly-dev/afd-testing": "workspace:^",
 		"@lushly-dev/violet-core": "workspace:^",
 		"@types/better-sqlite3": "^9.6.0",
-		"@types/node": "^26.6.6",
+		"@types/node": "^26.6.10",
 		"@types/pg": "^8.23.1",
 		"@types/ws": "^8.18.2",
 		"@vitest/coverage-v8": "^5.1.1",

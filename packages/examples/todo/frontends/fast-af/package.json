@@ -20,7 +20,7 @@
 	},
 	"devDependencies": {
 		"@afd/example-todo-ts": "workspace:*",
-		"@types/node": "^26.6.6",
+		"@types/node": "^26.6.10",
 		"typescript": "^7.0.2",
 		"vite": "^8.3.0",
 		"vitest": "^5.1.1"

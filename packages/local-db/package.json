@@ -62,7 +62,7 @@
 	},
 	"sideEffects": false,
 	"devDependencies": {
-		"@types/node": "^26.6.6",
+		"@types/node": "^26.6.10",
 		"@vitest/coverage-v8": "^5.1.1",
 		"fake-indexeddb": "^6.2.8",
 		"rimraf": "^6.1.4",

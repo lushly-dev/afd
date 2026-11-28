@@ -57,7 +57,7 @@
 	"devDependencies": {
 		"@lushly-dev/afd-core": "workspace:*",
 		"@lushly-dev/specimen": "workspace:*",
-		"@types/node": "^26.6.6",
+		"@types/node": "^26.6.10",
 		"@vitest/coverage-v8": "^5.1.1",
 		"rimraf": "^6.1.4",
 		"typescript": "^7.0.2",
