@@ -172,6 +172,10 @@ const adapter = useConvexAuthAdapter({
 });
 ```
 
+The adapter supports `@convex-dev/auth` from 0.0.95 up to, not including, 2.0. Version 2 replaced
+`useAuthActions().signIn` with a hook per sign-in method, so the adapter cannot
+sign in with it yet (#3006).
+
 - Credentials sign-in calls `signIn(passwordProviderId, { email, password, flow: 'signIn' })`.
   A missing password is rejected with `INVALID_CREDENTIALS`.
 - OAuth sign-in forwards `redirectTo`. `scopes` are rejected with
