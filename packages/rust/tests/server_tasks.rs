@@ -1481,6 +1481,99 @@ async fn the_store_is_given_the_call_it_records_a_task_for() {
     );
 }
 
+/// A store that refuses a `tasks/*` caller of its own accord (a host's own check, such as whether
+/// the caller may still read the task's space), recording each caller's actor.
+#[derive(Default)]
+struct ChecksCallers {
+    inner: InMemoryTaskStore,
+    refuse: std::sync::atomic::AtomicBool,
+    callers: Mutex<Vec<SeenCaller>>,
+}
+
+/// A caller as [`ChecksCallers`] saw it: its actor id, its credentials' subject and the hook's
+/// `x-host` value.
+type SeenCaller = (Option<String>, Option<String>, Option<Value>);
+
+#[async_trait]
+impl TaskStore for ChecksCallers {
+    async fn create(&self, record: TaskRecord) -> Result<(), TaskStoreError> {
+        self.inner.create(record).await
+    }
+    async fn get(&self, id: &str, owner: &TaskOwner) -> Result<Option<TaskRecord>, TaskStoreError> {
+        self.inner.get(id, owner).await
+    }
+    async fn get_for(
+        &self,
+        id: &str,
+        owner: &TaskOwner,
+        caller: &CommandContext,
+    ) -> Result<Option<TaskRecord>, TaskStoreError> {
+        self.callers.lock().unwrap().push((
+            caller.actor.as_ref().and_then(|actor| actor.id.clone()),
+            caller
+                .credentials
+                .as_ref()
+                .map(|credentials| credentials.subject.clone()),
+            caller.extra.get("x-host").cloned(),
+        ));
+        if self.refuse.load(std::sync::atomic::Ordering::SeqCst) {
+            return Ok(None);
+        }
+        self.inner.get(id, owner).await
+    }
+    async fn update(
+        &self,
+        id: &str,
+        owner: &TaskOwner,
+        change: TaskChange,
+    ) -> Result<(), TaskStoreError> {
+        self.inner.update(id, owner, change).await
+    }
+    async fn expire(&self, now: i64) -> Result<u64, TaskStoreError> {
+        self.inner.expire(now).await
+    }
+}
+
+#[tokio::test]
+async fn a_store_sees_each_tasks_caller_and_may_refuse_one_as_an_unknown_task() {
+    // #3011: `tasks/get`, `tasks/update` and `tasks/cancel` reach the store's `get_for` with the
+    // caller's context, as the context hook built it.
+    let fixture = fixture();
+    let store = Arc::new(ChecksCallers::default());
+    let server = fixture.hooked().with_task_store(Arc::clone(&store));
+    let owner: &[(&str, &str)] = &[("x-actor", "a1")];
+    let id = created(
+        &send(
+            &server,
+            "tools/call",
+            call("job-echo", json!({})),
+            true,
+            owner,
+        )
+        .await,
+    );
+    assert_eq!(
+        settle_over_http(&server, &id, owner).await["result"]["status"],
+        "completed"
+    );
+    let callers = store.callers.lock().unwrap().clone();
+    assert!(!callers.is_empty());
+    assert!(callers
+        .iter()
+        .all(|(actor, _, _)| actor.as_deref() == Some("a1")));
+    // Refused by the store, the owner's own task is an unknown task on every method.
+    store
+        .refuse
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    for method in ["tasks/get", "tasks/update", "tasks/cancel"] {
+        let mut params = task(&id);
+        if method == "tasks/update" {
+            params["inputResponses"] = json!({});
+        }
+        assert_unknown(&send(&server, method, params, true, owner).await);
+    }
+}
+
 #[test]
 fn a_failure_result_is_the_call_tool_result_of_an_inline_failure() {
     let error = CommandError::new("TASK_LOST", "Lost")
@@ -2771,6 +2864,42 @@ mod authorized {
             settle_admitted(&server, &auth, &base(), &id).await["result"]["status"],
             "completed"
         );
+    }
+
+    #[tokio::test]
+    async fn a_store_sees_the_verified_credentials_whatever_the_hook_did() {
+        // #3011: as on `tools/call`, only the server sets credentials. A hook that drops them still
+        // leaves the store the verified ones, beside what the hook set.
+        let fixture = fixture();
+        let auth = authorization();
+        let store = Arc::new(ChecksCallers::default());
+        let server = authorized(&fixture, &auth)
+            .with_task_store(Arc::clone(&store))
+            .with_context_hook(|_request, context| async move {
+                let mut context = context.with_extra("x-host", json!("kept"));
+                context.credentials = None;
+                Ok(context)
+            });
+        let id = created(
+            &admitted(
+                &server,
+                &auth,
+                base(),
+                "tools/call",
+                call("job-must", json!({})),
+            )
+            .await,
+        );
+        assert_eq!(
+            settle_admitted(&server, &auth, &base(), &id).await["result"]["status"],
+            "completed"
+        );
+        let callers = store.callers.lock().unwrap().clone();
+        assert!(!callers.is_empty());
+        for (_, subject, host) in callers {
+            assert_eq!(subject.as_deref(), Some("user-1"));
+            assert_eq!(host, Some(json!("kept")));
+        }
     }
 
     #[tokio::test]

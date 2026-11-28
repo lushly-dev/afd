@@ -127,9 +127,25 @@ cancellation; a finished task is unchanged. `Mcp-Name` carries the task id on St
 TaskStore
     create(record)                      // durable before it returns
     get(id, owner) -> record | none     // none when the owner differs
+    get_for(id, owner, caller)          // optional; default get
+        -> record | none
     update(id, owner, change)
     expire(now) -> count                // removes tasks past their ttl
 ```
+
+For a `tasks/get`, `tasks/update` or `tasks/cancel` request the server calls `get_for` with the
+`caller`: the context that request runs with (its actor, verified credentials and whatever the
+context hook set). A host's store may apply a check of its own to that caller, such as whether it
+may still read the space the task ran in, and returns none to refuse; the server answers that as
+an unknown task, as it does for a task whose command is hidden from its owner (M6, "Hidden
+commands") ([#3011](https://github.com/lushly-dev/afd/issues/3011)). The checks above still run
+whatever the store returns. `tasks/cancel` goes through `get_for` too: its answer differs for a
+known task and an unknown one, so a caller the store refuses could otherwise still learn that its
+task exists (the store is not told the method; a host that wants cancel exempt can have its context
+hook pass the method on). The context carries the credentials the server verified, never ones the
+context hook changed, and the actor the owner binding was made from. Without `get_for` the server
+calls `get`. (Rust: a `TaskStore` method with that default; TypeScript: an optional `getFor`;
+Python: an optional `get_for`.)
 
 The default store is in memory and serves one process, and it is bounded so that one principal
 cannot exhaust it: a store may refuse a new task when its owner, or the store, holds as many as it

@@ -220,6 +220,24 @@ function missingTasksCapability(): ProtocolError {
 	);
 }
 
+/**
+ * A request-local copy of the actor: its declared fields (`kind`, `id`, `label`, `onBehalfOf`) and
+ * every other enumerable field a host put on it (a workspace id, say), each read exactly once. A
+ * spread alone would drop a field a class exposes through a getter, and so change the principal
+ * binding the copy is made for (#3011). Declared fields left undefined are left out.
+ */
+function snapshotActor(actor: Actor): Actor {
+	// One destructuring: each field, a getter's included, is read once, and the rest are kept.
+	const { kind, id, label, onBehalfOf, ...extra } = actor as Actor & Record<string, unknown>;
+	return {
+		...extra,
+		kind,
+		...(id !== undefined ? { id } : {}),
+		...(label !== undefined ? { label } : {}),
+		...(onBehalfOf !== undefined ? { onBehalfOf } : {}),
+	} as Actor;
+}
+
 function taskNotFound(): ProtocolError {
 	return new ProtocolError(ProtocolErrorCode.InvalidParams, 'Task not found');
 }
@@ -557,7 +575,7 @@ export class TaskRuntime {
 
 		const resolveCaller = async (
 			ctx: ServerContext
-		): Promise<{ owner: string; view: ScopeView | undefined }> => {
+		): Promise<{ owner: string; view: ScopeView | undefined; context: CommandContext }> => {
 			if (!requestDeclaresTasks(opts.era, ctx)) {
 				throw missingTasksCapability();
 			}
@@ -577,7 +595,10 @@ export class TaskRuntime {
 			} catch (error) {
 				throw opts.internalError(error);
 			}
-			const actor = (values.actor ?? this.actor) as Actor | undefined;
+			// A request-local copy, taken before the binding: the store's `getFor` then sees the
+			// actor the binding was made from, whatever later happens to a shared one.
+			const shared = (values.actor ?? this.actor) as Actor | undefined;
+			const actor = shared ? snapshotActor(shared) : undefined;
 			const credentials = (view?.credentials ?? values.credentials) as
 				| PrincipalCredentials
 				| undefined;
@@ -587,18 +608,22 @@ export class TaskRuntime {
 			} catch {
 				throw internalRpcError();
 			}
-			return { owner, view };
+			// The context the caller's request runs with, which the store's `getFor` receives.
+			const context = { ...values, actor, credentials } as CommandContext;
+			return { owner, view, context };
 		};
 
 		const findTask = async (
-			caller: { owner: string; view: ScopeView | undefined },
+			caller: { owner: string; view: ScopeView | undefined; context: CommandContext },
 			taskId: string,
 			needsCommand: boolean
 		): Promise<TaskRecord> => {
 			if (!isTaskId(taskId)) throw taskNotFound();
 			let record: TaskRecord | undefined;
 			try {
-				record = await this.store.get(taskId, caller.owner);
+				record = this.store.getFor
+					? await this.store.getFor(taskId, caller.owner, caller.context)
+					: await this.store.get(taskId, caller.owner);
 			} catch {
 				throw internalRpcError();
 			}

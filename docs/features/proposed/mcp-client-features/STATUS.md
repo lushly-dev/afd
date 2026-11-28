@@ -100,6 +100,7 @@ recorded them on 2026-11-27:
 | 2026-11-24 | `#2498` second review | Epic [#2497](https://github.com/lushly-dev/afd/issues/2497)'s body lists Enterprise Managed Auth as tracked under `#1552`, which lists it as out of scope; correct the epic body or file an issue if Enterprise Managed Auth enters scope | Open |
 | 2026-11-27 | `#2506` spec review (Claude, Gemini 4 Neon) | No test in TypeScript, Python or Rust reads a finished task with a later token of the same principal after the starting token expired, with the token-expiry cap off, though the spec now promises it; add one per language (the nearest are `packages/server/src/tasks.test.ts` "enforces auth scopes...", `packages/rust/tests/server_tasks.rs` `the_owner_is_the_issuer_subject_and_client`, `python/tests/test_tasks.py`) | Open |
 | 2026-11-27 | `#2506` spec review (Claude) | `packages/rust/README.md`'s tasks example sets `.with_ttl_capped_at_token_expiry(0)` as if typical; mark it optional with the Umbel follow-up, which touches the Rust and Umbel suites anyway | Open |
+| 2026-11-28 | `#3011` review (GPT-6.2 Astra) | TypeScript's `withContextDefaults` (`packages/server`) copies the actor with an object spread, which drops a getter-backed `id`, when a task command runs; the owner is recorded before it, so the store's lookup is unaffected, but the command sees a different actor. Copy it as `snapshotActor` in `tasks-runtime.ts` does | Open |
 
 ## Session log
 

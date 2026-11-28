@@ -1113,6 +1113,52 @@ async def test_removed_command_in_shared_store_answers_unknown_task():
             assert exc_info.value.code == -32602
 
 
+async def test_a_store_sees_each_tasks_caller_and_may_refuse_one_as_unknown():
+    # #3011: tasks/get, tasks/update and tasks/cancel reach the store's get_for with the context
+    # of the caller's request.
+    callers: list[CommandContext] = []
+    refuse = False
+    bob = Actor(kind="human", id="bob")
+
+    class ChecksCallers(InMemoryTaskStore):
+        async def get_for(self, task_id: str, owner: str, caller: CommandContext):
+            callers.append(caller)
+            return None if refuse else await self.get(task_id, owner)
+
+    server = create_server(
+        "checks-callers",
+        tool_strategy="individual",
+        task_store=ChecksCallers(),
+        task_options=TaskOptions(poll_interval_ms=10, check_interval_ms=10),
+        actor=bob,
+    )
+
+    @server.command(name="job-echo", description="Echo", expose=MCP, task="required")
+    async def job_echo(input: Any) -> CommandResult[Any]:
+        return success({"ok": True})
+
+    sdk = server._create_mcp_server()
+    async with Client(sdk, extensions=[_tasks_extension()]) as client:
+        seed = await client.session.call_tool("job-echo", {}, allow_claimed=True)
+        done = await _poll_until_done(client, seed.task_id)
+        assert done.status == "completed"
+        assert callers
+        for caller in callers:
+            # The actor the binding was made from, as a copy of the server's own; and on stdio
+            # no credentials, since nothing verified any.
+            assert caller.actor == bob and caller.actor is not bob
+            assert caller.credentials is None
+        refuse = True
+        for req in (
+            _GetTaskRequest(params=_TaskIdParams(taskId=seed.task_id)),
+            _UpdateTaskRequest(params=_UpdateTaskParams(taskId=seed.task_id)),
+            _CancelTaskRequest(params=_TaskIdParams(taskId=seed.task_id)),
+        ):
+            with pytest.raises(MCPError) as exc_info:
+                await client.session.send_request(req, Result)
+            assert exc_info.value.code == -32602
+
+
 async def test_http_mcp_name_mismatch_and_discover_cache_hint_and_hook_guards():
     class CallerMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request, call_next):

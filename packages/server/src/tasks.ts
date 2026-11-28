@@ -209,6 +209,15 @@ export interface TaskCall {
 export interface TaskStore {
 	create(record: TaskRecord, call: TaskCall): Promise<void>;
 	get(id: string, owner: string): Promise<TaskRecord | undefined>;
+	/**
+	 * Optional: the task `id` for the caller of a `tasks/get`, `tasks/update` or `tasks/cancel`
+	 * request, as `get` finds it, with the context the caller's request runs with (its actor,
+	 * verified credentials and the context hook's values). A host's store implements it to apply a
+	 * check of its own to that caller, such as whether it may still read the task's space, and
+	 * resolves `undefined` to refuse, which the server answers as an unknown task
+	 * (`spec/tasks.md`). Without it the server calls `get`.
+	 */
+	getFor?(id: string, owner: string, caller: CommandContext): Promise<TaskRecord | undefined>;
 	update(id: string, owner: string, change: TaskChange): Promise<void>;
 	expire(now: number): Promise<number>;
 	/** Optional lease renewal called periodically by the runner while the task executes. */

@@ -519,6 +519,25 @@ pub trait TaskStore: Send + Sync {
     /// The task `id` when `owner` owns it; `None` otherwise.
     async fn get(&self, id: &str, owner: &TaskOwner) -> Result<Option<TaskRecord>, TaskStoreError>;
 
+    /// The task `id` for the caller of a `tasks/get`, `tasks/update` or `tasks/cancel` request,
+    /// as [`Self::get`] finds it: the method the server calls for those requests, with the
+    /// context the caller's request runs with (its actor, verified credentials and whatever the
+    /// context hook set). A host's store overrides it to apply a check of its own to that caller,
+    /// such as whether it may still read the task's space, and returns `None` to refuse, which
+    /// the server answers as an unknown task (`spec/tasks.md`). The default ignores the caller.
+    /// The context carries the verified credentials the owner binding used, never ones a context
+    /// hook changed. A store that wraps another must forward this method, as the `Arc<T>` impl
+    /// does, or the inner store's check is lost.
+    async fn get_for(
+        &self,
+        id: &str,
+        owner: &TaskOwner,
+        caller: &CommandContext,
+    ) -> Result<Option<TaskRecord>, TaskStoreError> {
+        let _ = caller;
+        self.get(id, owner).await
+    }
+
     /// Apply `change` to the task `id` when `owner` owns it and it is working.
     async fn update(
         &self,
@@ -559,6 +578,15 @@ impl<T: TaskStore + ?Sized> TaskStore for std::sync::Arc<T> {
 
     async fn get(&self, id: &str, owner: &TaskOwner) -> Result<Option<TaskRecord>, TaskStoreError> {
         (**self).get(id, owner).await
+    }
+
+    async fn get_for(
+        &self,
+        id: &str,
+        owner: &TaskOwner,
+        caller: &CommandContext,
+    ) -> Result<Option<TaskRecord>, TaskStoreError> {
+        (**self).get_for(id, owner, caller).await
     }
 
     async fn update(

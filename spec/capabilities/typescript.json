@@ -587,7 +587,7 @@
 		},
 		"mcp.tasks": {
 			"status": "yes",
-			"note": "([#1971](https://github.com/lushly-dev/afd/issues/1971)): `task?: TaskSupport`, `TaskStore`, `InMemoryTaskStore`, `TaskOptions`, `tasks/*`, `McpClient({ tasks: true })`, todo `--suite tasks`",
+			"note": "([#1971](https://github.com/lushly-dev/afd/issues/1971)): `task?: TaskSupport`, `TaskStore` (an optional `getFor` sees each `tasks/*` caller, #3011), `InMemoryTaskStore`, `TaskOptions`, `tasks/*`, `McpClient({ tasks: true })`, todo `--suite tasks`",
 			"views": {
 				"command-metadata": "([#1971](https://github.com/lushly-dev/afd/issues/1971): `TaskSupport`, `TaskStore`, `InMemoryTaskStore` (32/owner, 256 total), `taskStore`/`taskOptions`, `CommandContext.reportProgress`, `McpClient({ tasks: true })`; `tasks.test.ts`, `tasks-client.test.ts`, todo `--suite tasks`)",
 				"pc-tasks": "(`packages/server/src/tasks.test.ts`, `tasks-client.test.ts`, todo `--suite tasks`; [#1971](https://github.com/lushly-dev/afd/issues/1971))"

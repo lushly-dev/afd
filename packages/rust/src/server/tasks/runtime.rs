@@ -243,6 +243,8 @@ impl TaskRuntime {
 struct Caller {
     owner: TaskOwner,
     credentials: Option<Arc<Credentials>>,
+    /// The context the caller's request runs with, which the store's `get_for` receives.
+    context: CommandContext,
 }
 
 /// A context hook's refusal of a `tasks/*` request, as a JSON-RPC error: only the fields a
@@ -484,9 +486,14 @@ impl McpServer {
         else {
             return Err(internal());
         };
+        // Only the server sets credentials, as on `tools/call`: the store's context carries the
+        // verified ones the owner binding used, whatever the hook did with them.
+        let mut context = base;
+        context.credentials = credentials.clone();
         Ok(Caller {
             owner: TaskOwner::from_binding(binding),
             credentials,
+            context,
         })
     }
 
@@ -502,14 +509,16 @@ impl McpServer {
         if !is_task_id(id) {
             return Err(task_not_found());
         }
-        let now = self.task_clock().now();
         let found = self
             .inner
             .tasks
             .store
-            .get(id, &caller.owner)
+            .get_for(id, &caller.owner, &caller.context)
             .await
             .map_err(|_| internal())?;
+        // Read after the store answered, so a task that expired while a host's store checked
+        // its caller is not returned.
+        let now = self.task_clock().now();
         // The owner check again, whatever the store did, and the TTL, whether or not the store
         // purged.
         let record = match found {

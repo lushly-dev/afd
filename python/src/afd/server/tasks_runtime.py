@@ -14,7 +14,7 @@ from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from afd.core.actor import Actor
 from afd.core.clock import Clock, system_clock
@@ -960,7 +960,7 @@ class TaskRuntime:
 
     async def _resolve_caller(
         self, method: str, ctx: Any, task_id: str
-    ) -> tuple[str, ScopeView | None]:
+    ) -> tuple[str, ScopeView | None, CommandContext]:
         from mcp import MCPError
         from mcp_types import INTERNAL_ERROR, INVALID_REQUEST
 
@@ -990,7 +990,7 @@ class TaskRuntime:
         default_actor = (
             credentials_actor(admitted)
             if admitted is not None
-            else (self._actor or Actor(kind="agent"))
+            else copy.copy(self._actor or Actor(kind="agent"))
         )
         if self._run_context_hook is not None:
             outcome = await self._run_context_hook(method, ctx)
@@ -1008,15 +1008,25 @@ class TaskRuntime:
                     data=data,
                 )
             actor = outcome.actor_at_start if outcome.actor_at_start is not None else default_actor
+            hooked = outcome.context
         else:
             actor = default_actor
+            hooked = None
 
         try:
             credentials = admitted if admitted is not None else sdk_credentials()
-            return principal_binding(actor, credentials), view
+            owner = principal_binding(actor, credentials)
         except (IncompleteCredentials, TypeError):
             logger.warning("refusing %s: incomplete credentials", method)
             raise _internal_rpc_error() from None
+        # The context the caller's request runs with, which the store's ``get_for`` receives:
+        # the actor the binding was made from, and only the credentials the server verified itself
+        # (``afd.server.Credentials``), never the SDK path's bare identity, which binds the owner
+        # but is not one.
+        context = copy.copy(hooked) if hooked is not None else CommandContext()
+        context.actor = actor
+        context.credentials = admitted
+        return owner, view, context
 
     async def _find_task(
         self,
@@ -1025,11 +1035,17 @@ class TaskRuntime:
         task_id: str,
         *,
         needs_command: bool,
+        caller: CommandContext | None = None,
     ) -> TaskRecord:
         if not is_task_id(task_id):
             raise _task_not_found()
         try:
-            record = await self.store.get(task_id, owner)
+            get_for = getattr(self.store, "get_for", None)
+            record: TaskRecord | None
+            if callable(get_for) and caller is not None:
+                record = cast("TaskRecord | None", await get_for(task_id, owner, caller))
+            else:
+                record = await self.store.get(task_id, owner)
         except Exception:
             raise _internal_rpc_error() from None
         now = int(self._clock.now())
@@ -1063,22 +1079,26 @@ class TaskRuntime:
         return record
 
     async def handle_get(self, ctx: Any, params: Any) -> Any:
-        owner, view = await self._resolve_caller("tasks/get", ctx, params.task_id)
-        record = await self._find_task(owner, view, params.task_id, needs_command=True)
+        owner, view, caller = await self._resolve_caller("tasks/get", ctx, params.task_id)
+        record = await self._find_task(
+            owner, view, params.task_id, needs_command=True, caller=caller
+        )
         return _wire_detailed_task(record)
 
     async def handle_update(self, ctx: Any, params: Any) -> Any:
         from mcp_types import EmptyResult
 
-        owner, view = await self._resolve_caller("tasks/update", ctx, params.task_id)
-        await self._find_task(owner, view, params.task_id, needs_command=True)
+        owner, view, caller = await self._resolve_caller("tasks/update", ctx, params.task_id)
+        await self._find_task(owner, view, params.task_id, needs_command=True, caller=caller)
         return EmptyResult()
 
     async def handle_cancel(self, ctx: Any, params: Any) -> Any:
         from mcp_types import EmptyResult
 
-        owner, view = await self._resolve_caller("tasks/cancel", ctx, params.task_id)
-        record = await self._find_task(owner, view, params.task_id, needs_command=False)
+        owner, view, caller = await self._resolve_caller("tasks/cancel", ctx, params.task_id)
+        record = await self._find_task(
+            owner, view, params.task_id, needs_command=False, caller=caller
+        )
         if is_terminal_task_status(record.status):
             running = self._running.get(record.id)
             if running is not None:

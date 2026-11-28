@@ -547,7 +547,7 @@
 		},
 		"mcp.tasks": {
 			"status": "yes",
-			"note": "(Umbel phase 5 step 0e): `CommandDefinition::with_task(TaskSupport)`, `afd::server::tasks` (`TaskStore`, `InMemoryTaskStore`, `TaskOptions`), principal-binding owner checks, caller guard, `TASK_TOKEN_EXPIRED`, `report_progress` and `cancellation`, todo `--suite tasks`",
+			"note": "(Umbel phase 5 step 0e): `CommandDefinition::with_task(TaskSupport)`, `afd::server::tasks` (`TaskStore`, whose `get_for` sees each `tasks/*` caller, #3011; `InMemoryTaskStore`, `TaskOptions`), principal-binding owner checks, caller guard, `TASK_TOKEN_EXPIRED`, `report_progress` and `cancellation`, todo `--suite tasks`",
 			"views": {
 				"command-metadata": "(Umbel phase 5 step 0e: `CommandDefinition::with_task(TaskSupport)`, `afd::server::tasks` (`TaskStore`, `InMemoryTaskStore` 32/owner, 256 total), `with_task_store`/`with_task_options`, `report_progress` and `cancellation`; `tests/server_tasks.rs`, todo `--suite tasks`)",
 				"pc-tasks": "(`server_tasks.rs`, step 0e: Streamable HTTP with and without bearer layer, and stdio; todo `--suite tasks`)"
