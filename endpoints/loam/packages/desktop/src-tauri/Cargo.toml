@@ -38,10 +38,10 @@ percent-encoding = "2"
 # The inbound endpoint (phase 6 specification, 10.8) and pre-bearer verified loopback mounts (phase 5
 # no-terminal amendment, 5.2): HTTP/1.1 on loopback, at the versions `reqwest` already locks;
 # the per-run token and proof nonces from the operating system's random source.
-hyper = { version = "=1.12.0", features = ["server", "client", "http1"] }
+hyper = { version = "=1.13.0", features = ["server", "client", "http1"] }
 hyper-util = { version = "=0.1.21", features = ["tokio"] }
 http-body-util = "=0.1.5"
-bytes = "=1.12.1"
+bytes = "=1.12.2"
 getrandom = "=0.3.4"
 # The headless materializer's projection `generation` (phase 5 no-terminal amendment, 9.2), and
 # constant-time HMAC-SHA256 for pre-bearer `/health` proof verification (5.2), at the versions `Cargo.lock`
@@ -51,7 +51,7 @@ hmac = "=0.13.0"
 # Canonical `.loam-plugin` archive inspection (phase 5 no-terminal amendment, 4.4 & 7.1): raw deflate
 # inflation, CRC-32, and Unicode NFC/NFKC/GeneralCategory parity with `@lushly-dev/loam-manifest`,
 # all at the exact versions `Cargo.lock` already pins.
-crc32fast = "=1.5.5"
+crc32fast = "=1.5.6"
 flate2 = { version = "=1.1.11", default-features = false, features = ["rust_backend"] }
 icu_normalizer = { version = "=2.4.0", default-features = false, features = ["compiled_data"] }
 icu_properties = { version = "=2.4.0", default-features = false, features = ["compiled_data"] }
@@ -67,7 +67,7 @@ libc = "0.2"
 # instead of spawning `/usr/bin/security`, at the exact versions `loam-mail` and `Cargo.lock` already pin.
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { version = "=1.0.2", default-features = false, features = ["keychain"] }
-keyring-core = "=1.0.1"
+keyring-core = "=1.1.0"
 security-framework = "=3.7.0"
 
 # A copilot provider's key from the Credential Manager (phase 5 specification, 4.2), owner-only ACL checks on open
