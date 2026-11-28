@@ -1619,25 +1619,29 @@
 						"id": "typescript",
 						"name": "TypeScript",
 						"path": "packages",
-						"units": ["afd-npm"]
+						"units": ["afd-npm"],
+						"summary": "The reference library: commands, an MCP server, a CLI and an in-process client, as nine npm packages."
 					},
 					{
 						"id": "python",
 						"name": "Python",
 						"path": "python",
-						"units": ["afd-python", "afd-python-changes"]
+						"units": ["afd-python", "afd-python-changes"],
+						"summary": "The `afd` package: commands, an MCP server and a CLI, on the same contract."
 					},
 					{
 						"id": "rust",
 						"name": "Rust",
 						"path": "packages/rust",
-						"units": ["afd-rust", "afd-rust-changes"]
+						"units": ["afd-rust", "afd-rust-changes"],
+						"summary": "The `afd` crate: commands, an optional MCP server, and a build for WebAssembly."
 					},
 					{
 						"id": "cpp",
 						"name": "C++",
 						"path": "packages/cpp",
-						"units": ["afd-cpp"]
+						"units": ["afd-cpp"],
+						"summary": "A C++20 library for running commands inside an application, engine or tool."
 					}
 				]
 			},
@@ -1650,21 +1654,54 @@
 						"name": "Violet",
 						"path": "foundations/violet",
 						"families": ["violet"],
-						"standalone": true
+						"standalone": true,
+						"summary": "A design token engine. Tokens live on a tree; each node inherits, overrides or removes, and one source exports to CSS, Swift, Kotlin and more.",
+						"site": {
+							"dev": {
+								"page": "violet/",
+								"action": "Open the terminal"
+							},
+							"design": {
+								"page": "design/violet/",
+								"action": "Try the tree"
+							}
+						}
 					},
 					{
 						"id": "fast-af",
 						"name": "FAST-AF",
 						"path": "foundations/fast-af",
 						"families": ["fast-af", "violet-elements"],
-						"standalone": true
+						"standalone": true,
+						"summary": "A web component runtime and the component library built on it, `violet-elements`. The library is part of FAST-AF; it takes its look from Violet tokens. Each component has a record an agent reads before using it.",
+						"site": {
+							"dev": {
+								"page": "fast-af/",
+								"action": "See every component"
+							},
+							"design": {
+								"page": "fast-af/",
+								"action": "See every component"
+							}
+						}
 					},
 					{
 						"id": "specimen",
 						"name": "Specimen",
 						"path": "foundations/specimen",
 						"families": ["specimen"],
-						"standalone": true
+						"standalone": true,
+						"summary": "A component bench. It renders in Chromium and records what actually happened, so two versions are compared on evidence.",
+						"site": {
+							"dev": {
+								"page": "specimen/",
+								"action": "Compare two captures"
+							},
+							"design": {
+								"page": "design/specimen/",
+								"action": "Compare two versions"
+							}
+						}
 					}
 				]
 			},
@@ -1676,19 +1713,42 @@
 						"id": "umbel",
 						"name": "Umbel",
 						"path": "endpoints/umbel",
-						"families": ["umbel"]
+						"families": ["umbel"],
+						"summary": "A server you run for agents, built from plugins: knowledge, memory and your own commands, over MCP and a command line, with every answer traced to its source.",
+						"site": {
+							"dev": {
+								"page": "umbel/",
+								"action": "See a real run"
+							},
+							"design": {
+								"page": "design/umbel/",
+								"action": "Read a real answer"
+							}
+						}
 					},
 					{
 						"id": "loam",
 						"name": "Loam",
 						"path": "endpoints/loam",
-						"families": ["loam"]
+						"families": ["loam"],
+						"summary": "An application shell. Apps land in one chrome as plugins, and the shell's own state is commands, so agents drive it the way people do."
 					},
 					{
 						"id": "botcore",
 						"name": "Botcore",
 						"path": "endpoints/botcore",
-						"families": ["botcore"]
+						"families": ["botcore"],
+						"summary": "A Python package of developer tooling. A repository installs it so its coding agent gets the same lint, test and skill commands as every other repository.",
+						"site": {
+							"dev": {
+								"page": "botcore/",
+								"action": "See a real session"
+							},
+							"design": {
+								"page": "botcore/",
+								"action": "See a real session"
+							}
+						}
 					}
 				]
 			},
@@ -1700,13 +1760,15 @@
 						"id": "alfred",
 						"name": "Alfred",
 						"path": "alfred",
-						"families": ["alfred"]
+						"families": ["alfred"],
+						"summary": "This repository's quality bot: architecture, language parity and command-description checks."
 					},
 					{
 						"id": "health",
 						"name": "Health",
 						"path": "endpoints/health",
-						"families": ["health"]
+						"families": ["health"],
+						"summary": "Repository health audits with a versioned JSON report and a static dashboard."
 					}
 				]
 			}

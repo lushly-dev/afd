@@ -22,6 +22,8 @@
 
 > **More than the libraries.** This repository also holds the projects that grew up around AFD: a component bench, a web component runtime, a design token engine, a plugin host, an application shell and shared agent tooling. [The rest of the repository](#the-rest-of-the-repository) says what each one is and how far along it is.
 
+**Agent-First Development** builds every feature as a command first, so people, scripts and AI agents all use the same software. It is about software that agents can use, not about agents writing your code; **Agent-First Design** is the other half of the same idea, designing for the person who asks and the agent that acts.
+
 **What if we applied UX design thinking to AI agents?**
 
 For decades, UX designers have reduced friction between people and software. Every button, menu and form is friction. Necessary friction, thoughtfully designed, but friction all the same. The ideal interface is *invisible*.
@@ -72,7 +74,7 @@ graph TB
     CMD <--> UI["🖥️ Web UI"]
     CMD <--> CLI["⌨️ CLI"]
     CMD <--> MCP["🤖 MCP Agent"]
-    CMD <--> DC["⚡ DirectClient<br/><em>~0.03ms in-process</em>"]
+    CMD <--> DC["⚡ DirectClient<br/><em>in-process, no transport</em>"]
     CMD <--> Chat["💬 AI Chat"]
     CMD <--> Future["❓ Whatever's Next"]
 
@@ -86,23 +88,22 @@ Because commands carry no UI dependency, they're portable. The same command set 
 
 ## What Makes This Different
 
-Most tools give agents data. AFD gives agents **judgment**.
+MCP already gives a tool result some structure: `isError` marks a failure, `structuredContent` carries typed data, and a tool can declare an `outputSchema` for it. AFD's MCP server uses all three. What MCP leaves to each tool's author is what goes *inside*: two tools from two teams agree on the envelope and on little else.
 
-Here's the same operation — fetching a user — from a typical MCP tool versus an AFD command. Look at what the agent has to work with in each case:
+Here's the same operation, fetching a user, as a typical tool built on the MCP SDK returns it:
 
-**Typical MCP tool response:**
+**Typical MCP tool result:**
 ```json
 {
-  "id": 42,
-  "name": "Jane Doe",
-  "email": "jane@example.com",
-  "role": "admin"
+  "content": [{ "type": "text", "text": "{\"id\":42,\"name\":\"Jane Doe\", ...}" }],
+  "structuredContent": { "id": 42, "name": "Jane Doe", "email": "jane@example.com", "role": "admin" },
+  "isError": false
 }
 ```
 
-The agent got data. But now it's on its own. Was the lookup reliable? Is this from a cache or a live query? Should it do something next? If the user wasn't found, it gets a generic error string and has to guess what went wrong. Every decision after this response requires the agent to *infer* context the system already had.
+The agent has typed data and knows the call worked. It does not have what the tool knew about the answer: how the match was made, what to be careful with, what to do next. When the lookup fails, `isError: true` arrives with whatever text that tool's author wrote, and the agent guesses at recovery.
 
-**AFD command response:**
+**AFD command result** (sent as the `structuredContent` of the same MCP envelope, and returned unchanged to the CLI and to in-process callers):
 ```json
 {
   "success": true,
@@ -161,7 +162,22 @@ interface CommandResult<T> {
 }
 ```
 
-Confidence calibration, transparency, plan visibility, actionable error recovery — the same principles that build trust in human UX, expressed as structured data that agents can act on. Not "API-first with a new name." A fundamentally different contract between your software and the agents using it.
+Every field after `error` is optional; a command adds the ones it can back. Two conventions hold everywhere: a failure carries a `code` and, by AFD's convention rather than a check, a `suggestion`; and the shape is the same in every language and on every surface. `confidence` is a signal the command's author supplies about its own answer, bounded in `[0, 1]`. It is not a calibrated probability, and it never grants permission to act: whether an action may run without asking comes from its `destructive`, `undoable` and approval metadata.
+
+What AFD adds is one registry that serves the CLI, MCP and in-process callers with the same validation and the same results; scenario tests that run a whole job against those commands; a linter for the tool list an agent sees; and one contract, checked in four languages.
+
+### Compared with the MCP SDK and Zod
+
+The official MCP SDK and Zod are a good way to serve tools, and AFD's TypeScript server is built on both. If MCP is the only way your capabilities will ever be called, use them directly. AFD is the layer above, for when it isn't:
+
+| | MCP SDK and Zod | AFD |
+|---|---|---|
+| Who can call a capability | MCP clients | The CLI, MCP clients and in-process code ([DirectClient](./packages/client/README.md)), through one registry |
+| What a result holds | Whatever each tool returns, plus `isError` | `CommandResult`: the same fields in every command; every error has a `code`, and by convention a `suggestion` |
+| Testing a job | Your own tests | YAML scenarios that call commands step by step ([`afd-testing`](./packages/testing/README.md)) |
+| The tool list an agent sees | Checked by hand | `afd validate --surface` lints it for name collisions, overlapping descriptions, injection and schema complexity |
+| Behaviour around a call | Tool annotations, which are hints | `destructive` with `confirmPrompt`, `undoable`, `requires`, per-surface `expose`, and approvals the server enforces |
+| Other languages | Each language's SDK, with its own conventions | One contract in [`spec/`](./spec), implemented in TypeScript, Python, Rust and C++ and run against the same conformance suite |
 
 ## Riding the Wave
 
@@ -187,7 +203,7 @@ AFD ships as packages across **TypeScript, Python, Rust, and C++**. All four sha
 |---------|-------------|
 | **@lushly-dev/afd-core** | Core types — `CommandResult`, `CommandError`, batching, streaming |
 | **@lushly-dev/afd-server** | Zod-based MCP server factory with middleware (logging, timing, rate limiting, telemetry), plus a browser-safe in-process registry |
-| **@lushly-dev/afd-client** | MCP client over Streamable HTTP (the older SSE transport still works) + `DirectClient` for ~0.03ms in-process execution |
+| **@lushly-dev/afd-client** | MCP client over Streamable HTTP (the older SSE transport still works) + `DirectClient`, which runs commands in-process with no transport or serialization between caller and command |
 | **@lushly-dev/afd-testing** | JTBD scenario runner, surface validation, coverage analysis, MCP agent integration |
 | **@lushly-dev/afd-cli** | CLI for connecting, calling, validating, and exploring commands |
 | **@lushly-dev/afd-auth** | Provider-agnostic auth adapter — middleware, commands, session sync, React hooks, adapters for Mock/Convex/BetterAuth |
@@ -202,7 +218,7 @@ AFD stays framework-agnostic at the command layer. React or browser integrations
 
 Features like [command trust config](./docs/features/complete/command-trust-config/), [exposure & undo](./docs/features/complete/command-exposure-undo/), [command pipelines](./docs/features/complete/command-pipeline/), [real-time handoff](./docs/features/complete/handoff-pattern/), and [middleware defaults](./docs/features/complete/middleware-defaults/) (zero-config observability) are already shipped.
 
-**[Read the full philosophy →](./.claude/skills/afd/references/philosophy.md)**
+**[Read the full argument in the whitepaper →](./docs/whitepaper/AFD-Whitepaper.md)**
 
 ## Development Workflow
 
@@ -454,7 +470,7 @@ For an agent that runs inside your own app, skip the network: `createDirectRegis
 
 ### Next steps
 
-- **Teach your coding agent AFD:** `npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd` (also `afd-typescript`, `afd-python`, `afd-rust` and others in [`.claude/skills`](./.claude/skills)).
+- **Teach your coding agent AFD:** `npx degit "lushly-dev/afd/.claude/skills/afd#@lushly-dev/afd-core@2.5.0" .claude/skills/afd` (also `afd-typescript`, `afd-python`, `afd-rust` and others in [`.claude/skills`](./.claude/skills)). The part after `#` pins the skill to a release tag, so what lands in your agent's instructions is a version you chose; to move to a newer release, change it to that release's `@lushly-dev/afd-core@<version>` [tag](https://github.com/lushly-dev/afd/tags). Leaving it off copies whatever `main` holds that day.
 - **Add agent-UX metadata:** `destructive` and `confirmPrompt`, `undoable`, `requires`, `examples` and output schemas. See the [command schema guide](./.claude/skills/afd/references/command-schema.md).
 - **Scale the tool list:** `toolStrategy: 'lazy'` for large command sets, and `bootstrap: true` for `afd-help`, `afd-docs` and `afd-schema` ([MCP integration](./.claude/skills/afd/references/mcp-integration.md)).
 - **Go deeper on linting:** the [surface validation guide](./.claude/skills/afd/references/surface-validation.md) covers every rule and how to configure them.
@@ -551,7 +567,7 @@ In the order of the map. Each status is the most mature of the part's packages.
 | Part | What it is | Status |
 |------|-----------|--------|
 | [**Violet**](./foundations/violet/README.md) | A design token engine. Tokens live on nodes in a tree; each node inherits from its parent and adds, overrides or removes. It exports CSS, SCSS, TypeScript, Swift, Kotlin, Dart, Tailwind and more, and ships a browser runtime for loading tokens and switching themes, a [`violet` CLI](./endpoints/violet-cli/README.md) and an [MCP server](./endpoints/violet-server/README.md). | Preview: the engine, runtime, AFD commands, CLI and MCP server are on npm under the `preview` tag |
-| [**FAST-AF**](./foundations/fast-af/README.md) | A web component runtime (`@lushly-dev/fast-element`) and a component library built on it (`@lushly-dev/violet-elements`). The runtime is an independent fork of Microsoft's open-source [FAST](https://github.com/microsoft/fast); FAST-AF is not affiliated with or endorsed by Microsoft. Every component's stories run on Specimen, and each component carries a record of what an agent writing a page needs to know about it. | Preview: both packages are on npm under the `preview` tag |
+| [**FAST-AF**](./foundations/fast-af/README.md) | A web component runtime (`@lushly-dev/fast-element`) and a component library built on it (`@lushly-dev/violet-elements`), which is part of FAST-AF, not of Violet: it is named for the Violet tokens it reads. The runtime is an independent fork of Microsoft's open-source [FAST](https://github.com/microsoft/fast); FAST-AF is not affiliated with or endorsed by Microsoft. Every component's stories run on Specimen, and each component carries a record of what an agent writing a page needs to know about it. | Preview: both packages are on npm under the `preview` tag |
 | [**Specimen**](./foundations/specimen/README.md) | A component observation bench. It renders a component in Chromium and records what actually happened: geometry, computed styles, native control state, open shadow DOM and ARIA snapshots. Two renders can then be compared on evidence, including changes that identical markup would hide. It runs stories written in Storybook's format, with their plays and accessibility checks, and needs no Storybook installed. | Preview, on npm under the `preview` tag, with its [CLI](./endpoints/specimen-cli/README.md), [AFD commands](./integrations/specimen-afd/README.md) and [FAST-AF plugin](./integrations/specimen-fast-af/README.md) |
 | [**Umbel**](./endpoints/umbel/README.md) | An empty Rust host for capability plugins, reachable over MCP and as a CLI. It ships with no capability of its own: knowledge, memory, context and tools arrive as plugins, and one deployment can hold several isolated spaces. The model calling it does the reasoning; Umbel keeps it informed and remembered, with every answer traceable to its source. | In development. The host, the plugin contract, knowledge, memory and context, and the curator are done; sign-in and hosting are in progress ([status](./endpoints/umbel/docs/STATUS.md)) |
 | [**Loam**](./endpoints/loam/README.md) | An application shell: one chrome into which many apps land as plugins, sharing sign-in, projects, documents, settings and a command palette. The shell's own state is commands, so agents and tests drive it the way people do. Its chrome is FAST-AF components on a Violet theme. | In development. The kernel and chrome, the app contract, and projects and documents are done; identity and hosting are in progress ([status](./endpoints/loam/docs/STATUS.md)) |
@@ -582,11 +598,30 @@ The projects were built separately, and each one is used by the others:
 
 Version numbers do not carry the status: Specimen is at 2.2 and Python at 0.13. The status comes from [`scripts/release/inventory.json`](./scripts/release/inventory.json), which lists every releasable unit, whether it is admitted to publish and its `maturity`. `node scripts/maturity.mjs` checks this README, [`llms.txt`](./site/llms.txt), the site's status labels and the PyPI classifiers against it, and `--registry` compares the published packages with npm, PyPI and crates.io. Bringing source into this repository does not publish it: a unit publishes only once it is admitted there, so a package can be built, tested and used inside the workspace long before you can install it. [Platform releases](./docs/operations/platform-releases.md) describes the process.
 
+## Questions People Ask
+
+**Is this about AI agents writing my code?**
+No. Agent-First Development is about the software you build: every capability is a command that people, scripts and AI agents can all call. Who writes that software is up to you.
+
+**Is AFD tied to MCP?**
+No. MCP is one way in. The same commands run from the CLI and in-process through DirectClient, and the MCP server is a thin layer over the registry. If another protocol replaces MCP, the commands, their schemas and their results stay as they are.
+
+**What does `confidence` mean?**
+It is an optional number in `[0, 1]` that a command's author supplies about the command's own answer, such as how close a search match was. It is not a calibrated probability, and it never decides whether an action runs: that comes from `destructive`, `undoable` and approvals.
+
+**Does everything have to be a CLI command? What about a canvas or a game?**
+The honesty check covers behaviour and state, not pixels. In a drawing app or a game, commands cover what can be done and what is true (add a shape, move a layer, read the scene, export), and the UI still does the rendering and direct manipulation. If an agent can't do it through a command, or a test can't check it without the UI, that part of the design is missing a command.
+
+**Do I need DirectClient to be fast?**
+DirectClient calls a command in the same process, with no network, transport or serialization between caller and command. This repository publishes no latency benchmark for it, so measure it in your own app if the number matters.
+
+**How is AFD built?**
+With heavy AI assistance, in the open. Coding agents write most of the code, directed by the maintainer, who decides the design and scope and publishes the releases. No person reviews each pull request: every change gets an independent agent review, normally from two reviewers on different model providers, and it reaches `main` only through a merge queue that runs the gates again on the exact commit that lands. The gates a change triggers depend on what it touches: a change to a language library or to the contract's schemas and fixtures runs the conformance suite that holds the four languages to it. Commits are authored by the maintainer. An agent that helped is named in an `Assisted-by:` trailer, which GitHub does not count, rather than as an author or in `Co-authored-by:`, which GitHub credits as a full contributor; [`scripts/commit-credit.mjs`](./scripts/commit-credit.mjs) refuses a commit that names an agent either way, in the commit hook and again in CI. [AGENTS.md](./AGENTS.md) holds the rules those agents follow.
+
 ## Documentation
 
 | Guide | Description |
 |-------|-------------|
-| [Philosophy](./.claude/skills/afd/references/philosophy.md) | **Why** AFD — UX design for AI collaborators |
 | [Command Schema Guide](./.claude/skills/afd/references/command-schema.md) | How to design commands that enable good agent UX |
 | [Jobs First](./.claude/skills/afd/references/jobs-first.md) | Starting a feature from the jobs it serves, written as scenarios |
 | [Optimistic UI](./.claude/skills/afd-directclient/SKILL.md#optimistic-ui-in-an-app-client) | How to use optimistic updates in interactive AFD clients without moving business logic out of commands |

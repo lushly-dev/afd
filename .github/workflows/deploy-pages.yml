@@ -47,6 +47,10 @@ jobs:
           version=$(npm view @lushly-dev/afd-core version)
           sed -i -E "s|(data-afd-version>)[^<]*|\1v${version}|g" site/index.html
           if [ -f site/llms.txt ]; then sed -i -E "s|^(Version: )v.*|\1v${version}|" site/llms.txt; fi
+          # The degit commands that teach a coding agent AFD pin the skill to a release tag; point
+          # them at the release just published (#2689).
+          sed -i -E "s|(skills/afd#@lushly-dev/afd-core@)[0-9][0-9A-Za-z.+-]*|\1${version}|g" \
+            site/index.html site/js/runtime.js site/llms.txt
 
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 

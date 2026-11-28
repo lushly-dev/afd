@@ -35,10 +35,24 @@ export function htmlPages(dir) {
 	return out.sort();
 }
 
+/** Whether any `<meta name="robots">` asks for noindex, whatever the attribute order or quoting. */
+export function noindex(html) {
+	for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
+		const attributes = Object.fromEntries(
+			[...tag.matchAll(/([a-z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi)].map((match) => [
+				match[1].toLowerCase(),
+				(match[2] ?? match[3] ?? match[4]).toLowerCase(),
+			])
+		);
+		if (attributes.name === 'robots' && /\bnoindex\b/.test(attributes.content ?? '')) return true;
+	}
+	return false;
+}
+
 /** Whether a page may be indexed: not noindex, not a redirect, not the 404 page. */
 export function isIndexable(path, html) {
 	if (path === '404.html') return false;
-	if (/<meta\s+name=["']robots["'][^>]*noindex/i.test(html)) return false;
+	if (noindex(html)) return false;
 	if (/<meta\s+http-equiv=["']refresh["']/i.test(html)) return false;
 	const head = html.split(/<\/head>/i)[0];
 	return !/location\.replace\(/.test(head);

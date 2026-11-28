@@ -344,7 +344,9 @@ registry.register({
 			{
 				install: INSTALL,
 				quickstart: 'https://github.com/lushly-dev/afd#quickstart',
-				forYourAgent: 'npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd',
+				// Pinned to a release tag; the Pages deploy stamps the published version over this one.
+				forYourAgent:
+					'npx degit "lushly-dev/afd/.claude/skills/afd#@lushly-dev/afd-core@2.5.0" .claude/skills/afd',
 				source: 'https://github.com/lushly-dev/afd',
 			},
 			{

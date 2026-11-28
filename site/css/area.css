@@ -222,3 +222,11 @@
 		font-size: var(--t-body);
 	}
 }
+
+/* Under the crumb, one line on what AFD is, for a visitor who lands here first (#2764).
+   It wraps below the crumb and the edition, which keep the label's first row. */
+.crumb-about {
+	flex-basis: 100%;
+	order: 1;
+	margin: 0;
+}
