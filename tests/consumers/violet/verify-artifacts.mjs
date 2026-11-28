@@ -10,7 +10,7 @@
  *   imports, declarations, native resolution/export, tokens applied to plain HTML/CSS and through
  *   the runtime in Chromium, and optional storage backends that are absent.
  * - Integration absent, present, incompatible (bad or missing core peer) and unavailable (its
- *   declared AFD dependency missing), plus a consumer's own AFD 2.x shared with it.
+ *   declared AFD dependency missing), plus a consumer's own AFD 2.x or 3.x shared with it.
  * - Selector parity: violet-runtime reproduces `@lushly-dev/violet-elements`' theme selectors and
  *   preset-name rule rather than importing them (Loam D50), so the rule `adopt()` writes is
  *   compared in Chromium with the rules violet-elements' `createVioletThemeCss` writes (imported
@@ -664,7 +664,8 @@ run(integrationRoot, 'worker-cold.mjs');
 passed('cold import of violet-afd/worker loads no core root, Node store or driver');
 assert.equal(integrationFacts.commands, 49);
 assert.equal(integrationFacts.afdCore, packedManifest(AFD_CORE).version);
-assert.match(integrationFacts.afdCore, /^2\./);
+// The packed afd-core is the workspace's: 2.x before the AFD 3 release, 3.x after it (#2885).
+assert(semver.satisfies(integrationFacts.afdCore, '^2.2.0 || ^3.0.0'), integrationFacts.afdCore);
 passed(
 	`integration present: pre-split root/commands/worker/types/css surfaces, ${integrationFacts.commands} commands, envelopes match native export; afd-core ${integrationFacts.afdCore}`
 );
@@ -685,7 +686,7 @@ passed(
 	'integration declarations compile under NodeNext for every entry point, with the Neon store'
 );
 
-// ---- A consumer's own AFD 2.x is the integration's: one shared afd-core -------------------------
+// ---- A consumer's own AFD 2.x or 3.x is the integration's: one shared afd-core ------------------
 // The overrides pin every afd-core to the packed one, so check the declared range accepts it.
 assert(semver.satisfies(packedManifest(AFD_CORE).version, afd.dependencies[AFD_CORE]));
 const { root: sharedRoot } = await install('integration-with-afd-2', {
