@@ -1574,12 +1574,14 @@ name = "loam-os-host"
 version = "0.1.0"
 dependencies = [
  "afd",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",
  "tokio",
  "umbel",
  "umbel-sdk",
+ "yaml-rust2",
 ]
 
 [[package]]
@@ -3882,6 +3884,16 @@ dependencies = [
  "rusticata-macros",
  "thiserror",
  "time",
+]
+
+[[package]]
+name = "yaml-rust2"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a8af4469040402b7fe43c26575bab9a3069f0717c4a2931ecf4fb8728ee4cec"
+dependencies = [
+ "arraydeque",
+ "hashlink",
 ]
 
 [[package]]

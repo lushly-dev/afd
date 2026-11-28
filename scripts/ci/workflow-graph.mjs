@@ -59,7 +59,12 @@ export const GROUPS = {
 	health: ['endpoints/health/**'],
 	healthDashboard: ['endpoints/health-dashboard/**'],
 	umbel: ['endpoints/umbel/**', '!endpoints/umbel/docs/**'],
-	loamOs: ['endpoints/loam-os/**', '!endpoints/loam-os/image/**'],
+	// The host's scenario harness reads the feature's scenarios and fixtures (Loam OS M1 step 2).
+	loamOs: [
+		'endpoints/loam-os/**',
+		'!endpoints/loam-os/image/**',
+		'docs/features/active/loam-os/scenarios/**',
+	],
 	loamCore: ['endpoints/loam/**', '!endpoints/loam/docs/**', '!endpoints/loam/plugins/**'],
 	loamWithScenarios: [
 		'endpoints/loam/**',

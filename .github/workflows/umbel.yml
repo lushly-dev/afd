@@ -8,6 +8,7 @@ on:
       - '!endpoints/umbel/docs/**'
       - 'endpoints/loam-os/**'
       - '!endpoints/loam-os/image/**'
+      - 'docs/features/active/loam-os/scenarios/**'
       - 'packages/rust/**'
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
@@ -38,6 +39,7 @@ on:
       - '!endpoints/umbel/docs/**'
       - 'endpoints/loam-os/**'
       - '!endpoints/loam-os/image/**'
+      - 'docs/features/active/loam-os/scenarios/**'
       - 'packages/rust/**'
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
@@ -112,9 +114,10 @@ jobs:
       - id: conformance
         run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path packages/examples/todo/ --path packages/cli/ --path packages/client/ --path packages/core/ --path packages/server/ --path packages/testing/ --path .cargo/config.toml --path foundations/specimen/defaults/pack/ --path foundations/specimen/fixtures/pack/ --path foundations/specimen/schema/pack/ --path foundations/specimen/docs/pack-format.md --path foundations/fast-af/packages/violet-elements/pack/ --path foundations/fast-af/packages/violet-elements/specimen.config.json --path foundations/fast-af/packages/violet-elements/package.json --path architecture.json --path .github/workflows/umbel.yml --path .github/workflows/queue.yml --path .github/actions/setup-node-pnpm/
       # The Loam OS host builds on Umbel's crates and the afd crate, so a change to either checks it
-      # too; its session image (endpoints/loam-os/image/) is no Rust and runs nothing here.
+      # too; its session image (endpoints/loam-os/image/) is no Rust and runs nothing here. Its
+      # scenario harness reads the feature's scenarios and fixtures, so a change there checks it.
       - id: loamos
-        run: node scripts/affected.mjs gate --path endpoints/loam-os/ --except endpoints/loam-os/image/ --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/umbel.yml
+        run: node scripts/affected.mjs gate --path endpoints/loam-os/ --except endpoints/loam-os/image/ --path docs/features/active/loam-os/scenarios/ --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/umbel.yml
 
   check:
     name: Umbel (fmt, clippy, test)
