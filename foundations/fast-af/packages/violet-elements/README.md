@@ -128,8 +128,11 @@ Specimen run. A deployment copies it as it stands. For Umbel's `components` plug
 `node_modules/@lushly-dev/violet-elements/dist/pack/data` and `.../rules` into
 `spaces/<space>/packs/components/library/` beside the deployment's `pack.toml` (the
 [plugin's README](https://github.com/lushly-dev/afd/blob/main/endpoints/umbel/plugins/components/README.md#a-deployments-pack) gives
-its lines) and restart the host. `@lushly-dev/violet-elements/pack/data/violet-elements/library.json`
-resolves to the catalog, for a tool that finds the pack through the package.
+its lines). An Umbel host with
+[decision D222](https://github.com/lushly-dev/afd/blob/main/endpoints/umbel/docs/decisions.md)
+serves it on its next call; an older host needs a restart.
+`@lushly-dev/violet-elements/pack/data/violet-elements/library.json` resolves to the catalog, for
+a tool that finds the pack through the package.
 
 ## The Token Interface
 
