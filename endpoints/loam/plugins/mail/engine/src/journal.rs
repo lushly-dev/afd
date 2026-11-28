@@ -264,6 +264,7 @@ mod tests {
         afd::JournalRecord {
             timestamp: "2026-01-01T00:00:00.000Z".to_owned(),
             trace_id: None,
+            idempotency_key: None,
             command: command.to_owned(),
             input: json!({ "password": "hunter2" }),
             actor: None,
@@ -397,6 +398,7 @@ mod tests {
         let record = afd::JournalRecord {
             timestamp: "2026-11-24T00:00:00Z".to_string(),
             trace_id: None,
+            idempotency_key: None,
             command: crate::replysets::SUBMIT.to_string(),
             input: json!({
                 "replyset": 1,

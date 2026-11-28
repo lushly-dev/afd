@@ -845,10 +845,10 @@ pub mod error_codes {
     /// (`spec/app-calls.md`). One answer for every case.
     pub const CALL_NOT_GRANTED: &str = "CALL_NOT_GRANTED";
     /// The idempotency key is already held for a call with another input
-    /// (`spec/idempotency.md`, "Errors"). No Rust engine sends it yet (#2676).
+    /// (`spec/idempotency.md`, "Errors"), from the registry's idempotency step.
     pub const IDEMPOTENCY_KEY_REUSED: &str = "IDEMPOTENCY_KEY_REUSED";
     /// An earlier call with the same idempotency key and input is still running
-    /// (`spec/idempotency.md`, "Errors"). No Rust engine sends it yet (#2676).
+    /// (`spec/idempotency.md`, "Errors"), from the registry's idempotency step.
     pub const IDEMPOTENCY_IN_PROGRESS: &str = "IDEMPOTENCY_IN_PROGRESS";
     /// An earlier call may have run and nobody can say whether it was applied: a client's lost
     /// answer, or the idempotency step's never-settled reservation (`spec/idempotency.md`).

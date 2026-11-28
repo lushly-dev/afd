@@ -1,6 +1,8 @@
 use super::{not_found, ok, schema, stamp, todo_id_in, warning, Command, Reply, EXAMPLE_ID};
 use crate::store::TodoStore;
-use afd::{failure, CommandContext, CommandExample, CommandResult, WarningSeverity};
+use afd::{
+    failure, CommandContext, CommandExample, CommandResult, IdempotencySupport, WarningSeverity,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -26,6 +28,7 @@ impl Command for Delete {
          todos, and todo-restore brings it back until todo-clear empties them";
     const TAGS: &'static [&'static str] = &["todo", "delete", "write", "single", "destructive"];
     const MUTATION: bool = true;
+    const IDEMPOTENCY: Option<IdempotencySupport> = Some(IdempotencySupport::Natural);
     const DESTRUCTIVE: bool = true;
     // It can be undone, so it is not held for approval.
     const UNDOABLE: bool = true;

@@ -32,7 +32,11 @@ impl CommandRegistry {
     ///    command outside it returns `COMMAND_NOT_IN_CONTEXT` (see
     ///    [`crate::contexts`]).
     /// 4. A `context.timeout_ms` without the `native` feature returns
-    ///    `UNSUPPORTED_OPTION`.
+    ///    `UNSUPPORTED_OPTION`. A caller's idempotency key
+    ///    ([`CommandContext::idempotency_key`]) not of K2's form returns
+    ///    `VALIDATION_ERROR` naming `_meta["dev.afd/idempotencyKey"]`, and a call
+    ///    the idempotency step would act on from a caller it cannot tell apart
+    ///    is refused (`spec/idempotency.md`, S3). The handler gets the key (K3).
     /// 5. The input is validated against the command's `parameters`, parameter
     ///    defaults are applied, and undeclared keys are dropped, as Zod does in
     ///    TypeScript. Invalid input returns `VALIDATION_ERROR` (`Input
@@ -52,7 +56,10 @@ impl CommandRegistry {
     ///    effective budget ([`CommandContext::output_budget`]) is then set on
     ///    the context (`spec/output-budgets.md`, B3).
     /// 7. The middleware chain and then the handler run with the validated
-    ///    input. With `context.timeout_ms`, a run that outlasts it returns
+    ///    input. With [`Self::set_idempotency`], the idempotency step sits between
+    ///    the approval admission check and the handler, and a call it acts on
+    ///    whose input has no canonical JSON returns `VALIDATION_ERROR` (S4)
+    ///    before the middleware. With `context.timeout_ms`, a run that outlasts it returns
     ///    `TIMEOUT` (this needs a Tokio runtime with time enabled). A panic in
     ///    a middleware layer or the handler returns `COMMAND_EXECUTION_ERROR`
     ///    with the generic message of [`execution_failure`], as TypeScript
@@ -222,6 +229,27 @@ impl CommandRegistry {
             );
         }
 
+        // The call's idempotency key (`spec/idempotency.md`, K2): a caller's that is not of the
+        // form fails here, before validation, any middleware or the handler. A derived or restored
+        // key is the engine's and passes as it is.
+        let call_key = crate::idempotency::key::resolve(&context);
+        if call_key == crate::idempotency::key::CallKey::Invalid {
+            return failure(crate::idempotency::invalid_idempotency_key_error());
+        }
+        // A task run carries no key for the step or the retry rule (S11).
+        let carries_key = call_key.key().is_some() && context.server().task_progress.is_none();
+        let step = self.idempotency_step();
+        // The step acts only on a keyed command's call that carries a key (S2). It refuses a
+        // caller it cannot tell apart before anything else runs (S3).
+        let acting_step = step.as_ref().filter(|_| {
+            carries_key && command.idempotency == Some(crate::IdempotencySupport::Keyed)
+        });
+        if let Some(step) = acting_step {
+            if let Err(error) = step.principal(&context) {
+                return failure(*error);
+            }
+        }
+
         // A step of an `afd-batch` or `afd-pipe` approved up front runs on the input validated
         // then, so the input that runs is the one the human was shown (#1414). It is still
         // validated as sent here; only the value is kept. Every step takes it, not only one whose
@@ -240,7 +268,12 @@ impl CommandRegistry {
         // This call's own admission record (#1886): fresh for every call, so a batch item, a
         // pipeline step or a nested call never inherits another call's admission.
         let mut context = context;
+        // Every call gets its key (K3), marked delivered so a call the handler makes on this
+        // context starts without it (K6). No call inherits another's step state.
+        crate::idempotency::key::deliver(&mut context, &call_key);
+        context.idempotency = None;
         let admission = crate::approval::admission::Admission::begin(Arc::clone(&command));
+        admission.set_carries_idempotency_key(carries_key);
         context.approval_admission = Some(Arc::clone(&admission));
         // Marks the record ended however this call returns (an early failure, a panic unwinding).
         struct EndAdmission(Arc<crate::approval::admission::Admission>);
@@ -262,6 +295,32 @@ impl CommandRegistry {
         if let Err(error) = crate::output_budget::apply_output_budget(&command, &mut context) {
             return failure(*error);
         }
+        // What the step compares (S4): the declared context fields the call carries, by name, and
+        // the validated input. An input with no canonical form cannot carry a key.
+        let digest = match acting_step {
+            Some(_) => {
+                let fields: serde_json::Map<String, serde_json::Value> = context_fields
+                    .0
+                    .iter()
+                    .filter_map(|field| {
+                        context
+                            .extra
+                            .get(&field.name)
+                            .filter(|value| !value.is_null())
+                            .map(|value| (field.name.clone(), value.clone()))
+                    })
+                    .collect();
+                match crate::idempotency::step::call_digest(fields, &input) {
+                    Some(digest) => Some(digest),
+                    None => {
+                        return failure(crate::idempotency::input_not_canonical_error(
+                            &command.name,
+                        ))
+                    }
+                }
+            }
+            None => None,
+        };
         // The execute-time scope decision on the validated input, with defaults applied and any
         // pipeline references resolved (`spec/authorization.md`, M6, "At execution").
         if let (Some(check), Some(credentials)) =
@@ -334,6 +393,23 @@ impl CommandRegistry {
         if let Some(signal) = &deadline_signal {
             context.cancellation = Some(signal.clone());
         }
+        // The step's call for the innermost link (S1), its lease dated from now, when the chain
+        // and its deadline start (S7). `reserved` tells the deadline below whether R3 applies.
+        let reserved = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        if let Some(step) = step {
+            let acting = digest.map(|digest| crate::idempotency::step::Acting {
+                command: command.name.clone(),
+                key: call_key.key().unwrap_or_default().to_owned(),
+                digest,
+                started_at: step.now(),
+                timeout_ms: effective_timeout_ms,
+                reserved: Arc::clone(&reserved),
+            });
+            context.idempotency = Some(Arc::new(crate::idempotency::step::StepCall {
+                step,
+                acting,
+            }));
+        }
 
         // `run_handler` and `chain(context)` run inside the guarded future, so a middleware
         // layer that panics while building its future is caught too. With no middleware the
@@ -371,7 +447,13 @@ impl CommandRegistry {
                         if let Some(signal) = &deadline_signal {
                             signal.cancel();
                         }
-                        return failure(command_timeout_error(name, timeout_ms));
+                        let error = command_timeout_error(name, timeout_ms);
+                        // Where the step holds the call's key, a repeat with that key is answered
+                        // from its store, so it is safe (R3); anywhere else it is not.
+                        if reserved.load(std::sync::atomic::Ordering::SeqCst) {
+                            return failure(repeatable_timeout(error));
+                        }
+                        return failure(error);
                     }
                 }
             }
@@ -457,6 +539,8 @@ impl CommandRegistry {
     /// Every command runs through [`CommandRegistry::execute`] with a copy of
     /// `context` (so exposure checks, validation, the timeout and middleware
     /// apply to each) and a per-command trace ID, `<batch trace ID>-<index>`.
+    /// When `context` carries an idempotency key, the item at `index` runs under
+    /// `<key>:<index>` (`spec/idempotency.md`, K4).
     /// The batch trace ID is `context.trace_id`, or `batch-<timestamp>`.
     /// The request's `context` entries are added to each command's
     /// [`CommandContext::extra`], without replacing keys the caller set; they
@@ -513,7 +597,9 @@ impl CommandRegistry {
             .trace_id
             .clone()
             .unwrap_or_else(|| format!("batch-{}", chrono::Utc::now().timestamp_millis()));
-        let mut base_context = context;
+        // The request's idempotency key is the base each item's key derives from (K4), and a key
+        // this context inherited from a handler is no key (K6).
+        let mut base_context = crate::idempotency::key::request_context(context);
         // An app's batch comes from the app: its own `context` must not reach the grant check,
         // which reads only what the host's trusted code set (`spec/command-metadata.md`,
         // "App-to-app calls").
@@ -579,9 +665,13 @@ impl CommandRegistry {
                     break;
                 };
                 let (id, command_name) = command_metadata[index].clone();
-                let context = base_context
-                    .clone()
-                    .with_trace_id(format!("{batch_trace_id}-{index}"));
+                let context = crate::idempotency::key::derived_context(
+                    base_context
+                        .clone()
+                        .with_trace_id(format!("{batch_trace_id}-{index}")),
+                    crate::IdempotencyRequestKind::Batch,
+                    index,
+                );
                 let timeout_error = &timeout_error;
                 #[cfg(feature = "native")]
                 let batch_deadline_signal = batch_deadline_signal.clone();
@@ -718,6 +808,17 @@ fn command_timeout_error(name: &str, timeout_ms: u64) -> CommandError {
     )
     .with_retryable(true)
     .with_details(details)
+}
+
+/// R3's `TIMEOUT`: the step holds the call's key, so a repeat with the same key and input is
+/// answered from its store.
+#[cfg(feature = "native")]
+fn repeatable_timeout(error: CommandError) -> CommandError {
+    error
+        .with_suggestion(
+            "Repeat the call with the same idempotency key and input: this server answers it from the first call, so the change is not applied twice.",
+        )
+        .with_recovery(crate::errors::Recovery::retry(None).expect("a retry without a delay is valid"))
 }
 
 /// Longest command name (in UTF-16 code units) echoed back in an error, as in

@@ -177,7 +177,7 @@ pub fn command_action(command: &CommandDefinition) -> String {
 }
 
 /// The per-command `_meta` of a tool (`spec/command-metadata.md`, "Surfaces"): `category`,
-/// `requires`, `mutation` (when true: Rust has no unset state), `destructive`, `undoable`,
+/// `requires`, `mutation` (when true: Rust has no unset state), `idempotency`, `destructive`, `undoable`,
 /// `approval`, `examples`, `outputSchema`, `contexts`, `scopes`, `confirmationMode`, `task` and the output
 /// budget declaration (`dev.afd/outputBudget`: `{ defaultBytes, maxBytes }`), each only when set,
 /// then the command's extra tool `_meta` entries.
@@ -191,6 +191,9 @@ pub(crate) fn command_tool_meta(command: &CommandDefinition) -> Map<String, Valu
     }
     if command.mutation {
         meta.insert("mutation".into(), json!(true));
+    }
+    if let Some(idempotency) = command.idempotency {
+        meta.insert("idempotency".into(), json!(idempotency));
     }
     if let Some(destructive) = command.destructive {
         meta.insert("destructive".into(), json!(destructive));

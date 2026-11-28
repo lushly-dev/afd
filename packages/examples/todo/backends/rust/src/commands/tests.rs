@@ -94,8 +94,11 @@ fn defines_exactly_the_spec_commands_with_their_metadata_and_inputs() {
             "{name}"
         );
         assert_eq!(json!(command.contexts), metadata["contexts"], "{name}");
-        // Every change declares an approval policy.
+        // Every change declares an approval policy, and what it promises about repeats, so
+        // `afd validate --surface` reports no undeclared mutation (`spec/idempotency.md`, D4).
         assert_eq!(command.approval.is_some(), command.mutation, "{name}");
+        assert_eq!(command.idempotency.is_some(), command.mutation, "{name}");
+        assert_eq!(json!(command.idempotency), entry["idempotency"], "{name}");
 
         // The input declares the spec's properties, those for other languages left out.
         let properties: serde_json::Map<String, Value> = entry["input"]["properties"]
@@ -722,4 +725,55 @@ async fn reading_offers_only_the_commands_that_read() {
         let read = call_with(&registry, name, json!({}), reading()).await;
         assert_eq!(read["success"], true, "{name}");
     }
+}
+
+#[tokio::test]
+async fn a_keyed_repeat_creates_a_todo_once() {
+    // `todo-create` is answered by the registry's idempotency step, `todo-create-batch` by its
+    // own handler, since it may run as a task (`spec/idempotency.md`, D5, S11).
+    let registry = registry();
+    let keyed = |key: &str| {
+        CommandContext::new()
+            .with_actor(ActorKind::Agent)
+            .with_idempotency_key(key)
+    };
+    let first = call_with(
+        &registry,
+        "todo-create",
+        json!({ "title": "Once" }),
+        keyed("k1"),
+    )
+    .await;
+    let again = call_with(
+        &registry,
+        "todo-create",
+        json!({ "title": "Once" }),
+        keyed("k1"),
+    )
+    .await;
+    assert_eq!(first["data"], again["data"]);
+    assert_eq!(again["metadata"]["idempotentReplay"], true);
+    let reused = call_with(
+        &registry,
+        "todo-create",
+        json!({ "title": "Other" }),
+        keyed("k1"),
+    )
+    .await;
+    assert_eq!(reused["error"]["code"], "IDEMPOTENCY_KEY_REUSED");
+
+    let batch = json!({ "todos": [{ "title": "A" }, { "title": "B" }] });
+    let first = call_with(&registry, "todo-create-batch", batch.clone(), keyed("b1")).await;
+    let again = call_with(&registry, "todo-create-batch", batch, keyed("b1")).await;
+    assert_eq!(first["data"], again["data"]);
+    let reused = call_with(
+        &registry,
+        "todo-create-batch",
+        json!({ "todos": [{ "title": "C" }] }),
+        keyed("b1"),
+    )
+    .await;
+    assert_eq!(reused["error"]["code"], "IDEMPOTENCY_KEY_REUSED");
+    let listed = call(&registry, "todo-list", json!({})).await;
+    assert_eq!(listed["data"]["total"], 3, "{listed}");
 }

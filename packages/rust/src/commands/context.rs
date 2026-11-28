@@ -137,6 +137,16 @@ pub struct CommandContext {
     /// Custom context values.
     pub extra: HashMap<String, serde_json::Value>,
 
+    /// The call's idempotency key (`spec/idempotency.md`, K1): set in process with
+    /// [`CommandContext::with_idempotency_key`], and by the MCP server from
+    /// `_meta["dev.afd/idempotencyKey"]` or a meta-tool's `meta` argument (a value the context hook
+    /// sets wins). [`CommandRegistry::execute`](super::CommandRegistry::execute) checks its form
+    /// (K2) before any middleware runs and fails a call whose key is not 1 to 200 characters of
+    /// `A-Z a-z 0-9 . _ ~ -` with `VALIDATION_ERROR`; the handler then reads it here (K3), each
+    /// batch item and pipeline step runs under a key derived from it (K4), and a command the
+    /// handler runs through the registry on this context starts without it (K6).
+    pub idempotency_key: Option<String>,
+
     /// What a journal recorder and replay pass to nested calls.
     pub(crate) journal_state: JournalContextState,
     pub(crate) direct_approval: Option<Arc<std::sync::Mutex<crate::direct::Exchange>>>,
@@ -171,6 +181,11 @@ pub struct CommandContext {
     /// [`CommandRegistry::execute`](super::CommandRegistry::execute) for each call, read through
     /// [`CommandContext::dispatch_id`].
     pub(crate) dispatch_id: Option<Arc<str>>,
+    /// Who set [`Self::idempotency_key`], when the crate did (K4, K6).
+    pub(crate) idempotency_mark: crate::idempotency::key::KeyMark,
+    /// The registry's idempotency step and the call it acts on, for the innermost link: only
+    /// [`CommandRegistry::execute`](super::CommandRegistry::execute) sets it, afresh for every call.
+    pub(crate) idempotency: Option<Arc<crate::idempotency::step::StepCall>>,
 }
 
 /// Execute-time guard set by `McpServer` when `ServerInstances::Multiple` is active, checked
@@ -232,6 +247,9 @@ pub(crate) struct ServerCall {
     /// Multi-instance middleware guard (`ServerInstances::Multiple`): checked atomically against
     /// the exact middleware snapshot `CommandRegistry::execute` runs.
     pub(crate) instance_guard: Option<InstanceGuard>,
+    /// Who the transport says the caller is, for the idempotency step (`spec/idempotency.md`,
+    /// S3). Only the MCP server sets it.
+    pub(crate) idempotency_caller: Option<crate::idempotency::step::IdempotencyCaller>,
 }
 
 impl fmt::Debug for ServerCall {
@@ -251,6 +269,7 @@ impl fmt::Debug for ServerCall {
             .field("approver", &self.approver)
             .field("task_progress", &self.task_progress)
             .field("instance_guard", &self.instance_guard)
+            .field("idempotency_caller", &self.idempotency_caller)
             .finish()
     }
 }
@@ -267,6 +286,7 @@ static NO_SERVER_CALL: ServerCall = ServerCall {
     approver: None,
     task_progress: None,
     instance_guard: None,
+    idempotency_caller: None,
 };
 
 impl fmt::Debug for CommandContext {
@@ -292,6 +312,8 @@ impl fmt::Debug for CommandContext {
             .field("approval_admission", &self.approval_admission)
             .field("server", &self.server)
             .field("dispatch_id", &self.dispatch_id)
+            .field("idempotency_key", &self.idempotency_key)
+            .field("idempotency", &self.idempotency)
             .finish()
     }
 }
@@ -338,6 +360,9 @@ pub(crate) struct CallState {
     approval_admission: Option<Arc<crate::approval::admission::Admission>>,
     server: Option<Arc<ServerCall>>,
     dispatch_id: Option<Arc<str>>,
+    idempotency_key: Option<String>,
+    idempotency_mark: crate::idempotency::key::KeyMark,
+    idempotency: Option<Arc<crate::idempotency::step::StepCall>>,
 }
 
 impl CallState {
@@ -365,6 +390,9 @@ impl CallState {
             approval_admission,
             server,
             dispatch_id,
+            idempotency_key,
+            idempotency_mark,
+            idempotency,
         } = context;
         Self {
             interface: *interface,
@@ -381,6 +409,9 @@ impl CallState {
             approval_admission: approval_admission.clone(),
             server: server.clone(),
             dispatch_id: dispatch_id.clone(),
+            idempotency_key: idempotency_key.clone(),
+            idempotency_mark: idempotency_mark.clone(),
+            idempotency: idempotency.clone(),
         }
     }
 
@@ -408,6 +439,11 @@ impl CallState {
         // A middleware cannot change the dispatch id the later links read (I3), nor put another
         // value in `extra` under its reserved name.
         context.dispatch_id.clone_from(&self.dispatch_id);
+        // The key the engine checked and delivered (K2, K3), and the step's call: a middleware
+        // cannot change the key the handler sees or the step acts on.
+        context.idempotency_key.clone_from(&self.idempotency_key);
+        context.idempotency_mark.clone_from(&self.idempotency_mark);
+        context.idempotency.clone_from(&self.idempotency);
         if !context.extra.is_empty() {
             context.extra.remove("dispatch_id");
             context.extra.remove("dispatchId");
@@ -452,6 +488,14 @@ impl CommandContext {
     /// Create an empty context.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the call's idempotency key (`spec/idempotency.md`, K1), as a caller's: the registry
+    /// checks its form (K2). See [`Self::idempotency_key`].
+    pub fn with_idempotency_key(mut self, key: impl Into<String>) -> Self {
+        self.idempotency_key = Some(key.into());
+        self.idempotency_mark = crate::idempotency::key::KeyMark::None;
+        self
     }
 
     /// Set the trace ID.

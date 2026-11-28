@@ -46,6 +46,23 @@ pub struct TodoStore {
     /// Held across a change and its history entry ([`TodoStore::changing`]), so concurrent
     /// changes are recorded in the order they happened.
     changing: Mutex<()>,
+    /// The answers of calls a command keys in its handler, by scope (`spec/idempotency.md`, "Two
+    /// tiers"). For this process only: a store that persisted todos would commit the key with the
+    /// todos in one transaction instead, which is what lets a handler promise a change is made
+    /// once; this example's promise ends with the process, as the default idempotency store's
+    /// does (S13).
+    keyed: Mutex<HashMap<String, KeyedAnswer>>,
+}
+
+/// How long a keyed answer is kept: a day, as the registry's idempotency step keeps one.
+const KEYED_ANSWER_TTL_MS: i64 = 86_400_000;
+
+/// The answer of a keyed call: its input as sent and its result, until `expires_at`.
+#[derive(Clone)]
+pub struct KeyedAnswer {
+    pub digest: String,
+    pub result: afd::CommandResult<serde_json::Value>,
+    expires_at: i64,
 }
 
 pub struct NewTodo {
@@ -130,6 +147,32 @@ impl TodoStore {
     /// superseded. Reads do not take it.
     pub fn changing(&self) -> MutexGuard<'_, ()> {
         self.changing.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The answer kept for `scope` that has not expired at `now`, dropping expired ones.
+    pub fn keyed_answer(&self, scope: &str, now: i64) -> Option<KeyedAnswer> {
+        let mut keyed = self.keyed.lock().unwrap_or_else(PoisonError::into_inner);
+        keyed.retain(|_, answer| now <= answer.expires_at);
+        keyed.get(scope).cloned()
+    }
+
+    /// Keep `result` as the answer of `scope` for a day from `now`.
+    pub fn keep_keyed_answer(
+        &self,
+        scope: String,
+        digest: String,
+        result: afd::CommandResult<serde_json::Value>,
+        now: i64,
+    ) {
+        let answer = KeyedAnswer {
+            digest,
+            result,
+            expires_at: now.saturating_add(KEYED_ANSWER_TTL_MS),
+        };
+        self.keyed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(scope, answer);
     }
 
     fn read(&self) -> RwLockReadGuard<'_, Inner> {

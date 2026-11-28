@@ -137,6 +137,21 @@ impl DirectClient {
         self
     }
 
+    /// [`Self::call`] with `key` as the call's idempotency key (`spec/idempotency.md`, K1), a
+    /// caller's, which the registry checks (K2). The approval retry, when a person approves, sends
+    /// the same key, so a registry with the idempotency step answers it as one call. The same as
+    /// setting [`CommandContext::with_idempotency_key`] on `context`.
+    pub async fn call_with_idempotency_key(
+        &self,
+        name: &str,
+        input: Value,
+        key: impl Into<String>,
+        context: Option<CommandContext>,
+    ) -> CommandResult<Value> {
+        let context = context.unwrap_or_default().with_idempotency_key(key);
+        self.call(name, input, Some(context)).await
+    }
+
     /// Execute `name` with `input` and an optional caller context.
     pub async fn call(
         &self,

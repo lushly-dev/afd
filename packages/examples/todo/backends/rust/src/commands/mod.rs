@@ -37,7 +37,8 @@ use crate::types::iso;
 use afd::{
     failure, success_with, Alternative, ApprovalPolicy, CommandContext, CommandDefinition,
     CommandError, CommandExample, CommandHandler, CommandRegistry, CommandResult, ExposeOptions,
-    JsonSchema, RandomSource, ResultOptions, TaskSupport, Warning, WarningSeverity,
+    IdempotencySupport, JsonSchema, RandomSource, ResultOptions, TaskSupport, Warning,
+    WarningSeverity,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -74,6 +75,12 @@ pub trait Command: Send + Sync + 'static {
     const CONFIRM_PROMPT: Option<&'static str> = None;
     /// Whether this command may or must run as an MCP task.
     const TASK: TaskSupport = TaskSupport::Never;
+    /// What the command promises about repeating a call (`spec/idempotency.md`, D1 to D5).
+    const IDEMPOTENCY: Option<IdempotencySupport> = None;
+    /// Whether the handler answers a repeat with the same idempotency key itself (the handler's
+    /// tier): for a `keyed` command that may run as an MCP task, on which the registry's step
+    /// does not act (D5, S11).
+    const KEYED_IN_HANDLER: bool = false;
 
     /// JSON Schema of the input object.
     fn schema() -> Value;
@@ -107,6 +114,10 @@ struct Handler<C> {
 #[async_trait]
 impl<C: Command> CommandHandler for Handler<C> {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
+        // The scope and digest of a repeat the handler answers itself (K5, S4).
+        let keyed = C::KEYED_IN_HANDLER
+            .then(|| keyed_call(&context, &input))
+            .flatten();
         let input = match serde_json::from_value::<C::Input>(input) {
             Ok(input) => input,
             // The schema and the input type disagree: a bug in this backend.
@@ -122,13 +133,60 @@ impl<C: Command> CommandHandler for Handler<C> {
             return self.command.run(input, &context);
         }
         // The change and its history entry under one lock, so entries keep the changes' order.
+        // A repeat with the same key waits here for the first call, then gets its answer.
         let _changing = self.store.changing();
+        let now = context.clock().now();
+        if let Some((scope, digest)) = &keyed {
+            if let Some(answer) = self.store.keyed_answer(scope, now) {
+                return if answer.digest == *digest {
+                    answer.result
+                } else {
+                    failure(key_reused())
+                };
+            }
+        }
         let result = self.command.run(input, &context);
         if result.success {
             record::<C>(&self.store, &result, &context);
+            // Kept once it succeeded; a failure keeps nothing, so a repeat runs again.
+            if let Some((scope, digest)) = keyed {
+                self.store
+                    .keep_keyed_answer(scope, digest, result.clone(), now);
+            }
         }
         result
     }
+}
+
+/// The scope and digest of a call a command keys in its handler, when the call carries a key:
+/// the caller (its kind, id and whom it acts for) and the key (K5), and the input as sent.
+fn keyed_call(context: &CommandContext, input: &Value) -> Option<(String, String)> {
+    let key = context.idempotency_key.as_deref()?;
+    let actor = context.actor.as_ref();
+    let scope = serde_json::json!([
+        actor.map(|actor| actor.kind),
+        actor.and_then(|actor| actor.id.clone()),
+        actor.and_then(|actor| actor.on_behalf_of.clone()),
+        key,
+    ]);
+    Some((scope.to_string(), input.to_string()))
+}
+
+/// The refusal of a key held for a call with another input (`IDEMPOTENCY_KEY_REUSED`).
+fn key_reused() -> CommandError {
+    CommandError::new(
+        afd::error_codes::IDEMPOTENCY_KEY_REUSED,
+        "This idempotency key is already held for a batch with other todos",
+    )
+    .with_suggestion(
+        "Use a new idempotency key for a different batch. Reuse a key only to repeat the same batch.",
+    )
+    .with_retryable(false)
+    .with_recovery(afd::Recovery::stop())
+    .with_details(std::collections::HashMap::from([(
+        "meta".to_owned(),
+        serde_json::json!(afd::AFD_IDEMPOTENCY_KEY_META_KEY),
+    )]))
 }
 
 /// Add a successful change to the history: who (the context's actor), when (the context's
@@ -278,6 +336,9 @@ fn definition<C: Command>(command: C, store: &Arc<TodoStore>) -> (CommandDefinit
     }
     if C::TASK != TaskSupport::Never {
         definition = definition.with_task(C::TASK);
+    }
+    if let Some(idempotency) = C::IDEMPOTENCY {
+        definition = definition.with_idempotency(idempotency);
     }
     (definition, C::schema())
 }

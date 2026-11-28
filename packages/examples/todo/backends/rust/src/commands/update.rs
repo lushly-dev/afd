@@ -1,7 +1,9 @@
 use super::{not_found, ok, schema, stamp, todo_id_in, Command, Reply, EXAMPLE_ID};
 use crate::store::{Changes, TodoStore};
 use crate::types::Priority;
-use afd::{failure, CommandContext, CommandError, CommandExample, CommandResult};
+use afd::{
+    failure, CommandContext, CommandError, CommandExample, CommandResult, IdempotencySupport,
+};
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use std::sync::Arc;
@@ -25,6 +27,7 @@ impl Command for Update {
         "Update a todo's title, description, priority or completion; the result names the undo";
     const TAGS: &'static [&'static str] = &["todo", "update", "write", "single"];
     const MUTATION: bool = true;
+    const IDEMPOTENCY: Option<IdempotencySupport> = Some(IdempotencySupport::Keyed);
     const UNDOABLE: bool = true;
 
     fn schema() -> Value {

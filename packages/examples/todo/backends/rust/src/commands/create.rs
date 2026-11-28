@@ -1,7 +1,7 @@
 use super::{ok, schema, stamp, todo_id_in, Command, Reply};
 use crate::store::{NewTodo, TodoStore};
 use crate::types::Priority;
-use afd::{CommandContext, CommandExample, CommandResult};
+use afd::{CommandContext, CommandExample, CommandResult, IdempotencySupport};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -22,6 +22,7 @@ impl Command for Create {
     const DESCRIPTION: &'static str = "Create a new todo item";
     const TAGS: &'static [&'static str] = &["todo", "create", "write", "single"];
     const MUTATION: bool = true;
+    const IDEMPOTENCY: Option<IdempotencySupport> = Some(IdempotencySupport::Keyed);
     const UNDOABLE: bool = true;
 
     fn schema() -> Value {

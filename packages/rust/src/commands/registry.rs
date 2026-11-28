@@ -69,6 +69,8 @@ pub struct CommandRegistry {
     pub(super) journal: RwLock<Option<Arc<JournalRecorder>>>,
     pub(super) context_fields: RwLock<Arc<CompiledContextFields>>,
     pub(super) call_grant: RwLock<Option<CallGrant>>,
+    /// The idempotency step ([`CommandRegistry::set_idempotency`]).
+    pub(super) idempotency: RwLock<Option<Arc<crate::idempotency::step::IdempotencyStep>>>,
     limits: RwLock<ExecutionLimits>,
 }
 
@@ -413,6 +415,13 @@ impl CommandRegistry {
             }
             tool["_meta"]["confirmationMode"] = serde_json::json!(mode);
         }
+        // What the command promises about repeats (`spec/idempotency.md`, D3), when set.
+        if let Some(idempotency) = command.idempotency {
+            if !tool["_meta"].is_object() {
+                tool["_meta"] = serde_json::json!({});
+            }
+            tool["_meta"]["idempotency"] = serde_json::json!(idempotency);
+        }
         // Whether a call may run as a task (`spec/tasks.md`), when set.
         if let Some(task) = command.task {
             if !tool["_meta"].is_object() {
@@ -464,6 +473,47 @@ impl CommandRegistry {
     /// [`JournalRecorder`]. Replay with [`replay_journal`](crate::replay_journal).
     pub fn set_journal(&self, recorder: JournalRecorder) {
         *write_lock(&self.journal) = Some(Arc::new(recorder));
+    }
+
+    /// Give the registry the idempotency step (`spec/idempotency.md`, S1 to S13), replacing any
+    /// set before. It acts on a call that carries an idempotency key
+    /// ([`CommandContext::idempotency_key`]) to a command that declares
+    /// [`Keyed`](crate::IdempotencySupport::Keyed) and does not run as an MCP task (S2, S11).
+    /// Between the approval admission check and the handler, it answers a repeat with the same
+    /// key, input and declared context fields from `options`' store, with
+    /// `metadata.idempotentReplay: true`, or refuses it (`IDEMPOTENCY_KEY_REUSED`,
+    /// `IDEMPOTENCY_IN_PROGRESS`, `OUTCOME_UNKNOWN`); the first call's success or failure that is
+    /// not retryable is kept for `ttl_ms` (S5, S6). The scope is the principal binding the
+    /// context holds after middleware ran, the command and the key (K5).
+    ///
+    /// The engine drops a call at its deadline (S7): its reservation then stays live until
+    /// `lease_ms` past the deadline, and a repeat gets `OUTCOME_UNKNOWN` after that. With the step
+    /// on the registry, a handler's own `metadata.idempotentReplay` is removed from every result
+    /// (S9).
+    ///
+    /// # Errors
+    /// A configuration S8 refuses against the registry's current default deadline
+    /// ([`Self::set_default_timeout_ms`]): `ttl_ms` must be greater than it plus `lease_ms`. The
+    /// MCP server checks again against its own default deadline when it starts. A default
+    /// deadline set later with [`Self::set_default_timeout_ms`] is not checked again: set the step
+    /// after it.
+    pub fn set_idempotency(&self, options: crate::IdempotencyOptions) -> Result<(), String> {
+        let step =
+            crate::idempotency::step::IdempotencyStep::new(options, self.default_timeout_ms())?;
+        *write_lock(&self.idempotency) = Some(Arc::new(step));
+        Ok(())
+    }
+
+    /// Remove the idempotency step set with [`Self::set_idempotency`].
+    pub fn clear_idempotency(&self) {
+        *write_lock(&self.idempotency) = None;
+    }
+
+    /// The registry's idempotency step.
+    pub(crate) fn idempotency_step(
+        &self,
+    ) -> Option<Arc<crate::idempotency::step::IdempotencyStep>> {
+        read_lock(&self.idempotency).clone()
     }
 
     /// Stop recording to the journal set with [`Self::set_journal`].

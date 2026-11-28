@@ -3,7 +3,7 @@ use super::{
     Summary, EXAMPLE_ID, OTHER_ID,
 };
 use crate::store::TodoStore;
-use afd::{CommandContext, CommandExample, CommandResult, WarningSeverity};
+use afd::{CommandContext, CommandExample, CommandResult, IdempotencySupport, WarningSeverity};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -32,6 +32,7 @@ impl Command for DeleteBatch {
          todos";
     const TAGS: &'static [&'static str] = &["todo", "delete", "write", "batch", "destructive"];
     const MUTATION: bool = true;
+    const IDEMPOTENCY: Option<IdempotencySupport> = Some(IdempotencySupport::Natural);
     const DESTRUCTIVE: bool = true;
     // It can be undone, so it is not held for approval.
     const UNDOABLE: bool = true;

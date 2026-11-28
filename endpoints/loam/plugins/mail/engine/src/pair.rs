@@ -388,6 +388,7 @@ pub async fn execute_pair(
     let record = JournalRecord {
         timestamp: crate::journal::utc_timestamp_ms(created_at),
         trace_id: None,
+        idempotency_key: None,
         command: tokens::CREATE.to_string(),
         input: json!({
             "name": name,
@@ -453,6 +454,7 @@ pub async fn execute_unpair(
     let record = JournalRecord {
         timestamp: crate::journal::utc_timestamp_ms(now_ms()),
         trace_id: None,
+        idempotency_key: None,
         command: "mail-token-revoke".to_string(),
         input: json!({
             "token": token_id,

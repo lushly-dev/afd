@@ -19,8 +19,10 @@ the pull request's number.
 
 - **3. TypeScript** ([#2675](https://github.com/lushly-dev/afd/issues/2675)): merged in #2864. Every case of `spec/vectors/idempotency.json` runs in `packages/server/src/idempotency-vectors.test.ts` (the `waits`, `cancels` and `drops` engines' S7 cases skipped as another engine's); the three codes are in the catalog with constants in all four languages; the todo example declares its nine mutations, and `afd validate --surface` reports none undeclared (`missing-idempotency`). A direct registry takes a step built with `createIdempotencyStep`, so `/direct` hosts without it do not bundle it.
 
-- **4. Python, Rust and C++** (#2676, split on 2026-11-27): one issue per language, each planned and independent of the others: Python [#2955](https://github.com/lushly-dev/afd/issues/2955), Rust [#2956](https://github.com/lushly-dev/afd/issues/2956), C++ [#2957](https://github.com/lushly-dev/afd/issues/2957). Not started.
-  - **C++** ([#2957](https://github.com/lushly-dev/afd/issues/2957)): merged in #3051. `CommandRegistryOptions::idempotency` adds the step inside the registry's innermost link, after the approval admission check. C++ waits for a late handler (S7, `waits`), so the step settles from the handler's result before the caller gets `TIMEOUT`. Every case of `spec/vectors/idempotency.json` runs in `packages/cpp/tests/idempotency_vectors_test.cpp` except other engines' S7 cases and the HTTP and task cases, which C++ has no surface for; C++ has left `gaps`. The todo C++ backend declares its nine mutations, and `afd validate --surface`'s rules find none undeclared. R3's recovery is on the `TIMEOUT` of the registry, `DirectClient` and `afd::mcp_stdio`. Not done here, because two languages still have to land: the last-lander items (`spec/meta-tools.json`'s `meta` description, `spec/context-fields.md`'s "once every language accepts it").
+- **4. Python, Rust and C++** (#2676, split on 2026-11-27): one issue per language, each planned and independent of the others: Python [#2955](https://github.com/lushly-dev/afd/issues/2955), Rust [#2956](https://github.com/lushly-dev/afd/issues/2956), C++ [#2957](https://github.com/lushly-dev/afd/issues/2957). Each language's line below records its pull request.
+  - **C++** ([#2957](https://github.com/lushly-dev/afd/issues/2957)): merged in #3051. `CommandRegistryOptions::idempotency` adds the step inside the registry's innermost link, after the approval admission check. C++ waits for a late handler (S7, `waits`), so the step settles from the handler's result before the caller gets `TIMEOUT`. Every case of `spec/vectors/idempotency.json` runs in `packages/cpp/tests/idempotency_vectors_test.cpp` except other engines' S7 cases and the HTTP and task cases, which C++ has no surface for; C++ has left `gaps`. The todo C++ backend declares its nine mutations, and `afd validate --surface`'s rules find none undeclared. R3's recovery is on the `TIMEOUT` of the registry, `DirectClient` and `afd::mcp_stdio`. Not done here, because other languages were still to land: the last-lander items (`spec/meta-tools.json`'s `meta` description, `spec/context-fields.md`'s "once every language accepts it").
+
+  - **Rust** ([#2956](https://github.com/lushly-dev/afd/issues/2956)): merged in #3058. `tests/idempotency_vectors.rs` runs every case but the other engines' three S7 cases, and Rust left the vectors' `gaps`. The step is `CommandRegistry::set_idempotency`, in the innermost link after the approval admission check, with no feature needed. The engine drops a call at its deadline (S7, `drops`). The todo backend declares its nine mutations, and `todo-create-batch`, which may run as a task, keys repeats in its handler.
 
 ## Follow-ups not yet issues
 
@@ -57,13 +59,20 @@ the pull request's number.
   the meta argument, so a nested call from a batch item never trips K2 on its parent's derived
   key.
 
+- Rust keeps the key's marks (delivered, set by the engine) and the step's call in crate-private
+  `CommandContext` fields that `CallState` restores at every link, so a middleware cannot change
+  the key or drop the step. The pipeline executor passes each step's `stepIndex` in its context
+  map, which the MCP server's `afd-pipe` reads to derive `<key>:step:<i>`. Struct literals of
+  `JournalRecord` in Umbel and Loam's mail engine name the new `idempotency_key` field.
+
 - C++'s step runs in `CommandRegistry::run_chain`'s innermost link (`detail::run_idempotency_step`,
   `packages/cpp/src/idempotency.cpp`). The retry middleware reads `mutation`, `idempotency` and
   whether the call carries a key from the registry's per-call admission record
   (`detail::live_repeat_declaration`). The surface that owns a call's deadline (the registry,
   `DirectClient`, `afd::mcp_stdio`) hands the registry a `detail::IdempotencyNote` and reads from
-  it whether the step reserved the key (R3). On stdio, a call whose `context_hook` left the
-  server's default actor is scoped to its connection (S3).
+  it whether the step reserved the key (R3). On stdio, a call that, as middleware left it, has no
+  credentials and no actor but a bare agent (no id or `onBehalfOf`) is scoped to its connection
+  (S3).
 
 ## How to keep this file
 

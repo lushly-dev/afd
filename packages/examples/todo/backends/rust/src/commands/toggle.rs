@@ -1,6 +1,6 @@
 use super::{not_found, ok, schema, stamp, todo_id_in, Command, Reply, EXAMPLE_ID};
 use crate::store::TodoStore;
-use afd::{failure, CommandContext, CommandExample, CommandResult};
+use afd::{failure, CommandContext, CommandExample, CommandResult, IdempotencySupport};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -20,6 +20,7 @@ impl Command for Toggle {
         "Set an open todo to done, or a done todo back to open; the result names the undo";
     const TAGS: &'static [&'static str] = &["todo", "toggle", "write", "single"];
     const MUTATION: bool = true;
+    const IDEMPOTENCY: Option<IdempotencySupport> = Some(IdempotencySupport::Keyed);
     const UNDOABLE: bool = true;
 
     fn schema() -> Value {

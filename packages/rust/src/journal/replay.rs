@@ -465,6 +465,9 @@ fn replay_call(
 
     let mut context = CommandContext::new();
     context.trace_id.clone_from(&entry.trace_id);
+    // The recorded key is restored as the engine's, not a caller's: a derived one passes K2
+    // (`spec/idempotency.md`, "The journal").
+    context = crate::idempotency::key::with_engine_key(context, entry.idempotency_key.clone());
     context.actor.clone_from(&entry.actor);
     if let Some(interface) = &entry.context_digest.interface {
         let interface: CommandInterface = serde_json::from_value(Value::String(interface.clone()))

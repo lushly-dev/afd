@@ -884,6 +884,7 @@ impl PersonService {
         let record = afd::JournalRecord {
             timestamp: super::iso(decision.decided_ms.unwrap_or_else(|| self.clock.now())),
             trace_id: decision.trace_id.clone(),
+            idempotency_key: None,
             command: "person-decide".to_owned(),
             input: input.clone(),
             actor: None,

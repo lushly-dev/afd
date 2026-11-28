@@ -2,9 +2,9 @@
 //! surface (#466)"; `spec/context-fields.md`, "Clients that cannot set `_meta`").
 //!
 //! `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail` take an optional `meta`
-//! object for clients that cannot set `_meta`. Its keys are `dev.afd/context`, `dev.afd/outputBudget` and the declared
-//! context fields' `_meta` keys, applied as if the request had sent them in `_meta`, before
-//! anything reads `_meta`. Other keys are dropped, as undeclared `_meta` keys are. A key sent
+//! object for clients that cannot set `_meta`. Its keys are `dev.afd/context`,
+//! `dev.afd/outputBudget`, `dev.afd/idempotencyKey` and the declared context fields' `_meta`
+//! keys, applied as if the request had sent them in `_meta`, before anything reads `_meta`. Other keys are dropped, as undeclared `_meta` keys are. A key sent
 //! both ways must agree, or the call fails with `VALIDATION_ERROR`. TypeScript's
 //! `liftMetaArgument` does the same.
 
@@ -18,13 +18,18 @@ use crate::output_budget::AFD_OUTPUT_BUDGET_META_KEY;
 use crate::{error_codes, CommandError, AFD_META_TOOL_NAMES};
 
 /// The keys a `meta` argument may carry on a server with these declared fields:
-/// `dev.afd/context`, `dev.afd/outputBudget`, then each field's `_meta` key.
+/// `dev.afd/context`, `dev.afd/outputBudget`, `dev.afd/idempotencyKey`, then each field's
+/// `_meta` key.
 pub(crate) fn meta_argument_keys(fields: &[ContextField]) -> Vec<String> {
-    [AFD_CONTEXT_META_KEY, AFD_OUTPUT_BUDGET_META_KEY]
-        .into_iter()
-        .map(str::to_owned)
-        .chain(fields.iter().map(|field| field.meta.clone()))
-        .collect()
+    [
+        AFD_CONTEXT_META_KEY,
+        AFD_OUTPUT_BUDGET_META_KEY,
+        crate::AFD_IDEMPOTENCY_KEY_META_KEY,
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .chain(fields.iter().map(|field| field.meta.clone()))
+    .collect()
 }
 
 /// A meta-tool call's arguments without `meta`, and the request's `_meta` with the argument's
@@ -124,13 +129,14 @@ mod tests {
     }
 
     #[test]
-    fn keys_are_the_context_key_the_output_budget_and_the_declared_fields() {
+    fn keys_are_the_context_key_the_output_budget_the_idempotency_key_and_the_declared_fields() {
         let field = ContextField::new("tenantId", "app.example/tenant", json!({"type": "string"}));
         assert_eq!(
             meta_argument_keys(&[field]),
             vec![
                 "dev.afd/context".to_owned(),
                 "dev.afd/outputBudget".to_owned(),
+                "dev.afd/idempotencyKey".to_owned(),
                 "app.example/tenant".to_owned()
             ]
         );

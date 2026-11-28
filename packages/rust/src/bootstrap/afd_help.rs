@@ -49,6 +49,9 @@ pub struct CommandInfo {
     /// Whether the command mutates state (`full` format only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mutation: Option<bool>,
+    /// `idempotency` when set (`full` format only; `spec/idempotency.md`, D3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idempotency: Option<crate::IdempotencySupport>,
     /// `destructive` when set (`full` format only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub destructive: Option<bool>,
@@ -182,6 +185,7 @@ impl CommandHandler for AfdHelpHandler {
                     None
                 },
                 mutation: if is_full { Some(cmd.mutation) } else { None },
+                idempotency: if is_full { cmd.idempotency } else { None },
                 destructive: if is_full { cmd.destructive } else { None },
                 undoable: if is_full { cmd.undoable } else { None },
                 approval: if is_full {
