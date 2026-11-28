@@ -445,14 +445,32 @@ class TestBatchStopsDrainSiblings:
         assert calls == ["failed", "finished"]
 
     @pytest.mark.asyncio
-    async def test_deadline_still_cancels_while_draining_after_failure(self):
+    async def test_deadline_still_cancels_while_draining_after_failure(self, monkeypatch):
         server = create_server("drain-deadline")
         sibling_started = asyncio.Event()
         sibling_cancelled = asyncio.Event()
+        failure_returned = False
+
+        # The deadline is too long for any runner stall to reach in wall-clock time, so the
+        # failure is always recorded first. Once work-fail returns, the batch clock jumps past
+        # the deadline, which then expires while work-block is still draining (#2940). The
+        # non-integer timeoutMs checks that a fractional deadline is kept as sent. The patch works
+        # because execute_batch reads time.perf_counter at each call; the durations it reports
+        # after the jump include the skew, so do not assert on them.
+        timeout_ms = 60_000.5
+        real_perf_counter = time.perf_counter
+
+        def controlled_perf_counter() -> float:
+            skew = timeout_ms / 1000 if failure_returned else 0.0
+            return real_perf_counter() + skew
+
+        monkeypatch.setattr(command_execution.time, "perf_counter", controlled_perf_counter)
 
         @server.command(name="work-fail", description="Fail after sibling starts", expose=MCP)
         async def fail(input):
+            nonlocal failure_returned
             await sibling_started.wait()
+            failure_returned = True
             return error("WRITE_FAILED", "The write failed")
 
         @server.command(name="work-block", description="Wait until cancelled", expose=MCP)
@@ -472,16 +490,21 @@ class TestBatchStopsDrainSiblings:
                         {"command": "work-block"},
                         {"command": "work-block"},
                     ],
-                    "options": {"parallelism": 2, "stopOnError": True, "timeoutMs": 20.5},
+                    "options": {
+                        "parallelism": 2,
+                        "stopOnError": True,
+                        "timeoutMs": timeout_ms,
+                    },
                 },
             ),
-            1,
+            5,
         )
         assert [item.result.error.code for item in result.results] == [
             "WRITE_FAILED",
             "BATCH_TIMEOUT",
             "BATCH_TIMEOUT",
         ]
+        assert "60000.5ms" in result.results[1].result.error.message
         assert sibling_cancelled.is_set()
 
     @pytest.mark.asyncio
