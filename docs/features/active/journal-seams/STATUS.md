@@ -6,7 +6,7 @@ Epic: [#2677](https://github.com/lushly-dev/afd/issues/2677).
 | --- | --- |
 | Proposal | [journal-seams.proposal.md](./journal-seams.proposal.md) |
 | Decisions | J1 to J6, accepted by the owner as recommended on 2026-11-26 ([Decisions](./journal-seams.proposal.md#decisions)). J2 builds the dispatch id and the approval hook now and holds every member of the journal entry and the result ([Approved and held](./journal-seams.proposal.md#approved-and-held)) |
-| Last verified | 2026-11-26, against `main` at `fb34d7c0b`: `git grep` finds none of `dispatchId`, `onApprovalAccepted`, `approvalId` or `recordAbandoned` in `spec/`, `packages/` or `python/` |
+| Last verified | 2026-11-28, against `main` at `f166dd38f`: every language sets the dispatch id (`packages/core/src/dispatch-id.ts`, `python/src/afd/core/dispatch_id.py`, `packages/rust/src/commands/execute.rs`, `packages/cpp/src/registry.cpp`) and builds the approval summary; `spec/vectors/journal-seams.json`'s `gaps` is empty; and `git grep` finds no `recordAbandoned` or `record_abandoned` outside Markdown, as the held items require |
 
 ## Steps
 
@@ -67,6 +67,10 @@ for (J2).
 - While the entry members are held, the journal entry carries no `dispatchId`. A host that keys
   its own record by it, as Umbel's D208 middleware will (D221, 2026-11-27), settles each intent in that record after
   the call returns.
+- For a token with a fractional `exp` (a fractional TTL) or `iat` (a fractional clock), the
+  summary's `issuedAt` and `expiresAt` differ by language: TypeScript keeps the fraction, Python
+  and Rust truncate it, and C++ rounds `expiresAt` up and `issuedAt` down
+  ([#3054](https://github.com/lushly-dev/afd/issues/3054)).
 
 ## How to keep this file
 
