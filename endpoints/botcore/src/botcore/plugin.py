@@ -97,7 +97,7 @@ class PluginRegistry:
         self._mcp_name = name
 
     def add_docs(self, topic: str, content: str) -> None:
-        """Register documentation for a topic (shown via {name}-docs tool)."""
+        """Register documentation for a topic (a host's ``info_docs`` command shows it)."""
         if topic in self._docs:
             raise ValueError(f"Duplicate documentation topic: {topic}")
         self._docs[topic] = content

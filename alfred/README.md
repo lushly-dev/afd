@@ -79,7 +79,7 @@ so a request for one fragment cannot silently remove the rest.
 
 The `lint`, `parity` and `quality` CLI names and `--path` options remain aliases
 for managed AFD commands. They now require an explicit global `--workspace`;
-existing invocations should add that option. Managed MCP uses `alfred-call`;
+existing invocations should add that option. Managed MCP uses `afd-call`;
 clients migrate from arbitrary `alfred-run` code to structured command calls.
 The new canonical IDs are `info-targets` and `alfred-check-plan`; their underscore
 spellings remain dispatch aliases for compatibility, and a plugin command using

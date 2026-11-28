@@ -269,10 +269,10 @@ async def test_real_binding_mcp_create_cli_status_direct_delete(repo):
 
     host = build_alfred_host(repo, profile="trusted-local")
     response = await create_host_mcp_server(host).call_tool(
-        "alfred-call",
+        "afd-call",
         {
             "command": "changeset_create",
-            "arguments": {
+            "input": {
                 "unit": "a",
                 "packages": {"@fixture/a": "patch"},
                 "summary": "Cross-route fixture",

@@ -149,10 +149,10 @@ async def test_rejection_has_no_effect_across_routes(tmp_path):
     mcp = create_host_mcp_server(host)
     remote = content(
         await mcp.call_tool(
-            "alfred-call",
+            "afd-call",
             {
                 "command": "spec_create",
-                "arguments": args,
+                "input": args,
             },
         )
     )
@@ -187,9 +187,7 @@ async def test_false_lint_verdict_equivalent_in_every_surface(tmp_path, field, v
 
     host.register("lint", lint, CommandPolicy(quality=field))
     direct = await host.direct_client().call("lint")
-    remote = content(
-        await create_host_mcp_server(host).call_tool("alfred-call", {"command": "lint"})
-    )
+    remote = content(await create_host_mcp_server(host).call_tool("afd-call", {"command": "lint"}))
     cli = await asyncio.to_thread(CliRunner().invoke, create_host_cli(host), ["call", "lint"])
     assert direct.success is remote["success"] is True
     assert direct.metadata.quality["status"] == remote["metadata"]["quality"]["status"] == status
@@ -310,11 +308,18 @@ async def test_legacy_and_managed_mcp_exposure_transition(tmp_path):
         "afd-call",
         "afd-batch",
         "afd-pipe",
-        "alfred-start",
-        "alfred-docs",
-        "alfred-call",
     }
     assert content(await legacy.call_tool("compat-run", {"code": "return 42"})) == 42
+    # The managed host's -start, -call and -docs aliases were retired (#2505): an old
+    # client is told what replaced each, never pointed at an unrelated command.
+    for retired, replacement in (
+        ("alfred-start", "info_catalog"),
+        ("alfred-call", "afd-call"),
+        ("alfred-docs", "info_docs"),
+    ):
+        refused = content(await managed.call_tool(retired, {}))
+        assert refused["error"]["code"] == "TOOL_RETIRED", retired
+        assert replacement in refused["error"]["suggestion"], retired
 
 
 async def test_trusted_raw_commands_still_dispatch_and_accept_positional_args(tmp_path):
@@ -379,9 +384,7 @@ async def test_quality_failure_codes_keep_their_meaning_across_surfaces(tmp_path
 
     host.register("check", check, CommandPolicy(quality="execution"))
     direct = await host.direct_client().call("check")
-    remote = content(
-        await create_host_mcp_server(host).call_tool("alfred-call", {"command": "check"})
-    )
+    remote = content(await create_host_mcp_server(host).call_tool("afd-call", {"command": "check"}))
     cli = await asyncio.to_thread(CliRunner().invoke, create_host_cli(host), ["call", "check"])
     assert direct.metadata.quality["status"] == status
     assert remote["metadata"]["quality"]["status"] == status
@@ -427,7 +430,7 @@ async def test_real_broken_docs_links_are_failed_checks_across_surfaces(tmp_path
     direct = await host.direct_client().call("docs_lint")
     remote = content(
         await create_host_mcp_server(host).call_tool(
-            "alfred-call",
+            "afd-call",
             {
                 "command": "docs_lint",
             },
@@ -528,3 +531,84 @@ async def test_disk_reclaim_runs_blocking_body_off_event_loop(tmp_path, monkeypa
     assert result.success is True
     assert worker_thread == [worker_thread[0]] and worker_thread[0] != loop_thread
     assert ticks == 5
+
+
+async def test_docs_topics_are_a_command_on_every_surface(tmp_path):
+    # The retired -docs MCP tool's topics (#2505): core docs and every plugin's add_docs.
+    class DocsPlugin:
+        host_context_safe = True
+
+        def register(self, registry):
+            registry.add_docs("notes", "# Notes\nnotes_add(text) adds a note.")
+
+    with patch("botcore.plugin.discover_plugins", return_value={"notes": DocsPlugin()}):
+        host = build_host("alfred", ExecutionContext(tmp_path), plugins=("notes",))
+    direct = await host.execute("info_docs", {"topic": "notes"})
+    assert direct.success and direct.data == {
+        "topic": "notes",
+        "text": "# Notes\nnotes_add(text) adds a note.",
+    }
+    overview = await host.execute("info_docs", {})
+    assert "- **notes**: # Notes" in overview.data["text"]
+    assert "- **dev**:" in overview.data["text"]
+
+    remote = content(
+        await create_host_mcp_server(host).call_tool(
+            "afd-call", {"command": "info_docs", "input": {"topic": "notes"}}
+        )
+    )
+    assert remote["data"] == direct.data
+    cli = await asyncio.to_thread(
+        CliRunner().invoke,
+        create_host_cli(host),
+        ["call", "info_docs", json.dumps({"topic": "notes"})],
+    )
+    assert json.loads(cli.output)["data"] == direct.data
+
+    missing = await host.execute("info_docs", {"topic": "absent"})
+    assert missing.error.code == "UNKNOWN_TOPIC"
+    assert "notes" in missing.error.message
+    assert missing.error.suggestion == "Call info_docs without a topic to list the topics"
+
+    kebab = build_host("alfred", ExecutionContext(tmp_path), kebab_names=True)
+    assert {"info-catalog", "info-docs"} <= set(kebab.list_command_names())
+    refused = await kebab.execute("info-docs", {"topic": "absent"})
+    assert refused.error.suggestion == "Call info-docs without a topic to list the topics"
+
+
+async def test_the_catalog_is_a_command_on_every_surface(tmp_path):
+    # What the retired -start tool returned (#2505): every row with its policy, and the host.
+    host = build_host("alfred", ExecutionContext(tmp_path))
+    direct = await host.execute("info_catalog", {})
+    assert direct.data["commands"] == host.catalog()
+    assert direct.data["profile"] == "inspection"
+    assert "workspace" not in direct.data and "target" not in direct.data  # info_workspace's
+    assert "dev" in direct.data["topics"]
+    remote = content(
+        await create_host_mcp_server(host).call_tool("afd-call", {"command": "info_catalog"})
+    )
+    assert remote["data"] == direct.data
+
+
+async def test_a_host_called_inside_another_s_call_describes_itself(tmp_path):
+    inner = build_host("inner", ExecutionContext(tmp_path), core_commands=())
+    outer = CommandHost("outer", ExecutionContext(tmp_path, profile="trusted-local"))
+
+    async def ask_inner():
+        """Ask another host for its catalog."""
+        return await inner.execute("info_catalog", {})
+
+    outer.register("ask_inner", ask_inner, CommandPolicy())
+    answer = await outer.execute("ask_inner", {})
+    assert answer.data["name"] == "inner"
+    assert answer.data["profile"] == "inspection"
+    assert [row["name"] for row in answer.data["commands"]] == ["info_catalog", "info_docs"]
+
+
+async def test_the_info_commands_refuse_outside_a_host():
+    from botcore.host import info_catalog, info_docs
+
+    for command in (info_catalog, info_docs):
+        refused = await command()
+        assert refused.error.code == "NO_HOST"
+        assert refused.error.suggestion

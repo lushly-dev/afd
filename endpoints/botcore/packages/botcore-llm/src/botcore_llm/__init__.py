@@ -38,7 +38,7 @@ commands are bridged into Copilot tools, which return one result.
 
 `llm_session_create(tools=[...])` serves the named commands to the model through a
 managed Botcore host, so every tool call enters `host.execute` under the host's command
-policies and profile, as a CLI or MCP `call` does. A call the policy refuses (for example
+policies and profile, as a CLI or MCP `afd-call` does. A call the policy refuses (for example
 `EFFECT_DENIED`) reaches the model as that error and its suggestion. By default the host
 covers the current workspace with the `inspection` profile and serves the admitted core
 commands plus those of the connectors plugin when it is installed; `tool_profile` and

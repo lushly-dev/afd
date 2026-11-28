@@ -7,7 +7,7 @@ description: >
   JSON, hangs or won't start.
 metadata:
   source: botcore
-  version: 2.2.0
+  version: 2.3.0
   portable: true
 ---
 
@@ -34,8 +34,8 @@ Record the figure next to the tool list and re-measure whenever tools change.
 Where it costs depends on the client. Claude Code's tool search is on by default and loads only tool names and server instructions up front; `/context` shows which tools are deferred. Clients without deferral, and Claude Code with tool search off, load everything.
 
 - **Instructions.** Set the server's `instructions` to say what tasks its tools handle, so tool search can find them. The legacy `create_mcp_server` sets only a name; `create_host_mcp_server` emits AFD's default instructions and accepts `instructions=...`.
-- **Descriptions.** Give purpose and call shape, with searchable words first. Claude Code cuts long descriptions and instructions; [its MCP docs](https://code.claude.com/docs/en/mcp) give the current limits. Put reference text behind a docs tool, as Botcore's `{name}-docs` does.
-- **Growth.** When the payload grows, consolidate related operations behind one dispatcher, such as an `action` argument or Botcore's `{name}-call(command, arguments)`.
+- **Descriptions.** Give purpose and call shape, with searchable words first. Claude Code cuts long descriptions and instructions; [its MCP docs](https://code.claude.com/docs/en/mcp) give the current limits. Put reference text behind a docs command, as a Botcore host's `info_docs` does.
+- **Growth.** When the payload grows, consolidate related operations behind one dispatcher, such as an `action` argument or AFD's `afd-call(command, input)`.
 
 ## Bound prose, never structured output
 
@@ -47,7 +47,7 @@ Truncated JSON or NDJSON is not a shorter result but a decode error. For structu
   - On success it returns `error: None` and drops stderr.
   - `failure_kind` separates `failed` (non-zero exit), `unavailable` (missing executable) and `error` (timeout or other).
 - **`run_external_tool` and `run_python_module`** take no `max_output` and always apply the default budget, so call `run_command` directly for structured output.
-- **`smart_truncate`** keeps the first 40% and the last 60% of the budget around a `... [N chars truncated] ...` marker, so a tool's leading summary and trailing verdict both survive. The legacy `{name}-run` applies it to its whole output; a host's `{name}-call` returns the full `CommandResult`.
+- **`smart_truncate`** keeps the first 40% and the last 60% of the budget around a `... [N chars truncated] ...` marker, so a tool's leading summary and trailing verdict both survive. The legacy `{name}-run` applies it to its whole output; a host's `afd-call` returns the full `CommandResult`.
 
 Claude Code sets its own limits on top:
 - It saves a large successful result to a file and points the model at it. `MAX_MCP_OUTPUT_TOKENS` and a tool's `_meta["anthropic/maxResultSizeChars"]` adjust when that happens.

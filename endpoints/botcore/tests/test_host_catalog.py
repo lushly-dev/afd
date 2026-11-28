@@ -315,8 +315,17 @@ async def test_every_surface_carries_the_same_catalog(tmp_path):
     assert row["description"] == "Report a lane's state."
     assert row["paths"] == ["path"] and "path" in row["input_schema"]["properties"]
     assert row["effects"] == ["inspect"]
-    started = content(await create_host_mcp_server(host).call_tool("alfred-start", {}))
-    assert started["commands"] == rows
+    server = create_host_mcp_server(host)
+    for start in range(0, len(rows), 10):  # afd-detail answers at most ten names a call
+        chunk = rows[start : start + 10]
+        names = [row["name"] for row in chunk]
+        detail = content(await server.call_tool("afd-detail", {"command": names}))
+        for entry, expected in zip(detail["data"], chunk, strict=True):
+            assert entry["description"] == expected["description"]
+            assert entry["inputSchema"] == expected["input_schema"]
+            assert entry["tags"] == [f"effect:{effect}" for effect in expected["effects"]]
+    listed = content(await server.call_tool("afd-call", {"command": "info_catalog"}))
+    assert listed["data"]["commands"] == rows
     cli = CliRunner().invoke(create_host_cli(host), ["catalog"])
     assert json.loads(cli.output) == rows
     spec = next(row for row in rows if row["name"] == "spec_create")
@@ -358,7 +367,7 @@ async def test_wrong_and_missing_arguments_are_refused_alike_on_every_surface(tm
     direct = await host.direct_client().call("lane_wait", args)
     remote = content(
         await create_host_mcp_server(host).call_tool(
-            "factory-call", {"command": "lane_wait", "arguments": args}
+            "afd-call", {"command": "lane_wait", "input": args}
         )
     )
     cli = await asyncio.to_thread(

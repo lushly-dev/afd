@@ -18,7 +18,15 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path, PureWindowsPath
 from typing import Any, cast
 
-from afd import Actor, CommandResult, DirectClient, error, system_clock, system_random
+from afd import (
+    Actor,
+    CommandResult,
+    DirectClient,
+    error,
+    success,
+    system_clock,
+    system_random,
+)
 from afd.core.commands import CommandContext, CommandMiddleware
 from afd.core.result import ResultMetadata
 from afd.direct import CommandContext as DirectCommandContext
@@ -34,7 +42,13 @@ except ImportError:  # pragma: no cover - an older afd cannot honour `secret` (#
     declared_secret = None  # type: ignore[assignment]
     run_off_tape = None  # type: ignore[assignment]
 
-from botcore.context import PROFILE_EFFECTS, ExecutionContext, use_call, use_context
+from botcore.context import (
+    PROFILE_EFFECTS,
+    ExecutionContext,
+    current_call,
+    use_call,
+    use_context,
+)
 from botcore.host_inputs import check_arguments, describe_inputs, summary, validate_arguments
 
 #: Whether the installed afd reads ``secret`` declarations (0.14.0 or later); before that its
@@ -197,6 +211,9 @@ class CommandHost:
         self.docs: dict[str, str] = {}
         #: The plugin instances whose commands this host serves (set by ``build_host``).
         self.plugins: dict[str, Any] = {}
+        #: The host this one runs calls for, which ``info_catalog`` and ``info_docs`` describe
+        #: (``serving_host``); ``None`` for itself.
+        self.serves_as: CommandHost | None = None
         #: Where the skills its MCP server serves come from (set by ``build_host``); ``None``
         #: serves none. A host built from another host's commands copies it.
         self.skills: HostSkills | None = None
@@ -433,6 +450,7 @@ class CommandHost:
             with (
                 use_context(self.context),
                 use_call(call),
+                serving_host(self.serves_as or self),
                 _not_isolated(),
                 _dispatch(call, policy.secret) as dispatch,
             ):
@@ -491,6 +509,24 @@ def isolated_call() -> Iterator[None]:
         yield
     finally:
         _ISOLATED.reset(token)
+
+
+_SERVING: ContextVar[CommandHost | None] = ContextVar("botcore_serving_host", default=None)
+
+
+@contextlib.contextmanager
+def serving_host(host: CommandHost) -> Iterator[None]:
+    """Name ``host`` as the one serving the calls made inside; the innermost name wins.
+
+    ``info_catalog`` and ``info_docs`` describe it. ``CommandHost.execute`` names its
+    ``serves_as`` host, else itself, so a host that runs its calls on a child host (as
+    Alfred's does, for each call's target) sets the child's ``serves_as`` to itself.
+    """
+    token = _SERVING.set(host)
+    try:
+        yield
+    finally:
+        _SERVING.reset(token)
 
 
 @contextlib.contextmanager
@@ -743,4 +779,87 @@ def build_host(
             raise ValueError(f"Declare command effects before admission: {command_name}")
         served = kebab_name(command_name) if kebab_names else command_name
         host.register(served, handler, command_policies[command_name])
+    for handler in HOST_COMMANDS:
+        served = kebab_name(handler.__name__) if kebab_names else handler.__name__
+        host.register(served, handler, CommandPolicy())
     return host
+
+
+def _serving() -> CommandHost | None:
+    return _SERVING.get()
+
+
+def _served(host: CommandHost, name: str) -> str:
+    return host.resolve(name) or name
+
+
+async def info_catalog() -> CommandResult[dict[str, Any]]:
+    """List this host's commands with their inputs, effects and policy, and its profile.
+
+    Each row is one of ``host.catalog()``'s, as the host CLI's ``catalog`` prints it, less
+    the commands the caller's authorization hides. No paths: ``info_workspace`` has those.
+    """
+    host = _serving()
+    if host is None:
+        return _outside_a_host("info_catalog")
+    shown = _shown_to_caller()
+    return success(
+        {
+            "name": host.name,
+            "profile": host.context.profile,
+            "commands": [row for row in host.catalog() if shown(row["name"])],
+            "topics": sorted(host.docs),
+        }
+    )
+
+
+def _shown_to_caller() -> Callable[[str], bool]:
+    """Whether the calling surface's authorization shows a command (spec/authorization.md M6).
+
+    A surface that authorizes its callers binds a scope view to the call's context; without
+    one, every command is shown, as in ``host.catalog()``.
+    """
+    try:
+        from afd.server.auth_view import scope_view_of
+    except ImportError:  # afd without the server extra: no surface binds a view
+        return lambda _name: True
+    view = scope_view_of(current_call())
+    if view is None:
+        return lambda _name: True
+    return lambda name: bool(view.shown(name))
+
+
+async def info_docs(topic: str = "overview") -> CommandResult[dict[str, Any]]:
+    """Read one of this host's documentation topics, such as a plugin's call signatures.
+
+    ``overview`` lists every topic with its first line.
+    """
+    from botcore.server import render_docs_topic
+
+    host = _serving()
+    if host is None:
+        return _outside_a_host("info_docs")
+    text, found = render_docs_topic(host.docs, topic, name=host.name)
+    if not found:
+        return error(
+            "UNKNOWN_TOPIC",
+            text,
+            suggestion=f"Call {_served(host, 'info_docs')} without a topic to list the topics",
+        )
+    return success({"topic": topic, "text": text})
+
+
+def _outside_a_host(name: str) -> CommandResult[dict[str, Any]]:
+    return error(
+        "NO_HOST",
+        f"{name} describes the host serving the call, and none is",
+        suggestion=f"Call {name} through a host (CommandHost.execute or one of its surfaces)",
+    )
+
+
+#: The commands every host ``build_host`` makes serves, whatever ``core_commands`` selects.
+#: They replaced the ``{name}-start`` and ``{name}-docs`` MCP tools (#2505).
+HOST_COMMANDS: tuple[Callable[..., Awaitable[CommandResult[dict[str, Any]]]], ...] = (
+    info_catalog,
+    info_docs,
+)

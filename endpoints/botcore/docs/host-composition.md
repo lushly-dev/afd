@@ -20,10 +20,18 @@ client = host.direct_client()
 The host owns CLI/MCP names. `create_host_mcp_server(host)` serves the host
 through `afd.server.create_server`, exposing AFD's five standard meta-tools
 (`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`) and dual-era
-MCP (`2026-07-28` `server/discover` and `2025` `initialize`), while keeping the
-legacy `{name}-start`, `{name}-call`, and `{name}-docs` tools as compatibility
-aliases (deprecated; planned for retirement in a later release; omitted when a
-host named `afd` would collide with an AFD built-in). Host policy, execution
+MCP (`2026-07-28` `server/discover` and `2025` `initialize`). Each command's
+declared effects are its `effect:*` tags, which `afd-detail` shows and
+`afd-discover` filters on. `build_host` gives every host two commands of its
+own: `info_catalog` (each `host.catalog()` row with its policy, less the
+commands the caller's authorization hides, and the host's profile and topics,
+but no paths) and `info_docs` (one documentation topic). Both describe the host
+serving the call: the innermost one, or the host it names as `serves_as`, so a
+host that runs its calls on a child host, as Alfred's does, sets the child's
+`serves_as` to itself. The `{name}-start`, `{name}-call` and `{name}-docs` aliases were retired
+after one release (#2505); their names stay reserved, and a call to one is
+refused as `TOOL_RETIRED`, naming what replaced it, rather than reaching
+another command. Host policy, execution
 profiles and path bounds run as AFD middleware
 (`create_host_policy_middleware(host)`) before downstream AFD middleware and
 handlers, and every admitted call enters `host.execute`. Additional AFD server
@@ -126,8 +134,8 @@ Conditional effects (such as lint `fix`) are evaluated against bound arguments
 before invocation; effects a call computes beyond its declared set are
 `EFFECT_DENIED`.
 
-`host.catalog()`, which the CLI `catalog` command prints and the MCP `start`
-tool returns as `commands`, carries what a model needs to call each command
+`host.catalog()`, which the CLI `catalog` command prints (over MCP, `afd-detail`
+gives each command's description, input schema and `effect:*` tags), carries what a model needs to call each command
 without a skill installed: `name`, `description` (the docstring's first line),
 `input_schema`, and the policy fields `effects`, `effects_depend_on_arguments`,
 `capabilities`, `paths`, `quality` and `output_scope`. `input_schema` is a JSON
@@ -159,7 +167,7 @@ kebab-case name; without it, existing hosts keep their names. An unknown name is
 command (the same name in another case or separator convention, else by
 `difflib`; `details.suggestedCommand`) and point at the catalog.
 
-Every surface (CLI `call`, MCP `call`, DirectClient) enters `host.execute`,
+Every surface (CLI `call`, MCP `afd-call` and command tools, DirectClient) enters `host.execute`,
 which checks argument names before binding the handler and before any policy,
 path or effect check. An argument the handler does not take, or a missing
 required one, is refused with `VALIDATION_ERROR`, the code AFD's shared error
@@ -188,8 +196,8 @@ resolve, leaves that input unchecked.
 Each call has an AFD `CommandContext`: the one a surface passes to
 `host.execute(name, args, context)`, carrying the caller it verified as `actor`,
 or else a fresh one with the host's `actor` (`CommandHost(..., actor=...)`). It
-gets a trace ID, AFD's system clock and random source when it has none. The MCP
-`call` tool calls as the host's actor, else as `Actor(kind="agent")`; the CLI
+gets a trace ID, AFD's system clock and random source when it has none. An MCP
+call calls as the host's actor, else as `Actor(kind="agent")`; the CLI
 `call` as the host's actor; DirectClient sends its own context, whose actor is
 `human` unless its caller sets one. Middleware receives it, so AFD's journal
 middleware (`afd.server.journal.create_journal_middleware`) runs behind the host
@@ -213,7 +221,7 @@ context object can still see each other's sources (#2703).
 `create_host_mcp_server(host, command_tools=True)` maps to AFD's
 `tool_strategy="individual"` (`command_tools=False` uses `"lazy"`), serving each
 command as its own MCP tool, named as the host serves it, beside AFD's five
-meta-tools and the compatibility `start`, `call` and `docs` aliases. Callers
+meta-tools. Callers
 may also pass `tool_strategy="grouped"` or `tool_strategy="hybrid"` (with
 `first_class_tools`). Each command tool publishes the catalog's `input_schema`
 as AFD's `advertised_input_schema` (so the host stays the sole validator) and
@@ -222,8 +230,8 @@ every possible effect is `inspect`, otherwise `destructiveHint`, so a client's
 permission rules can tell a write from a read. A `**kwargs` handler is served,
 and an unknown or ill-typed input is refused with AFD's `VALIDATION_ERROR` and
 its `suggestedFields` instead of being dropped or refused by the SDK. A command
-named like a compatibility meta-tool (`start`, `call`, `docs`, or `run` even
-when raw Python is off) or a reserved AFD meta-tool (`afd-discover`,
+named like a host's reserved tool (`<host>-run` even when raw Python is off, or
+the retired `<host>-start`, `<host>-call` and `<host>-docs`) or a reserved AFD meta-tool (`afd-discover`,
 `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`) is refused when the server is
 built. Commands are synced on each request, so one registered later is listed
 and called alike (late commands colliding with reserved names are skipped). Only
@@ -231,11 +239,11 @@ the served spelling is a command tool (`issue_claim` returns `COMMAND_NOT_FOUND`
 rather than reaching `issue-claim`).
 
 The annotations are hints for a client's own rules, not a boundary: `afd-call`,
-`afd-batch`, `afd-pipe`, `<host>-call`, and `<host>-run` when raw Python is on,
+`afd-batch`, `afd-pipe`, and `<host>-run` when raw Python is on,
 still reach every command, so a rule that denies `pr-merge` must deny those too.
 A host's profile still decides: an `inspection` host lists its write commands,
 marked destructive, and refuses each call with `EFFECT_DENIED` in
-`create_host_policy_middleware`, as `afd-discover` and `<host>-start` list them.
+`create_host_policy_middleware`, as `afd-discover` lists them.
 
 Managed raw Python requires BOTH `raw_python=True` and an explicit
 `ExecutionContext(..., profile="trusted-local")`. It adds `alfred-run` and is

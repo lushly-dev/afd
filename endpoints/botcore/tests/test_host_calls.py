@@ -241,7 +241,7 @@ async def test_an_mcp_call_is_made_as_an_agent(tmp_path):
     host = CommandHost("factory", ExecutionContext(tmp_path))
     host.register("who", who, CommandPolicy())
     server = create_host_mcp_server(host)
-    reply = await server.call_tool("factory-call", {"command": "who"})
+    reply = await server.call_tool("afd-call", {"command": "who"})
     blocks = getattr(reply, "content", None) or (reply[0] if isinstance(reply, tuple) else reply)
     assert json.loads(blocks[0].text)["data"] == "agent"
 
@@ -273,9 +273,6 @@ async def test_command_tools_carry_the_catalog_schema_and_effect_annotations(tmp
         "afd-call",
         "afd-batch",
         "afd-pipe",
-        "gateway-start",
-        "gateway-call",
-        "gateway-docs",
         "issue-claim",
         "issue-get",
     } == set(tools)
@@ -303,9 +300,6 @@ async def test_without_the_option_only_the_meta_tools_are_served(tmp_path):
         "afd-call",
         "afd-batch",
         "afd-pipe",
-        "gateway-start",
-        "gateway-call",
-        "gateway-docs",
     }
 
 
@@ -370,8 +364,8 @@ async def test_the_meta_tools_still_work_beside_the_command_tools(tmp_path):
     server = create_host_mcp_server(make_host(tmp_path), command_tools=True)
     data = _reply(
         await server.call_tool(
-            "gateway-call",
-            {"command": "issue-claim", "arguments": {"numbers": [2], "holder": HOLDER}},
+            "afd-call",
+            {"command": "issue-claim", "input": {"numbers": [2], "holder": HOLDER}},
         )
     )
     assert data["success"] and data["data"]["numbers"] == [2]
@@ -418,8 +412,8 @@ async def test_command_tools_route_over_a_real_transport(tmp_path):
         assert dumped["annotations"] == {"readOnlyHint": False, "destructiveHint": True}
         direct = await client.call_tool("issue-claim", {"numbers": ["7"], "holder": HOLDER})
         meta = await client.call_tool(
-            "gateway-call",
-            {"command": "issue-claim", "arguments": {"numbers": ["7"], "holder": HOLDER}},
+            "afd-call",
+            {"command": "issue-claim", "input": {"numbers": ["7"], "holder": HOLDER}},
         )
         # Each call stamps a fresh per-call traceId and executionTimeMs under AFD's wire format;
         # verify the command result payload, actor kind and failure shape match across both routes.
@@ -436,8 +430,8 @@ async def test_command_tools_route_over_a_real_transport(tmp_path):
         bad_direct = _reply(await client.call_tool("issue-claim", {"numbers": [1], "nope": 1}))
         bad_meta = _reply(
             await client.call_tool(
-                "gateway-call",
-                {"command": "issue-claim", "arguments": {"numbers": [1], "nope": 1}},
+                "afd-call",
+                {"command": "issue-claim", "input": {"numbers": [1], "nope": 1}},
             )
         )
         assert bad_direct["error"] == bad_meta["error"]
@@ -455,13 +449,12 @@ async def test_a_command_registered_later_is_listed_and_routed(tmp_path):
         return success({"x": x})
 
     host.register("late-cmd", late, CommandPolicy())
-    host.register("gateway-docs", late, CommandPolicy())  # Never served as a command.
+    # A retired alias's name stays reserved (#2505): never served, even registered late.
+    host.register("gateway-docs", late, CommandPolicy())
     names = [tool.name for tool in await server.list_tools()]
-    assert "late-cmd" in names and names.count("gateway-docs") == 1
+    assert "late-cmd" in names and "gateway-docs" not in names
     assert _reply(await server.call_tool("late-cmd", {"x": 2}))["data"] == {"x": 2}
-    reply = await server.call_tool("gateway-docs", {})  # Still the meta-tool.
-    blocks = getattr(reply, "content", None) or (reply[0] if isinstance(reply, tuple) else reply)
-    assert blocks[0].text.startswith("# gateway")
+    assert _reply(await server.call_tool("gateway-docs", {"x": 2}))["success"] is False
 
 
 def test_run_is_reserved_even_without_raw_python(tmp_path):
@@ -531,10 +524,10 @@ async def test_a_command_tool_declares_the_call_meta_tool_s_output(tmp_path):
         for tool in await server.list_tools()
     }
     assert "outputSchema" not in tools["issue-claim"]
-    assert "outputSchema" not in tools["gateway-call"]
+    assert "outputSchema" not in tools["afd-call"]
     direct = await server.call_tool("issue-claim", {"numbers": [1], "holder": HOLDER})
     via_call = await server.call_tool(
-        "gateway-call", {"command": "issue-claim", "arguments": {"numbers": [1], "holder": HOLDER}}
+        "afd-call", {"command": "issue-claim", "input": {"numbers": [1], "holder": HOLDER}}
     )
     assert direct.structured_content["success"] is via_call.structured_content["success"] is True
     assert direct.structured_content["data"] == via_call.structured_content["data"]
@@ -562,7 +555,9 @@ def test_sdk_2_checks_a_command_tool_s_headers_against_the_catalog_schema(tmp_pa
     catalog = {row["name"]: row["input_schema"] for row in host.catalog()}
     assert server._tool_input_schema("issue-claim") == catalog["issue-claim"]
     assert server._tool_input_schema("issue_claim") is None
-    assert server._tool_input_schema("gateway-call") is not None
+    # The one extra tool a host installs is -run, whose schema the SDK must know too.
+    run_server = create_host_mcp_server(host, raw_python=True)
+    assert run_server._tool_input_schema("gateway-run") is not None
 
 
 # ── AFD MCP server integration (#2499) ──────────────────────────────────
@@ -651,10 +646,6 @@ async def test_policy_middleware_blocks_before_downstream_afd_middleware(tmp_pat
     for tool, args in (
         ("issue-claim", {"numbers": [1], "holder": HOLDER}),
         ("afd-call", {"command": "issue-claim", "input": {"numbers": [1], "holder": HOLDER}}),
-        (
-            "gateway-call",
-            {"command": "issue-claim", "arguments": {"numbers": [1], "holder": HOLDER}},
-        ),
     ):
         denied = _reply(await server.call_tool(tool, args))
         assert denied["success"] is False
@@ -678,7 +669,7 @@ async def test_tool_strategy_options_and_validation(tmp_path):
 
     grouped = create_host_mcp_server(host, tool_strategy="grouped")
     grouped_names = {tool.name for tool in await grouped.list_tools()}
-    assert {"afd-discover", "afd-call", "gateway-start", "gateway-call", "issue"} <= grouped_names
+    assert {"afd-discover", "afd-call", "issue"} <= grouped_names
     assert "issue-claim" not in grouped_names
 
     hybrid = create_host_mcp_server(host, tool_strategy="hybrid", first_class_tools=["issue-get"])
@@ -759,13 +750,8 @@ async def test_server_discover_2026_07_28_and_skills_extension(tmp_path):
         commands = json_mod.loads(listed["content"][0]["text"])["data"]["commands"]
         assert [row["name"] for row in commands] == [row["name"] for row in host.catalog()]
 
-        # Compatibility alias still works over 2026-07-28 HTTP.
-        legacy = post_rpc(http, "tools/call", {"name": "gateway-start", "arguments": {}})["result"]
-        started = json_mod.loads(legacy["content"][0]["text"])
-        assert started["commands"] == host.catalog()
 
-
-async def test_auth_fails_closed_on_aliases_as_well_as_afd_tools(tmp_path):
+async def test_auth_fails_closed_on_run_as_well_as_afd_tools(tmp_path):
     from afd.server.auth import McpAuthOptions, TokenVerifier
 
     from botcore.host_surfaces import create_host_mcp_server
@@ -776,6 +762,7 @@ async def test_auth_fails_closed_on_aliases_as_well_as_afd_tools(tmp_path):
 
     server = create_host_mcp_server(
         make_host(tmp_path),
+        raw_python=True,
         auth=McpAuthOptions(
             resource="https://gateway.example/mcp",
             authorization_servers=["https://auth.example"],
@@ -783,12 +770,11 @@ async def test_auth_fails_closed_on_aliases_as_well_as_afd_tools(tmp_path):
         ),
     )
     for tool, args in (
-        ("gateway-start", {}),
+        ("gateway-run", {"code": "return 1"}),
         (
-            "gateway-call",
-            {"command": "issue-claim", "arguments": {"numbers": [1], "holder": HOLDER}},
+            "afd-call",
+            {"command": "issue-claim", "input": {"numbers": [1], "holder": HOLDER}},
         ),
-        ("gateway-docs", {}),
         ("afd-discover", {}),
     ):
         reply = await server.call_tool(tool, args)
@@ -796,7 +782,7 @@ async def test_auth_fails_closed_on_aliases_as_well_as_afd_tools(tmp_path):
         assert _reply(reply)["error"]["code"] == "UNAUTHORIZED"
 
 
-async def test_context_hook_refusals_and_actor_propagation_cover_all_aliases(tmp_path):
+async def test_context_hook_refusals_and_actor_propagation_cover_run(tmp_path):
     from afd import CommandError
 
     from botcore.host_surfaces import create_host_mcp_server
@@ -814,14 +800,11 @@ async def test_context_hook_refusals_and_actor_propagation_cover_all_aliases(tmp
         )
 
     refused_server = create_host_mcp_server(host, raw_python=True, context_hook=deny_all)
-    # Direct calls and real MCP transport must both fail closed on every alias.
+    # Direct calls and real MCP transport must both fail closed on -run and AFD's tools.
     for tool, args in (
-        ("gateway-start", {}),
-        ("gateway-call", {"command": "who-am-i"}),
-        ("gateway-call", {"command": "nonexistent-cmd"}),
-        ("gateway-docs", {}),
-        ("gateway-run", {"code": "return await who_am_i()"}),
         ("afd-call", {"command": "who-am-i"}),
+        ("afd-call", {"command": "nonexistent-cmd"}),
+        ("gateway-run", {"code": "return await who_am_i()"}),
     ):
         reply = await refused_server.call_tool(tool, args)
         assert reply.is_error is True, tool
@@ -829,10 +812,8 @@ async def test_context_hook_refusals_and_actor_propagation_cover_all_aliases(tmp
 
     async with _client(refused_server) as client:
         for tool, args in (
-            ("gateway-start", {}),
-            ("gateway-docs", {}),
             ("gateway-run", {"code": "return await who_am_i()"}),
-            ("gateway-call", {"command": "who-am-i"}),
+            ("afd-call", {"command": "who-am-i"}),
         ):
             reply = await client.call_tool(tool, args)
             assert _reply(reply)["error"]["code"] == "FORBIDDEN", tool
@@ -849,7 +830,7 @@ async def test_context_hook_refusals_and_actor_propagation_cover_all_aliases(tmp
     assert run_reply["data"]["actor"] == "hook-agent"
 
 
-async def test_late_reserved_command_is_never_executed_or_listed_via_aliases(tmp_path):
+async def test_late_reserved_command_is_never_executed_or_listed(tmp_path):
     from botcore.host_surfaces import create_host_mcp_server
 
     executed: list[str] = []
@@ -864,18 +845,17 @@ async def test_late_reserved_command_is_never_executed_or_listed_via_aliases(tmp
     host.register("gateway-docs", sneaky, CommandPolicy())
     host.register("afd-batch", sneaky, CommandPolicy())
 
-    started = _reply(await server.call_tool("gateway-start", {}))
-    assert "gateway-docs" not in started["available_functions"]
-    assert "afd-batch" not in started["available_functions"]
+    discovered = _reply(await server.call_tool("afd-discover", {}))["data"]["commands"]
+    assert {"gateway-docs", "afd-batch"}.isdisjoint(row["name"] for row in discovered)
 
     for reserved_name in ("gateway-docs", "afd-batch"):
-        reply = await server.call_tool("gateway-call", {"command": reserved_name})
+        reply = await server.call_tool("afd-call", {"command": reserved_name})
         assert reply.is_error is True
         assert _reply(reply)["error"]["code"] == "COMMAND_NOT_FOUND"
     assert executed == []
 
 
-async def test_filter_tools_by_scope_and_resolver_gate_aliases(tmp_path):
+async def test_filter_tools_by_scope_and_resolver_gate_run_and_afd_tools(tmp_path):
     import json as json_mod
     from typing import Any
 
@@ -897,6 +877,9 @@ async def test_filter_tools_by_scope_and_resolver_gate_aliases(tmp_path):
     host = make_host(tmp_path)
     host.register("issue-get", issue_get, CommandPolicy(("inspect",)))
     host.register("secret-admin", secret_admin, CommandPolicy(("inspect",)))
+    from botcore.host import info_catalog
+
+    host.register("info_catalog", info_catalog, CommandPolicy())
 
     class FixedVerifier(TokenVerifier):
         async def verify(self, token: str, request: TokenRequest = TokenRequest()):
@@ -919,16 +902,17 @@ async def test_filter_tools_by_scope_and_resolver_gate_aliases(tmp_path):
 
     class OnlyReaderResolver(ScopeResolver):
         def visible(self, command: str, credentials: Credentials) -> bool:
-            return command not in ("secret-admin", "gateway-docs")
+            return command not in ("secret-admin", "gateway-run")
 
         def resolve(self, command: str, input: Any, credentials: Credentials) -> ScopeDecision:
-            if command in ("secret-admin", "gateway-docs"):
+            if command in ("secret-admin", "gateway-run"):
                 return ScopeMissing(("admin",))
             return "allowed"
 
     server = create_host_mcp_server(
         host,
         command_tools=True,
+        raw_python=True,
         auth=McpAuthOptions(
             resource="https://gateway.example/mcp",
             authorization_servers=["https://auth.example"],
@@ -973,32 +957,49 @@ async def test_filter_tools_by_scope_and_resolver_gate_aliases(tmp_path):
         listed_names = {tool["name"] for tool in listed}
         assert "issue-get" in listed_names
         assert "secret-admin" not in listed_names
-        assert "gateway-docs" not in listed_names
+        assert "gateway-run" not in listed_names
 
-        started = rpc(http, "tools/call", {"name": "gateway-start", "arguments": {}})["result"]
-        started_data = json_mod.loads(started["content"][0]["text"])
-        assert "issue-get" in started_data["available_functions"]
-        assert "secret-admin" not in started_data["available_functions"]
+        discovered = rpc(http, "tools/call", {"name": "afd-discover", "arguments": {}})["result"]
+        discovered_names = {
+            row["name"]
+            for row in json_mod.loads(discovered["content"][0]["text"])["data"]["commands"]
+        }
+        assert "issue-get" in discovered_names
+        assert "secret-admin" not in discovered_names
+
+        # info_catalog, which replaced -start's catalog, hides what the caller may not see.
+        catalog = rpc(
+            http,
+            "tools/call",
+            {"name": "afd-call", "arguments": {"command": "info_catalog"}},
+        )["result"]
+        catalog_names = {
+            row["name"] for row in json_mod.loads(catalog["content"][0]["text"])["data"]["commands"]
+        }
+        assert "issue-get" in catalog_names
+        assert "secret-admin" not in catalog_names
 
         # Typo and alternate spelling of hidden command must not leak secret-admin.
         typo = rpc(
             http,
             "tools/call",
-            {"name": "gateway-call", "arguments": {"command": "secret-admn"}},
+            {"name": "afd-call", "arguments": {"command": "secret-admn"}},
         )["result"]
         assert "secret-admin" not in typo["content"][0]["text"]
         alt_spelling = rpc(
             http,
             "tools/call",
-            {"name": "gateway-call", "arguments": {"command": "secret_admin"}},
+            {"name": "afd-call", "arguments": {"command": "secret_admin"}},
         )["result"]
         assert alt_spelling["isError"] is True
         assert "secret-admin" not in alt_spelling["content"][0]["text"]
 
-        # ScopeResolver denies gateway-docs even though static required_scopes ("read") passed.
-        denied_docs = rpc(http, "tools/call", {"name": "gateway-docs", "arguments": {}})["result"]
-        assert denied_docs["isError"] is True
-        assert json_mod.loads(denied_docs["content"][0]["text"])["error"]["code"] == (
+        # ScopeResolver denies gateway-run even though static required_scopes ("read") passed.
+        denied_run = rpc(
+            http, "tools/call", {"name": "gateway-run", "arguments": {"code": "return 1"}}
+        )["result"]
+        assert denied_run["isError"] is True
+        assert json_mod.loads(denied_run["content"][0]["text"])["error"]["code"] == (
             "INSUFFICIENT_SCOPE"
         )
 
@@ -1016,7 +1017,7 @@ async def test_host_named_afd_does_not_duplicate_or_hijack_afd_call(tmp_path):
 
     names = [tool.name for tool in await server.list_tools()]
     assert names.count("afd-call") == 1
-    assert "afd-start" in names
+    assert sorted(names) == ["afd-batch", "afd-call", "afd-detail", "afd-discover", "afd-pipe"]
 
     called = _reply(
         await server.call_tool("afd-call", {"command": "ping-check", "input": {"label": "ok"}})
