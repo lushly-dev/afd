@@ -1,5 +1,20 @@
 # @lushly-dev/violet-core
 
+## 0.3.0-preview.7
+
+### Minor Changes
+
+- [#2536](https://github.com/lushly-dev/afd/pull/2536) [`15a4e44`](https://github.com/lushly-dev/afd/commit/15a4e44296dc2a9358b054d265f5331babc39725) Thanks [@Falkicon](https://github.com/Falkicon)! - Implement Scales Phase 3 (Slice 2, [#2198](https://github.com/lushly-dev/afd/issues/2198), epic [#1111](https://github.com/lushly-dev/afd/issues/1111)):
+
+  - **`@lushly-dev/violet-core`:** Add optional `warnUneven: { maxRatioSpread, ignoreAbove? }` (`RampWarnUnevenSchema`) to `RampConfigSchema` (`type: 'ramp'`); add `'ramp:uneven'` to `ADVISORY_VIOLATION_CODES` and evaluate unit-matched positive ramp steps matching `config.ramp` (excluding steps `> ignoreAbove`), emitting advisory `'warning'` violations on each upper step whose adjacent ratio exceeds `min(r) * maxRatioSpread`; sort `validateConstraints` results deterministically by token id.
+  - **`@lushly-dev/violet-afd`:** Validate `warnUneven.maxRatioSpread > 1` in `validateConstraintSemantics` (returning `VALIDATION_ERROR` with a field-specific `suggestion` naming `maxRatioSpread` in `constraints.set` and `import.tree`, and refusing invalid stored constraints in `export.tree`); tighten `import.tree`'s strict schema to reject unrecognized nested `warnUneven` fields; move and run scenario `08-warn-uneven-ramp-jumps.scenario.yaml` in `scenarios/scales.scenarios.test.ts`.
+
+### Patch Changes
+
+- [#2449](https://github.com/lushly-dev/afd/pull/2449) [`6ef7e7d`](https://github.com/lushly-dev/afd/commit/6ef7e7d9cc3747e909421c19ad988250be6a16b4) Thanks [@Falkicon](https://github.com/Falkicon)! - One rule names a Violet token's custom property everywhere ([#1786](https://github.com/lushly-dev/afd/issues/1786)): `tokenCustomProperty(id, prefix?)` and `VIOLET_CSS_PREFIX` (`'violet'`), exported from `@lushly-dev/violet-runtime` and from a new import-free subpath, `@lushly-dev/violet-runtime/property`. The runtime's inline writes and `adopt()` sheet name properties with it, as before (`cssPrefix` still defaults to empty); pass `cssPrefix: VIOLET_CSS_PREFIX` to theme `@lushly-dev/violet-elements`, whose token interface version 4 reads `--violet-<id>`. `@lushly-dev/violet-core`'s CSS exporter now names its properties with the same function and so depends on `@lushly-dev/violet-runtime`; its output is unchanged, and `prefix: 'violet'` writes the names violet-elements reads.
+- Updated dependencies [[`6ef7e7d`](https://github.com/lushly-dev/afd/commit/6ef7e7d9cc3747e909421c19ad988250be6a16b4)]:
+  - @lushly-dev/violet-runtime@0.3.0-preview.7
+
 ## 0.3.0-preview.6
 
 ### Minor Changes

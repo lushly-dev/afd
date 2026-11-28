@@ -1,5 +1,25 @@
 # @lushly-dev/violet-afd
 
+## 0.3.0-preview.7
+
+### Minor Changes
+
+- [#2532](https://github.com/lushly-dev/afd/pull/2532) [`57a092f`](https://github.com/lushly-dev/afd/commit/57a092f5db41aefa8027447717b1caa7d9138040) Thanks [@Falkicon](https://github.com/Falkicon)! - Update `SPECIMEN_INTERFACE` and `SPECIMEN_INTERFACE_MAP` to `@lushly-dev/violet-elements`' token interface `contractVersion` 5 (`radius.{inset,control,floating}`, `space.inline.group`, `space.layout.panel`, `type.body.{size,line,weight}`) ([#2197](https://github.com/lushly-dev/afd/issues/2197)).
+
+- [#2513](https://github.com/lushly-dev/afd/pull/2513) [`3f584d4`](https://github.com/lushly-dev/afd/commit/3f584d456193c14c46f2fb3fa30845a7e450d24a) Thanks [@Falkicon](https://github.com/Falkicon)! - Record audit events on `constraints.set` and round-trip node constraints in `export.tree` and `import.tree` DTCG files ([#2329](https://github.com/lushly-dev/afd/issues/2329), [#2330](https://github.com/lushly-dev/afd/issues/2330)):
+
+  - **`constraints.set`:** appends a `constraint_set` audit event via `db.addAuditEvent` using the command context's `now()` and `random()` for deterministic replay, recording the actor, target node, previous and new local constraint sets, and `merge` mode so constraint changes appear in `audit.list`.
+  - **`export.tree` and `import.tree`:** serialize each node's non-empty constraints in `$extensions["dev.lushly.violet"].constraints` in deterministic ID order with `dropped: []`, validate and restore them on `import.tree` (preserving rule IDs, `applyTo`, `severity`, `enabled`, `disabledReason`, and `config` including `contrast` and `ramp`), and fail closed with `VALIDATION_ERROR` on invalid or unsafe constraint definitions before writing any node.
+
+- [#2536](https://github.com/lushly-dev/afd/pull/2536) [`15a4e44`](https://github.com/lushly-dev/afd/commit/15a4e44296dc2a9358b054d265f5331babc39725) Thanks [@Falkicon](https://github.com/Falkicon)! - Implement Scales Phase 3 (Slice 2, [#2198](https://github.com/lushly-dev/afd/issues/2198), epic [#1111](https://github.com/lushly-dev/afd/issues/1111)):
+
+  - **`@lushly-dev/violet-core`:** Add optional `warnUneven: { maxRatioSpread, ignoreAbove? }` (`RampWarnUnevenSchema`) to `RampConfigSchema` (`type: 'ramp'`); add `'ramp:uneven'` to `ADVISORY_VIOLATION_CODES` and evaluate unit-matched positive ramp steps matching `config.ramp` (excluding steps `> ignoreAbove`), emitting advisory `'warning'` violations on each upper step whose adjacent ratio exceeds `min(r) * maxRatioSpread`; sort `validateConstraints` results deterministically by token id.
+  - **`@lushly-dev/violet-afd`:** Validate `warnUneven.maxRatioSpread > 1` in `validateConstraintSemantics` (returning `VALIDATION_ERROR` with a field-specific `suggestion` naming `maxRatioSpread` in `constraints.set` and `import.tree`, and refusing invalid stored constraints in `export.tree`); tighten `import.tree`'s strict schema to reject unrecognized nested `warnUneven` fields; move and run scenario `08-warn-uneven-ramp-jumps.scenario.yaml` in `scenarios/scales.scenarios.test.ts`.
+
+### Patch Changes
+
+- [#2449](https://github.com/lushly-dev/afd/pull/2449) [`6ef7e7d`](https://github.com/lushly-dev/afd/commit/6ef7e7d9cc3747e909421c19ad988250be6a16b4) Thanks [@Falkicon](https://github.com/Falkicon)! - `interface.check` accepts the `cssPrefix` of `@lushly-dev/violet-elements`' token interface version 4, and the specimen role map (`SPECIMEN_INTERFACE`) is checked against that version: its ids are unchanged, only their properties moved under the `violet-` prefix ([#1786](https://github.com/lushly-dev/afd/issues/1786)).
+
 ## 0.3.0-preview.6
 
 ### Minor Changes

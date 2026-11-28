@@ -102,6 +102,66 @@
 - Type-check component specs in CI and local verify; type segment queries correctly. Stories are excluded from this check and type-checked separately by Specimen.
 - Run four stories at once in `test:stories` (Specimen's `test.workers`, default 2), for both the story contract and the pack check. No published file changes.
 
+## 0.2.0-preview.7
+
+### Minor Changes
+
+- [#2449](https://github.com/lushly-dev/afd/pull/2449) [`6ef7e7d`](https://github.com/lushly-dev/afd/commit/6ef7e7d9cc3747e909421c19ad988250be6a16b4) Thanks [@Falkicon](https://github.com/Falkicon)! - **Breaking (preview minor): every token property takes the `violet-` prefix ([#1786](https://github.com/lushly-dev/afd/issues/1786)).** `tokens/interface.json` moves to `contractVersion` 4 and gains `"cssPrefix": "violet"`: a token's property is now `--violet-` and its id with `.` replaced by `-`, the name `@lushly-dev/violet-runtime`'s `tokenCustomProperty(id, 'violet')` gives and `@lushly-dev/violet-core`'s CSS exporter writes with `prefix: 'violet'`, so Violet's own output themes the components with no remapping. The ids, types and values are unchanged. The components, their literal fallbacks, the generated theme sheet and `violetTokenProperty()` all use the new names; `VIOLET_CSS_PREFIX` is exported from the root and `./theme-css`. The package still takes no Violet dependency: `theme:build` copies violet-runtime's naming rule into its generated sources.
+
+  | Before (version 3)                        | From version 4                                                    |
+  | ----------------------------------------- | ----------------------------------------------------------------- |
+  | `--color-surface-page`                    | `--violet-color-surface-page`                                     |
+  | `--color-action-primary-background`       | `--violet-color-action-primary-background`                        |
+  | `--font-family-body`                      | `--violet-font-family-body`                                       |
+  | `--size-target-natural`                   | `--violet-size-target-natural`                                    |
+  | `--space-layout-sm`                       | `--violet-space-layout-panel` (renamed in v5; see Scales cutover) |
+  | `--z-index-modal`                         | `--violet-z-index-modal`                                          |
+  | `--<id with . as ->`, any surviving token | `--violet-<id with . as ->`, `violetTokenProperty(id)`            |
+
+  The components' own knobs (`--violet-target-size`, `--violet-icon-size`, `--violet-font-family`, `--violet-card-background` and the rest) keep their names.
+
+  - **Deprecated, removed in the next preview release:** for this release the generated stylesheet ends with an alias block that declares each surviving v5 token's unprefixed name as a `var()` of its `--violet-*` name (`--color-surface-page: var(--violet-color-surface-page)`) on `:root` and every `[data-violet-theme-root]`, so a hand-written `var(--color-x)` keeps following the active preset, scoped roots included. Move those reads to `--violet-*` now. Because the v5 Scales cutover ships in the same preview release, the 2 retired (`size.font.{sm,md}`) and 24 renamed positional ids (`radius.{sm,md,lg}`, `space.{inline,stack,layout}.*`, `type.{caption.xs,label.sm,body.md,title.sm,title.md}.*`) have no unprefixed aliases — migrate directly to their v5 `--violet-*` names.
+  - **Not aliased:** setting an old name (`--color-surface-page: …` on a host or root) no longer reaches the components; set the `--violet-` property instead. A product that writes its own theme properties regenerates them with the prefix (violet-core `prefix: 'violet'`, violet-runtime `cssPrefix: VIOLET_CSS_PREFIX`) or names them with `violetTokenProperty`.
+  - A product's build that checks a set with `findVioletThemeSetGaps` gets the new names in each gap's `property`.
+
+- [#2532](https://github.com/lushly-dev/afd/pull/2532) [`57a092f`](https://github.com/lushly-dev/afd/commit/57a092f5db41aefa8027447717b1caa7d9138040) Thanks [@Falkicon](https://github.com/Falkicon)! - **Breaking (preview minor): Scales two-stage token cutover (`contractVersion` 5) ([#1111](https://github.com/lushly-dev/afd/issues/1111), [#2197](https://github.com/lushly-dev/afd/issues/2197)).** `tokens/interface.json` moves to `contractVersion` 5 (96 ids, down from 98) and `tokens/violet-theme.export.json` moves to `contractVersion` 2 (104 component ids):
+
+  - **Retired:** `size.font.sm` (`--violet-size-font-sm`) and `size.font.md` (`--violet-size-font-md`); components now read `type.caption.size` and `type.body.size`. Loam's built-in export also retires the remaining 14 makeshift ladder tokens (`size.font.{xs,lg,xl}`, `size.line.{xs..xl}`, `size.space.{xs..xl}`, `space.inline.lg`) and adds `space.inline.hairline` (`2px`).
+  - **Renamed to purpose names:**
+    - Type: `type.caption.xs.*` → `type.caption.*`, `type.label.sm.*` → `type.label.*`, `type.body.md.*` → `type.body.*`, `type.title.sm.*` → `type.heading.section.*`, `type.title.md.*` → `type.heading.page.*`.
+    - Radius: `radius.sm` → `radius.inset`, `radius.md` → `radius.control`, `radius.lg` → `radius.floating`.
+    - Space: `space.inline.sm` → `space.inline.tight`, `space.inline.md` → `space.inline.group`, `space.stack.xs` → `space.stack.tight`, `space.stack.sm` → `space.stack.group`, `space.stack.md` → `space.stack.section`, `space.layout.sm` → `space.layout.panel`, `space.layout.md` → `space.layout.page`.
+
+  Product theme sets that supply their own token trees must update those ids to match `tokens/interface.json` version 5 (`findVioletThemeSetGaps` reports any missing id).
+
+- [#2862](https://github.com/lushly-dev/afd/pull/2862) [`df77a79`](https://github.com/lushly-dev/afd/commit/df77a799e22cda3da84390499314e6ca65504ba2) Thanks [@Falkicon](https://github.com/Falkicon)! - The package carries its component pack, the briefs an agent reads before it writes markup with these components, in Specimen's exported form at `dist/pack/`, reachable as `@lushly-dev/violet-elements/pack/*`. A deployment copies `dist/pack/data` and `dist/pack/rules` beside its own `pack.toml` (for Umbel's `components` plugin, into `spaces/<space>/packs/components/library/`), with no checkout of this repository and no Specimen run. The build writes it from the committed records, stamped with the package's name and version ([#1157](https://github.com/lushly-dev/afd/issues/1157)).
+
+### Patch Changes
+
+- [#2454](https://github.com/lushly-dev/afd/pull/2454) [`8950ee2`](https://github.com/lushly-dev/afd/commit/8950ee20fdac28960b6ece1c4d7648f73c5f5505) Thanks [@Falkicon](https://github.com/Falkicon)! - Fix three `violet-elements` bugs:
+  - `violet-data-grid`: preserve cell focus in Firefox when a queued `renderedRows.splice` flushes after a same-frame focus transition back into the grid ([#2383](https://github.com/lushly-dev/afd/issues/2383)).
+  - `violet-color-picker`: sync the hex `<input>` imperatively via `syncHexInputValue()` instead of a deferred `:value` binding so same-frame edits after a 6-digit preview are not overwritten on the next animation frame, and programmatic `value` updates display the normalized hex value (or empty for invalid values) ([#2382](https://github.com/lushly-dev/afd/issues/2382)).
+  - `violet-data-grid`: guard custom `cellTemplate` interactive widgets in `handleGridCopy` and `handleGridPaste` so native clipboard events pass through ([#2368](https://github.com/lushly-dev/afd/issues/2368)).
+
+- [#2734](https://github.com/lushly-dev/afd/pull/2734) [`492cb84`](https://github.com/lushly-dev/afd/commit/492cb844a0071b09a6bd96b1849746dd3672776d) Thanks [@Falkicon](https://github.com/Falkicon)! - Finish forced-colors and right-to-left coverage ([#509](https://github.com/lushly-dev/afd/issues/509)):
+  - `violet-data-grid`: in forced-colors mode, selected cells and rows take `Highlight` with `HighlightText`, the active cell keeps `Canvas` inside a `Highlight` ring, the focused cell adds an inner `Highlight` outline, the row checkbox column stays `Canvas`, and column resizers draw in `CanvasText`, so selection no longer depends on a background tint that forced colours remove.
+  - `violet-data-grid`: dragging a column resizer in right-to-left grows the column toward its trailing edge (leftward) instead of shrinking it.
+  - `violet-slider` and `violet-range-slider`: in right-to-left the thumbs stay centred on their mirrored positions, a pointer reads its value from the right edge, and each range-slider input takes the half of the track its own thumb is on. ArrowLeft and ArrowRight now move the thumb in their visual direction in every engine; WebKit's native range input did not flip them.
+  - `violet-select`: the trigger's caret keeps pointing down in right-to-left; it was drawn from logical edges and pointed sideways.
+
+- [#2492](https://github.com/lushly-dev/afd/pull/2492) [`a60cfff`](https://github.com/lushly-dev/afd/commit/a60cfff0d0115227e98b0975bc5a8f4a4106799b) Thanks [@Falkicon](https://github.com/Falkicon)! - The README now says the package is built on `@lushly-dev/fast-element`, an independent fork of Microsoft's open-source FAST Element, and that FAST-AF is not affiliated with or endorsed by Microsoft.
+
+- [#2961](https://github.com/lushly-dev/afd/pull/2961) [`5d2e1b1`](https://github.com/lushly-dev/afd/commit/5d2e1b168891c8f6487bda25e819502995116b7a) Thanks [@Falkicon](https://github.com/Falkicon)! - Replace the external MDN audio URL in `violet-message-media`'s `AudioFile` story and exported component pack record with an inline silent WAV `data:` URI ([#2752](https://github.com/lushly-dev/afd/issues/2752)).
+
+- [#2858](https://github.com/lushly-dev/afd/pull/2858) [`15cb513`](https://github.com/lushly-dev/afd/commit/15cb51333662bc12c1f3385438db170dabed4564) Thanks [@Falkicon](https://github.com/Falkicon)! - Fix four `violet-elements` right-to-left, WebKit and Firefox bugs ([#2693](https://github.com/lushly-dev/afd/issues/2693), [#2694](https://github.com/lushly-dev/afd/issues/2694), [#2712](https://github.com/lushly-dev/afd/issues/2712), [#2446](https://github.com/lushly-dev/afd/issues/2446)):
+
+  - `violet-switch`: move the checked thumb with a logical `inset-inline-start` offset instead of a physical `translate(...)`, so it stays inside the track and moves toward the inline-end edge in right-to-left layouts ([#2693](https://github.com/lushly-dev/afd/issues/2693)).
+  - `violet-combobox`, `violet-accordion-item`, `violet-data-grid` cell pickers (`attachment-cell`, `multi-picker`, `persona-picker`, `pill-select`, `reference-picker`) and `violet-data-grid` stories: draw rotated chevrons from physical `border-right` and `border-bottom` edges so they keep pointing vertically in right-to-left layouts ([#2694](https://github.com/lushly-dev/afd/issues/2694)).
+  - `violet-data-grid`: allow `Alt+Tab` (macOS Safari Option+Tab) in header and custom cell widget `Tab` handlers, and map `userEvent.tab()` / `userEvent.keyboard("{Tab}")` to `Alt+Tab` on macOS WebKit in `vitest.config.ts` so Tab-to-button specs pass locally on macOS ([#2712](https://github.com/lushly-dev/afd/issues/2712)).
+  - `violet-tooltip`: focus the test window and poll popover state in the Escape dismissal spec to remove a Firefox timing flake ([#2446](https://github.com/lushly-dev/afd/issues/2446)).
+
+- [#2599](https://github.com/lushly-dev/afd/pull/2599) [`5ade6c0`](https://github.com/lushly-dev/afd/commit/5ade6c0f45bc3e9b5d752a304277c8a5cfcd98fe) Thanks [@Falkicon](https://github.com/Falkicon)! - Redraw the 16 `system/*` icons as an original set ([#2567](https://github.com/lushly-dev/afd/issues/2567)). Four of the first seed icons (`warning`, `attach`, `document`, `settings`) carried Feather's geometry while credited as hand-authored ([#2542](https://github.com/lushly-dev/afd/issues/2542)). Every icon is now drawn from scratch on one grid: a 1.75 line on 24 units with round caps and joins, where the seed mixed 24-unit icons at 2 with 16-unit ones at 1.25 (`calendar`, `clock`). Names, registration and the MIT license are unchanged; the shapes differ. The set's sources now keep each icon's metadata and review record beside its drawing (`icons/sources/system/icons/<name>/`), and `icons:build` reads that layout as well as `raw/`.
+
 ## 0.2.0-preview.6
 
 ### Minor Changes
@@ -110,15 +170,15 @@
 
   - **Breaking (preview minor):** `./dist/*` is no longer exported, so deep imports of the build layout stop resolving. Move them to the subpaths:
 
-    | Before | After |
-    | --- | --- |
-    | `import "@lushly-dev/violet-elements/dist/button/violet-button.js"` | `import "@lushly-dev/violet-elements/button/define"` |
-    | `import "@lushly-dev/violet-elements/dist/conversation/violet-message.js"` | `import "@lushly-dev/violet-elements/message/define"` |
-    | `import type { VioletListbox } from "@lushly-dev/violet-elements/dist/listbox/violet-listbox.js"` | `import type { VioletListbox } from "@lushly-dev/violet-elements/listbox"` |
-    | `import "@lushly-dev/violet-elements/dist/theme/violet-theme.js"` | `import "@lushly-dev/violet-elements/theme/define"` |
+    | Before                                                                                                            | After                                                                                      |
+    | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+    | `import "@lushly-dev/violet-elements/dist/button/violet-button.js"`                                               | `import "@lushly-dev/violet-elements/button/define"`                                       |
+    | `import "@lushly-dev/violet-elements/dist/conversation/violet-message.js"`                                        | `import "@lushly-dev/violet-elements/message/define"`                                      |
+    | `import type { VioletListbox } from "@lushly-dev/violet-elements/dist/listbox/violet-listbox.js"`                 | `import type { VioletListbox } from "@lushly-dev/violet-elements/listbox"`                 |
+    | `import "@lushly-dev/violet-elements/dist/theme/violet-theme.js"`                                                 | `import "@lushly-dev/violet-elements/theme/define"`                                        |
     | `import { registerSystemCloseIcon } from "@lushly-dev/violet-elements/dist/icon/generated/icons/system-close.js"` | `import { registerSystemCloseIcon } from "@lushly-dev/violet-elements/icons/system-close"` |
-    | `import { registerVioletIcon } from "@lushly-dev/violet-elements/dist/icon/icon-registry.js"` | `import { registerVioletIcon } from "@lushly-dev/violet-elements/icon-registry"` |
-    | `import { violetThemeCssText } from "@lushly-dev/violet-elements/dist/theme/violet-theme-builtin.js"` | `import { violetThemeCssText } from "@lushly-dev/violet-elements/theme-builtin"` |
+    | `import { registerVioletIcon } from "@lushly-dev/violet-elements/dist/icon/icon-registry.js"`                     | `import { registerVioletIcon } from "@lushly-dev/violet-elements/icon-registry"`           |
+    | `import { violetThemeCssText } from "@lushly-dev/violet-elements/dist/theme/violet-theme-builtin.js"`             | `import { violetThemeCssText } from "@lushly-dev/violet-elements/theme-builtin"`           |
 
   - **Breaking (preview minor):** a class module no longer registers its element. Code that imported a class by name (`import { VioletButton } from …`) from an element module and relied on the import to register it imports `<name>/define` as well. The dialog, teaching tip, carousel, tree item, date, date-range, time and color pickers, file explorer, data grid and attachment cell register their system icons when defined, not when their module loads.
   - A scoped registry holds the element defined into it, but the elements that element creates in its own shadow root are still created in the global registry; full isolation is a follow-up ([#2437](https://github.com/lushly-dev/afd/issues/2437)).
