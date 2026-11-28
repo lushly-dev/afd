@@ -471,8 +471,13 @@ fn backup_child() {
 
 fn crash(dir: &Path, op: &str, point: &str) {
     let exe = std::env::current_exe().expect("the test binary");
+    // The child runs in a directory of its own, not the crate's, so a core dump lands outside the
+    // checkout and outside `dir`; the crash point turns dumps off, which the check below holds
+    // it to where the host allows them (#2898).
+    let cwd = tempfile::tempdir().expect("a working directory for the child");
     let status = Command::new(exe)
         .args(["--exact", "memory_backup::backup_child", "--nocapture"])
+        .current_dir(cwd.path())
         .env(CHILD_DIR, dir)
         .env(CHILD_OP, op)
         .env("UMBEL_TEST_CRASH_AT", point)
@@ -481,6 +486,13 @@ fn crash(dir: &Path, op: &str, point: &str) {
         .status()
         .expect("the child");
     assert!(!status.success(), "the child should abort at {point}");
+    assert!(
+        std::fs::read_dir(cwd.path())
+            .expect("the child's working directory")
+            .next()
+            .is_none(),
+        "the child left a file where it ran: a core dump the crash point should have turned off"
+    );
 }
 
 #[test]

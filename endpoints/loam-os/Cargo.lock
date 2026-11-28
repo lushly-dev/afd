@@ -3345,6 +3345,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "umbel-process"
+version = "0.1.0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "umbel-scan"
 version = "0.1.0"
 dependencies = [
@@ -3385,6 +3392,7 @@ dependencies = [
  "tantivy",
  "tantivy-query-grammar",
  "time",
+ "umbel-process",
  "umbel-store",
 ]
 
