@@ -104,8 +104,8 @@ export interface LimitDeps {
 	scope: ScopeRuntime;
 	apps(): AppsRuntime;
 	limits?: KernelLimits;
-	/** Whether `person` is an owner, on the membership the kernel holds (phase 3 specification, 7.1). */
-	isOwner(person: string | undefined): boolean;
+	/** Whether `person` is an owner, on the membership `call` reads: on the server its principal's (phase 3 specification, 7.1 and 9.5). */
+	isOwner(person: string | undefined, call: { actor?: unknown }): boolean;
 	/** Whether the deployment's identity is `provider`, where a signed-out call has no person. */
 	provider: boolean;
 	/**
@@ -203,7 +203,7 @@ export function createLimitCommands(deps: LimitDeps): LimitCommands {
 			}
 			const person =
 				kit.personKey(context.actor as AccessActorV1) ?? (deps.provider ? undefined : 'local');
-			if (!deps.isOwner(person)) {
+			if (!deps.isOwner(person, context)) {
 				return fail(
 					'OWNER_REQUIRED',
 					'Only an owner of the workspace reads what each app uses of the limits',

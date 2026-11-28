@@ -92,8 +92,8 @@ export interface ExperimentsDeps {
 	provider: boolean;
 	/** Section 13's hosted `provider` deployment, which refuses a workspace enablement. */
 	hosted(): boolean;
-	/** Whether `person` is an owner, on the membership the kernel holds (phase 3 specification, 7.1). */
-	isOwner(person: string | undefined): boolean;
+	/** Whether `person` is an owner, on the membership `call` reads: on the server its principal's (phase 3 specification, 7.1 and 9.5). */
+	isOwner(person: string | undefined, call: { actor?: unknown }): boolean;
 	/** The person the shell is for, whose gates the shell shows; undefined signed out in `provider` mode. */
 	person(): string | undefined;
 	/** One section's entries of `person`'s `loam.settings`, read from the store at each call. */
@@ -834,7 +834,7 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 					"The workspace's experiments have no record on this hosted deployment yet, so nothing was written",
 					'Turn it on for yourself, with audience person, or wait for the release that serves it'
 				);
-			if (!deps.isOwner(personOfCall(context)))
+			if (!deps.isOwner(personOfCall(context), context))
 				return fail(
 					'OWNER_REQUIRED',
 					'Only an owner of the workspace turns an experiment on or off for everyone',

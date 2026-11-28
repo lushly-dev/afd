@@ -95,8 +95,8 @@ export interface AutonomyDeps {
 	isMutation(name: string): boolean;
 	/** Section 13's hosted `provider` deployment, which refuses every `autonomy-set`. */
 	hosted(): boolean;
-	/** Whether `person` is an owner, on the membership the kernel holds (phase 3 specification, 7.1; D96). */
-	isOwner(person: string | undefined): boolean;
+	/** Whether `person` is an owner, on the membership `call` reads: on the server its principal's (phase 3 specification, 7.1 and 9.5; D96). */
+	isOwner(person: string | undefined, call: { actor?: unknown }): boolean;
 	/** Whether an instance whose audience is `team` lists the project's slug: then only owners set it (D87, D110, D154). */
 	teamListed(project: ProjectV1): boolean;
 	/** The person's own value of a key in their `loam.settings`, and its write, serialized with the settings' writes. */
@@ -475,7 +475,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 		if (sharedRecordUnavailable(deps.hosted(), 'autonomy-set', { level })) return hostedRefusal();
 		if (level === 'person') return undefined;
 		const person = kit.personKey(context.actor as AccessActorV1);
-		if (deps.isOwner(person)) return undefined;
+		if (deps.isOwner(person, context)) return undefined;
 		if (
 			level === 'project' &&
 			project !== undefined &&
