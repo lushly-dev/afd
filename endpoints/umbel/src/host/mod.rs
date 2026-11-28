@@ -157,6 +157,14 @@ impl HostBuilder {
         }
     }
 
+    /// The workspace this builder opened, for an embedder that keeps state of its own beside the
+    /// host's or sets options by what the workspace enables (the Loam OS host keeps its records
+    /// of machines and runs under [`Workspace::state_dir`], and sets journal policies only when
+    /// its plugin is enabled).
+    pub fn workspace(&self) -> &Workspace {
+        &self.workspace
+    }
+
     /// Journal the commands `policies` names by their policies (D208 as amended by D221, D224):
     /// `required` writes and syncs an intent before the handler and refuses the call with
     /// `JOURNAL_UNAVAILABLE` when it cannot, `buffered` holds a carried-out call's entry while

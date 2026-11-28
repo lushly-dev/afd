@@ -11,10 +11,14 @@ use umbel::cli::{Environment, is_serve, run};
 #[tokio::main]
 async fn main() {
     let environment = Environment::from_process();
+    // The plugin keeps its records in the workspace's state, and the host journals each of its
+    // commands by its policy (Umbel D224), reported live by `host-status`.
     let catalog = |builder: umbel::HostBuilder| {
-        builder
-            .with_compiled(umbel::plugins::sdk(loam_os_host::plugin()))
-            .with_server_identity(loam_os_host::HOST_NAME, loam_os_host::HOST_VERSION)
+        loam_os_host::install(
+            builder,
+            loam_os_host::plugin(),
+            loam_os_host::journal_policies(),
+        )
     };
     // Not `.lock()`: `serve --stdio` writes JSON-RPC through the same stdout from another
     // thread (as Umbel's own binaries do).

@@ -18,6 +18,7 @@ name = "loam-os"
 path = "src/main.rs"
 
 [dependencies]
+afd = { path = "../../packages/rust", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
@@ -30,9 +31,11 @@ umbel-sdk = { path = "../umbel/sdk" }
 umbel-sdk = { path = "../umbel/sdk" }
 
 [dev-dependencies]
-afd = { path = "../../packages/rust", default-features = false }
+regex = "1"
 tempfile = "3"
 umbel = { path = "../umbel", default-features = false, features = ["cli", "store-embedded", "testkit"] }
+# The scenario harness reads the feature's scenario files as Umbel's ideas plugin reads its own.
+yaml-rust2 = { version = "0.13", default-features = false }
 
 [lints.rust]
 unsafe_code = "forbid"

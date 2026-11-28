@@ -15,7 +15,8 @@
 		{
 			"name": "example-repo",
 			"base": "main",
-			"image": "example-image"
+			"image": "example-image",
+			"size": "standard"
 		}
 	],
 	"images": [
