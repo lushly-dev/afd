@@ -66,6 +66,8 @@ from afd.server.approval import (
     ApprovalRejection,
     ApprovalRequest,
     ApprovalSecret,
+    ApprovalSummary,
+    approval_id,
     create_approval_middleware,
 )
 from afd.server.auth import (
@@ -353,6 +355,8 @@ __all__ = [
     "ApprovalRejection",
     "ApprovalRequest",
     "ApprovalSecret",
+    "ApprovalSummary",
+    "approval_id",
     # Host-verified confirmation (spec/command-metadata.md, "Host-verified confirmation")
     "CommandConfirmationMode",
     "HumanRelay",

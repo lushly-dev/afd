@@ -79,6 +79,9 @@ _RESERVED_NAMES = frozenset(
         "timeout",
         "traceId",
         "outputBudget",
+        # The dispatch id the engine sets (spec/dispatch.md, "The dispatch id"), both spellings
+        "dispatchId",
+        "dispatch_id",
         # CommandContext fields (afd.core.commands and afd.direct)
         "trace_id",
         "output_budget",

@@ -53,6 +53,7 @@ from afd.core.commands import (
     validate_task_declaration,
     warn_invalid_command_name,
 )
+from afd.core.dispatch_id import handler_call, own_entry
 from afd.core.meta_keys import assert_advertised_input_schema, assert_tool_meta
 from afd.core.output_budget import OutputBudget, validate_output_budget_declaration
 from afd.core.result import CommandResult
@@ -275,7 +276,17 @@ def define_command(
 
         @wraps(func)
         async def wrapper(raw_input: Any, context: Any | None = None) -> CommandResult[Any]:
-            """Wrapper that validates input and calls the handler."""
+            """Wrapper that validates input and calls the handler.
+
+            A call made this way is not a dispatch (``spec/dispatch.md``, "The dispatch id"):
+            while the handler runs, ``context.dispatch_id`` reads ``None``, so it never reads an
+            outer call's id; nothing the caller holds is copied or changed. The engine's own call
+            (also through a decorator around this function) reads the id.
+            """
+            with handler_call(wrapper, context):
+                return await engine_handler(raw_input, context)
+
+        async def engine_handler(raw_input: Any, context: Any | None = None) -> CommandResult[Any]:
             valid, validated_or_failure = _validate_decorated_input(raw_input)
             if not valid:
                 failure_result: CommandResult[Any] = validated_or_failure
@@ -294,6 +305,11 @@ def define_command(
         if input_schema is not None:
             wrapper.__afd_validate_input__ = _validate_decorated_input  # type: ignore[attr-defined]
         wrapper.__afd_validated_handler__ = validated_handler  # type: ignore[attr-defined]
+        wrapper.__afd_engine_handler__ = engine_handler  # type: ignore[attr-defined]
+        # The entries belong to this wrapper only: functools.wraps copies the attributes onto a
+        # host's decorator, and the engine calls that decorator itself.
+        own_entry(wrapper, engine_handler)
+        own_entry(wrapper, validated_handler)
         # Copy metadata to wrapper
         wrapper.__afd_command__ = cmd_metadata  # type: ignore[attr-defined]
 

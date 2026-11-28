@@ -494,14 +494,14 @@ Rules:
 
 [`vectors/approval-tokens.json`](./vectors/approval-tokens.json) gives the `approvalId` of each of
 its bindings, and [`vectors/journal-seams.json`](./vectors/journal-seams.json) pins the rules
-above in its `approvalSummary` section. TypeScript, Rust and C++ build the summary; the languages
-still listed in that file's `gaps` do not yet.
+above in its `approvalSummary` section. TypeScript, Python, Rust and C++ build the summary; no
+language is listed in that file's `gaps`.
 
 <!-- generated:capabilities:spec.approvals.summary:start -->
 |  | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| The dispatch id on the command context | Yes (`context.dispatchId`) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) | Yes (`CommandContext::dispatch_id`) | Yes (`CommandContext::dispatch_id`, `DispatchId`) |
-| The approval summary and `onApprovalAccepted` | Yes (`onApprovalAccepted(summary, dispatchId)`, `ApprovalSummary`) | Planned ([#2682](https://github.com/lushly-dev/afd/issues/2682)) | Yes (`ApprovalMiddlewareOptions::with_on_approval_accepted`, `ApprovalSummary`, `ApprovalRequest::approval_id`, `DirectApprovalRequest::approval_id`, `approval_id`) | Yes (`ApprovalMiddlewareOptions::on_approval_accepted`, `ApprovalSummary`, `ApprovalRequest::approval_id`, `DirectApprovalRequest::approval_id`, `approval_id`) |
+| The dispatch id on the command context | Yes (`context.dispatchId`) | Yes (`context.dispatch_id`) | Yes (`CommandContext::dispatch_id`) | Yes (`CommandContext::dispatch_id`, `DispatchId`) |
+| The approval summary and `onApprovalAccepted` | Yes (`onApprovalAccepted(summary, dispatchId)`, `ApprovalSummary`) | Yes (`create_approval_middleware(on_approval_accepted=...)`, `ApprovalSummary`, `ApprovalRequest.approval_id`, `DirectApprovalRequest.approval_id`, `approval_id`) | Yes (`ApprovalMiddlewareOptions::with_on_approval_accepted`, `ApprovalSummary`, `ApprovalRequest::approval_id`, `DirectApprovalRequest::approval_id`, `approval_id`) | Yes (`ApprovalMiddlewareOptions::on_approval_accepted`, `ApprovalSummary`, `ApprovalRequest::approval_id`, `DirectApprovalRequest::approval_id`, `approval_id`) |
 <!-- generated:capabilities:spec.approvals.summary:end -->
 
 ## Approval display

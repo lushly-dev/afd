@@ -1,7 +1,7 @@
 """Internal per-call approval exchange. This is a trusted host seam, not a sandbox."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -13,6 +13,9 @@ class DirectApprovalRequest:
     input: Any
     summary: str
     expires_at: str
+    approval_id: str = field(kw_only=True)
+    """Keyword-only. The ``approval_id`` the call's approval summary will carry once the user approves
+    (``spec/command-metadata.md``, "The approval summary", rule 5)."""
     reason: str | None = None
 
 

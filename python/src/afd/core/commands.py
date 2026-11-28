@@ -50,6 +50,7 @@ from afd.core.command_execution import (
 from afd.core.command_execution import (
     execute_stream as _execute_core_stream,
 )
+from afd.core.dispatch_id import DispatchIdCarrier
 from afd.core.errors import CommandError, ErrorCodes, Recovery
 from afd.core.output_budget import (
     AFD_OUTPUT_BUDGET_META_KEY,
@@ -236,7 +237,7 @@ class CommandParameter:
 
 
 @dataclass
-class CommandContext:
+class CommandContext(DispatchIdCarrier):
     """Context provided to command handlers.
 
     Attributes:
@@ -263,6 +264,11 @@ class CommandContext:
             ``spec/authorization.md``, M4), set by the server's authorization layer
             on verified HTTP requests. Never the raw token; never journaled or
             forwarded.
+        dispatch_id: Read-only. The id the engine gives this one dispatch
+            (``spec/dispatch.md``, "The dispatch id"), set before anything else
+            runs; ``None`` outside an AFD engine. Not a dataclass field: it is
+            not a constructor argument, and a copy made with
+            :func:`dataclasses.replace` has none.
     """
 
     trace_id: str | None = None

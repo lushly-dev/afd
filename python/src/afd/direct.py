@@ -60,6 +60,7 @@ from afd.core.direct_approval import (
     _DirectApprovalExchange,
     _public_result,
 )
+from afd.core.dispatch_id import DispatchIdCarrier
 from afd.core.errors import CommandError, Recovery, not_found_error, validation_error
 from afd.core.output_budget import ask_validation_failure, normalize_ask_option, parse_ask
 
@@ -107,7 +108,7 @@ _HUMAN_ACTOR = Actor(kind="human")
 
 
 @dataclass
-class DirectContext:
+class DirectContext(DispatchIdCarrier):
     """Context for direct command execution; ``timeout`` is in milliseconds.
 
     ``actor`` is who is calling (``human`` unless the client or call sets
@@ -115,6 +116,8 @@ class DirectContext:
     configures them, so a registry can apply its own defaults (see
     :func:`afd.core.with_context_defaults`). ``approval`` is the call's approval
     evidence for trusted host execution. DirectClient ignores caller-provided evidence.
+    ``dispatch_id`` (read-only) is the id the engine gives each dispatch
+    (``spec/dispatch.md``, "The dispatch id").
     """
 
     trace_id: str

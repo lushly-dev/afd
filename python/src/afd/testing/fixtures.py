@@ -49,6 +49,7 @@ from afd.core import (
 )
 from afd.core.command_execution import resolve_batch_limit
 from afd.core.commands import declared_secret
+from afd.core.dispatch_id import ENGINE_ENTRY, owned_entry
 from afd.core.single_executor import CommandExecutionConfig, execute_command
 from afd.transports import MockTransport
 
@@ -248,7 +249,12 @@ class MockServer:
                 data: Any, context: CommandContext | None = None
             ) -> CommandResult[Any]:
                 payload = {} if data is None else data
-                if ctx_mode == "keyword":
+                # A define_command function runs through its engine entry: this is the engine's
+                # call, so the handler reads the dispatch id the middleware read.
+                engine_entry = owned_entry(func, ENGINE_ENTRY)
+                if engine_entry is not None:
+                    result = await engine_entry(payload, context)
+                elif ctx_mode == "keyword":
                     result = await func(payload, context=context)
                 elif ctx_mode == "positional":
                     result = await func(payload, context)

@@ -35,7 +35,7 @@ import json
 import math
 import secrets
 from collections.abc import Awaitable, Callable, Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import (
     Any,
@@ -50,12 +50,14 @@ from afd.core.actor import Actor
 from afd.core.approval import ApprovalPolicy
 from afd.core.clock import Clock, system_clock
 from afd.core.commands import CommandContext, CommandDefinition, CommandMiddleware, NextFn
+from afd.core.dispatch_id import dispatch_id_of
 from afd.core.errors import ErrorCodes, Recovery
 from afd.core.journal import _js_number, _js_string
 from afd.core.result import CommandError, CommandResult, failure
 from afd.server.approval_admission import admit_approval, gates, live_command, mark_listed_gate
 from afd.server.approval_relay import (
     AcceptedApproval,
+    ApprovalAdmission,
     ApprovalQuestion,
     StepsHold,
     current_approval_relay,
@@ -74,6 +76,8 @@ __all__ = [
     "ApprovalRelayMode",
     "ApprovalRequest",
     "ApprovalSecret",
+    "ApprovalSummary",
+    "approval_id",
     "create_approval_middleware",
 ]
 
@@ -141,6 +145,10 @@ class ApprovalRequest:
         approval_token: The fresh token.
         expires_at: ISO 8601 expiry of ``approval_token``.
         summary: The text shown to the human who approves.
+        approval_id: The ``approval_id`` the call's :class:`ApprovalSummary` will carry once
+            this token admits it (``spec/command-metadata.md``, "The approval summary", rule
+            5): keep it beside the person who approves, to join their decision to the call
+            ``on_approval_accepted`` reports.
         rejected: Set when the call carried a token that was rejected.
     """
 
@@ -150,12 +158,83 @@ class ApprovalRequest:
     approval_token: str
     expires_at: str
     summary: str
+    # Keyword-only, so a positional `rejected` cannot be taken for it.
+    approval_id: str = field(kw_only=True)
     rejected: ApprovalRejection | None = None
+
+
+@dataclass(frozen=True)
+class ApprovalSummary:
+    """What the approval step gives ``on_approval_accepted`` when it admits a held call
+    (``spec/command-metadata.md``, "The approval summary"). It holds no token, nonce, key or
+    decision id, and grants nothing: no AFD code reads it back.
+
+    Attributes:
+        via: How the call was admitted: an approval token (``token``), an answer over the MCP
+            relay (``elicitation``), a ``HumanRelay``'s evidence (``relay``), or DirectClient's
+            private exchange (``direct``).
+        command: The command's name.
+        input_digest: Unpadded base64url SHA-256 of the canonical JSON of the validated input.
+            Unkeyed, so a short or predictable input can be guessed from it: store it only
+            where you would store the input (leave it out for a command that declares
+            ``secret``).
+        approval_id: Unpadded base64url SHA-256 of ``approval``, a zero byte and the evidence's
+            single-use key (:func:`approval_id`). It names the approval, not the admission: a
+            token reused under ``replay="within-ttl"`` gives every call it admits the same id,
+            and the dispatch id tells them apart.
+        issued_at: Epoch milliseconds the evidence was issued, when it carries one (a token).
+        expires_at: Epoch milliseconds the evidence expires, when it carries one (a token, an
+            elicitation hold).
+    """
+
+    via: Literal["token", "elicitation", "relay", "direct"]
+    command: str
+    input_digest: str
+    approval_id: str
+    issued_at: int | None = None
+    expires_at: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """The summary as JSON, with TypeScript's member names, leaving out a time the
+        evidence does not carry."""
+        data: dict[str, Any] = {
+            "via": self.via,
+            "command": self.command,
+            "inputDigest": self.input_digest,
+            "approvalId": self.approval_id,
+        }
+        if self.issued_at is not None:
+            data["issuedAt"] = self.issued_at
+        if self.expires_at is not None:
+            data["expiresAt"] = self.expires_at
+        return data
+
+
+def approval_id(key: str) -> str:
+    """The approval summary's ``approval_id`` for the evidence whose single-use key is ``key``:
+    a token's nonce (its payload's ``n``), an elicitation hold's nonce, or
+    ``relay:<decision_id>`` for relay evidence."""
+    return _b64url(hashlib.sha256(_utf8(f"approval\0{key}")).digest())
+
+
+def _approval_summary(
+    command: str, canonical: str, admission: ApprovalAdmission
+) -> ApprovalSummary:
+    """The approval summary of a call admitted on ``admission``."""
+    return ApprovalSummary(
+        via=admission.via,
+        command=command,
+        input_digest=_b64url(hashlib.sha256(_utf8(canonical)).digest()),
+        approval_id=approval_id(admission.key),
+        issued_at=admission.issued_at,
+        expires_at=admission.expires_at,
+    )
 
 
 @dataclass(frozen=True)
 class _Accepted:
     nonce: str
+    issued_at: float
     expires_at: float
 
 
@@ -174,6 +253,9 @@ def create_approval_middleware(
     on_approval_required: Callable[[ApprovalRequest], None | Awaitable[None]] | None = None,
     clock: Clock | None = None,
     relay: ApprovalRelayMode = "none",
+    on_approval_accepted: (
+        Callable[[ApprovalSummary, str | None], None | Awaitable[None]] | None
+    ) = None,
 ) -> CommandMiddleware:
     """A middleware that runs a command whose ``approval`` policy requires approval only
     when ``context.approval`` holds a valid token for this command, input and actor.
@@ -243,6 +325,18 @@ def create_approval_middleware(
             falls back to ``APPROVAL_REQUIRED``. It trusts the client application to show the
             question to a person (``spec/command-metadata.md``, "Asking the human over MCP").
             Default ``"none"``.
+        on_approval_accepted: Called (sync or async) when this step admits a call a policy
+            held, after the evidence is checked and spent and before the rest of the chain and
+            the handler run (``spec/command-metadata.md``, "The approval summary"), with the
+            call's :class:`ApprovalSummary` and its ``context.dispatch_id``, so a host can
+            record the approval beside the dispatch. It runs for an accepted token, a
+            DirectClient approval, relay evidence, an answer over the MCP relay and each gated
+            step of an ``afd-batch`` or ``afd-pipe`` approved up front. The step waits for it,
+            and it fails closed: an exception it raises leaves this middleware as any
+            middleware's exception does, so the call fails with ``COMMAND_EXECUTION_ERROR``
+            before the handler runs and the evidence stays spent. A call no policy held, or
+            one held and not admitted, calls nothing. The dispatch id is ``None`` only when
+            this middleware runs outside an AFD engine.
 
     Raises:
         TypeError: When no secret is given, a secret is not a string or bytes, or a
@@ -361,14 +455,16 @@ def create_approval_middleware(
             _utf8(payload["a"]), _b64url(_digest(key, "actor", actor_binding)).encode()
         ):
             return "actor-mismatch"
-        return _Accepted(nonce=payload["n"], expires_at=payload["exp"])
+        return _Accepted(nonce=payload["n"], issued_at=payload["iat"], expires_at=payload["exp"])
 
     def sign(
         command_name: str, input_binding: str, actor_binding: str, now: float
-    ) -> tuple[str, float]:
+    ) -> tuple[str, float, str]:
+        """A fresh token for the call, its expiry and its nonce."""
         key = keys[0]
         issued_at = math.floor(now)
         expires_at = issued_at + ttl_ms
+        nonce = _b64url(secrets.token_bytes(16))
         # Key order and number spelling as TypeScript's JSON.stringify writes them.
         payload = (
             f'{{"c":{_js_string(command_name)}'
@@ -376,10 +472,10 @@ def create_approval_middleware(
             f',"a":"{_b64url(_digest(key, "actor", actor_binding))}"'
             f',"iat":{_js_number(issued_at)}'
             f',"exp":{_js_number(expires_at)}'
-            f',"n":"{_b64url(secrets.token_bytes(16))}"}}'
+            f',"n":"{nonce}"}}'
         )
         signing_input = f"{_TOKEN_PREFIX}.{_b64url(payload.encode('utf-8'))}"
-        return f"{signing_input}.{_b64url(_hmac(key, signing_input))}", expires_at
+        return f"{signing_input}.{_b64url(_hmac(key, signing_input))}", expires_at, nonce
 
     async def spend_nonce(nonce: str, expires_at: float, now: float) -> bool:
         """Spend a nonce unconditionally (used by single-use tokens and relay evidence)."""
@@ -482,10 +578,21 @@ def create_approval_middleware(
         # that declares an approval policy or one a listed policy gates. A call no policy here
         # gates is not admitted: an admission from another approval step stands alone, and a
         # retry placed after that step is still refused.
-        async def next_fn(verified: Any = _UNVERIFIED) -> CommandResult[Any]:
+        async def next_fn(
+            verified: Any = _UNVERIFIED, admission: ApprovalAdmission | None = None
+        ) -> CommandResult[Any]:
             if not may_gate:
                 return await outer_next()
             approved = verified is not _UNVERIFIED
+            # A held call an approval admitted: tell the host before anything else runs. An
+            # exception leaves this step, so the call is never admitted (rule 2).
+            if admission is not None and approved and on_approval_accepted is not None:
+                accepted = on_approval_accepted(
+                    _approval_summary(command_name, verified, admission),
+                    dispatch_id_of(context),
+                )
+                if inspect.isawaitable(accepted):
+                    await accepted
             admit_approval(
                 self_step,
                 context,
@@ -554,9 +661,12 @@ def create_approval_middleware(
             elif (
                 isinstance(relay_ev.decision_id, str)
                 and len(relay_ev.decision_id) > 0
-                and await spend_nonce(f"relay:{relay_ev.decision_id}", now + _MAX_TTL_MS, now)
+                and await spend_nonce(_relay_key(relay_ev.decision_id), now + _MAX_TTL_MS, now)
             ):
-                return await next_fn(input_binding)
+                return await next_fn(
+                    input_binding,
+                    ApprovalAdmission(via="relay", key=_relay_key(relay_ev.decision_id)),
+                )
             else:
                 rejected = "already-used"
         else:
@@ -567,7 +677,15 @@ def create_approval_middleware(
                 verdict = verify(evidence, command_name, input_binding, actor_binding, now)
                 if isinstance(verdict, _Accepted):
                     if await spend(verdict.nonce, verdict.expires_at, now):
-                        return await next_fn(input_binding)
+                        return await next_fn(
+                            input_binding,
+                            ApprovalAdmission(
+                                via="direct" if exchange is not None else "token",
+                                key=verdict.nonce,
+                                issued_at=int(verdict.issued_at),
+                                expires_at=int(verdict.expires_at),
+                            ),
+                        )
                     rejected = "already-used"
                 else:
                     rejected = verdict
@@ -598,7 +716,14 @@ def create_approval_middleware(
                 and genuine(answer.accepted, bindings, now)
                 and await spend(answer.accepted.nonce, answer.accepted.expires_at, now)
             ):
-                return await next_fn(input_binding)
+                return await next_fn(
+                    input_binding,
+                    ApprovalAdmission(
+                        via="elicitation",
+                        key=answer.accepted.nonce,
+                        expires_at=answer.accepted.expires_at,
+                    ),
+                )
             # An expired, spent or invalid approval is asked again, saying why.
             asked = question(bindings, now)
             relay_here.hold(
@@ -626,7 +751,8 @@ def create_approval_middleware(
                 )
             )
 
-        approval_token, expires_ms = sign(command_name, input_binding, actor_binding, now)
+        approval_token, expires_ms, nonce = sign(command_name, input_binding, actor_binding, now)
+        held_approval_id = approval_id(nonce)
         expires_at = _iso_timestamp(expires_ms)
         # Checked again after the awaits since the first check (spending a token awaits a store),
         # before anyone is told of the call or a direct token is held.
@@ -649,6 +775,7 @@ def create_approval_middleware(
                     approval_token=approval_token,
                     expires_at=expires_at,
                     summary=summary,
+                    approval_id=held_approval_id,
                     rejected=rejected,
                 )
             )
@@ -660,6 +787,7 @@ def create_approval_middleware(
                 approval_token=approval_token,
                 expires_at=expires_at,
                 summary=summary,
+                approval_id=held_approval_id,
                 reason=rejected,
             )
         on_mcp = (context.extra or {}).get("interface") == "mcp"
@@ -795,6 +923,11 @@ def _as_command(command: Any) -> Any:
     raise TypeError(
         "Approval commands must be CommandDefinition objects or define_command-decorated functions"
     )
+
+
+def _relay_key(decision_id: str) -> str:
+    """The single-use key of a relay decision (``spec/command-metadata.md``, "Relay evidence")."""
+    return f"relay:{decision_id}"
 
 
 def _plain_input(value: Any) -> Any:
