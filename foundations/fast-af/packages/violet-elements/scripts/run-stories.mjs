@@ -4,9 +4,9 @@
 // the stories give. Prints the contract's report and the pack check's, and fails if any of these
 // do not hold.
 import { execFileSync } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createSpecimenBench } from "@lushly-dev/specimen";
 
 const seconds = (ms) => `${(ms / 1000).toFixed(1)} s`;
@@ -19,8 +19,17 @@ try {
   console.log(
     `${run.cases.passed} of ${run.cases.total} stories passed; ${run.rules}: ${run.counts.errors} errors, ${run.counts.warnings} warnings, over ${run.stats.components} components and ${run.stats.storyFiles} story files, in ${seconds(run.elapsedMs)}`,
   );
-  // Throws past a budget.
-  await bench.build(join(site, "out"));
+  // Throws past a budget. SPECIMEN_BUILD_REPORT keeps the build's report, which CI compares with
+  // main's (scripts/size-delta.mjs, #2634).
+  try {
+    await bench.build(join(site, "out"));
+  } finally {
+    const kept = process.env.SPECIMEN_BUILD_REPORT;
+    if (kept) {
+      await mkdir(dirname(resolve(kept)), { recursive: true });
+      await copyFile(join(site, "out", "specimen-build.json"), resolve(kept)).catch(() => {});
+    }
+  }
   if (!run.valid) process.exitCode = 1;
 
   // The drift check: builds every record again from two passes over every story and compares.

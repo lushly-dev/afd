@@ -216,6 +216,10 @@ jobs:
     needs: scope
     if: needs.scope.outputs.stories == 'true'
     runs-on: ubuntu-latest
+    # `actions: read` lists and downloads main's bench report (the size delta below).
+    permissions:
+      contents: read
+      actions: read
     # The pack check runs every story twice more after the contract's run.
     timeout-minutes: 45
     steps:
@@ -263,7 +267,46 @@ jobs:
       - name: Story typecheck, every story, the story contract, the review page's budgets and the component pack
         env:
           SPECIMEN_CHROMIUM_SANDBOX: '1'
+          SPECIMEN_BUILD_REPORT: ${{ runner.temp }}/bench-report/specimen-build.json
         run: pnpm -F @lushly-dev/violet-elements test:stories
+      # The bench's size delta against main's, module by module, in the job summary for the reviewer
+      # (#2634). Every run keeps its report as an artifact; main's is the newest one a push run on
+      # main kept, which is the bench as main builds it, since a push that leaves the bench alone does
+      # not run this job. Pull requests and merge groups read it the same way, and so does a push,
+      # against the push before it. Advisory: these steps never fail the job.
+      - name: Keep the bench report
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: violet-elements-bench-report
+          path: ${{ runner.temp }}/bench-report/specimen-build.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Bench size against main
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          main="$RUNNER_TEMP/bench-main"
+          # Main's report is the newest one a successful push run on main kept: a failed run's report
+          # is not main's build, and neither is a pull request's from a fork's branch named main.
+          # Runs are newest first; one with no report left (expired, or the job skipped) is passed over.
+          base=""
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/specimen.yml/runs?branch=main&event=push&status=success&per_page=30" \
+            --jq '.workflow_runs[] | select(.head_repository.full_name == .repository.full_name) | "\(.id) \(.head_sha)"' || true)
+          while read -r id sha; do
+            [ -n "$id" ] && [ "$id" != "$GITHUB_RUN_ID" ] || continue
+            if gh run download "$id" -n violet-elements-bench-report -D "$main" 2>/dev/null; then
+              base="main @ $sha"
+              break
+            fi
+          done <<< "$runs"
+          node foundations/fast-af/packages/violet-elements/scripts/size-delta.mjs \
+            --before "$main/specimen-build.json" \
+            --after "$RUNNER_TEMP/bench-report/specimen-build.json" \
+            --base "$base"
 
   browser-and-consumers:
     name: Specimen Chromium suite and packed consumers

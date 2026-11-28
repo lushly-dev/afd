@@ -131,15 +131,17 @@ const SHELL_BUDGET = 70_000;
 /** The index and preview pages' own stylesheet, in minified UTF-8 bytes; a story's CSS is its own. */
 const STYLE_BUDGET = 8_000;
 /**
- * The proposal's category ceilings, in minified UTF-8 JavaScript bytes, for the bench's own code.
- * #2037 moved interaction to 615,000 after the lazy `job-runtime`/`clock` chunk (4,420 bytes)
- * took compat interaction to 598,652 B on Windows / 600,210 B on Linux. The accessibility engine
- * and the total have no ceiling (#1072): axe-core is a dependency whose growth is reported, and
- * `build-waste.ts` fails what is waste instead, by a named cause, with a distant total tripwire.
+ * The category ceilings, in minified UTF-8 JavaScript bytes: the shell's alone. Interaction support
+ * (#2633), the accessibility engine and the total have none (#1072): what they hold is almost all
+ * third-party code (Testing Library, chai, Vitest's `expect`, axe-core), whose growth is reported,
+ * and `build-waste.ts` fails what is waste instead, by a named cause, with a distant total
+ * tripwire. Interaction support last had a ceiling of 615,000 bytes against 599,192 measured
+ * (2026-11-26). The shell keeps its ceiling: it is Specimen's own code and every case loads it, so
+ * its growth is a choice made here, and the pull request that grows it moves `SHELL_BUDGET` with
+ * its measurement and reason.
  */
 const CATEGORY_BUDGETS = {
 	shell: SHELL_BUDGET,
-	interaction: 615_000,
 } as const;
 /**
  * The helpers a play imports, with what they bring: the proposal's interaction support (Vitest
@@ -837,7 +839,7 @@ async function buildStatic(
 				styles: { file: styles.fileName, bytes: styleBytes, budget: STYLE_BUDGET },
 				categories: Object.fromEntries(
 					Object.entries(categoryBytes).map(([category, bytes]) => {
-						const budget = CATEGORY_BUDGETS[category as keyof typeof CATEGORY_BUDGETS];
+						const budget = (CATEGORY_BUDGETS as Record<string, number>)[category];
 						return [category, budget === undefined ? { bytes } : { bytes, budget }];
 					})
 				),
@@ -864,7 +866,7 @@ async function buildStatic(
 	if (shellBytes > SHELL_BUDGET)
 		throw new Error(`Bench shell exceeds budget: ${shellBytes} > ${SHELL_BUDGET} bytes`);
 	for (const [category, budget] of Object.entries(CATEGORY_BUDGETS)) {
-		const bytes = categoryBytes[category as keyof typeof CATEGORY_BUDGETS];
+		const bytes = categoryBytes[category as keyof typeof categoryBytes];
 		if (bytes > budget)
 			throw new Error(`Bench ${category} code exceeds budget: ${bytes} > ${budget} bytes`);
 	}

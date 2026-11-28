@@ -18,10 +18,12 @@ import { dirname, isAbsolute, relative, sep } from 'node:path';
  * - `eager-accessibility`: the accessibility engine in a chunk every case loads (an entry, a
  *   retained preview, a plugin, or what they import statically), rather than only in the cases
  *   that check accessibility;
+ * - `eager-interaction`: interaction support (a play's helpers and the retained-story runtime) in
+ *   a chunk every case loads, rather than only in the cases that run a play (#2633);
  * - `total-tripwire`: bench JavaScript (shell, interaction support and accessibility) past about
  *   twice what it measures, which only an accident reaches, such as a dependency imported whole.
  *
- * The shell's, interaction support's and the stylesheet's own ceilings are unchanged.
+ * The shell's and the stylesheet's own ceilings are unchanged; interaction support has none (#2633).
  */
 
 /**
@@ -262,6 +264,10 @@ export function inspectBuild(
 			waste.push(
 				`eager-accessibility: axe-core loads with every case, in ${file}; import it only where a case checks accessibility`
 			);
+		if (categoryOf(file) === 'interaction')
+			waste.push(
+				`eager-interaction: interaction support loads with every case, in ${file}; import a play's helpers only from the stories that run one`
+			);
 	}
 	if (total > TOTAL_TRIPWIRE)
 		waste.push(
@@ -339,4 +345,59 @@ export function buildSizeDeltas(
 		});
 	}
 	return deltas.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || compare(a.id, b.id));
+}
+
+const signed = (bytes: number) =>
+	`${bytes > 0 ? '+' : bytes < 0 ? '−' : ''}${Math.abs(bytes).toLocaleString('en-US')}`;
+/** A table cell's text: a backslash, then a pipe, escaped, so neither can end the cell. */
+const cell = (text: string) => text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
+
+/**
+ * `buildSizeDeltas`' rows as Markdown for a reviewer (#2634): the net move per category, then the
+ * largest moves module by module, each named as a dependency (with its version change) or as own
+ * code. Advisory, like the rows: it states what moved and fails nothing.
+ */
+export function formatBuildSizeDeltas(
+	deltas: readonly BuildSizeDelta[],
+	options: { title?: string; base?: string; limit?: number } = {}
+): string {
+	const { title = 'Bench size against main', base, limit = 25 } = options;
+	const lines = [`### ${title}`, ''];
+	if (base) lines.push(`Compared with ${base}. Advisory: nothing fails on it.`, '');
+	if (deltas.length === 0) {
+		lines.push('No module changed size.');
+		return `${lines.join('\n')}\n`;
+	}
+	const net = new Map<string, number>();
+	for (const row of deltas) net.set(row.category, (net.get(row.category) ?? 0) + row.delta);
+	lines.push('| Category | Net bytes |', '| --- | ---: |');
+	for (const [category, bytes] of [...net].sort(([a], [b]) => compare(a, b)))
+		lines.push(`| ${cell(category)} | ${signed(bytes)} |`);
+	lines.push(
+		'',
+		'| Module | Source | Category | Before | After | Change |',
+		'| --- | --- | --- | ---: | ---: | ---: |'
+	);
+	for (const row of deltas.slice(0, limit)) {
+		const versions = row.versions
+			? row.versions.before === undefined
+				? `, new at ${row.versions.after}`
+				: row.versions.after === undefined
+					? `, removed at ${row.versions.before}`
+					: ` ${row.versions.before} → ${row.versions.after}`
+			: '';
+		const source = row.package
+			? `dependency ${row.package}${versions}`
+			: row.before === 0
+				? 'own code, new'
+				: row.after === 0
+					? 'own code, removed'
+					: 'own code';
+		lines.push(
+			`| \`${cell(row.id)}\` | ${cell(source)} | ${cell(row.category)} | ${row.before.toLocaleString('en-US')} | ${row.after.toLocaleString('en-US')} | ${signed(row.delta)} |`
+		);
+	}
+	const left = deltas.length - limit;
+	if (left > 0) lines.push('', `${left} smaller ${left === 1 ? 'move' : 'moves'} left out.`);
+	return `${lines.join('\n')}\n`;
 }
