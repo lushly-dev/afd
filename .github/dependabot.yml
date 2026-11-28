@@ -25,6 +25,19 @@ updates:
       # Move these two by hand when Storybook's own dependency on them moves (#958).
       - dependency-name: '@vitest/expect'
       - dependency-name: '@vitest/spy'
+      # Specimen's chai is the one `@vitest/expect` 3.2.4 uses (chai 5), for the same reason.
+      # chai 6 alone also pushed the bench's interaction code past its budget (#1304).
+      - dependency-name: chai
+        update-types:
+          - version-update:semver-major
+      - dependency-name: '@types/chai'
+        update-types:
+          - version-update:semver-major
+      # 2.x needs convex 1.48 or later and new Convex components, and changes the internals
+      # the hosted fixture's tests import: a migration, not a bump (#3006). Lift this with it.
+      - dependency-name: '@convex-dev/auth'
+        update-types:
+          - version-update:semver-major
     groups:
       # fast-element's @playwright/test and every other unit's playwright move in one
       # update, so the lockfile never resolves two playwright copies (#600).
@@ -105,6 +118,25 @@ updates:
       interval: weekly
     labels:
       - dependencies
+    ignore:
+      # Umbel stays on wasmtime's 48 long-term line (D39 in endpoints/umbel/docs/decisions.md);
+      # patches within it still arrive. The next move, to the 60 line, is made by hand, with all
+      # three crates together (#1851, #2082, #2083, #2085).
+      - dependency-name: wasmtime
+        versions:
+          - '>=49'
+      - dependency-name: wasmtime-wasi
+        versions:
+          - '>=49'
+      - dependency-name: wasmtime-wasi-io
+        versions:
+          - '>=49'
+      # The SSE types the bounded HTTP client returns are rmcp's, so sse-stream moves when
+      # rmcp's own dependency on it does: 0.3 alone resolves a second copy and fails to compile
+      # (#1852).
+      - dependency-name: sse-stream
+        versions:
+          - '>=0.3'
     groups:
       cargo-minor-patch:
         update-types:
