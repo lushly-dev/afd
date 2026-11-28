@@ -576,7 +576,7 @@ wheels = [
 
 [[package]]
 name = "lushly-botcore"
-version = "0.11.0"
+version = "0.12.0"
 source = { editable = "../endpoints/botcore" }
 dependencies = [
     { name = "afd" },

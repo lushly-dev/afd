@@ -11,6 +11,36 @@ as a dated section when a release is prepared, so nothing is added under `Unrele
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-28
+
+A minor release that retires the managed host's `{name}-start`, `{name}-call` and `{name}-docs` MCP tools for AFD's own, adds the `info_catalog` and `info_docs` commands that carry what they returned, raises the `afd` floor to 0.14.0, and fixes the factory gateway's handling of an unkeyed outage. Upgraders have three things to do. Move a client that still calls the retired tools to `afd-discover`, `afd-call` (`input`, not `arguments`), `info_catalog` and `info_docs`. Rename a plugin or extra command already named `info_catalog` or `info_docs`, which now makes `build_host` raise `Duplicate command`. And upgrade `afd` to 0.14.0 or later alongside Botcore.
+
+### Breaking changes
+
+- **`create_host_mcp_server` no longer serves the `{name}-start`, `{name}-call` and `{name}-docs` tools (#2505).** They were compatibility aliases for AFD's own tools and shipped as such in 0.10.0. A client calls these instead:
+  - **`{name}-start`:** `afd-discover` lists the commands, and `afd-detail` gives each one's description, input schema and declared effects. Each command now carries its effects as `effect:<name>` tags, which `afd-discover` also filters on. The new `info_catalog` command returns what `-start` did: every catalog row the caller may see, with its policy, plus the host's profile and documentation topics. It leaves out `-start`'s absolute `workspace` and `target`, as the HTTP host's catalog does; `info_workspace` has them where a host serves it.
+  - **`{name}-call`:** `afd-call` takes `{"command": ..., "input": {...}}` where the alias took `arguments`.
+  - **`{name}-docs`:** the new `info_docs` command.
+
+  The three names stay reserved, so a host command cannot take one. A call to one is refused as `TOOL_RETIRED`, with a suggestion naming its replacement. `{name}-run` (`raw_python=True`) is unchanged. So are the legacy trusted-local `create_mcp_server` (`botcore serve`) and its tools.
+- **Every host from `build_host` now serves two more commands, `info_catalog` and `info_docs`** (`info-catalog` and `info-docs` under `kebab_names=True`), whatever `core_commands` selects. A plugin or extra command already using either name now makes `build_host` raise `Duplicate command`. Every host's catalog gains the two rows, so the host CLI's `catalog`, the HTTP host's catalog and `afd-discover`'s totals each list two more commands.
+
+### Added
+
+- **`info_catalog()` and `info_docs(topic="overview")` describe the host serving the call on every surface (#2505):** the host CLI's `call`, DirectClient and MCP (`afd-call`, or each one's own tool under `command_tools=True`).
+  - **`info_docs`:** `overview` lists the host's documentation topics (core docs and every plugin's `add_docs`). An unknown topic is refused as `UNKNOWN_TOPIC`, naming the topics that exist.
+  - **The serving host:** the commands describe the innermost host running the call, or the host it names in the new `CommandHost.serves_as`. A host that runs each call on a child host, as Alfred's does, sets the child's `serves_as` to itself, so the catalog is its own, including any fields its `catalog()` adds. `botcore.host.serving_host(host)` names one by hand.
+  - **Authorization:** `info_catalog` leaves out the commands the caller's scope view hides (spec/authorization.md, M6), as `afd-discover` does.
+  - **Called outside a host,** each command is refused as `NO_HOST`.
+
+### Changed
+
+- **Botcore requires `afd>=0.14.0`, and its `mcp` extra `afd[server]>=0.14.0`** (was `afd>=0.9.0` and `afd[server]>=0.13.0`). `CommandPolicy(secret=True)` relies on `afd.core.open_dispatch` and `afd.server.run_off_tape`, which first ship in afd 0.14.0, so the fallback that left `secret` without effect on an older afd, and the `RuntimeWarning` it raised at registration, are removed. **Migration:** upgrade `afd` to 0.14.0 or later alongside Botcore.
+
+### Fixed
+
+- **The factory gateway no longer calls an unanswered `issue-create` or `issue-comment` without a `dedupe_key` retryable.** GitHub may have made the write it did not answer, so repeating the call could file the issue or post the comment twice. That answer is now `GITHUB_UNAVAILABLE` with `retryable: false` and a suggestion to look for the write first (for a filing, a `gh issue list` read, and with a `parent` the `issue-set` that attaches it); with a `dedupe_key`, a repeat still finds the first write. An outage GitHub cannot have acted on (a connection that never opened, no installation token, a rate limit) stays retryable: `GitHubUnavailable` carries `sent` (#2850).
+
 ## [0.11.0] - 2026-11-27
 
 A minor release adding MCP Skills extension serving on managed hosts (`io.modelcontextprotocol/skills`), `skill-usage-effect` and fleet-cell judging in `skill-usage-triggers`, `CommandPolicy(secret=True)` for host journals (with `afd 0.14.0` or later, journals behind a `CommandHost` stop recording secret calls unless `redact` is supplied; see `Changed` below), factory gateway issue types/parents (`issue-create`, `issue-set`, `issue-get`) and `pr-merge` cancel dequeue reporting, plus three fixes: kept git checkouts inside `[[aged]]` folders in `disk-reclaim` no longer fail a run, Windows local-path git origins name their repository, and `botcore-factory`'s `lane-start` keeps its lane running on Windows. Includes two breaking changes for upgraders: `create_host_mcp_server` now validates bundled and registered plugin skill folders at startup, and custom `botcore-factory` gateway `GitHub` adapters must accept `type` on `create_issue` and implement the four issue-type/sub-issue methods.
