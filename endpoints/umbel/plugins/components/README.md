@@ -82,8 +82,14 @@ title = "Component libraries"
 description = "The component libraries this space's agents are briefed on."
 ```
 
-Write the files with Specimen's `pack-export`. A new override needs a restart, and a changed one is
-not rechecked against the host's pack limits until then.
+Write the files with Specimen's `pack-export`, or copy a library's from its npm package when it
+ships them: `@lushly-dev/violet-elements` carries its pack in the exported form at `dist/pack/` from
+the first release after `0.2.0-preview.6`. On each call's first read of the pack, the host looks for
+the override and checks it against its pack rules (the manifest, the layout and the limits; Umbel's
+D222). A new or changed override is served without a restart, and a removed one gives way to the
+plugin's default. One that breaks those rules while the host runs refuses the calls that read it,
+answered here as `PACK_UNREADABLE`, until it is put right; at start it still fails the plugin's
+load. A space added to the workspace still needs a restart.
 
 ## Use in this repository
 
