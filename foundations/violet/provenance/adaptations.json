@@ -133,9 +133,9 @@
       "path": "endpoints/violet-cli/src/cli.test.ts",
       "upstream_path": "packages/cli/src/cli.test.ts",
       "upstream_sha256": "64e2b5a8d70acf9b42f5c0c0325d48675a6da9bd35f753d45dfde7cfce4e75c4",
-      "current_import_sha256": "059a1d5944a7f6d920c67ac59a566e09f9229e429d7c20beb166eb19532ffa6a",
+      "current_import_sha256": "7067ee7184ac260fb7fa22a9e6956ab11156b7e7365e28986f71dc4717d8f1e7",
       "classification": "adapted",
-      "reason": "Package specifier @lushly-dev/violet-afd; header comment names where command logic is tested Make trend test query clocks later than fixture writes so exclusive upper bounds cannot omit same-millisecond events or snapshots. Close the databases a failed command left open before removing the temporary directory, which Windows refuses while the file is open.; #497: daily persistent SQLite snapshot workflow, file-driven persistence refusal, focused coverage and indefinite retention decision; The registry holds 49 commands with export.tree, interface.check and token.remove (lushly-dev/afd#1322, #1323, #1328)",
+      "reason": "Package specifier @lushly-dev/violet-afd; header comment names where command logic is tested Make trend test query clocks later than fixture writes so exclusive upper bounds cannot omit same-millisecond events or snapshots. Close the databases a failed command left open before removing the temporary directory, which Windows refuses while the file is open.; #497: daily persistent SQLite snapshot workflow, file-driven persistence refusal, focused coverage and indefinite retention decision; The registry holds 49 commands with export.tree, interface.check and token.remove (lushly-dev/afd#1322, #1323, #1328); the realistic demo tests get 180 s and the seeding hook 60 s, since a loaded lane host took 64 s (lushly-dev/afd#2866)",
       "candidate": {
         "path": "packages/cli/src/cli.test.ts",
         "sha256": "feb861d9a2f27a4c24b51ab38c5ea032e8f4440cbbecc27a8a10f592ff12c15e",

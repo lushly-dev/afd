@@ -8,6 +8,9 @@ export default defineConfig({
 		globalSetup: ['./vitest.global-setup.ts'],
 		// Output assertions check for escape sequences; keep chalk's colors out of them.
 		env: { FORCE_COLOR: '0' },
+		// A loaded lane host (Windows, with other suites building) runs past Vitest's 5 s default (#2866).
+		testTimeout: 30_000,
+		hookTimeout: 30_000,
 		coverage: {
 			provider: 'v8',
 			reporter: ['text', 'json', 'html'],
