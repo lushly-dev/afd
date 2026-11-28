@@ -25,8 +25,8 @@
 		"clean": "rimraf dist *.tsbuildinfo"
 	},
 	"dependencies": {
-		"@lushly-dev/afd-core": "workspace:^2.2.0",
-		"@lushly-dev/afd-server": "workspace:^2.2.0",
+		"@lushly-dev/afd-core": "workspace:^",
+		"@lushly-dev/afd-server": "workspace:^",
 		"@lushly-dev/specimen": "workspace:^",
 		"@lushly-dev/specimen-afd": "workspace:^"
 	},

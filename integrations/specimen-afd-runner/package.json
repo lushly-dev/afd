@@ -27,8 +27,8 @@
 	},
 	"sideEffects": false,
 	"dependencies": {
-		"@lushly-dev/afd-core": "workspace:^2.2.0",
-		"@lushly-dev/afd-testing": "workspace:^2.2.0",
+		"@lushly-dev/afd-core": "workspace:^",
+		"@lushly-dev/afd-testing": "workspace:^",
 		"@lushly-dev/specimen": "workspace:^"
 	},
 	"devDependencies": {

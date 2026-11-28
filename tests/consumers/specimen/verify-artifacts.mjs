@@ -20,6 +20,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import semver from 'semver';
 import { execTool, spawnTool, tarCommand } from '../../../scripts/release/exec-tool.mjs';
 import { assertOverridesApplied, peerIssue, writeConsumer } from '../pnpm.mjs';
 
@@ -229,6 +230,17 @@ assert.equal(integrationPeers['@lushly-dev/specimen'], 'workspace:^');
 const packedPeers = { ...integrationPeers, '@lushly-dev/specimen': `^${specimenVersion}` };
 assert.deepEqual(integration.peerDependencies, packedPeers);
 const cli = packedManifest('@lushly-dev/specimen-cli');
+// AFD ranges stated here, not read from the manifests: the integration needs afd-core 2.5.0's
+// AFD_OUTPUT_BUDGET_META_KEY and afd-server's ./direct, and must also accept AFD 3 (#2885).
+for (const afd of ['@lushly-dev/afd-core', '@lushly-dev/afd-server'])
+	for (const [range, owner] of [
+		[integration.peerDependencies[afd], 'specimen-afd peer'],
+		[cli.dependencies[afd], 'specimen-cli dependency'],
+	]) {
+		assert(semver.satisfies('2.5.0', range), `${owner} ${afd}@${range} rejects 2.5.0`);
+		assert(semver.satisfies('3.0.0', range), `${owner} ${afd}@${range} rejects 3.0.0`);
+		assert(!semver.satisfies('2.4.0', range), `${owner} ${afd}@${range} admits 2.4.0`);
+	}
 assert.deepEqual(cli.bin, { specimen: './dist/bin.js' });
 const host = packedManifest(hostPackage);
 assert.equal(host.version, native.version);
@@ -567,20 +579,22 @@ for (const peer of ['@lushly-dev/specimen', '@lushly-dev/afd-core', '@lushly-dev
 	);
 passed('integration without peers is rejected (missing peer)');
 
-async function fake(name, packageName) {
+async function fake(name, packageName, version) {
 	const root = join(consumers, name);
 	await mkdir(root, { recursive: true });
 	await writeFile(
 		join(root, 'package.json'),
-		JSON.stringify({ name: packageName, version: '3.0.0', type: 'module' })
+		JSON.stringify({ name: packageName, version, type: 'module' })
 	);
 	return `file:${root}`;
 }
+// The afd peers accept 2.5 and later and 3.x (#2885), so the incompatible afd-core is a 4.0.0.
 const incompatible = {
-	'@lushly-dev/specimen': await fake('fake-specimen-3', '@lushly-dev/specimen'),
-	'@lushly-dev/afd-core': await fake('fake-afd-core-3', '@lushly-dev/afd-core'),
+	'@lushly-dev/specimen': '3.0.0',
+	'@lushly-dev/afd-core': '4.0.0',
 };
-for (const [peer, version] of Object.entries(incompatible)) {
+for (const [peer, fakeVersion] of Object.entries(incompatible)) {
+	const version = await fake(`fake-${peer.split('/')[1]}-${fakeVersion}`, peer, fakeVersion);
 	const dependencies = {
 		'@lushly-dev/specimen-afd': file('@lushly-dev/specimen-afd'),
 		'@lushly-dev/specimen': file('@lushly-dev/specimen'),
@@ -593,14 +607,14 @@ for (const [peer, version] of Object.entries(incompatible)) {
 		overrides: false,
 	});
 	assert.match(result.log, /ERR_PNPM_PEER_DEP_ISSUES/);
-	// pnpm 12 names the installed peer by its specifier, here the 3.0.0 fake, not by its version.
+	// pnpm 12 names the installed peer by its specifier, here the fake, not by its version.
 	const issue = peerIssue(result.log, 'unmet', peer);
 	assert.ok(
 		issue?.installed === `file:../${basename(version)}` &&
 			issue.wanted[packedPeers[peer]]?.includes(wantedBy),
 		result.log
 	);
-	passed(`integration with ${peer}@3.0.0 is rejected (unmet peer)`);
+	passed(`integration with ${peer}@${fakeVersion} is rejected (unmet peer)`);
 }
 
 const receipt = {

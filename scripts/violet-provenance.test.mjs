@@ -96,7 +96,7 @@ test('the native core has no AFD edge and the integration uses the workspace AFD
 	);
 	assert.equal(core.exports['./commands'], undefined);
 	const afd = json('integrations/violet-afd/package.json');
-	assert.equal(afd.dependencies['@lushly-dev/afd-core'], 'workspace:^2.2.0');
+	assert.equal(afd.dependencies['@lushly-dev/afd-core'], 'workspace:^2.2.0 || ^3.0.0');
 	// A workspace range packs as the core version it was built against, and Changesets never counts
 	// a release as leaving it; a plain range a fixed-group minor left would major-bump the
 	// integration, and with it the whole group.

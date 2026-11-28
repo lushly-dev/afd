@@ -1201,10 +1201,10 @@ importers:
   endpoints/specimen-cli:
     dependencies:
       '@lushly-dev/afd-core':
-        specifier: workspace:^2.2.0
+        specifier: workspace:^2.5.0 || ^3.0.0
         version: link:../../packages/core
       '@lushly-dev/afd-server':
-        specifier: workspace:^2.2.0
+        specifier: workspace:^2.5.0 || ^3.0.0
         version: link:../../packages/server
       '@lushly-dev/specimen':
         specifier: workspace:^
@@ -1235,10 +1235,10 @@ importers:
   endpoints/specimen-server:
     dependencies:
       '@lushly-dev/afd-core':
-        specifier: workspace:^2.2.0
+        specifier: workspace:^
         version: link:../../packages/core
       '@lushly-dev/afd-server':
-        specifier: workspace:^2.2.0
+        specifier: workspace:^
         version: link:../../packages/server
       '@lushly-dev/specimen':
         specifier: workspace:^
@@ -1615,10 +1615,10 @@ importers:
         version: 4.6.7
     devDependencies:
       '@lushly-dev/afd-core':
-        specifier: workspace:^2.2.0
+        specifier: workspace:^
         version: link:../../packages/core
       '@lushly-dev/afd-server':
-        specifier: workspace:^2.2.0
+        specifier: workspace:^
         version: link:../../packages/server
       '@lushly-dev/specimen':
         specifier: workspace:^
@@ -1642,10 +1642,10 @@ importers:
   integrations/specimen-afd-runner:
     dependencies:
       '@lushly-dev/afd-core':
-        specifier: workspace:^2.2.0
+        specifier: workspace:^
         version: link:../../packages/core
       '@lushly-dev/afd-testing':
-        specifier: workspace:^2.2.0
+        specifier: workspace:^
         version: link:../../packages/testing
       '@lushly-dev/specimen':
         specifier: workspace:^
@@ -1691,7 +1691,7 @@ importers:
   integrations/violet-afd:
     dependencies:
       '@lushly-dev/afd-core':
-        specifier: workspace:^2.2.0
+        specifier: workspace:^2.2.0 || ^3.0.0
         version: link:../../packages/core
       '@neondatabase/serverless':
         specifier: ^1.1.0
