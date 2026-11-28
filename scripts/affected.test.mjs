@@ -1307,6 +1307,25 @@ test("loam-desktop.yml runs on the slice's scenario files, p4-base's calls and a
 	}
 });
 
+test("loam.yml runs the web host's units on the decision log, which ceiling-raises reads, and on no other Loam doc (#2926)", () => {
+	const root = join(import.meta.dirname, '..');
+	const { paths, gates } = readTrigger(
+		readFileSync(join(root, '.github/workflows/loam.yml'), 'utf8')
+	);
+	const scope = (files) => resolveScope({ root, files, git: () => '' });
+	const decisions = scope(['endpoints/loam/docs/decisions.md']);
+	assert.deepEqual(decisions.affected, ['@lushly-dev/loam-web']);
+	assert.equal(workflowTrigger(decisions, { paths, gates }).run, true);
+	assert.equal(gate(decisions, parseArgs(['gate', ...gates.get('run')], {})).run, true);
+	for (const file of [
+		'endpoints/loam/docs/STATUS.md',
+		'endpoints/loam/docs/phases/5-copilot/spec.md',
+	]) {
+		assert.deepEqual(scope([file]).affected, [], `scope of ${file}`);
+		assert.equal(workflowTrigger(scope([file]), { paths, gates }).run, false, `trigger: ${file}`);
+	}
+});
+
 test('loam.yml gates test:webkit to darwin and reports it as remote only on win32 and linux (#2366)', () => {
 	const repoRoot = join(import.meta.dirname, '..');
 	const suite = SUITES.find((entry) => entry.workflow === 'loam.yml');

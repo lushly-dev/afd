@@ -300,6 +300,8 @@ export const WORKFLOW_GRAPH = {
 			'integrations/specimen-afd-runner/**',
 			'integrations/violet-afd/**',
 			'architecture.json',
+			// The web host's ceiling-raises unit reads the decision log (#2926); the rest of the docs folder is prose.
+			'endpoints/loam/docs/decisions.md',
 		],
 	},
 	'python.yml': {
