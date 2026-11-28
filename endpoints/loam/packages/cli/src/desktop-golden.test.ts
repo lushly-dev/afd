@@ -21,6 +21,7 @@ interface GoldenApp {
 		auth: 'approver' | 'agent' | 'none';
 		labels: string;
 		approvals: string;
+		views?: boolean;
 		expose: Record<string, boolean>;
 		commands: Record<string, unknown>;
 	};
@@ -80,6 +81,7 @@ async function layout(root: string): Promise<string> {
 				...(app.mount.auth === 'none' ? {} : { bearer_file: `keys/${app.instance}.token` }),
 				labels: app.mount.labels,
 				approvals: app.mount.approvals,
+				...(app.mount.views === undefined ? {} : { views: app.mount.views }),
 				expose: app.mount.expose,
 				commands: app.mount.commands,
 			});
@@ -146,10 +148,11 @@ describe('the golden desktop projection (P5-S9-6, the CLI half)', () => {
 			expect(served).not.toContain(secret);
 	});
 
-	it('covers a native app, a view, an authenticated mount and a provider', () => {
+	it('covers a native app, a view, an authenticated mount that lets its views render, and a provider', () => {
 		const kinds = golden.apps.map((app) => app.manifest.plugin.kind).sort();
 		expect(kinds).toEqual(['mounted', 'native', 'view']);
 		expect(golden.apps.some((app) => app.mount && app.mount.auth !== 'none')).toBe(true);
+		expect(golden.apps.some((app) => app.mount?.views === true)).toBe(true);
 		expect(golden.copilot.providers.length).toBeGreaterThan(0);
 		const order = golden.apps.map((app) => `${app.plugin}/${app.instance}`);
 		expect(order).toEqual([...order].sort());

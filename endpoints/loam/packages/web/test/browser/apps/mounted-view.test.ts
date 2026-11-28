@@ -5,19 +5,15 @@
  * sandbox origin, and this suite holds, from inside those frames, what T32 asks: the outer frame has no `allow` (no
  * `tools`), the inner one is opaque, under the view CSP with `form-action 'none'`, with no permission; its broker answers
  * no `tools/call` and reads only the listed views; and the slot is the page's alone, so a reload shows none and fetches
- * nothing. Desktop's half is not here.
+ * nothing. Desktop's half, on the same server (`mounted/view-server.ts`), is `desktop/test/mounted-view.test.ts`.
  */
 import { mkdtemp, rm } from 'node:fs/promises';
-import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { success } from '@lushly-dev/afd-core';
-import { createMcpHandler, defineCommand, MCP_APP_MIME_TYPE } from '@lushly-dev/afd-server';
 import { type Browser, chromium, type Frame, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { z } from 'zod';
 import { packUmbel, untilInstance } from '../../mounted/support';
+import { OTHER, startViewServer, type ViewServer } from '../../mounted/view-server';
 import {
 	type DeploymentSite,
 	kernelCall,
@@ -27,99 +23,6 @@ import {
 	settle,
 	surfacesIdle,
 } from '../harness';
-
-/** The view: it initializes, then waits for the test to speak for it through `window.rpc`. */
-const VIEW = `<!doctype html>
-<html lang="en">
-	<head><meta charset="utf-8" /><title>Probe view</title></head>
-	<body>
-		<main><h1>Mounted probe</h1>
-		<form action="https://example.com/collect" method="post"><input name="q" value="1" /></form></main>
-		<script>
-			const waiting = new Map();
-			let next = 1;
-			window.rpc = (method, params) => new Promise((resolve) => {
-				const id = next++;
-				waiting.set(id, resolve);
-				parent.postMessage({ jsonrpc: '2.0', id, method, params }, '*');
-			});
-			addEventListener('message', (event) => {
-				const message = event.data;
-				if (event.source !== parent || !waiting.has(message?.id)) return;
-				waiting.get(message.id)(message);
-				waiting.delete(message.id);
-			});
-			window.rpc('ui/initialize', {
-				protocolVersion: '2026-01-26', appInfo: { name: 'probe', version: '0.1.0' }, appCapabilities: {},
-			}).then(() => {
-				parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} }, '*');
-				window.ready = true;
-			});
-		</script>
-	</body>
-</html>`;
-const OTHER = '<!doctype html><p>Another listed view</p>';
-const SECRET = '<!doctype html><p>Served, never listed</p>';
-
-/** A mounted AFD server with one command and `ui://` views, recording each read it is asked for. */
-interface ViewServer {
-	url: string;
-	reads: string[];
-	close(): Promise<void>;
-}
-
-async function startViewServer(prefix: string): Promise<ViewServer> {
-	const reads: string[] = [];
-	const served: Record<string, string> = {
-		[`ui://${prefix}/thread`]: VIEW,
-		[`ui://${prefix}/other`]: OTHER,
-		[`ui://${prefix}/secret`]: SECRET,
-	};
-	const handler = createMcpHandler({
-		name: 'loam-view-fixture',
-		version: '0.0.0',
-		commands: [
-			defineCommand({
-				name: `${prefix}-ping`,
-				description: 'Answers pong, so a refused view call that reached it would show',
-				mutation: false,
-				expose: { mcp: true, palette: true, agent: true },
-				input: z.object({}),
-				handler: async () => success({ pong: true }),
-			}),
-		] as never,
-		host: '127.0.0.1',
-		toolStrategy: 'hybrid',
-		firstClassTools: [`${prefix}-ping`],
-		bootstrap: true,
-		resources: {
-			list: () =>
-				['thread', 'other'].map((name) => ({
-					uri: `ui://${prefix}/${name}`,
-					name,
-					mimeType: MCP_APP_MIME_TYPE,
-				})),
-			read(uri) {
-				reads.push(uri);
-				const content = served[uri];
-				return content === undefined ? undefined : { content, mimeType: MCP_APP_MIME_TYPE };
-			},
-		},
-	});
-	const server: Server = createServer((incoming, outgoing) => handler(incoming, outgoing));
-	await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
-	const { port } = server.address() as AddressInfo;
-	return {
-		url: `http://127.0.0.1:${port}/mcp`,
-		reads,
-		close: () =>
-			new Promise((done) => {
-				handler.dispose();
-				server.closeAllConnections();
-				server.close(() => done());
-			}),
-	};
-}
 
 let browser: Browser;
 let directory: string;

@@ -138,21 +138,35 @@ fn emit_ok<T: serde::Serialize>(data: &T, json_out: bool, human: impl FnOnce()) 
     0
 }
 
-fn print_proposal(proposal: &PluginInstallProposalV1) {
-    println!(
+/// 7.2's notice for `engine.mount.views = true` (D169), in Loam's own fixed words.
+pub const VIEWS_NOTICE: &str = "This engine's own pages may open inside Loam, in a sandbox that can read its own pages but cannot run its commands.";
+
+/// The consent text the CLI prints for `proposal`, in Loam's own words (amendment 7.2).
+fn proposal_text(proposal: &PluginInstallProposalV1) -> String {
+    let mut out = String::new();
+    macro_rules! say {
+        ($($line:tt)*) => {{
+            out.push_str(&format!($($line)*));
+            out.push('\n');
+        }};
+    }
+    say!(
         "Plugin: {} ({}) v{} [{}]",
-        proposal.title, proposal.plugin_id, proposal.version, proposal.kind
+        proposal.title,
+        proposal.plugin_id,
+        proposal.version,
+        proposal.kind
     );
-    println!("Description: {}", proposal.description);
+    say!("Description: {}", proposal.description);
     if let Some(license) = &proposal.license {
-        println!("License: {license}");
+        say!("License: {license}");
     }
     if let Some(homepage) = &proposal.homepage {
-        println!("Homepage: {homepage}");
+        say!("Homepage: {homepage}");
     }
-    println!("Bundle SHA-256: {}", proposal.bundle_sha256);
+    say!("Bundle SHA-256: {}", proposal.bundle_sha256);
     if let Some(prev) = &proposal.previous {
-        println!("Upgrading from: v{} ({})", prev.version, prev.bundle_sha256);
+        say!("Upgrading from: v{} ({})", prev.version, prev.bundle_sha256);
     }
     for app in &proposal.apps {
         let grants = if app.grants.is_empty() {
@@ -160,33 +174,43 @@ fn print_proposal(proposal: &PluginInstallProposalV1) {
         } else {
             app.grants.join(", ")
         };
-        println!(
+        say!(
             "  App: {} ({}) [{}] — grants: {}",
-            app.title, app.id, app.kind, grants
+            app.title,
+            app.id,
+            app.kind,
+            grants
         );
         if app.is_native {
-            println!("    WARNING: Native app runs with full shell trust — not sandboxed.");
+            say!("    WARNING: Native app runs with full shell trust — not sandboxed.");
         }
     }
     if let Some(engine) = &proposal.engine {
-        println!(
+        say!(
             "  Engine: {} ({}, target {})",
-            engine.id, engine.artifact_name, engine.target
+            engine.id,
+            engine.artifact_name,
+            engine.target
         );
-        println!("  Engine SHA-256: {}", engine.engine_sha256);
-        println!(
+        say!("  Engine SHA-256: {}", engine.engine_sha256);
+        say!(
             "  Launch: {} serve --port <chosen at install> (login auto-start)",
             engine.artifact_name
         );
-        println!(
+        say!(
             "  Policy: auth={}, labels={}, approvals={}",
-            engine.auth_mode, engine.labels, engine.approvals
+            engine.auth_mode,
+            engine.labels,
+            engine.approvals
         );
+        if engine.views {
+            say!("  {VIEWS_NOTICE}");
+        }
         if !engine.exposed_commands.is_empty() {
-            println!("  Exposed commands: {}", engine.exposed_commands.join(", "));
+            say!("  Exposed commands: {}", engine.exposed_commands.join(", "));
         }
         for p in &engine.previews {
-            println!(
+            say!(
                 "    Approval preview: {} -> {} ({})",
                 p.command,
                 p.preview_command,
@@ -194,6 +218,11 @@ fn print_proposal(proposal: &PluginInstallProposalV1) {
             );
         }
     }
+    out
+}
+
+fn print_proposal(proposal: &PluginInstallProposalV1) {
+    print!("{}", proposal_text(proposal));
 }
 
 fn prompt_yes(question: &str) -> bool {
@@ -373,5 +402,52 @@ fn cmd_retry_revocation(host: &PluginHost<'_>, token_id: &str, json_out: bool) -
             },
         ),
         Err(err) => emit_error(&err, json_out),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::plugins::ProposalEngineSummary;
+
+    fn proposal(views: bool) -> PluginInstallProposalV1 {
+        PluginInstallProposalV1 {
+            proposal_id: "p".into(),
+            kind: "install",
+            plugin_id: "mail".into(),
+            title: "Mail".into(),
+            version: "0.1.0".into(),
+            description: "Mail.".into(),
+            license: None,
+            homepage: None,
+            bundle_sha256: "a".repeat(64),
+            apps: Vec::new(),
+            engine: Some(ProposalEngineSummary {
+                id: "loam-mail".into(),
+                target: "linux-x64".into(),
+                artifact_path: "engines/linux-x64/loam-mail".into(),
+                artifact_name: "loam-mail".into(),
+                engine_sha256: "b".repeat(64),
+                mount_app: "mail".into(),
+                auth_mode: "agent".into(),
+                labels: "whole".into(),
+                approvals: "none".into(),
+                views,
+                previews: Vec::new(),
+                exposed_commands: Vec::new(),
+            }),
+            previous: None,
+        }
+    }
+
+    #[test]
+    fn the_consent_shows_the_views_notice_only_when_the_engine_lets_its_views_render() {
+        // Amendment 7.2 (D169): Loam's own words, once, and only for `views = true`.
+        assert_eq!(
+            proposal_text(&proposal(true)).matches(VIEWS_NOTICE).count(),
+            1
+        );
+        assert!(!proposal_text(&proposal(false)).contains(VIEWS_NOTICE));
+        assert!(!proposal_text(&proposal(false)).contains("pages may open inside Loam"));
     }
 }

@@ -554,7 +554,14 @@ fn validate_mount_schema(mount: &[(String, Json)], refusals: &mut Vec<Validation
     check_allowed_keys(
         mount,
         "engine.mount",
-        &["audience", "labels", "approvals", "expose", "commands"],
+        &[
+            "audience",
+            "labels",
+            "approvals",
+            "views",
+            "expose",
+            "commands",
+        ],
         refusals,
     );
     if let Some(aud) = optional_str(mount, "audience", "engine.mount", refusals)
@@ -587,6 +594,8 @@ fn validate_mount_schema(mount: &[(String, Json)], refusals: &mut Vec<Validation
             "invalid approvals",
         ));
     }
+    // D169's opt-in on a managed desktop (amendment 4.4): a boolean, shown at consent (7.2).
+    optional_bool(mount, "views", "engine.mount", refusals);
     if let Some((_, expose_val)) = mount.iter().find(|(k, _)| k == "expose") {
         let Json::Obj(expose) = expose_val else {
             refusals.push(ValidationRefusal::new(

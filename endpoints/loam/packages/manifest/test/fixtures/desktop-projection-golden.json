@@ -1,5 +1,5 @@
 {
-	"description": "The desktop's golden projection (phase 5 no-terminal amendment, 9.3; D168): one input, and what `loam deployment write --host desktop` (@lushly-dev/loam-cli's desktop-golden.test.ts) and loam-desktop's Rust materializer (step 9b) each write from it. `apps` is in the projection's order, which is the materializer's (plugin id, then app id); each names the plugin that brings it. An expected file's bytes are its object here, keys in the order written, serialized with tab indentation and a trailing newline. `mounts` lists the fields both write; the CLI adds `bearer`, the materializer `bearer_keychain` and `proof_key`, which each test asserts apart.",
+	"description": "The desktop's golden projection (phase 5 no-terminal amendment, 9.3; D168): one input, and what `loam deployment write --host desktop` (@lushly-dev/loam-cli's desktop-golden.test.ts) and loam-desktop's Rust materializer (step 9b) each write from it. `apps` is in the projection's order, which is the materializer's (plugin id, then app id); each names the plugin that brings it. An expected file's bytes are its object here, keys in the order written, serialized with tab indentation and a trailing newline. The mounted app lets its views render (`views`, D169), which the materializer reads from `engine.mount` and the CLI from the entry. `mounts` lists the fields both write; the CLI adds `bearer`, the materializer `bearer_keychain` and `proof_key`, which each test asserts apart.",
 	"platform": "linux",
 	"workspace": {
 		"id": "personal",
@@ -65,6 +65,7 @@
 				"auth": "approver",
 				"labels": "per-part",
 				"approvals": "shell",
+				"views": true,
 				"expose": {
 					"agent": true,
 					"palette": true
@@ -113,7 +114,7 @@
 	"expected": {
 		"deployment": {
 			"deployment_version": 4,
-			"generation": "sha256-936727771bc472e8a613b600f58d209bc834660565039cac15ed673eac8202ac",
+			"generation": "sha256-b79537aa46b0d1e764677aa76857b6aa3a3d718dc054ef8e79e0ce40513bec95",
 			"workspace": {
 				"id": "personal",
 				"name": "Personal"
@@ -162,6 +163,7 @@
 					"route": "mounts/mail/mcp",
 					"labels": "per-part",
 					"approvals": "shell",
+					"views": true,
 					"expose": {
 						"agent": true,
 						"palette": true

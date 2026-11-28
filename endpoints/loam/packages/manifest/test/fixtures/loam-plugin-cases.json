@@ -164,9 +164,35 @@
 					}
 				]
 			}
+		},
+		{
+			"name": "a mount that lets the shell render its views (D169)",
+			"patch": {
+				"engine": {
+					"mount": {
+						"views": true
+					}
+				}
+			}
 		}
 	],
 	"refused": [
+		{
+			"name": "a views opt-in that is not a boolean",
+			"patch": {
+				"engine": {
+					"mount": {
+						"views": "yes"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.mount.views"
+				}
+			]
+		},
 		{
 			"name": "a command line",
 			"patch": {

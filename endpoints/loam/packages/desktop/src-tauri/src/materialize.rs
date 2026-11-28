@@ -75,7 +75,8 @@ pub struct Materialized {
     pub models: String,
     /// `mounts.json`'s bytes.
     pub mounts: String,
-    /// The shell's `frame-src`: the sandbox origin when an app is a view or a provider is configured, else `'none'`.
+    /// The shell's `frame-src`: the sandbox origin when an app is a view, a mounted instance lets its views render
+    /// (`views`, D169) or a provider is configured, else `'none'`.
     pub frame_src: String,
     /// Deterministic `<plugin-id> <bundleSha256>\n` lines written to `site/.loam-bundles` so
     /// startup reconciliation detects uncommitted app-only JS upgrades even when `deployment.json`,
@@ -331,7 +332,8 @@ struct Built {
     order: (String, String),
     entry: Vec<(String, Json)>,
     boot: Json,
-    view: bool,
+    /// A view app, or a mounted instance with `views = true`: either needs the sandbox origin in `frame-src`.
+    framed: bool,
     mount: Option<Json>,
     package: Package,
 }
@@ -538,6 +540,7 @@ pub fn project_with_fallbacks(
                 ("package".to_owned(), Json::Str(format!("apps/{}/", app.id))),
             ];
             let mut mount = None;
+            let mut views = false;
             if let Some((engine, record)) = mount_engine {
                 let declared = app_manifest.get("mount").ok_or(INVALID)?;
                 let prefix = declared
@@ -568,6 +571,12 @@ pub fn project_with_fallbacks(
                 }
                 if let Some(approvals) = typed.and_then(|mount| mount.approvals) {
                     entry.push(("approvals".to_owned(), Json::str(approvals.as_str())));
+                }
+                // The opt-in that lets `shell-open` render the instance's `ui://` views (phase 5 specification, 9.3;
+                // D169), written only when it is `true`, as `deployment.ts` writes it.
+                views = typed.and_then(|mount| mount.views) == Some(true);
+                if views {
+                    entry.push(("views".to_owned(), Json::Bool(true)));
                 }
                 for key in ["expose", "commands"] {
                     if let Some(value) = policy.and_then(|policy| policy.get_present(key)) {
@@ -606,7 +615,7 @@ pub fn project_with_fallbacks(
                 order: (plugin.id.clone(), app.id.clone()),
                 entry,
                 boot: boot_record(&app.id, &app_manifest),
-                view: kind == "view",
+                framed: kind == "view" || views,
                 mount,
                 package: Package {
                     instance: app.id.clone(),
@@ -714,7 +723,7 @@ pub fn project_with_fallbacks(
         ),
         ("inbound", Json::Bool(state.inbound)),
     ]);
-    let frame_src = if built.iter().any(|app| app.view) || copilot.is_some() {
+    let frame_src = if built.iter().any(|app| app.framed) || copilot.is_some() {
         profile.sandbox_origin.to_owned()
     } else {
         "'none'".to_owned()

@@ -51,7 +51,7 @@ export const PLUGIN_ADMITTED_KEYS_V1: Readonly<Record<string, readonly string[]>
 	'/engine/artifacts': PLUGIN_TARGETS_V1,
 	'/engine/artifacts/*': ['path', 'sha256'],
 	'/engine/auth': ['mode'],
-	'/engine/mount': ['audience', 'labels', 'approvals', 'expose', 'commands'],
+	'/engine/mount': ['audience', 'labels', 'approvals', 'views', 'expose', 'commands'],
 	'/engine/mount/expose': ['agent', 'palette'],
 	'/engine/mount/commands/*': ['expose', 'effects', 'destructive', 'preview'],
 	'/engine/mount/commands/*/expose': ['agent', 'palette', 'apps'],

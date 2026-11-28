@@ -126,6 +126,10 @@
 						"approvals": {
 							"enum": ["none", "shell"]
 						},
+						"views": {
+							"description": "Whether `shell-open` may render the instance's `ui://` views in the sandboxed slot (phase 5 specification, 9.3; D169), as `views = true` on a deployment's entry; left out, it may not.",
+							"type": "boolean"
+						},
 						"expose": {
 							"type": "object",
 							"properties": {
