@@ -6,9 +6,10 @@
 //!   into it.
 //! - Failures are recorded, a person's command held for approval among them;
 //!   an approval's summary holds no text from mail.
-//! - No secret is kept: `mail-token-create`'s result and tape are removed,
-//!   and so is every approval token a held call returned, which would let
-//!   whoever reads the file run the command it was issued for.
+//! - No secret is kept: a command declaring `secret` (`mail-token-create`)
+//!   is journaled without its result's data and its tape, and every approval
+//!   token a held call returned is removed, which would let whoever reads the
+//!   file run the command it was issued for.
 //! - The file is the person's alone (`0600`), as everything in the data
 //!   directory is.
 //! - Only the process that owns the store writes it: the crate's file sink
@@ -26,7 +27,6 @@ use async_trait::async_trait;
 
 use crate::engine::Engine;
 use crate::home::{Home, create_private_dir, private_file};
-use crate::tokens;
 
 /// The journal's file in `home`.
 #[must_use]
@@ -113,9 +113,15 @@ impl JournalSink for PrivateFile {
     }
 }
 
-/// Drops what the journal must not keep from `record`.
+/// The input fields a secret call's entry keeps (13.1): `mail-token-create`'s
+/// `name` and `role`, and `source`, which `pair`'s record of it adds. Any other
+/// field of a secret call's input is removed.
+const SECRET_CALL_AUDIT_FIELDS: &[&str] = &["name", "role", "source"];
+
+/// Drops what the journal must not keep from `record`, a call to a command
+/// that declares `secret` or not (`spec/journal.md`).
 #[must_use]
-pub fn redact(mut record: JournalRecord) -> Option<JournalRecord> {
+pub fn redact(mut record: JournalRecord, secret: bool) -> Option<JournalRecord> {
     if let Some(details) = record
         .result
         .error
@@ -150,23 +156,36 @@ pub fn redact(mut record: JournalRecord) -> Option<JournalRecord> {
     {
         obj.remove("claim");
     }
-    if record.command == tokens::CREATE {
-        // The token is drawn from the operating system, not the tape; the
-        // tape goes too, as the crate advises for any secret.
+    if secret {
+        // Decided by the declaration, never the name, so a renamed command or
+        // a second one that issues a token cannot drop out (#2588). The
+        // result's data goes, and the tape too, as the crate advises for any
+        // secret; of the input only the fields named as safe to audit stay,
+        // so a secret a later command takes in its input is never kept. The
+        // entry stays, with its outcome, so the journal still says a token
+        // was made and for whom.
         record.result.data = None;
         record.tape = None;
+        record.input = match record.input {
+            serde_json::Value::Object(input) => serde_json::Value::Object(
+                input
+                    .into_iter()
+                    .filter(|(key, _)| SECRET_CALL_AUDIT_FIELDS.contains(&key.as_str()))
+                    .collect(),
+            ),
+            _ => serde_json::Value::Object(serde_json::Map::new()),
+        };
     }
     Some(record)
 }
 
-/// The entry to store for `record`: none for a command declaring `secret`
-/// (`spec/journal.md`), since `redact` knows only the commands it names, and
-/// none before the engine owns the store; otherwise `record` redacted.
+/// The entry to store for `record`: none before the engine owns the store;
+/// otherwise `record` redacted, by whether its command declares `secret`.
 fn admit(record: JournalRecord, secret: bool, owns_store: bool) -> Option<JournalRecord> {
-    if secret || !owns_store {
+    if !owns_store {
         return None;
     }
-    redact(record)
+    redact(record, secret)
 }
 
 /// Removes content payloads from the result of `command`, when its input
@@ -225,8 +244,7 @@ pub fn recorder(home: &Home, registry: &CommandRegistry, engine: Arc<Engine>) ->
         .with_record_failures(true)
         .with_filter(move |command| changes.contains(command))
         // Asked after the call, so a command that opened the store first is
-        // recorded. A command declaring `secret` is never recorded: `redact`
-        // knows only the commands it names.
+        // recorded. The recorder reads `secret` from the command it ran.
         .with_redact_info({
             let engine = Arc::clone(&engine);
             move |record, info| admit(record, info.secret, engine.owns_store())
@@ -262,14 +280,59 @@ mod tests {
         }
     }
 
-    /// A command declaring `secret` is never stored, whatever `redact` would
-    /// make of it; any other is redacted once the engine owns the store.
+    /// A call to a command declaring `secret` is stored without its result's
+    /// data or its tape, whatever its name; any other keeps them. Nothing is
+    /// stored before the engine owns the store.
     #[test]
-    fn a_secret_command_is_never_stored() {
-        assert_eq!(admit(record("mail-vault-unlock"), true, true), None);
+    fn a_secret_call_is_stored_without_its_secret() {
+        let taped = |command: &str| afd::JournalRecord {
+            tape: Some(afd::JournalTape {
+                clock: vec![1.0],
+                random: vec![0.5],
+                truncated: false,
+            }),
+            ..record(command)
+        };
+        for command in ["mail-token-create", "mail-vault-unlock"] {
+            let kept = admit(taped(command), true, true).expect("an entry");
+            assert_eq!(kept.command, command);
+            assert_eq!(kept.result.data, None, "{command}");
+            assert_eq!(kept.tape, None, "{command}");
+            assert!(kept.result.success, "{command}");
+            // A secret in the input goes too; only the audit fields stay.
+            assert_eq!(kept.input, json!({}), "{command}");
+            assert!(!format!("{kept:?}").contains("hunter2"), "{command}");
+        }
+        let audited = admit(
+            afd::JournalRecord {
+                input: json!({ "name": "claude", "role": "agent", "source": "pair", "passphrase": "hunter2" }),
+                ..record("mail-token-create")
+            },
+            true,
+            true,
+        )
+        .expect("an entry");
+        assert_eq!(
+            audited.input,
+            json!({ "name": "claude", "role": "agent", "source": "pair" })
+        );
+        let odd = admit(
+            afd::JournalRecord {
+                input: json!("hunter2"),
+                ..record("mail-token-create")
+            },
+            true,
+            true,
+        )
+        .expect("an entry");
+        assert_eq!(odd.input, json!({}));
+        // The name alone no longer redacts: only the declaration does.
+        let named = admit(taped("mail-token-create"), false, true).expect("an entry");
+        assert_eq!(named.result.data, Some(json!({ "token": "issued" })));
+        assert_eq!(named.input, json!({ "password": "hunter2" }));
+        assert!(named.tape.is_some());
+        assert_eq!(admit(record("mail-vault-unlock"), true, false), None);
         assert_eq!(admit(record("mail-vault-unlock"), false, false), None);
-        let kept = admit(record("mail-vault-unlock"), false, true).expect("an entry");
-        assert_eq!(kept.command, "mail-vault-unlock");
     }
 
     /// A discard or a restore would copy a draft's text into the journal
@@ -357,7 +420,7 @@ mod tests {
             duration_ms: 1.0,
             tape: None,
         };
-        let redacted = super::redact(record).expect("submit is still journaled");
+        let redacted = super::redact(record, false).expect("submit is still journaled");
         assert!(
             redacted.input.get("claim").is_none(),
             "{:?}",

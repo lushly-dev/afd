@@ -264,6 +264,8 @@ pub fn create(engine: Arc<Engine>) -> CommandDefinition {
         Create { engine },
     )
     .as_mutation()
+    // It returns a secret: the journal keeps the call without it (13.1).
+    .as_secret()
     .with_confirm_prompt("Make a token for an agent to reach your mail over MCP")
     .with_approval(ApprovalPolicy::when(|input, _context| {
         if name_field(input).is_ok() && role_field(input).is_ok() {
@@ -373,6 +375,14 @@ pub fn revoke(engine: Arc<Engine>) -> CommandDefinition {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `mail-token-create` returns a secret and says so, which the journal's
+    /// redaction and `pair`'s record of it both rely on (13.1, #2588).
+    #[test]
+    fn creating_a_token_declares_its_secret() {
+        let engine = Arc::new(crate::engine::Engine::new(None));
+        assert!(create(engine).secret);
+    }
 
     #[test]
     fn hashes_compare_equal_only_when_every_byte_does() {

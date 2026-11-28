@@ -2460,9 +2460,15 @@ It is in the data directory and is as private as the mail.
   and `mail-replyset-submit` strips `claim` from every journaled input (step F3).
 - **It does not hold what was read.** Read commands are left out by the recorder's filter, so
   opening and searching mail copies nothing into it.
-- **It holds no secret.** No command takes one. `mail-token-create` returns one, and the
-  recorder's redaction removes that entry's result and its tape of random values before it is
-  stored. The token is drawn from the operating system's random source, not from the command
+- **It holds no secret.** `mail-token-create` returns one and declares `secret`
+  (`spec/journal.md`), and the recorder's redaction, told the declaration with each record,
+  removes the result's data and the tape of random values from a secret call's entry before it
+  is stored, and every field of its input but `name`, `role` and `source`, so a secret a command
+  takes in its input is never kept either; the entry keeps its outcome. A command that declares
+  `secret` must name no secret `name`, `role` or `source`. `mail-replyset-submit`'s single-use
+  `claim` is removed by name (step F3). It decides by the declaration,
+  never the command's name (#2588), and `pair`'s record of the token it makes is redacted the
+  same way. The token is drawn from the operating system's random source, not from the command
   context's, so the tape could not rebuild it in any case.
 - **It records refusals without content.** Failures are recorded, approval holds among them;
   an approval's summary holds no content ([3.5](#35-commands-only-a-person-may-run)), and refused

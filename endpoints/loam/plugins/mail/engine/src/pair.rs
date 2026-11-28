@@ -381,8 +381,9 @@ pub async fn execute_pair(
         Err(error) => return Err(Box::new(store_failure(&error))),
     };
 
-    // Never place the bearer token or proofKey in the journal record; passing
-    // through `journal::redact` also strips `result.data` and `tape`.
+    // Never place the bearer token or proofKey in the journal record; it is
+    // `mail-token-create`'s, which declares `secret`, so `journal::redact`
+    // also strips `result.data` and `tape`.
     let context = crate::cli::command_line_context(false);
     let record = JournalRecord {
         timestamp: crate::journal::utc_timestamp_ms(created_at),
@@ -407,7 +408,9 @@ pub async fn execute_pair(
         duration_ms: 0.0,
         tape: None,
     };
-    engine.append_journal(record).await;
+    // `true` as `tokens::create` declares `as_secret()`; a unit in `tokens`
+    // holds the declaration.
+    engine.append_journal(record, true).await;
 
     Ok(PairOutput {
         token: secret,
@@ -468,7 +471,7 @@ pub async fn execute_unpair(
         duration_ms: 0.0,
         tape: None,
     };
-    engine.append_journal(record).await;
+    engine.append_journal(record, false).await;
 
     Ok(UnpairOutput {
         token_id: token_id.to_string(),
